@@ -29,19 +29,70 @@ const ERROR_TEXT = {
   bad_label: '이름이 너무 길거나 쓸 수 없는 문자가 있습니다.',
   empty_label: '이름을 적어 주세요.',
   agent_name_taken: '같은 이름의 에이전트가 이미 있습니다.',
+  peer_offline: '그 호스트가 오프라인입니다.',
+  peer_unreachable: '그 호스트에 닿지 못했습니다.',
+  peer_timeout: '그 호스트가 제때 답하지 않았습니다.',
+  unknown_host: '모르는 호스트입니다.',
 };
 const errText = (err) => ERROR_TEXT[err.code] || err.message;
 
-let state = { agents: [], herdr: 'connecting' };
+let state = { agents: [], terminals: [], workspaces: [], hosts: [], herdr: 'connecting' };
 let view = { name: 'list' };
-let detail = { pane: null, tab: 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1 };
-let host = null; // { kinds, recentCwds } from /api/host, loaded when a form opens
+let detail = { host: null, pane: null, tab: 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1 };
+const hostCache = new Map(); // host id -> { kinds, recentCwds, platform, home } from that host's /api/host
 let pollTimer = null;
+let resolveReady;
+const ready = new Promise((r) => (resolveReady = r)); // the first state has arrived
 
 // ------------------------------------------------------------ utilities
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const basename = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p || '';
+
+// ------------------------------------------------------------ hosts
+
+// The host a view is about: from the route (#/h/<id>/…), else this Paddock's own host.
+const localId = () => state.hostId || null;
+const curHost = () => view.host || localId();
+const hosts = () => state.hosts || [];
+const multi = () => hosts().length > 1;
+const hostOf = (id) => hosts().find((h) => h.id === id);
+const hostLabel = (id) => (hostOf(id) || {}).label || id || '';
+const online = (id) => !hostOf(id) || hostOf(id).online;
+// API path for a host: the local host directly, a peer through the hub.
+const hp = (path, host = curHost()) => (host && host !== localId() ? `/peers/${encodeURIComponent(host)}${path}` : path);
+// Every route carries its host; #/agent/… without one still means the local host.
+const link = (host, path) => `#/h/${encodeURIComponent(host || localId() || '')}${path}`;
+const same = (x, host, id, key = 'pane') => x[key] === id && (x.host || localId()) === host;
+const hostChip = (x) => (multi() ? `<span class="host-chip">${esc(x.hostLabel || hostLabel(x.host))}</span>` : '');
+
+const FILTER_KEY = 'paddock.host';
+function getFilter() {
+  try {
+    return localStorage.getItem(FILTER_KEY) || 'all';
+  } catch {
+    return 'all';
+  }
+}
+function setFilter(v) {
+  try {
+    localStorage.setItem(FILTER_KEY, v);
+  } catch {
+    /* private mode: the choice lasts until reload */
+  }
+  memFilter = v;
+}
+let memFilter = getFilter();
+// A remembered host that no longer exists falls back to everything.
+const filter = () => (memFilter !== 'all' && multi() && hostOf(memFilter) ? memFilter : 'all');
+const shown = (x) => filter() === 'all' || (x.host || localId()) === filter();
+
+const clock = (t) => (t ? new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '');
+
+async function hostInfo(id) {
+  if (!hostCache.has(id)) hostCache.set(id, await api(hp('/host', id)));
+  return hostCache.get(id);
+}
 
 async function api(path, opts = {}) {
   const res = await fetch(`/api${path}`, {
@@ -146,6 +197,7 @@ function connect() {
   const es = new EventSource('/api/stream');
   es.addEventListener('state', (e) => {
     state = JSON.parse(e.data);
+    resolveReady();
     onState();
   });
   es.onerror = () => {
@@ -157,6 +209,7 @@ function connect() {
 function onState() {
   if (view.name === 'list') return render();
   if (view.name === 'ws') return renderWorkspace();
+  if (view.name === 'settings') return renderSettings();
   if (view.name === 'term') {
     renderTerminalHeader();
     if (!detail.screen) loadTerminal(); // a pane opened just now appears with this state
@@ -171,17 +224,24 @@ function onState() {
   }
 }
 
-const currentAgent = () => state.agents.find((a) => a.pane === detail.pane);
+const currentAgent = () => state.agents.find((a) => same(a, curHost(), detail.pane));
 
 // ------------------------------------------------------------ routing
 
 function route() {
   clearInterval(pollTimer);
-  const h = location.hash.replace(/^#/, '') || '/';
-  let m = h.match(/^\/agent\/(.+)$/);
+  let h = location.hash.replace(/^#/, '') || '/';
+  let host = null;
+  let m = h.match(/^\/h\/([^/]+)(\/.*)?$/);
   if (m) {
-    view = { name: 'agent' };
-    detail = { pane: decodeURIComponent(m[1]), tab: detail.pane === decodeURIComponent(m[1]) && detail.tab ? detail.tab : 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1 };
+    host = decodeURIComponent(m[1]);
+    h = m[2] || '/';
+  }
+  if ((m = h.match(/^\/agent\/(.+)$/))) {
+    const pane = decodeURIComponent(m[1]);
+    const keepTab = detail.pane === pane && detail.host === host && detail.tab;
+    view = { name: 'agent', host };
+    detail = { host, pane, tab: keepTab ? detail.tab : 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1 };
     renderDetail();
     loadDetail();
     pollTimer = setInterval(() => {
@@ -189,16 +249,16 @@ function route() {
       if (a && (a.status === 'working' || a.status === 'blocked')) loadDetail();
     }, 3000);
   } else if ((m = h.match(/^\/term\/(.+)$/))) {
-    view = { name: 'term', pane: decodeURIComponent(m[1]) };
-    detail = { pane: view.pane, screen: null };
+    view = { name: 'term', host, pane: decodeURIComponent(m[1]) };
+    detail = { host, pane: view.pane, screen: null };
     renderTerminal();
     loadTerminal();
     pollTimer = setInterval(loadTerminal, 2500);
   } else if ((m = h.match(/^\/ws\/(.+)$/))) {
-    view = { name: 'ws', id: decodeURIComponent(m[1]) };
+    view = { name: 'ws', host, id: decodeURIComponent(m[1]) };
     renderWorkspace();
   } else if (h === '/new' || (m = h.match(/^\/start\/(ws|pane)\/(.+)$/))) {
-    view = h === '/new' ? { name: 'form', mode: 'new' } : { name: 'form', mode: m[1], target: decodeURIComponent(m[2]) };
+    view = h === '/new' ? { name: 'form', mode: 'new', host } : { name: 'form', mode: m[1], host, target: decodeURIComponent(m[2]) };
     renderForm();
   } else if (h === '/settings') {
     view = { name: 'settings' };
@@ -213,22 +273,33 @@ function route() {
 
 function render() {
   const down = state.herdr !== 'up';
-  const groups = GROUPS.map(([status, title]) => [title, state.agents.filter((a) => a.status === status)]).filter(([, list]) => list.length);
-  const terms = state.terminals || [];
-  const spaces = state.workspaces || [];
+  const f = filter();
+  const agents = state.agents.filter(shown);
+  const groups = GROUPS.map(([status, title]) => [title, agents.filter((a) => a.status === status)]).filter(([, list]) => list.length);
+  const terms = (state.terminals || []).filter(shown);
+  const spaces = (state.workspaces || []).filter(shown);
+  // Peers in view that are offline or whose herdr is down.
+  const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
+  const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '실행 중인 에이전트가 없습니다.';
   $app.innerHTML = `
     <header class="bar">
-      <h1>Paddock<span class="sub">${esc(state.host || '')}</span></h1>
-      <span class="conn ${down ? 'down' : ''}"><span class="dot"></span>${down ? (state.herdr === 'down' ? 'herdr 연결 끊김' : '연결 중') : '실시간'}</span>
-      <a class="icon-btn" href="#/new" aria-label="새 워크스페이스">${ICON.plus}</a>
+      <h1>Paddock<span class="sub">${esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f))}</span></h1>
+      <span class="conn ${down ? 'down' : ''}"><span class="dot"></span>${down ? (state.herdr === 'down' ? 'herdr 연결 끊김' : state.herdr === 'offline' ? '연결 끊김' : '연결 중') : '실시간'}</span>
+      <a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스">${ICON.plus}</a>
       <a class="icon-btn" href="#/settings" aria-label="설정">${ICON.gear}</a>
     </header>
+    ${multi() ? `
+    <nav class="seg hosts" role="group" aria-label="호스트">
+      <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
+      ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"><span class="hdot"></span>${esc(x.label)}</button>`).join('')}
+    </nav>` : ''}
     <main class="list">
+      ${trouble.map((x) => `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Paddock 이 꺼져 있습니다`}</p>`).join('')}
       ${groups.length ? groups.map(([title, list]) => `
         <section class="group">
           <h2>${esc(title)} · ${list.length}</h2>
           <div class="cards">${list.map(card).join('')}</div>
-        </section>`).join('') : `<p class="empty">${down ? 'herdr 서버에 연결하지 못했습니다.' : '실행 중인 에이전트가 없습니다.'}</p>`}
+        </section>`).join('') : empty ? `<p class="empty">${empty}</p>` : ''}
       ${terms.length ? `
         <section class="group">
           <h2>터미널 · ${terms.length}</h2>
@@ -240,33 +311,39 @@ function render() {
           <div class="cards">${spaces.map(wsCard).join('')}</div>
         </section>` : ''}
     </main>`;
+  $app.querySelectorAll('.hosts button').forEach((b) => {
+    b.onclick = () => {
+      setFilter(b.dataset.host);
+      render();
+    };
+  });
 }
 
 function termCard(t) {
-  return `<a class="card" href="#/term/${encodeURIComponent(t.pane)}">
+  return `<a class="card" href="${link(t.host, `/term/${encodeURIComponent(t.pane)}`)}">
     <div class="main">
       <div class="title">${esc(termTitle(t))}</div>
-      <div class="meta">셸 · ${esc(t.workspaceLabel)} · ${esc(basename(t.cwd))}</div>
+      <div class="meta">${hostChip(t)}셸 · ${esc(t.workspaceLabel)} · ${esc(basename(t.cwd))}</div>
     </div>
     <span class="badge idle">터미널</span>
   </a>`;
 }
 
 function wsCard(w) {
-  const agents = state.agents.filter((a) => a.workspace === w.workspace_id).length;
-  return `<a class="card" href="#/ws/${encodeURIComponent(w.workspace_id)}">
+  const agents = state.agents.filter((a) => same(a, w.host, w.workspace_id, 'workspace')).length;
+  return `<a class="card" href="${link(w.host, `/ws/${encodeURIComponent(w.workspace_id)}`)}">
     <div class="main">
       <div class="title">${esc(w.label)}</div>
-      <div class="meta">탭 ${w.tab_count} · 패널 ${w.pane_count} · 에이전트 ${agents}</div>
+      <div class="meta">${hostChip(w)}탭 ${w.tab_count} · 패널 ${w.pane_count} · 에이전트 ${agents}</div>
     </div>
   </a>`;
 }
 
 function card(a) {
-  return `<a class="card" href="#/agent/${encodeURIComponent(a.pane)}">
+  return `<a class="card" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
     <div class="main">
       <div class="title">${esc(a.name ? `${a.name} · ${a.title}` : a.title)}</div>
-      <div class="meta">${esc(a.agent)} · ${esc(a.workspaceLabel)} · ${esc(basename(a.cwd))}</div>
+      <div class="meta">${hostChip(a)}${esc(a.agent)} · ${esc(a.workspaceLabel)} · ${esc(basename(a.cwd))}</div>
     </div>
     <span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>
   </a>`;
@@ -318,7 +395,7 @@ function renderDetail() {
     const sendBtn = document.getElementById('d-send');
     sendBtn.disabled = true;
     try {
-      await api(`/agents/${encodeURIComponent(detail.pane)}/prompt`, { method: 'POST', body: JSON.stringify({ text }) });
+      await api(hp(`/agents/${encodeURIComponent(detail.pane)}/prompt`), { method: 'POST', body: JSON.stringify({ text }) });
       input.value = '';
       input.style.height = 'auto';
       setTimeout(loadDetail, 600);
@@ -355,14 +432,16 @@ function renderDetailHeader() {
   // The agent exited and left its shell behind: show that pane as a terminal. Only once the
   // agent has been seen here; just after a start the state may still list the pane as a shell.
   if (a) detail.seen = true;
-  else if (detail.seen && (state.terminals || []).some((t) => t.pane === detail.pane)) return (location.hash = `#/term/${encodeURIComponent(detail.pane)}`);
+  else if (detail.seen && (state.terminals || []).some((t) => same(t, curHost(), detail.pane))) return (location.hash = link(curHost(), `/term/${encodeURIComponent(detail.pane)}`));
   if (!a) {
-    title.innerHTML = `에이전트 없음<span class="sub">이 패널의 에이전트가 끝났거나 닫혔습니다</span>`;
+    title.innerHTML = !online(curHost())
+      ? `${esc(hostLabel(curHost()))} 오프라인<span class="sub">호스트가 돌아오면 다시 보입니다</span>`
+      : `에이전트 없음<span class="sub">이 패널의 에이전트가 끝났거나 닫혔습니다</span>`;
     document.getElementById('d-badge').innerHTML = '';
     updateComposer();
     return;
   }
-  title.innerHTML = `${esc(a.name || a.title)}<span class="sub">${esc(a.agent)} · ${esc(a.workspaceLabel)} · ${esc(basename(a.cwd))}</span>`;
+  title.innerHTML = `${esc(a.name || a.title)}<span class="sub">${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${esc(a.agent)} · ${esc(a.workspaceLabel)} · ${esc(basename(a.cwd))}</span>`;
   document.getElementById('d-badge').innerHTML = `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
   $app.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === detail.tab)));
   renderBlocked();
@@ -391,7 +470,7 @@ function renderBlocked() {
 
 async function sendKeys(keys) {
   try {
-    await api(`/agents/${encodeURIComponent(detail.pane)}/keys`, { method: 'POST', body: JSON.stringify({ keys }) });
+    await api(hp(`/agents/${encodeURIComponent(detail.pane)}/keys`), { method: 'POST', body: JSON.stringify({ keys }) });
     setTimeout(loadDetail, 500);
   } catch (err) {
     toast(`키를 보내지 못했습니다: ${err.message}`);
@@ -404,17 +483,18 @@ async function loadDetail() {
   if (!a || loading) return;
   loading = true;
   const pane = encodeURIComponent(a.pane);
+  const host = curHost();
   try {
     if (a.status === 'blocked') {
-      const v = await api(`/agents/${pane}/screen?source=visible&lines=30`);
+      const v = await api(hp(`/agents/${pane}/screen?source=visible&lines=30`, host));
       detail.blockedText = v.text.replace(/\s+$/, '').split('\n').slice(-18).join('\n');
       renderBlocked();
     } else detail.blockedText = null;
-    if (detail.tab === 'chat') detail.transcript = await api(`/agents/${pane}/transcript?limit=150`);
-    else detail.screen = await api(`/agents/${pane}/screen?lines=200`);
+    if (detail.tab === 'chat') detail.transcript = await api(hp(`/agents/${pane}/transcript?limit=150`, host));
+    else detail.screen = await api(hp(`/agents/${pane}/screen?lines=200`, host));
     renderDetailBody(false);
   } catch (err) {
-    if (err.code !== 'agent_not_found') toast(`불러오지 못했습니다: ${err.message}`);
+    if (!['agent_not_found', 'peer_offline'].includes(err.code)) toast(`불러오지 못했습니다: ${errText(err)}`);
   } finally {
     loading = false;
   }
@@ -453,10 +533,10 @@ async function agentMenu() {
   const a = currentAgent();
   if (!a) return;
   const k = await menu(a.name || a.title, [['rename', '이름 바꾸기'], ['ws', '워크스페이스 보기'], ['close', '패널 닫기(에이전트 종료)', true]]);
-  if (k === 'ws') location.hash = `#/ws/${encodeURIComponent(a.workspace)}`;
+  if (k === 'ws') location.hash = link(a.host, `/ws/${encodeURIComponent(a.workspace)}`);
   if (k === 'rename') {
     const name = await sheet({ title: '에이전트 이름', text: '영문 소문자·숫자·-·_ 만 됩니다. 비우면 이름을 지웁니다.', input: { value: a.name || '', placeholder: 'reviewer' }, ok: '바꾸기' });
-    if (name != null) act(`/agents/${encodeURIComponent(a.pane)}/rename`, { name: name.trim() }, '이름을 바꿨습니다');
+    if (name != null) act(hp(`/agents/${encodeURIComponent(a.pane)}/rename`), { name: name.trim() }, '이름을 바꿨습니다');
   }
   if (k === 'close') closePane(a.pane, a.name || a.title, true);
 }
@@ -468,7 +548,7 @@ async function closePane(pane, label, isAgent) {
     ok: '닫기',
     danger: true,
   });
-  if (ok && (await act(`/panes/${encodeURIComponent(pane)}/close`, {}, '패널을 닫았습니다'))) location.hash = '#/';
+  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`), {}, '패널을 닫았습니다'))) location.hash = '#/';
 }
 
 // POST a mutation; toasts on failure. Returns the response body or null.
@@ -487,7 +567,7 @@ async function act(path, body, okText) {
 
 // Shell titles are often the executable's full path; the program name says enough.
 const termTitle = (t) => t.label || (/[\\/]/.test(t.title) ? basename(t.title) : t.title);
-const currentTerminal = () => (state.terminals || []).find((t) => t.pane === detail.pane);
+const currentTerminal = () => (state.terminals || []).find((t) => same(t, curHost(), detail.pane));
 
 function renderTerminal() {
   $app.innerHTML = `
@@ -508,7 +588,7 @@ function renderTerminal() {
   // A key goes after whatever is in the input line, typed without Enter (Tab completes it).
   $app.querySelectorAll('.term-keys .key').forEach((b) => {
     b.onclick = async () => {
-      if (await act(`/panes/${encodeURIComponent(detail.pane)}/keys`, { keys: [b.dataset.key], text: input.value })) {
+      if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [b.dataset.key], text: input.value })) {
         input.value = '';
         setTimeout(loadTerminal, 300);
       }
@@ -516,7 +596,7 @@ function renderTerminal() {
   });
   document.getElementById('t-form').onsubmit = async (e) => {
     e.preventDefault();
-    if (await act(`/panes/${encodeURIComponent(detail.pane)}/input`, { text: input.value })) {
+    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: input.value })) {
       input.value = '';
       setTimeout(loadTerminal, 400);
     }
@@ -530,18 +610,20 @@ function renderTerminalHeader() {
   if (!title) return;
   const t = currentTerminal();
   // The pane may have turned into an agent (started from here); follow it.
-  if (!t && state.agents.some((a) => a.pane === detail.pane)) return (location.hash = `#/agent/${encodeURIComponent(detail.pane)}`);
+  if (!t && state.agents.some((a) => same(a, curHost(), detail.pane))) return (location.hash = link(curHost(), `/agent/${encodeURIComponent(detail.pane)}`));
   title.innerHTML = t
-    ? `${esc(termTitle(t))}<span class="sub">셸 · ${esc(t.workspaceLabel)} · ${esc(t.cwd)}</span>`
-    : '터미널 없음<span class="sub">이 패널이 닫혔습니다</span>';
+    ? `${esc(termTitle(t))}<span class="sub">${multi() ? `${esc(hostLabel(t.host))} · ` : ''}셸 · ${esc(t.workspaceLabel)} · ${esc(t.cwd)}</span>`
+    : !online(curHost())
+      ? `${esc(hostLabel(curHost()))} 오프라인<span class="sub">호스트가 돌아오면 다시 보입니다</span>`
+      : '터미널 없음<span class="sub">이 패널이 닫혔습니다</span>';
 }
 
 async function loadTerminal() {
   if (!currentTerminal() || document.visibilityState !== 'visible') return;
   try {
-    detail.screen = await api(`/panes/${encodeURIComponent(detail.pane)}/screen?lines=200`);
+    detail.screen = await api(hp(`/panes/${encodeURIComponent(detail.pane)}/screen?lines=200`));
   } catch (err) {
-    if (err.code !== 'pane_not_found') toast(`불러오지 못했습니다: ${err.message}`);
+    if (!['pane_not_found', 'peer_offline'].includes(err.code)) toast(`불러오지 못했습니다: ${errText(err)}`);
     return;
   }
   const body = document.getElementById('t-body');
@@ -563,15 +645,15 @@ async function terminalMenu() {
     ['ws', '워크스페이스 보기'],
     ['close', '패널 닫기', true],
   ]);
-  if (k === 'agent') location.hash = `#/start/pane/${encodeURIComponent(t.pane)}`;
-  if (k === 'ws') location.hash = `#/ws/${encodeURIComponent(t.workspace)}`;
+  if (k === 'agent') location.hash = link(t.host, `/start/pane/${encodeURIComponent(t.pane)}`);
+  if (k === 'ws') location.hash = link(t.host, `/ws/${encodeURIComponent(t.workspace)}`);
   if (k === 'down' || k === 'right') {
-    const r = await act(`/panes/${encodeURIComponent(t.pane)}/split`, { direction: k }, '패널을 나눴습니다');
-    if (r && r.pane) location.hash = `#/term/${encodeURIComponent(r.pane)}`;
+    const r = await act(hp(`/panes/${encodeURIComponent(t.pane)}/split`), { direction: k }, '패널을 나눴습니다');
+    if (r && r.pane) location.hash = link(t.host, `/term/${encodeURIComponent(r.pane)}`);
   }
   if (k === 'rename') {
     const label = await sheet({ title: '패널 이름', text: '비우면 이름을 지웁니다.', input: { value: t.label || '', placeholder: '빌드' }, ok: '바꾸기' });
-    if (label != null) act(`/panes/${encodeURIComponent(t.pane)}/rename`, { label: label.trim() }, '이름을 바꿨습니다');
+    if (label != null) act(hp(`/panes/${encodeURIComponent(t.pane)}/rename`), { label: label.trim() }, '이름을 바꿨습니다');
   }
   if (k === 'close') closePane(t.pane, termTitle(t), false);
 }
@@ -579,19 +661,21 @@ async function terminalMenu() {
 // ------------------------------------------------------------ workspace view
 
 function renderWorkspace() {
-  const w = (state.workspaces || []).find((x) => x.workspace_id === view.id);
-  const agents = state.agents.filter((a) => a.workspace === view.id);
-  const terms = (state.terminals || []).filter((t) => t.workspace === view.id);
+  const host = curHost();
+  const w = (state.workspaces || []).find((x) => same(x, host, view.id, 'workspace_id'));
+  const agents = state.agents.filter((a) => same(a, host, view.id, 'workspace'));
+  const terms = (state.terminals || []).filter((t) => same(t, host, view.id, 'workspace'));
   const id = encodeURIComponent(view.id);
+  const missing = !online(host) ? `${esc(hostLabel(host))} 오프라인` : '닫혔거나 찾을 수 없습니다';
   $app.innerHTML = `
     <header class="bar">
       <a class="icon-btn" href="#/" aria-label="목록">${ICON.back}</a>
-      <h1>${w ? esc(w.label) : '워크스페이스 없음'}<span class="sub">${w ? `${esc(w.workspace_id)} · 탭 ${w.tab_count} · 패널 ${w.pane_count}` : '닫혔거나 찾을 수 없습니다'}</span></h1>
+      <h1>${w ? esc(w.label) : '워크스페이스 없음'}<span class="sub">${w ? `${multi() ? `${esc(hostLabel(host))} · ` : ''}${esc(w.workspace_id)} · 탭 ${w.tab_count} · 패널 ${w.pane_count}` : missing}</span></h1>
     </header>
     <main class="list">
       ${w ? `
       <div class="row">
-        <a class="btn" href="#/start/ws/${id}">에이전트 시작</a>
+        <a class="btn" href="${link(host, `/start/ws/${id}`)}">에이전트 시작</a>
         <button class="btn secondary" id="w-tab">새 탭</button>
         <button class="btn secondary" id="w-rename">이름 바꾸기</button>
         <button class="btn secondary danger-text" id="w-close">닫기</button>
@@ -601,12 +685,12 @@ function renderWorkspace() {
     </main>`;
   if (!w) return;
   document.getElementById('w-tab').onclick = async () => {
-    const r = await act(`/workspaces/${id}/tabs`, {}, '새 탭을 열었습니다');
-    if (r && r.pane) location.hash = `#/term/${encodeURIComponent(r.pane)}`;
+    const r = await act(hp(`/workspaces/${id}/tabs`, host), {}, '새 탭을 열었습니다');
+    if (r && r.pane) location.hash = link(host, `/term/${encodeURIComponent(r.pane)}`);
   };
   document.getElementById('w-rename').onclick = async () => {
     const label = await sheet({ title: '워크스페이스 이름', input: { value: w.label }, ok: '바꾸기' });
-    if (label != null) act(`/workspaces/${id}/rename`, { label }, '이름을 바꿨습니다');
+    if (label != null) act(hp(`/workspaces/${id}/rename`, host), { label }, '이름을 바꿨습니다');
   };
   document.getElementById('w-close').onclick = async () => {
     const ok = await sheet({
@@ -615,27 +699,35 @@ function renderWorkspace() {
       ok: '닫기',
       danger: true,
     });
-    if (ok && (await act(`/workspaces/${id}/close`, {}, '워크스페이스를 닫았습니다'))) location.hash = '#/';
+    if (ok && (await act(hp(`/workspaces/${id}/close`, host), {}, '워크스페이스를 닫았습니다'))) location.hash = '#/';
   };
 }
 
 // ------------------------------------------------------------ new workspace / start agent
 
 async function renderForm() {
+  await ready; // the host list and ids come with the first state
+  if (view.name !== 'form') return;
   const isNew = view.mode === 'new';
-  const ws = view.mode === 'ws' ? (state.workspaces || []).find((x) => x.workspace_id === view.target) : null;
-  const term = view.mode === 'pane' ? (state.terminals || []).find((t) => t.pane === view.target) : null;
-  const where = isNew ? '' : ws ? `${ws.label} 워크스페이스의 새 탭` : term ? `${termTitle(term)} 패널 (${term.workspaceLabel})` : '찾을 수 없음';
+  const host = curHost();
+  const ws = view.mode === 'ws' ? (state.workspaces || []).find((x) => same(x, host, view.target, 'workspace_id')) : null;
+  const term = view.mode === 'pane' ? (state.terminals || []).find((t) => same(t, host, view.target)) : null;
+  const on = isNew ? '' : multi() ? ` · ${hostLabel(host)}` : '';
+  const where = isNew ? '' : ws ? `${ws.label} 워크스페이스의 새 탭${on}` : term ? `${termTitle(term)} 패널 (${term.workspaceLabel})${on}` : '찾을 수 없음';
+  const back = isNew ? '#/' : ws ? link(host, `/ws/${encodeURIComponent(ws.workspace_id)}`) : term ? link(host, `/term/${encodeURIComponent(term.pane)}`) : '#/';
   $app.innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="${isNew ? '#/' : ws ? `#/ws/${encodeURIComponent(ws.workspace_id)}` : term ? `#/term/${encodeURIComponent(term.pane)}` : '#/'}" aria-label="뒤로">${ICON.back}</a>
+      <a class="icon-btn" href="${back}" aria-label="뒤로">${ICON.back}</a>
       <h1>${isNew ? '새 워크스페이스' : '에이전트 시작'}${where ? `<span class="sub">${esc(where)}</span>` : ''}</h1>
     </header>
     <form class="panel" id="f-form">
       ${isNew ? `
       <section>
+        ${multi() ? `
+        <h2>호스트</h2>
+        <select class="field" id="f-host">${hosts().map((x) => `<option value="${esc(x.id)}" ${x.id === host ? 'selected' : ''} ${x.online ? '' : 'disabled'}>${esc(x.label)}${x.online ? '' : ' (오프라인)'}</option>`).join('')}</select>` : ''}
         <h2>폴더</h2>
-        <input class="field" id="f-cwd" list="f-cwds" placeholder="C:\\Users\\…\\project" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+        <input class="field" id="f-cwd" list="f-cwds" autocomplete="off" autocapitalize="off" spellcheck="false" required>
         <datalist id="f-cwds"></datalist>
         <div class="chips" id="f-recent"></div>
         <h2>이름 (선택)</h2>
@@ -651,56 +743,83 @@ async function renderForm() {
         <input class="field" id="f-name" placeholder="자동 (영문 소문자)" autocomplete="off" autocapitalize="off" spellcheck="false">
         ${isNew ? '<p>새 폴더에서 Claude 를 처음 띄우면 폴더 신뢰 질문이 나옵니다. 에이전트 화면의 응답 키로 답하세요.</p>' : ''}
       </section>
-      <div class="row end"><button type="submit" class="btn" id="f-submit" ${!isNew && !ws && !term ? 'disabled' : ''}>${isNew ? '만들기' : '시작'}</button></div>
+      <div class="row end"><button type="submit" class="btn" id="f-submit" disabled>${isNew ? '만들기' : '시작'}</button></div>
     </form>`;
-  const form = document.getElementById('f-form');
   const withAgent = document.getElementById('f-with');
   if (withAgent) withAgent.onchange = () => (document.getElementById('f-agent').hidden = !withAgent.checked);
-  form.onsubmit = submitForm;
+  document.getElementById('f-form').onsubmit = submitForm;
+  const pick = document.getElementById('f-host');
+  if (pick) pick.onchange = () => fillForm(pick.value);
+  if (isNew || ws || term) fillForm(host);
+}
+
+// Allowed kinds and folder suggestions come from the chosen host.
+async function fillForm(host) {
+  view.formHost = host;
+  const btn = document.getElementById('f-submit');
+  btn.disabled = true;
+  let info;
   try {
-    host = host || (await api('/host'));
+    info = await hostInfo(host);
   } catch (err) {
-    return toast(`불러오지 못했습니다: ${err.message}`);
+    return toast(`불러오지 못했습니다: ${errText(err)}`);
   }
-  if (view.name !== 'form') return;
-  document.getElementById('f-kind').innerHTML = host.kinds.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
-  if (isNew) {
-    document.getElementById('f-cwds').innerHTML = host.recentCwds.map((c) => `<option value="${esc(c)}">`).join('');
+  if (view.name !== 'form' || view.formHost !== host) return;
+  const kind = document.getElementById('f-kind');
+  const prev = kind.value;
+  kind.innerHTML = info.kinds.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  if (info.kinds.includes(prev)) kind.value = prev;
+  const cwd = document.getElementById('f-cwd');
+  if (cwd) {
+    cwd.placeholder = info.platform === 'win32' ? 'C:\\Users\\…\\project' : `${info.home || '/home/…'}/project`;
+    document.getElementById('f-cwds').innerHTML = info.recentCwds.map((c) => `<option value="${esc(c)}">`).join('');
     const chips = document.getElementById('f-recent');
-    chips.innerHTML = host.recentCwds.map((c) => `<button type="button" class="chip" title="${esc(c)}" data-cwd="${esc(c)}">${esc(basename(c))}</button>`).join('');
-    chips.querySelectorAll('.chip').forEach((b) => (b.onclick = () => (document.getElementById('f-cwd').value = b.dataset.cwd)));
+    chips.innerHTML = info.recentCwds.map((c) => `<button type="button" class="chip" title="${esc(c)}" data-cwd="${esc(c)}">${esc(basename(c))}</button>`).join('');
+    chips.querySelectorAll('.chip').forEach((b) => (b.onclick = () => (cwd.value = b.dataset.cwd)));
   }
+  btn.disabled = false;
 }
 
 async function submitForm(e) {
   e.preventDefault();
   const val = (id) => (document.getElementById(id)?.value || '').trim();
   const agent = { kind: val('f-kind'), args: val('f-args').split(/\s+/).filter(Boolean), name: val('f-name') };
+  const host = view.formHost || curHost();
   const btn = document.getElementById('f-submit');
   btn.disabled = true;
   let r = null;
   let started = true;
   if (view.mode === 'new') {
     const withAgent = document.getElementById('f-with').checked;
-    r = await act('/workspaces', { cwd: val('f-cwd'), label: val('f-label'), agent: withAgent ? agent : null });
+    r = await act(hp('/workspaces', host), { cwd: val('f-cwd'), label: val('f-label'), agent: withAgent ? agent : null });
     if (r) {
       if (r.agentError) toast(`워크스페이스는 만들었지만 에이전트를 시작하지 못했습니다: ${r.agentError}`);
       started = Boolean(r.agent);
-      host = null; // recent folders changed
+      hostCache.delete(host); // recent folders changed
     }
-  } else if (view.mode === 'ws') r = await act(`/workspaces/${encodeURIComponent(view.target)}/agents`, agent);
-  else r = await act(`/panes/${encodeURIComponent(view.target)}/agent`, agent);
+  } else if (view.mode === 'ws') r = await act(hp(`/workspaces/${encodeURIComponent(view.target)}/agents`, host), agent);
+  else r = await act(hp(`/panes/${encodeURIComponent(view.target)}/agent`, host), agent);
   btn.disabled = false;
   if (!r) return;
   const pane = encodeURIComponent(r.pane || view.target);
-  location.hash = started ? `#/agent/${pane}` : `#/term/${pane}`;
+  location.hash = link(host, started ? `/agent/${pane}` : `/term/${pane}`);
 }
 
 // ------------------------------------------------------------ settings
 
+let pushInfo = null; // /api/push/key; { disabled: true } on a peer that leaves notifications to its hub
+
 function renderSettings() {
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-  const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const off = pushInfo && pushInfo.disabled;
+  const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !off;
+  if (!pushInfo)
+    api('/push/key')
+      .then((r) => {
+        pushInfo = r;
+        if (view.name === 'settings' && r.disabled) renderSettings();
+      })
+      .catch(() => {});
   const perm = 'Notification' in window ? Notification.permission : 'unsupported';
   $app.innerHTML = `
     <header class="bar">
@@ -712,7 +831,7 @@ function renderSettings() {
         <h2>알림</h2>
         <p>에이전트가 응답을 기다리거나 작업을 끝내면 알림을 받습니다.</p>
         ${!standalone ? '<p>iPhone에서는 먼저 Safari 공유 버튼 → <b>홈 화면에 추가</b>로 설치한 뒤, 설치된 앱에서 알림을 켜야 합니다.</p>' : ''}
-        ${!supported ? '<p>이 브라우저는 웹 푸시를 지원하지 않습니다.</p>' : ''}
+        ${off ? '<p>이 호스트는 알림을 보내지 않습니다. 알림은 허브(desktop) Paddock 에서 켜세요.</p>' : !supported ? '<p>이 브라우저는 웹 푸시를 지원하지 않습니다.</p>' : ''}
         <p>현재 권한: <b>${esc(perm)}</b></p>
         <div class="row">
           <button class="btn" id="s-enable" ${supported ? '' : 'disabled'}>알림 켜기</button>
@@ -721,7 +840,13 @@ function renderSettings() {
       </section>
       <section>
         <h2>호스트</h2>
-        <p>${esc(state.host || '')} · herdr ${esc(state.herdr)} · 에이전트 ${state.agents.length}개</p>
+        ${(hosts().length ? hosts() : [{ id: localId(), label: state.host, online: true, herdr: state.herdr, local: true }])
+          .map((x) => {
+            const n = state.agents.filter((a) => (a.host || localId()) === x.id).length;
+            const status = !x.online ? `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''}` : `herdr ${esc(x.herdr)} · 에이전트 ${n}개`;
+            return `<p><b>${esc(x.label)}</b>${x.local && multi() ? ' (허브)' : ''} · ${status}</p>`;
+          })
+          .join('')}
       </section>
     </main>`;
   const enable = document.getElementById('s-enable');
