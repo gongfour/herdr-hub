@@ -170,3 +170,48 @@ button { font: inherit; color: inherit; }
 }
 
 .detail { display: flex; flex-direction: column; height: 100dvh; }
+
+/* ---- management: forms, sheets, terminal */
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+.btn.danger { background: var(--blocked); color: var(--bg); }
+.btn.danger-text { color: var(--blocked); }
+.btn.wide { width: 100%; margin-top: 8px; }
+.row.end { justify-content: flex-end; }
+.panel h2 + .field, .panel .field + h2 { margin-top: 6px; }
+.panel section h2:not(:first-child) { margin-top: 14px; }
+.field {
+  display: block; width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 16px;
+}
+.field:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 15px; min-height: 44px; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+.sheet-back {
+  position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  width: 100%; max-width: 520px; background: var(--surface); color: var(--text);
+  border-radius: 18px 18px 0 0; padding: 18px 16px calc(16px + var(--safe-bottom));
+  box-shadow: 0 -6px 24px rgb(0 0 0 / 0.2); display: flex; flex-direction: column; gap: 10px;
+}
+.sheet h2 { font-size: 17px; margin: 0; }
+.sheet p { margin: 0; color: var(--muted); font-size: 14px; }
+.actions { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.action { min-height: 48px; border: 0; border-top: 1px solid var(--line); background: var(--surface); text-align: left; padding: 0 14px; cursor: pointer; font-size: 16px; }
+.action:first-child { border-top: 0; }
+.action:active { background: var(--surface-2); }
+.action.danger { color: var(--blocked); }
+
+.term-keys { padding: 8px 12px 0; border-top: 1px solid var(--line); background: var(--bg); }
+.term-keys .key { min-height: 40px; padding: 0 12px; font-size: 14px; }
+.composer .cmd {
+  flex: 1; min-height: 44px; padding: 10px 14px; border-radius: 22px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); font: 15px var(--mono);
+}
+.composer .cmd:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.term-keys { flex-wrap: nowrap; gap: 6px; }
+.term-keys .key { flex: 1; min-width: 0; padding: 0 4px; }
