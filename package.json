@@ -1,0 +1,17 @@
+{
+  "name": "paddock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phone-friendly web app for herdr agents, served from the herdr host over Tailscale",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "web-push": "3.6.7"
+  }
+}
