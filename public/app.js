@@ -54,6 +54,8 @@ function md(src) {
         .split(/\n{2,}/)
         .filter((p) => p.trim())
         .map((p) => {
+          const heading = p.trim().match(/^(#{1,4})\s+(.+)$/);
+          if (heading && !p.trim().includes('\n')) return `<p><strong>${esc(heading[2])}</strong></p>`;
           let h = esc(p.trim());
           h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
           h = h.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
@@ -253,6 +255,9 @@ function renderBlocked() {
       <div class="keys">${keys.map(([k, label]) => `<button class="key" data-key="${k}">${esc(label)}</button>`).join('')}</div>
     </div>`;
   box.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
+  // The choices sit at the bottom of the prompt; show them, not the preamble.
+  const pre = box.querySelector('pre');
+  if (pre) pre.scrollTop = pre.scrollHeight;
 }
 
 async function sendKeys(keys) {
@@ -294,8 +299,9 @@ function renderDetailBody(reset) {
   if (detail.tab === 'chat') {
     const t = detail.transcript;
     if (!t) body.innerHTML = '<p class="note">불러오는 중…</p>';
-    else if (!t.supported) body.innerHTML = '<p class="note">이 에이전트는 대화 기록을 지원하지 않습니다. 화면 탭을 보세요.</p>';
-    else if (!t.found) body.innerHTML = '<p class="note">대화 기록 파일을 찾지 못했습니다.</p>';
+    else if (!t.supported)
+      body.innerHTML = `<p class="note">${currentAgent()?.agent === 'claude' ? '아직 대화 기록이 없습니다.' : '이 에이전트는 대화 기록을 지원하지 않습니다. 화면 탭을 보세요.'}</p>`;
+    else if (!t.found) body.innerHTML = '<p class="note">아직 대화 기록이 없습니다.</p>';
     else
       body.innerHTML = `${t.truncated ? '<p class="note">최근 대화만 표시합니다</p>' : ''}<div class="msgs">${t.messages.map(message).join('')}</div>`;
   } else {
@@ -306,6 +312,7 @@ function renderDetailBody(reset) {
 }
 
 function message(m) {
+  if (m.role === 'note') return `<p class="note">${esc(m.text)}</p>`;
   if (m.role === 'user') return `<div class="msg user">${esc(m.text)}</div>`;
   const tools = m.tools && m.tools.length
     ? `<div class="tools">${m.tools.map((t) => `<div class="tool"><b>${esc(t.name)}</b> ${esc(t.summary)}</div>`).join('')}</div>`
