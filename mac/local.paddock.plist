@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Installed by ./deploy.sh server; __DIR__ is replaced with the deploy copy. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.paddock</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>__DIR__/mac/run.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__DIR__</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__DIR__/data/paddock.log</string>
+  <key>StandardErrorPath</key>
+  <string>__DIR__/data/paddock.log</string>
+</dict>
+</plist>

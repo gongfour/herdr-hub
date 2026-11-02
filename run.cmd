@@ -3,7 +3,10 @@ rem Started at logon by the "Paddock" scheduled task. Logs go to data\paddock.lo
 cd /d "%~dp0"
 if not exist data mkdir data
 set PADDOCK_ALLOWED_LOGINS=kangwonjin.dev@gmail.com
+set PADDOCK_HOST_ID=desktop
 set PADDOCK_HOST_LABEL=desktop
+rem Hub: merge these peers into this Paddock (id=url, comma-separated).
+set PADDOCK_PEERS=server=https://server.uaru-monster.ts.net:8443
 set PADDOCK_VAPID_SUBJECT=https://desktop.uaru-monster.ts.net
 rem The task runs without the interactive PATH; point at node directly.
 set NODE=C:\Users\kangw\AppData\Local\mise\installs\node\26.3.1\node.exe
