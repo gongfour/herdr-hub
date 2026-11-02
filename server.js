@@ -172,7 +172,8 @@ function serveStatic(req, res, pathname) {
     const ext = path.extname(file);
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': ext === '.html' || rel === 'sw.js' ? 'no-cache' : 'max-age=300',
+      // Small files on a private network: always revalidate so a deploy shows up at once.
+      'Cache-Control': 'no-cache',
       'X-Content-Type-Options': 'nosniff',
     });
     res.end(data);
