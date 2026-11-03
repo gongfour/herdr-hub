@@ -26,6 +26,36 @@ test('working start and done time from transitions', () => {
   assert.deepEqual([s.agents[0].workingSince, s.agents[0].doneAt], [10000, 3000]);
 });
 
+test('blocked is inside the turn: the start is kept, and only idle or done finish it', () => {
+  let s = step(new Map(), [['p1', 'idle']], 1000);
+  s = step(s.map, [['p1', 'working']], 2000);
+  s = step(s.map, [['p1', 'blocked']], 3000);
+  assert.deepEqual([s.agents[0].workingSince, s.agents[0].doneAt], [2000, null]); // a question is no finish
+  s = step(s.map, [['p1', 'working']], 4000);
+  assert.deepEqual([s.agents[0].workingSince, s.agents[0].doneAt], [2000, null]); // the clock runs on
+  s = step(s.map, [['p1', 'working']], 5000);
+  s = step(s.map, [['p1', 'done']], 6000);
+  assert.deepEqual([s.agents[0].workingSince, s.agents[0].doneAt], [null, 6000]);
+  // A question straight from idle (a startup prompt) starts a turn of its own.
+  s = step(s.map, [['p1', 'blocked']], 7000);
+  assert.deepEqual([s.agents[0].workingSince, s.agents[0].doneAt], [7000, 6000]);
+  s = step(s.map, [['p1', 'unknown']], 8000);
+  assert.equal(s.agents[0].doneAt, 6000); // unknown is no finish either
+});
+
+test('a question answered No is no finish: the last finish stays', () => {
+  let s = step(new Map(), [['p1', 'idle']], 1000);
+  s = step(s.map, [['p1', 'working']], 2000);
+  s = step(s.map, [['p1', 'idle']], 3000); // finished
+  s = step(s.map, [['p1', 'working']], 4000);
+  s = step(s.map, [['p1', 'blocked']], 5000);
+  s = step(s.map, [['p1', 'done']], 6000); // refused: herdr says done
+  assert.deepEqual([s.agents[0].workingSince, s.agents[0].doneAt], [null, 3000]);
+  s = step(s.map, [['p1', 'blocked']], 7000);
+  s = step(s.map, [['p1', 'idle']], 8000);
+  assert.equal(s.agents[0].doneAt, 3000);
+});
+
 test("a peer's own values pass through", () => {
   const agents = [{ pane: 'p1', status: 'working', workingSince: 500, doneAt: 100 }];
   track(new Map(), agents, 1000, key);

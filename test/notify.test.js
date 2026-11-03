@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 const webpush = require('web-push');
 const { parseChoices, actionChoices, shortLabel } = require('../public/choices.js');
-const { buildPayload, checkAnswer, muted, parseMute } = require('../lib/notify');
+const { buildPayload, checkAnswer, transitionKind, muted, parseMute } = require('../lib/notify');
 const { Push } = require('../lib/push');
 
 const BASH = `
@@ -160,4 +160,22 @@ test('blocked payload from a real 2.1.317 Bash prompt with a wrapped Tip', () =>
   const p = buildPayload('blocked', host, agent, { choices });
   assert.equal(p.body, 'Bash: echo hi > note.txt\n진행할까요? 1 Yes · 2 Always · 3 Auto mode · 4 No');
   assert.deepEqual(p.actions, [{ action: 'answer:1', title: 'Yes' }, { action: 'answer:4', title: 'No' }]);
+});
+
+test('transitionKind: a question, a finish, and a refused question that is neither', () => {
+  const st = (status, completion = null) => ({ status, completion });
+  assert.equal(transitionKind(st('working'), st('blocked')), 'blocked');
+  assert.equal(transitionKind(st('idle'), st('blocked')), 'blocked');
+  assert.equal(transitionKind(st('blocked'), st('blocked')), null);
+  // herdr 0.9.3 (no completion_seq): working -> done.
+  assert.equal(transitionKind(st('working'), st('done')), 'done');
+  assert.equal(transitionKind(st('working'), st('idle')), null);
+  assert.equal(transitionKind(st('blocked'), st('done')), null); // answered No
+  // With completion_seq: it went up and the agent is not working.
+  assert.equal(transitionKind(st('working', 5), st('done', 6)), 'done');
+  assert.equal(transitionKind(st('working', 5), st('idle', 6)), 'done');
+  assert.equal(transitionKind(st('idle', 5), st('working', 6)), null);
+  assert.equal(transitionKind(st('blocked', 5), st('done', 6)), null); // answered No: herdr bumps it
+  assert.equal(transitionKind(st('done', 6), st('done', 6)), null);
+  assert.equal(transitionKind(undefined, st('done', 6)), null); // first sight
 });

@@ -236,11 +236,7 @@ function notifyTransitions(hostId, hostLabel, list) {
   const before = previous.get(hostId);
   if (before) {
     for (const a of list) {
-      const b = before.get(a.pane);
-      if (!b) continue;
-      let kind = null;
-      if (a.status === 'blocked' && b.status !== 'blocked') kind = 'blocked';
-      else if (a.completion != null && b.completion != null ? a.completion > b.completion && a.status !== 'working' : a.status === 'done' && b.status === 'working') kind = 'done';
+      const kind = notifyLib.transitionKind(before.get(a.pane), a);
       if (kind) notify(kind, hostId, hostLabel, a).catch((err) => console.error('push error', err.message));
     }
   }
