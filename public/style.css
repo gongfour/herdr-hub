@@ -32,32 +32,77 @@
 /* The keyboard covers the home indicator: no bottom inset above it. */
 :root.kb { --safe-bottom: 0px; }
 
+/* Dark values live here once; the two blocks below only switch them on.
+   화면 모드 (settings) sets data-theme on <html>: none follows the system, "light"/"dark" force one. */
+:root {
+  --d-bg: #161614;
+  --d-surface: #1f1f1c;
+  --d-surface-2: #2a2926;
+  --d-text: #ecebe6;
+  --d-muted: #9c998f;
+  --d-line: #34332f;
+  --d-accent: #6fbf8f;
+  --d-accent-text: #0f1a14;
+  --d-bubble-me: #2c5a41;
+  --d-bubble-me-text: #ecf5ef;
+  --d-blocked: #ff9a72;
+  --d-blocked-bg: #3a2219;
+  --d-done: #7fd0a0;
+  --d-done-bg: #1c3226;
+  --d-working: #e5c25c;
+  --d-working-bg: #352d14;
+  --d-idle: #9c998f;
+  --d-idle-bg: #2a2926;
+  --d-ansi-0: #8a877f;
+  --d-ansi-1: #ff6b5e;
+  --d-ansi-2: #7fd08a;
+  --d-ansi-3: #e5c25c;
+  --d-ansi-4: #6aa8ff;
+  --d-ansi-5: #d68cf0;
+  --d-ansi-6: #5fd3d8;
+  --d-ansi-7: #d6d4cc;
+  --d-ansi-8: #8f8c83;
+  --d-ansi-9: #ff8a80;
+  --d-ansi-10: #9be3a5;
+  --d-ansi-11: #f2d77a;
+  --d-ansi-12: #8fbfff;
+  --d-ansi-13: #e6a8f7;
+  --d-ansi-14: #86e6ea;
+  --d-ansi-15: #f5f4ef;
+}
+:root[data-theme="dark"] {
+  --bg: var(--d-bg); --surface: var(--d-surface); --surface-2: var(--d-surface-2);
+  --text: var(--d-text); --muted: var(--d-muted); --line: var(--d-line);
+  --accent: var(--d-accent); --accent-text: var(--d-accent-text); --bubble-me: var(--d-bubble-me);
+  --bubble-me-text: var(--d-bubble-me-text); --blocked: var(--d-blocked); --blocked-bg: var(--d-blocked-bg);
+  --done: var(--d-done); --done-bg: var(--d-done-bg); --working: var(--d-working);
+  --working-bg: var(--d-working-bg); --idle: var(--d-idle); --idle-bg: var(--d-idle-bg);
+  --ansi-0: var(--d-ansi-0); --ansi-1: var(--d-ansi-1); --ansi-2: var(--d-ansi-2);
+  --ansi-3: var(--d-ansi-3); --ansi-4: var(--d-ansi-4); --ansi-5: var(--d-ansi-5);
+  --ansi-6: var(--d-ansi-6); --ansi-7: var(--d-ansi-7); --ansi-8: var(--d-ansi-8);
+  --ansi-9: var(--d-ansi-9); --ansi-10: var(--d-ansi-10); --ansi-11: var(--d-ansi-11);
+  --ansi-12: var(--d-ansi-12); --ansi-13: var(--d-ansi-13); --ansi-14: var(--d-ansi-14);
+  --ansi-15: var(--d-ansi-15);
+}
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #161614;
-    --surface: #1f1f1c;
-    --surface-2: #2a2926;
-    --text: #ecebe6;
-    --muted: #9c998f;
-    --line: #34332f;
-    --accent: #6fbf8f;
-    --accent-text: #0f1a14;
-    --bubble-me: #2c5a41;
-    --bubble-me-text: #ecf5ef;
-    --blocked: #ff9a72;
-    --blocked-bg: #3a2219;
-    --done: #7fd0a0;
-    --done-bg: #1c3226;
-    --working: #e5c25c;
-    --working-bg: #352d14;
-    --idle: #9c998f;
-    --idle-bg: #2a2926;
-    --ansi-0: #8a877f; --ansi-1: #ff6b5e; --ansi-2: #7fd08a; --ansi-3: #e5c25c;
-    --ansi-4: #6aa8ff; --ansi-5: #d68cf0; --ansi-6: #5fd3d8; --ansi-7: #d6d4cc;
-    --ansi-8: #8f8c83; --ansi-9: #ff8a80; --ansi-10: #9be3a5; --ansi-11: #f2d77a;
-    --ansi-12: #8fbfff; --ansi-13: #e6a8f7; --ansi-14: #86e6ea; --ansi-15: #f5f4ef;
+  :root:not([data-theme="light"]) {
+    --bg: var(--d-bg); --surface: var(--d-surface); --surface-2: var(--d-surface-2);
+    --text: var(--d-text); --muted: var(--d-muted); --line: var(--d-line);
+    --accent: var(--d-accent); --accent-text: var(--d-accent-text); --bubble-me: var(--d-bubble-me);
+    --bubble-me-text: var(--d-bubble-me-text); --blocked: var(--d-blocked); --blocked-bg: var(--d-blocked-bg);
+    --done: var(--d-done); --done-bg: var(--d-done-bg); --working: var(--d-working);
+    --working-bg: var(--d-working-bg); --idle: var(--d-idle); --idle-bg: var(--d-idle-bg);
+    --ansi-0: var(--d-ansi-0); --ansi-1: var(--d-ansi-1); --ansi-2: var(--d-ansi-2);
+    --ansi-3: var(--d-ansi-3); --ansi-4: var(--d-ansi-4); --ansi-5: var(--d-ansi-5);
+    --ansi-6: var(--d-ansi-6); --ansi-7: var(--d-ansi-7); --ansi-8: var(--d-ansi-8);
+    --ansi-9: var(--d-ansi-9); --ansi-10: var(--d-ansi-10); --ansi-11: var(--d-ansi-11);
+    --ansi-12: var(--d-ansi-12); --ansi-13: var(--d-ansi-13); --ansi-14: var(--d-ansi-14);
+    --ansi-15: var(--d-ansi-15);
   }
 }
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -586,3 +631,34 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .term-sheet-head .sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .term-sheet .scroll { flex: 1; min-height: 0; }
 .term-sheet .scroll.screen-mode { padding-bottom: var(--safe-bottom); }
+
+/* ---- composer palette: "/" commands, "@" files, "!" hint; right above the composer, so it
+   rides on the iOS keyboard with it. About six rows show; more scroll inside. */
+.palette {
+  flex: none; max-height: min(306px, 46%); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 16px rgb(0 0 0 / 0.06);
+}
+.palette + .composer { border-top-color: var(--line); }
+.pal-row { padding: 7px 14px; min-height: 50px; display: flex; flex-direction: column; justify-content: center; gap: 1px; cursor: pointer; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); -webkit-user-select: none; user-select: none; }
+.pal-row.file { min-height: 44px; }
+.pal-row[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.pal-row:active { background: var(--surface-2); }
+.pal-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pal-name { font: 600 14px/1.3 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.pal-row.file .pal-name { font-weight: 500; }
+.pal-hint { font: 12px/1.3 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 0; }
+.pal-chip { flex: none; margin-left: auto; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; color: var(--muted); background: var(--surface-2); white-space: nowrap; }
+.pal-hint + .pal-chip { margin-left: 0; }
+.pal-chip.menu { color: var(--working); background: var(--working-bg); }
+.pal-chip.menu + .pal-chip { margin-left: 0; }
+.pal-chip.project { color: var(--done); background: var(--done-bg); }
+.pal-chip.plugin { color: var(--ansi-4); background: color-mix(in srgb, var(--ansi-4) 14%, transparent); }
+.pal-desc { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pal-ic svg { width: 16px; height: 16px; display: block; stroke: var(--muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pal-note { padding: 12px 14px; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.pal-note b { font-family: var(--mono); color: var(--text); }
+.pal-note.err { color: var(--blocked); }
+
+/* ---- settings: 화면 모드 */
+.seg { display: flex; gap: 6px; margin: 4px 0 10px; }
+.seg .toggle { flex: 1; min-height: 44px; font-size: 14px; }

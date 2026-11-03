@@ -10,6 +10,7 @@ const herdr = require('./lib/herdr');
 const transcript = require('./lib/transcript');
 const dirs = require('./lib/dirs');
 const uploads = require('./lib/uploads');
+const commands = require('./lib/commands');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
 
@@ -495,6 +496,13 @@ async function api(req, res, url) {
     if (method === 'GET' && parts[2] === 'screen') {
       const lines = Math.min(Number(url.searchParams.get('lines')) || 80, 400);
       return send(res, 200, await readScreen('agent.read', { target: pane }, url.searchParams.get('source'), lines, url.searchParams.get('format')));
+    }
+    // What the composer offers after "/" and "@": Claude agents only, read on this host.
+    if (method === 'GET' && (parts[2] === 'commands' || parts[2] === 'files') && !parts[3]) {
+      if (agent.agent !== 'claude' || !agent.cwd) return send(res, 200, { supported: false, commands: [], files: [] });
+      if (parts[2] === 'commands') return send(res, 200, { supported: true, cwd: agent.cwd, commands: commands.list(agent.cwd) });
+      const q = (url.searchParams.get('q') || '').slice(0, 300);
+      return send(res, 200, { supported: true, ...(await commands.files(agent.cwd, q)) });
     }
     if (method === 'GET' && parts[2] === 'transcript') {
       if (agent.agent !== 'claude' || !agent.session) return send(res, 200, { supported: false, messages: [] });
