@@ -15,6 +15,8 @@ const ICON = {
   send: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
   stop: '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  photo: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 15.5l-4.6-4.6a1.2 1.2 0 0 0-1.7 0L6 19.2"/></svg>',
+  camera: '<svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.3-1.8a1.5 1.5 0 0 1 1.2-.7h2.8a1.5 1.5 0 0 1 1.2.7L15.9 6h1.6A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg>',
   more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
 };
 const TERM_KEYS = [['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['tab', 'Tab'], ['esc', 'Esc']];
@@ -401,11 +403,11 @@ function renderDetail() {
       <div class="scroll" id="d-body"></div>
       <div class="attach-tray" id="d-tray" hidden></div>
       <form class="composer" id="d-form">
-        <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">📎</button>
-        <button type="button" class="attach" id="d-camera" aria-label="카메라로 찍기">📷</button>
+        <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">${ICON.photo}</button>
+        <button type="button" class="attach" id="d-camera" aria-label="카메라로 찍기">${ICON.camera}</button>
         <input type="file" id="d-file" accept="image/*" multiple hidden>
         <input type="file" id="d-cam" accept="image/*" capture="environment" hidden>
-        <textarea id="d-input" rows="1" placeholder="에이전트에게 보내기" enterkeyhint="send"></textarea>
+        <textarea id="d-input" rows="1" placeholder="메시지 보내기" enterkeyhint="send"></textarea>
         <button type="button" class="stop" id="d-stop" aria-label="중단" hidden>${ICON.stop}</button>
         <button type="submit" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
       </form>

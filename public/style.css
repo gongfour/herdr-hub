@@ -222,7 +222,7 @@ button { font: inherit; color: inherit; }
   padding: 10px 12px calc(10px + var(--safe-bottom)); background: var(--bg); border-top: 1px solid var(--line);
 }
 .composer textarea {
-  flex: 1; resize: none; max-height: 40vh; min-height: 44px; padding: 11px 14px; border-radius: 22px;
+  flex: 1; min-width: 0; resize: none; max-height: 40vh; min-height: 44px; padding: 11px 14px; border-radius: 22px;
   border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px; line-height: 1.35;
 }
 .composer textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -382,10 +382,12 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* ---- photo attach */
 .attach {
-  flex: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
-  display: grid; place-items: center; cursor: pointer; color: var(--muted); font-size: 20px; line-height: 1; padding: 0;
+  flex: none; width: 36px; height: 44px; border-radius: 10px; border: 0; background: transparent;
+  display: grid; place-items: center; cursor: pointer; color: var(--muted); line-height: 1; padding: 0;
 }
+.attach svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .attach:active { background: var(--surface-2); }
+.attach + .attach { margin-left: -6px; }
 .attach:disabled { opacity: 0.4; }
 .attach-tray {
   flex: none; display: flex; gap: 8px; padding: 10px 12px 0; overflow-x: auto; overscroll-behavior: contain;
