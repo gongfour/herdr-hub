@@ -61,7 +61,8 @@ function renderSettings() {
         ${supported && !denied ? `<p class="muted">${actionsLine()}</p>` : ''}
         <div class="row">
           ${subscribed
-            ? `<button type="button" class="btn" id="s-test">이 기기로 시험 알림</button>`
+            ? `<button type="button" class="btn" id="s-test">이 기기로 시험 알림</button>
+               <button type="button" class="btn secondary" id="s-disable">알림 끄기</button>`
             : `<button type="button" class="btn" id="s-enable" ${supported && !denied ? '' : 'disabled'}>알림 켜기</button>`}
         </div>
       </section>
@@ -148,6 +149,8 @@ function renderSettings() {
   if (enable) enable.onclick = enablePush;
   const test = document.getElementById('s-test');
   if (test) test.onclick = testPush;
+  const disable = document.getElementById('s-disable');
+  if (disable) disable.onclick = disablePush;
 }
 
 // Notification buttons (답 필요 → Yes / No): what this browser says it can show. iOS Safari has
@@ -183,6 +186,26 @@ function b64ToBytes(b64) {
   const pad = '='.repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+// This device only: the hub forgets its endpoint and the browser drops the subscription; other
+// devices keep theirs. 알림 켜기 subscribes again (the permission stays granted).
+async function disablePush() {
+  const btn = document.getElementById('s-disable');
+  if (btn) btn.disabled = true;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg && (await reg.pushManager.getSubscription());
+    if (sub) {
+      await api('/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) });
+      await sub.unsubscribe();
+    }
+    devSub = null;
+    toast('이 기기 알림을 껐습니다.');
+  } catch (err) {
+    toastErr(`알림을 끄지 못했습니다: ${errText(err)}`);
+  }
+  if (settingsShown()) renderSettings();
 }
 
 async function enablePush() {

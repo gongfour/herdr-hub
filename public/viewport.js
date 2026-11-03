@@ -88,8 +88,7 @@ if (IOS) {
       if (touch.allow == null) {
         const t = e.touches[0];
         const axis = Math.abs(t.clientX - touch.x) > Math.abs(t.clientY - touch.y) ? 'x' : 'y';
-        // A list row slides sideways itself (rowTouchMove), so it counts as scrollable on x.
-        touch.allow = canScroll(touch.target, axis) || (axis === 'x' && Boolean(touch.target.closest && touch.target.closest('main.home .sw')));
+        touch.allow = canScroll(touch.target, axis); // a sideways page swipe is tabswipe.js's
       }
       if (!touch.allow && e.cancelable) e.preventDefault();
     },

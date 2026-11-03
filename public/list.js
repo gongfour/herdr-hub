@@ -200,7 +200,7 @@ function render() {
       ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"><span class="hdot"></span>${esc(x.label)}</button>`).join('')}
     </nav>` : ''}`;
   const head = [
-    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>줄을 왼쪽으로 밀면 이름·닫기, 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
+    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>옆으로 밀면 홈·작업공간·설정이 넘어가고, 줄을 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
     ...trouble.map((x) => [`off|${x.id}`, `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`]),
     ...(blocked.length ? [['attn', attnStrip(blocked)]] : []),
   ];
@@ -303,7 +303,7 @@ function inboxRow(a, kind) {
 
 // One-time hint about the hidden row gestures: shown on the first visit to the list (and for
 // the rest of that page's life) until its ✕ is pressed.
-const HINT_KEY = 'herdr-hub.hint.swipe';
+const HINT_KEY = 'herdr-hub.hint.tabswipe'; // new key: the hint changed, show it once more
 let hintNow = null;
 function swipeHintShown() {
   if (hintNow == null) {
@@ -361,7 +361,7 @@ function tickList() {
 }
 
 const rowData = (kind, host, id) => `data-kind="${kind}" data-host="${esc(host || '')}" data-id="${esc(id)}"`;
-const SWIPE_ACTS = `<div class="sw-acts" aria-hidden="true"><button type="button" class="sw-act" data-act="rename" tabindex="-1">이름</button><button type="button" class="sw-act danger" data-act="close" tabindex="-1">닫기</button></div>`;
+const SWIPE_ACTS = ''; // rows no longer slide open (the sideways swipe changes tab); menus have 이름 / 닫기
 const agentTitle = (a) => (a.name ? `${a.name} · ${a.title}` : a.title);
 
 // ---- 답 필요 strip: each blocked agent with its question and quick answers

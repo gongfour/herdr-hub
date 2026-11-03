@@ -1,12 +1,12 @@
 'use strict';
-// Row actions in the lists: swipe a row left for 이름 / 닫기, long-press or right-click it for a menu.
+// Row actions in the lists: long-press or right-click a row for its menu. A sideways swipe
+// belongs to the page (tabswipe.js: 홈 ↔ 작업공간 ↔ 설정), so rows no longer slide open; the
+// slide code below stays only to shut a row that is somehow open.
 
-// ---- row actions: swipe a row left for 이름 / 닫기, or long-press it for a menu
+// ---- row actions: long-press or right-click for a menu
 
-// iOS style: a swipe only reveals the buttons (a full swipe never runs one), one row is open
-// at a time, and a tap elsewhere or a scroll closes it. The first move decides the axis:
-// vertical scrolls the list, horizontal slides the row. A touch that starts at the left edge
-// is left to iOS (back). The document-level touch guard lets sideways drags on .sw through.
+// The first move decides the axis: vertical scrolls the list, horizontal is the page swipe
+// (and cancels the long press).
 const SWIPE_EDGE = 20; // px from the left screen edge
 const SWIPE_SLOP = 8; // px before the axis is decided
 const LONG_MS = 500;
@@ -98,7 +98,7 @@ function rowTouchMove(e) {
   if (!g.axis) {
     if (Math.hypot(dx, dy) < SWIPE_SLOP) return;
     clearTimeout(g.timer);
-    g.axis = Math.abs(dx) > Math.abs(dy) ? (g.sw && !g.edge && !g.long ? 'x' : 'none') : 'y';
+    g.axis = Math.abs(dx) > Math.abs(dy) ? 'none' : 'y'; // sideways: tabswipe.js
     if (g.axis === 'x' && swipe.open && swipe.open !== g.sw) closeRow();
     if (g.axis === 'y' && swipe.open) closeRow();
   }
