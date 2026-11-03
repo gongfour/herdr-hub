@@ -1208,7 +1208,7 @@ function screenColors(pre) {
     const h = cs.getPropertyValue(`--ansi-${i}`).trim();
     return /^#[0-9a-f]{6}$/i.test(h) ? [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)) : null;
   });
-  return { fg: fg.length === 3 ? fg : undefined, bg: bg.length === 3 ? bg : undefined, palette, dark: matchMedia('(prefers-color-scheme: dark)').matches };
+  return { fg: fg.length === 3 ? fg : undefined, bg: bg.length === 3 ? bg : undefined, palette, dark: bg.length === 3 ? 0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2] < 128 : matchMedia('(prefers-color-scheme: dark)').matches };
 }
 
 function drawScreen(s, p) {

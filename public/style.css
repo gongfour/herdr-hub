@@ -171,7 +171,7 @@ button { font: inherit; color: inherit; }
    sideways inside the box (never the page). .wrap folds each line at the phone's width. */
 .screen {
   font: 11px/1.35 var(--mono); white-space: pre; overflow-wrap: normal; overflow-x: auto; max-width: 100%;
-  margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  margin: 0; background: var(--term-bg); color: var(--term-fg); border: 0; border-radius: 0; padding: 10px 12px; min-height: 100%; box-sizing: border-box;
   -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; tab-size: 8;
   /* x only: a vertical drag over the text must still scroll the box around it (which contains it). */
   overscroll-behavior-x: contain;
@@ -235,9 +235,20 @@ button { font: inherit; color: inherit; }
 .screen .a-u { text-decoration: underline; }
 .screen .a-s { text-decoration: line-through; }
 .screen .a-us { text-decoration: underline line-through; }
-.scroll.screen-mode { padding: 8px 8px 12px; overflow-x: hidden; position: relative; touch-action: pan-x pan-y; }
+/* The pane fills the whole area edge to edge like a terminal window, not a card inside the page.
+   It is always a dark terminal: agent TUIs pick their colours for one, and ansi.js reads the
+   palette and background from here for its contrast guard. */
+.scroll.screen-mode {
+  padding: 0; overflow-x: hidden; position: relative; touch-action: pan-x pan-y;
+  --term-bg: #181816; --term-fg: #e6e4dc;
+  --ansi-0: #8a877f; --ansi-1: #ff6b5e; --ansi-2: #7fd08a; --ansi-3: #e5c25c;
+  --ansi-4: #6aa8ff; --ansi-5: #d68cf0; --ansi-6: #5fd3d8; --ansi-7: #d6d4cc;
+  --ansi-8: #8f8c83; --ansi-9: #ff8a80; --ansi-10: #9be3a5; --ansi-11: #f2d77a;
+  --ansi-12: #8fbfff; --ansi-13: #e6a8f7; --ansi-14: #86e6ea; --ansi-15: #f5f4ef;
+  background: var(--term-bg); color-scheme: dark;
+}
 .screen-tools {
-  flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 12px 0 16px; min-height: 40px;
+  flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 12px 6px 16px; min-height: 40px;
 }
 .screen-tools .s-status { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .screen-tools .s-status.err { color: var(--blocked); }
