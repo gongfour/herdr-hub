@@ -11,12 +11,15 @@ const transcript = require('./lib/transcript');
 const dirs = require('./lib/dirs');
 const uploads = require('./lib/uploads');
 const commands = require('./lib/commands');
-const names = require('./lib/names');
 const times = require('./lib/times');
 const notifyLib = require('./lib/notify');
 const { parseChoices, choicesSettled } = require('./public/choices');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
+const { send, readJson, readRaw, serveStatic } = require('./lib/http');
+const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
+const { screenReader } = require('./lib/screen');
+const { viewportLog } = require('./lib/viewport-log');
 
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -30,8 +33,6 @@ const PUSH_ON = process.env.HERDR_HUB_PUSH !== '0';
 // Folder or workspace name prefixes whose agents never notify (throwaway test workspaces).
 const PUSH_MUTE = notifyLib.parseMute(process.env.HERDR_HUB_PUSH_MUTE);
 const POLL_MS = 4000;
-const VIEWPORT_LOG = path.join(DATA, 'viewport.log');
-const VIEWPORT_LOG_MAX = 512 * 1024; // and one older file: about 1 MB in all
 
 if (!HOST_ID_RULE.test(HOST_ID) || HOST_ID === 'all') {
   console.error(`HERDR_HUB_HOST_ID must match ${HOST_ID_RULE} and not be "all".`);
@@ -52,6 +53,10 @@ if (peers.has(HOST_ID)) {
   console.error('HERDR_HUB_PEERS must not list this host itself.');
   process.exit(2);
 }
+
+// Pane reads with herdr's fallbacks (lib/screen), and the phone's viewport log (lib/viewport-log).
+const readScreen = screenReader(herdr.call);
+const appendViewport = viewportLog(DATA);
 
 // ---------------------------------------------------------------- live state
 
@@ -289,48 +294,14 @@ function identity(req) {
   return ALLOW_LOCAL ? 'local' : null;
 }
 
-function send(res, status, body, headers = {}) {
-  const data = typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers });
-  res.end(data);
-}
-
-function readJson(req, limit = 256 * 1024) {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks = [];
-    req.on('data', (c) => {
-      size += c.length;
-      if (size > limit) {
-        reject(Object.assign(new Error('body too large'), { status: 413 }));
-        req.destroy();
-      } else chunks.push(c);
-    });
-    req.on('end', () => {
-      try {
-        resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {});
-      } catch {
-        reject(Object.assign(new Error('invalid JSON'), { status: 400 }));
-      }
-    });
-  });
-}
-
 const findAgent = (pane) => local.agents.find((a) => a.pane === pane);
 const findTerminal = (pane) => local.terminals.find((t) => t.pane === pane);
 const findWorkspace = (id) => local.workspaces.find((w) => w.workspace_id === id);
+// An agent spec from the page, named after nameFrom when it comes without a name (lib/validate).
+const cleanAgentSpec = (spec, nameFrom) => cleanSpec(spec, nameFrom, local.agents.map((a) => a.name).filter(Boolean));
 
 // ---------------------------------------------------------------- management
 
-// Agent kinds herdr can launch (detect::interactive_agent_executable); the
-// executable must still be on the host's PATH.
-const KINDS = ['claude', 'codex', 'gemini', 'opencode', 'pi', 'copilot', 'cursor', 'amp', 'qwen'];
-const KEYS = /^(esc|enter|tab|up|down|left|right|backspace|space|[0-9]|y|n|ctrl\+c|shift\+tab)$/;
-const ARG = /^[A-Za-z0-9_@%+=:,./\\-]{1,200}$/;
-const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/; // herdr's rule for agent names
-// A shell pane also takes what full-screen programs (helix, vim, less) need: page and edit
-// keys, F-keys and Ctrl/Alt chords.
-const PANE_KEYS = /^(esc|enter|tab|up|down|left|right|backspace|delete|space|home|end|pageup|pagedown|insert|shift\+tab|f([1-9]|1[0-2])|(ctrl|alt)\+[a-z]|[0-9]|y|n)$/;
 // Keys herdr has no name for (0.9: "unsupported key"): their xterm sequences, typed as text.
 const SEQ_KEYS = { pageup: '\x1b[5~', pagedown: '\x1b[6~', home: '\x1b[H', end: '\x1b[F', delete: '\x1b[3~', insert: '\x1b[2~' };
 async function sendPaneKeys(pane, keys) {
@@ -346,49 +317,6 @@ async function sendPaneKeys(pane, keys) {
     } else run.push(k);
   }
   await flush();
-}
-const validKeys = (keys, rule = KEYS) => Array.isArray(keys) && keys.length > 0 && keys.length <= 8 && keys.every((k) => typeof k === 'string' && rule.test(k));
-const bad = (code) => Object.assign(new Error(code), { status: 400, code });
-
-function cleanLabel(label, { required = false } = {}) {
-  if (label == null || label === '') {
-    if (required) throw bad('empty_label');
-    return null;
-  }
-  if (typeof label !== 'string' || /[\x00-\x1f\x7f]/.test(label) || label.trim().length > 60) throw bad('bad_label');
-  const t = label.trim();
-  if (!t && required) throw bad('empty_label');
-  return t || null;
-}
-
-// Folders must be absolute and exist on this host; trailing separators are dropped.
-function cleanCwd(cwd) {
-  if (typeof cwd !== 'string' || !cwd.trim() || cwd.length > 400 || /[\x00-\x1f]/.test(cwd)) throw bad('bad_cwd');
-  const raw = cwd.trim();
-  // On Windows a rootless "\foo" counts as absolute to node but depends on the current drive.
-  if (!path.isAbsolute(raw) || (process.platform === 'win32' && !/^([A-Za-z]:[\\/]|\\\\)/.test(raw))) throw bad('cwd_not_absolute');
-  const p = path.resolve(raw);
-  let st;
-  try {
-    st = fs.statSync(p);
-  } catch {
-    throw bad('cwd_not_found');
-  }
-  if (!st.isDirectory()) throw bad('cwd_not_directory');
-  return p;
-}
-
-// nameFrom: what to name an agent that comes without a name (workspace label, folder).
-function cleanAgentSpec(spec, nameFrom = []) {
-  if (!spec || typeof spec !== 'object') throw bad('bad_agent');
-  if (!KINDS.includes(spec.kind)) throw bad('bad_kind');
-  const args = spec.args == null ? [] : spec.args;
-  if (!Array.isArray(args) || args.length > 16 || !args.every((a) => typeof a === 'string' && ARG.test(a))) throw bad('bad_args');
-  let name = spec.name || '';
-  if (name && (typeof name !== 'string' || !AGENT_NAME.test(name))) throw bad('bad_agent_name');
-  // herdr requires a unique name: none given, the folder or workspace name, made unique.
-  if (!name) name = names.defaultName(nameFrom, spec.kind, local.agents.map((a) => a.name).filter(Boolean));
-  return { kind: spec.kind, args, name };
 }
 
 // Folders seen in existing agents and panes, most common first.
@@ -410,61 +338,6 @@ async function startAgent(pane, spec) {
     } catch (err) {
       if (attempt >= 8 || !['agent_pane_busy', 'agent_pane_unavailable'].includes(err.code)) throw err;
       await new Promise((r) => setTimeout(r, 500));
-    }
-  }
-}
-
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
-
-function serveStatic(req, res, pathname) {
-  const rel = pathname === '/' ? 'index.html' : pathname.slice(1);
-  const file = path.normalize(path.join(PUBLIC, rel));
-  if (!file.startsWith(PUBLIC + path.sep)) return send(res, 404, { error: 'not_found' });
-  fs.readFile(file, (err, data) => {
-    if (err) return send(res, 404, { error: 'not_found' });
-    const ext = path.extname(file);
-    res.writeHead(200, {
-      'Content-Type': MIME[ext] || 'application/octet-stream',
-      // Small files on a private network: always revalidate so a deploy shows up at once.
-      'Cache-Control': 'no-cache',
-      'X-Content-Type-Options': 'nosniff',
-    });
-    res.end(data);
-  });
-}
-
-// Read a pane's text. source: visible | recent | recent_unwrapped (default recent).
-// An agent that is working can't give its scrollback ("agent_not_idle"): read what is visible
-// instead. A herdr without recent_unwrapped gets plain recent from then on. The answer says
-// which source was actually read.
-// format "ansi" keeps the colours (SGR codes only) for the screen box; plain text stays the
-// default for everyone else (choice parsing, the blocked prompt). A herdr that doesn't know
-// the format gets plain text from then on, and the answer says which format came back.
-const READ_SOURCES = ['visible', 'recent', 'recent_unwrapped'];
-const READ_FATAL = ['pane_not_found', 'agent_not_found', 'unreachable', 'timeout', 'empty_response', 'bad_response'];
-let unwrappedOk = true;
-let ansiOk = true;
-const badFormat = (err) => err.code === 'invalid_request' && /format|ansi/i.test(err.message || '');
-const notIdle = (err) => /not_idle/.test(err.code || '') || /while .* is working|--source visible/i.test(err.message || '');
-async function readScreen(method, target, wanted, lines, wantedFormat) {
-  let source = READ_SOURCES.includes(wanted) ? wanted : 'recent';
-  if (source === 'recent_unwrapped' && !unwrappedOk) source = 'recent';
-  let ansi = wantedFormat === 'ansi' && ansiOk;
-  for (;;) {
-    try {
-      const params = ansi ? { format: 'ansi', strip_ansi: false } : { strip_ansi: true };
-      const r = await herdr.call(method, { ...target, source, lines, ...params });
-      return { text: r.read.text, truncated: r.read.truncated, source, format: ansi && r.read.format === 'ansi' ? 'ansi' : 'text' };
-    } catch (err) {
-      if (ansi && badFormat(err)) {
-        ansiOk = ansi = false;
-        console.log(`${method}: format ansi not supported (${err.message}); using plain text`);
-      } else if (source !== 'visible' && notIdle(err)) source = 'visible';
-      else if (source === 'recent_unwrapped' && !READ_FATAL.includes(err.code)) {
-        unwrappedOk = false;
-        console.log(`${method}: recent_unwrapped not supported (${err.code}: ${err.message}); using recent`);
-        source = 'recent';
-      } else throw err;
     }
   }
 }
@@ -556,7 +429,7 @@ async function api(req, res, url) {
       if (parts[2] === 'input' || parts[2] === 'keys') {
         const { text = '' } = body;
         const keys = parts[2] === 'input' ? ['enter'] : body.keys;
-        if (typeof text !== 'string' || text.length > 4000 || /[\x00-\x1f\x7f]/.test(text)) return send(res, 400, { error: 'bad_text' });
+        if (badText(text)) return send(res, 400, { error: 'bad_text' });
         // keys may be empty when there is text: raw mode typing one character at a time.
         const textOnly = parts[2] === 'keys' && text && Array.isArray(keys) && keys.length === 0;
         if (!textOnly && !validKeys(keys, PANE_KEYS)) return send(res, 400, { error: 'bad_keys' });
@@ -619,7 +492,7 @@ async function api(req, res, url) {
       // text: typed first without Enter, e.g. the answer after a "Type something" choice.
       const { keys, text = '' } = await readJson(req);
       if (!validKeys(keys)) return send(res, 400, { error: 'bad_keys' });
-      if (typeof text !== 'string' || text.length > 4000 || /[\x00-\x1f\x7f]/.test(text)) return send(res, 400, { error: 'bad_text' });
+      if (badText(text)) return send(res, 400, { error: 'bad_text' });
       if (text) await herdr.call('pane.send_text', { pane_id: pane, text });
       await herdr.call('agent.send_keys', { target: pane, keys });
       refreshSoon();
@@ -630,7 +503,7 @@ async function api(req, res, url) {
     if (method === 'POST' && parts[2] === 'answer') {
       const body = await readJson(req);
       const r = await answerLocal(pane, body);
-      return send(res, r.status || 200, r.ok ? { ok: true, n: r.item.n, label: r.item.label } : { error: r.error });
+      return send(res, r.status || 200, answerBody(r));
     }
     if (method === 'POST' && parts[2] === 'rename') {
       // Empty clears the name; herdr allows only lowercase names.
@@ -651,7 +524,7 @@ async function api(req, res, url) {
     let out;
     if (host === HOST_ID) {
       const r = await answerLocal(body.pane, fwd);
-      out = { status: r.status || 200, body: r.ok ? { ok: true, n: r.item.n, label: r.item.label } : { error: r.error } };
+      out = { status: r.status || 200, body: answerBody(r) };
     } else {
       const peer = peers.get(host);
       if (!peer) return send(res, 404, { error: 'unknown_host' });
@@ -717,6 +590,9 @@ async function api(req, res, url) {
   send(res, 404, { error: 'not_found' });
 }
 
+// What an answer request gets back (here, or through the hub from a notification button).
+const answerBody = (r) => (r.ok ? { ok: true, n: r.item.n, label: r.item.label } : { error: r.error });
+
 // The guard runs on fresh state: herdr is asked again, and the screen read now.
 async function answerLocal(pane, body) {
   await refresh();
@@ -758,45 +634,12 @@ async function proxy(req, res, url) {
   send(res, r.status, r.body, { 'Content-Type': r.type, ...(r.cache ? { 'Cache-Control': r.cache } : {}) });
 }
 
-// One JSON line per snapshot. Past the cap the file becomes viewport.log.1 (the older one goes).
-function appendViewport(entry) {
-  try {
-    fs.mkdirSync(DATA, { recursive: true });
-    let size = 0;
-    try {
-      size = fs.statSync(VIEWPORT_LOG).size;
-    } catch {
-      /* first line */
-    }
-    if (size > VIEWPORT_LOG_MAX) fs.renameSync(VIEWPORT_LOG, `${VIEWPORT_LOG}.1`);
-    fs.appendFileSync(VIEWPORT_LOG, JSON.stringify(entry) + '\n');
-  } catch {
-    /* diagnostics must never break the app */
-  }
-}
-
-function readRaw(req, limit = 256 * 1024) {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks = [];
-    req.on('data', (c) => {
-      size += c.length;
-      if (size > limit) {
-        reject(Object.assign(new Error('body too large'), { status: 413, code: 'body_too_large' }));
-        req.resume();
-      } else chunks.push(c);
-    });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
-  });
-}
-
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://herdr-hub.local');
   if (!identity(req)) return send(res, 403, { error: 'forbidden' }, { 'Content-Type': 'text/plain; charset=utf-8' });
   try {
     if (url.pathname.startsWith('/api/')) await api(req, res, url);
-    else if (req.method === 'GET') serveStatic(req, res, url.pathname);
+    else if (req.method === 'GET') serveStatic(PUBLIC, res, url.pathname);
     else send(res, 405, { error: 'method_not_allowed' });
   } catch (err) {
     const status = err.status || (err instanceof herdr.HerdrError ? 502 : 500);
