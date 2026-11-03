@@ -837,3 +837,13 @@ button.tool .chev { flex: none; color: var(--muted); }
 button.tool:active { filter: brightness(0.95); }
 .tool.failed b { color: var(--blocked); }
 .msg .tool-out { margin: 4px 0 2px; max-height: 40vh; overflow: auto; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Shell toolbar: the key row and the command line read as one panel. Keys are quiet chips with
+   room to breathe; the line between them is gone so the command field isn't jammed under them. */
+.term-keys { gap: 8px; padding: 10px 12px 10px; border-top: 1px solid var(--line); }
+.term-keys .key {
+  min-height: 44px; border: 0; border-radius: 12px; background: var(--surface-2); color: var(--text);
+  font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+}
+.term-keys .key:active { filter: brightness(0.9); }
+.term-keys + .composer, .term-keys + * + .composer { border-top: 0; padding-top: 2px; }
