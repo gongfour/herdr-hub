@@ -6,6 +6,8 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
 
 - 서버: `server.js` — herdr API 소켓(Windows 는 named pipe)에 직접 붙는다. SSH·셸을 거치지 않는다.
 - 화면: `public/` — 빌드 없는 바닐라 JS. 목록, 에이전트 보기(대화 + 작업 줄 + 터미널 화면 시트), 응답 키, 보내기, 중단(Esc), 웹 푸시 알림.
+  - 파일: 번들러 없이 `index.html` 이 `<script defer>` 로 차례대로 읽고, 모두 한 전역 범위를 나눠 쓴다. 먼저 순수 함수 파일(`choices` `ansi` `activity` `mode` `inbox` `split` `keys` `route` `markdown`, 시험은 `npm test`), 그다음 `core.js`(상태·api()·설정값·시트·메뉴·알림 줄), 화면별 파일 `list` `rows` `answer` `chat` `composer` `agent` `actions` `shell` `screen` `workspace` `forms` `settings` `diag` `viewport`, 맨 끝에 `app.js`(실시간 연결·주소·두 칸 배치·시작). 맨 위 코드는 리스너 등록과 정의만 하고, 그리는 일은 `app.js` 에서 시작한다. 새 파일은 `index.html` 에 같은 `?v=` 로 넣는다.
+  - 서버 쪽 도움 모듈: `lib/http.js`(응답·본문·정적 파일), `lib/validate.js`(키·글·이름·폴더·에이전트 검사), `lib/screen.js`(패널 읽기와 herdr 대체 경로).
 - 탭: 아래 탭 막대 「홈 / 작업공간 / 설정」(`#/`, `#/spaces`, `#/settings`). 앱은 마지막에 본 목록 탭(홈 또는 작업공간)으로 열린다(`herdr-hub.tab`). 에이전트·셸·워크스페이스 화면의 뒤로는 그 탭으로 간다. 탭마다 스크롤 위치를 기억한다. 호스트 선택·+ 는 두 목록 탭 머리글에 있다. 홈 탭에는 답 필요 수가 뜬다.
 - 넓은 화면(폭 1000px 이상: 가로로 둔 Galaxy Tab S7+, 노트북)은 두 칸이다(`public/split.js`, 시험은 `npm test`). 왼쪽(340–380px)은 홈·작업공간·설정과 아래 탭 막대·호스트 선택·+, 오른쪽은 연 에이전트·셸·워크스페이스·새 워크스페이스 화면. 아무것도 열지 않았으면 「왼쪽에서 에이전트를 고르세요」와 답 필요 첫 에이전트로 가는 단추. 세로 태블릿(876)·화면 분할의 반쪽·휴대폰은 전과 같은 한 칸이다.
   - 주소가 정본이다: 에이전트 주소는 왼쪽 목록 + 오른쪽 에이전트로 그린다. 줄을 누르면 왼쪽은 다시 그리지 않고(스크롤 그대로) 오른쪽만 바뀌며, 연 줄은 `aria-current` 로 표시한다. 오른쪽 머리글의 뒤로는 끝의 ✕(닫기)가 되고 목록 주소로 간다. Esc 도 닫는다.
@@ -59,11 +61,11 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
   - 보낼 때 사진마다 에이전트가 있는 호스트에 먼저 올리고(`POST /api/uploads`, 본문은 사진 그대로 `image/jpeg|png|webp`, `X-Herdr-Hub`, 10MB 까지, 피어는 허브가 이진 그대로 넘긴다), 프롬프트는 「글 + 줄마다 절대 경로 하나」로 보낸다. 서버는 `<임시 폴더>/herdr-hub-uploads/<yyyymmdd-hhmmss>-<임의>.<확장자>` 에 저장하고 `{path, name}` 을 돌려준다(내용이 형식과 맞아야 한다). 시작할 때와 하루에 한 번 7일 지난 파일을 지운다. `GET /api/uploads/<name>` 은 그 폴더의 그 이름 꼴 파일만 준다.
   - Claude Code 2.1.317 은 프롬프트 안의 이미지 경로를 스스로 첨부한다(경로 자리에 `[Image #N]`, 기록에는 이미지 블록과 `[Image: source: <경로>]` 메타 항목). 그래서 「읽어 달라」는 안내 줄은 붙이지 않는다(desktop·server 의 haiku 로 확인: 그림 속 글자를 읽었다).
   - 대화: 보낸 말풍선에 첨부 사진을 작은 그림으로 보여 주고, 누르면 전체 화면으로 연다. 기록의 메타 항목(또는 글에 남은 경로)에서 업로드 이름을 찾아 `/api/uploads/<name>` 으로 받는다. base64 는 휴대폰으로 보내지 않는다. 업로드가 아닌 이미지(호스트에서 붙여 넣은 것)는 「이미지」 칩으로만 보인다.
-- 화면 진단(임시): 설정 → 「화면 진단 보내기」(기본 켬, 이 기기에 기억). 켜 두면 `visualViewport` 크기·스크롤, 포커스 들어옴·나감, 방향 바뀜 때(1초에 두 번까지, 값이 바뀔 때만) 상태를 허브의 `POST /api/debug/viewport` 로 보낸다. 피어로는 넘기지 않는다. 허브가 `data/viewport.log` 에 한 줄에 JSON 하나로 쌓는다. 512KB 를 넘으면 `viewport.log.1` 로 돌리므로 둘 합쳐 1MB 쯤이다. 다른 것은 기록하지 않는다.
+- 화면 진단(임시): 설정 → 「화면 진단 보내기」(기본 끔, 이 기기에 기억). 켜 두면 `visualViewport` 크기·스크롤, 포커스 들어옴·나감, 방향 바뀜 때(1초에 두 번까지, 값이 바뀔 때만) 상태를 허브의 `POST /api/debug/viewport` 로 보낸다. 피어로는 넘기지 않는다. 허브가 `data/viewport.log` 에 한 줄에 JSON 하나로 쌓는다. 512KB 를 넘으면 `viewport.log.1` 로 돌리므로 둘 합쳐 1MB 쯤이다. 다른 것은 기록하지 않는다.
   - 붙여넣기마다 `reason: "paste"` 줄도 하나 남긴다: `types`, `items`(kind·type), `fileCount`, `files`(type·size). 내용은 남기지 않는다.
   - 항목: `reason`(이벤트), `route`, `innerHeight`, `clientHeight`, `vvHeight`, `offsetTop`, `pageTop`, `scale`, `scrollY`, `scrollingTop`, 틀에 준 `appH`·`appTop`, `kb`(키보드로 본 상태), `header`·`composer`·`scroller` 의 `{top,bottom,height}`, `focused`, `standalone`, `userAgent`, `ts`(휴대폰 시각), `at`(서버 시각).
   - 읽기(맥에서): `ssh kangw@desktop 'Get-Content C:\Users\kangw\src\herdr-hub\data\viewport.log -Tail 20'`. 키보드를 연 줄에서 `header.top` 이 `offsetTop` 과 같고 `composer.bottom` 이 `offsetTop + vvHeight` 와 같으면 맞다.
-  - 끄기: 휴대폰에서 설정 → 「화면 진단 보내기」를 끈다. 기본값을 끄려면 `public/app.js` 의 `diagOn()` 을 바꾼다.
+  - 끄기: 휴대폰에서 설정 → 「화면 진단 보내기」를 끈다. 기본값은 `public/diag.js` 의 `diagOn()` 이다. 통째로 없애는 방법은 `public/diag.js` 머리 주석에 있다(그 파일, 표시한 호출 세 곳, 서버의 `/api/debug/viewport` 와 `lib/viewport-log.js`).
 
 ## 여러 호스트 (허브)
 
