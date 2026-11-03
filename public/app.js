@@ -35,11 +35,13 @@ const KIND_ICON = {
 };
 const agentIcon = (a) => KIND_ICON[a.agent] || ICON.agent;
 const TERM_KEYS = [['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['tab', 'Tab'], ['esc', 'Esc']];
-// 키 직접 입력 (raw) in the shell view: for full-screen programs (helix, vim, less). A ":text"
-// entry types that text; the rest are herdr key names.
+// 키 직접 입력 (raw), the shell view's default: every key goes to the pane as it is pressed,
+// so the shell's own completion, history and suggestions work, as do full-screen programs
+// (helix, vim, less). Shell keys come first. A ":text" entry types that text; the rest are
+// herdr key names.
 const RAW_TERM_KEYS = [
-  ['esc', 'Esc'], [':text', ':'], ['/text', '/'], ['ctrl+x', 'Ctrl+X'], ['pageup', 'PgUp'], ['pagedown', 'PgDn'],
-  ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['tab', 'Tab'], ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C'],
+  ['ctrl+c', 'Ctrl+C'], ['tab', 'Tab'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['ctrl+r', 'Ctrl+R'],
+  ['esc', 'Esc'], [':text', ':'], ['/text', '/'], ['pageup', 'PgUp'], ['pagedown', 'PgDn'], ['ctrl+x', 'Ctrl+X'], ['enter', 'Enter'],
 ];
 const ERROR_TEXT = {
   cwd_not_absolute: '절대 경로를 적어 주세요.',
@@ -662,7 +664,7 @@ function route() {
     detail = { host, pane: view.pane, screen: null };
     renderTerminal();
     loadTerminal();
-    pollTimer = setInterval(loadTerminal, 2500);
+    pollTimer = setInterval(pollTerminal, TERM_TICK_MS);
   } else if ((m = h.match(/^\/ws\/(.+)$/))) {
     view = { name: 'ws', host, id: decodeURIComponent(m[1]) };
     renderWorkspace();
@@ -2585,13 +2587,12 @@ function renderTerminal() {
       <div class="scroll" id="t-body"></div>
       <div class="keys term-keys" id="t-keys"></div>
       <form class="composer" id="t-form">
-        <button type="button" class="mode" id="t-raw" aria-pressed="false" aria-label="키 직접 입력">키 직접<br>입력</button>
+        <button type="button" class="mode" id="t-raw"></button>
         <input class="cmd" id="t-input" placeholder="명령 (Enter 로 실행)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
         <button type="submit" class="send" id="t-send" aria-label="실행">${ICON.send}</button>
       </form>
     </div>`;
   const input = document.getElementById('t-input');
-  detail.raw = false; // command mode first, every time
   const keysBox = document.getElementById('t-keys');
   const drawKeys = () => {
     const list = detail.raw ? RAW_TERM_KEYS : TERM_KEYS;
@@ -2600,13 +2601,27 @@ function renderTerminal() {
   };
   drawKeys();
   // Raw mode: pressing a key button leaves the caret (and the iPhone keyboard) in the field,
-  // so the next typed key still goes to the program, not to the button.
+  // so the next typed key still goes to the program, not to the button. On a touch screen
+  // that means acting on touchend (as keepFocusTap does); a swipe along the row only scrolls it.
   keysBox.addEventListener('mousedown', (e) => detail.raw && e.preventDefault());
+  let keyTouch = null;
+  keysBox.addEventListener('touchstart', (e) => (keyTouch = e.touches.length === 1 ? e.touches[0] : null), { passive: true });
+  keysBox.addEventListener('touchend', (e) => {
+    const from = keyTouch;
+    keyTouch = null;
+    const t = e.changedTouches[0];
+    const b = e.target.closest('.key');
+    if (!detail.raw || !b || !from || !t || Math.hypot(t.clientX - from.clientX, t.clientY - from.clientY) > 12) return;
+    e.preventDefault();
+    pressKey(b);
+  });
   // Command mode: a key goes after whatever is in the input line, typed without Enter (Tab
   // completes it). Raw mode: the key alone, at once.
-  keysBox.onclick = async (e) => {
+  keysBox.onclick = (e) => {
     const b = e.target.closest('.key');
-    if (!b) return;
+    if (b) pressKey(b);
+  };
+  const pressKey = async (b) => {
     const k = b.dataset.key;
     if (detail.raw) return rawSend(k.endsWith('text') ? { text: k.slice(0, -4) } : { key: k });
     if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [k], text: input.value })) {
@@ -2614,19 +2629,24 @@ function renderTerminal() {
       setTimeout(loadTerminal, 300);
     }
   };
+  // The button names the other mode: 한 줄 입력 (write a line, then run it; for long commands,
+  // pasting and Korean) or back to 키 직접 입력.
   const rawBtn = document.getElementById('t-raw');
-  rawBtn.onclick = () => {
-    detail.raw = !detail.raw;
-    rawBtn.setAttribute('aria-pressed', String(detail.raw));
+  const setRaw = (on) => {
+    detail.raw = on;
+    rawBtn.innerHTML = on ? '한 줄<br>입력' : '키 직접<br>입력';
+    rawBtn.setAttribute('aria-label', on ? '한 줄 입력으로 바꾸기' : '키 직접 입력으로 바꾸기');
     input.value = '';
-    input.placeholder = detail.raw ? '누르는 키가 바로 갑니다' : '명령 (Enter 로 실행)';
-    input.setAttribute('enterkeyhint', detail.raw ? 'enter' : 'send');
-    document.getElementById('t-send').hidden = detail.raw;
-    $app.querySelector('.detail').classList.toggle('raw', detail.raw);
+    input.placeholder = on ? '누르는 키가 바로 갑니다' : '명령 (Enter 로 실행)';
+    input.setAttribute('enterkeyhint', on ? 'enter' : 'send');
+    document.getElementById('t-send').hidden = on;
+    $app.querySelector('.detail').classList.toggle('raw', on);
     drawKeys();
+  };
+  setRaw(true);
+  rawBtn.onclick = () => {
+    setRaw(!detail.raw);
     input.focus();
-    clearInterval(pollTimer);
-    pollTimer = setInterval(loadTerminal, detail.raw ? 1000 : 2500);
   };
   keepFocusTap(document.getElementById('t-send'), () => document.getElementById('t-form').requestSubmit());
   document.getElementById('t-form').onsubmit = async (e) => {
@@ -2711,9 +2731,14 @@ async function pumpRaw() {
   try {
     while (rawQ.length) {
       const it = rawQ.shift();
-      await api(hp(`/panes/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify(it) });
+      // The reply carries the screen (the echo); a read follows a moment later for slower output.
+      const n = ++termReads;
+      const last = !rawQ.length;
+      const r = await api(hp(`/panes/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify(last ? { ...it, echo: { format: getColor() ? 'ansi' : 'text' } } : it) });
+      detail.keyAt = Date.now();
+      if (r && r.screen && detail.pane === pane) drawTerminal(r.screen, n);
       clearTimeout(rawLoadTimer);
-      rawLoadTimer = setTimeout(loadTerminal, 150);
+      rawLoadTimer = setTimeout(loadTerminal, RAW_FOLLOW_MS);
     }
   } catch (err) {
     rawQ.length = 0;
@@ -2725,17 +2750,39 @@ async function pumpRaw() {
 
 // Unwrapped lines, so the phone wraps each real line once instead of re-wrapping lines already
 // cut at the pane's width. (The server falls back to recent on a herdr without it.)
+// How soon the screen is read again: a little after a key's echo came back (output that takes
+// longer), every 300 ms while keys are being typed, then every second in 키 직접 입력 and every
+// 2.5 s in 한 줄 입력.
+const RAW_FOLLOW_MS = 250;
+const TERM_TICK_MS = 300;
+const TYPING_MS = 3000;
+function pollTerminal() {
+  const since = Date.now() - (detail.loadAt || 0);
+  const typing = detail.raw && Date.now() - (detail.keyAt || 0) < TYPING_MS;
+  if (typing || since >= (detail.raw ? 1000 : 2500)) loadTerminal();
+}
+
+let termReads = 0; // reads overlap when keys come fast; only the newest may draw
 async function loadTerminal() {
   if (!currentTerminal() || document.visibilityState !== 'visible') return;
   const pane = detail.pane;
+  const n = ++termReads;
+  detail.loadAt = Date.now();
+  let screen;
   try {
-    detail.screen = await api(hp(`/panes/${encodeURIComponent(pane)}/screen?source=recent_unwrapped&lines=200${colorQuery()}`));
+    screen = await api(hp(`/panes/${encodeURIComponent(pane)}/screen?source=recent_unwrapped&lines=200${colorQuery()}`));
   } catch (err) {
-    if (scr && scr.kind === 'term' && !['pane_not_found', 'peer_offline'].includes(err.code)) screenError(`불러오지 못했습니다: ${errText(err)}`);
+    if (n === termReads && scr && scr.kind === 'term' && !['pane_not_found', 'peer_offline'].includes(err.code)) screenError(`불러오지 못했습니다: ${errText(err)}`);
     return;
   }
-  if (!scr || scr.kind !== 'term' || detail.pane !== pane) return;
-  setScreenText(detail.screen.text, detail.screen.format);
+  if (detail.pane === pane) drawTerminal(screen, n);
+}
+function drawTerminal(screen, n) {
+  if (n < (detail.drawn || 0)) return; // an older read finished after a newer one
+  detail.drawn = n;
+  detail.screen = screen;
+  if (!scr || scr.kind !== 'term') return;
+  setScreenText(screen.text, screen.format);
 }
 
 async function terminalMenu() {

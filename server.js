@@ -562,6 +562,14 @@ async function api(req, res, url) {
         if (!textOnly && !validKeys(keys, PANE_KEYS)) return send(res, 400, { error: 'bad_keys' });
         if (text) await herdr.call('pane.send_text', { pane_id: pane, text });
         if (!textOnly) await sendPaneKeys(pane, keys);
+        // 키 직접 입력 asks for the screen back ({ echo: { format } }): the echo arrives with the
+        // reply instead of a second request (two hops when the pane is on a peer). Typing
+        // changes no pane state, so the refresh below is skipped.
+        if (parts[2] === 'keys' && body.echo && typeof body.echo === 'object') {
+          await new Promise((r) => setTimeout(r, 40));
+          const screen = await readScreen('pane.read', { pane_id: pane }, 'recent_unwrapped', 200, body.echo.format);
+          return send(res, 200, { ok: true, screen });
+        }
       } else if (parts[2] === 'rename') {
         await herdr.call('pane.rename', { pane_id: pane, label: cleanLabel(body.label) });
       } else if (parts[2] === 'split') {
