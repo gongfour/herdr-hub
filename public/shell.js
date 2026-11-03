@@ -3,6 +3,17 @@
 
 // ------------------------------------------------------------ terminal view
 
+// The key row: 한 줄 입력's keys, and 키 직접 입력's.
+const TERM_KEYS = [['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['tab', 'Tab'], ['esc', 'Esc']];
+// 키 직접 입력 (raw), the shell view's default: every key goes to the pane as it is pressed,
+// so the shell's own completion, history and suggestions work, as do full-screen programs
+// (helix, vim, less). Shell keys come first. A ":text" entry types that text; the rest are
+// herdr key names.
+const RAW_TERM_KEYS = [
+  ['ctrl+c', 'Ctrl+C'], ['tab', 'Tab'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['ctrl+r', 'Ctrl+R'],
+  ['esc', 'Esc'], [':text', ':'], ['/text', '/'], ['pageup', 'PgUp'], ['pagedown', 'PgDn'], ['ctrl+x', 'Ctrl+X'], ['enter', 'Enter'],
+];
+
 // Shell titles are often the executable's full path; the program name says enough.
 const termTitle = (t) => t.label || (/[\\/]/.test(t.title) ? basename(t.title) : t.title);
 const currentTerminal = () => (state.terminals || []).find((t) => same(t, curHost(), detail.pane));

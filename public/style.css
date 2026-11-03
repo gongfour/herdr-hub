@@ -792,13 +792,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .term-keys::-webkit-scrollbar { display: none; }
 .term-keys .key { flex: 1 0 auto; min-width: 48px; padding: 0 10px; }
 .detail.raw .term-keys .key { flex: 0 0 auto; }
-.mode {
-  flex: none; min-width: 52px; min-height: 44px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--field-line);
-  background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 600; line-height: 1.15; cursor: pointer;
-}
-.mode[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: transparent; }
-.mode:active { filter: brightness(0.92); }
-.detail.raw .composer .cmd { border-color: var(--accent); }
 /* Coloured cells fill their whole row height: no dark gaps between rows of a TUI's background. */
 .screen span[style*="background"], .screen [class*=" ab"], .screen [class^="ab"], .screen [class*="aB"] {
   padding-block: 0.1em; -webkit-box-decoration-break: clone; box-decoration-break: clone;
@@ -926,8 +919,8 @@ button.tool:active { filter: brightness(0.95); }
 /* Agent-kind logos (KIND_ICON) are filled marks, drawn a little smaller than the line icons. */
 .pane-ic svg.logo { width: 16px; height: 16px; fill: currentColor; stroke: none; }
 
-/* Shell view in 키 직접 입력: the key row plus ⌨ and 한 줄 on its right; the command line is
-   only the keyboard's (hidden) target, so the screen gets its room. */
+/* Shell view in 키 직접 입력: the key row plus ⌨ on its right; the command line is only the
+   keyboard's (hidden) target, so the screen gets its room. */
 .term-bar { display: flex; align-items: center; border-top: 1px solid var(--line); background: var(--bg); }
 .term-bar .term-keys { flex: 1; min-width: 0; border-top: 0; }
 .term-side { display: none; flex: none; gap: 8px; padding: 10px 12px 10px 0; }

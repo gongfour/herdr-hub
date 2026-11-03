@@ -20,7 +20,7 @@ function slideTo(el, x, animate) {
   if (x || !animate) return;
   // Hide the buttons once the row has slid shut (at once without a transition).
   const hide = () => el !== swipe.open && !front.style.transform && el.classList.remove('live');
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return hide();
+  if (reduced()) return hide();
   front.addEventListener('transitionend', hide, { once: true });
   setTimeout(hide, 400);
 }

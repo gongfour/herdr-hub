@@ -6,8 +6,6 @@
 // terminal sheet's key row (which adds Ctrl+C).
 const AGENT_KEYS = [['esc', 'Esc'], ['shift+tab', '⇧Tab'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['1', '1'], ['2', '2'], ['3', '3']];
 const SHEET_KEYS = [...AGENT_KEYS, ['ctrl+c', 'Ctrl+C']];
-// An option that asks for your own words (AskUserQuestion's "Type something.").
-const TYPE_OWN = /^(type something|type your own|other\b|something else|직접 입력|기타)/i;
 const keyRow = (keys, cls = '') => `<div class="keys ${cls}">${keys.map(([k, label]) => `<button type="button" class="key" data-key="${k}" aria-label="${esc(label)} 키 보내기">${esc(label)}</button>`).join('')}</div>`;
 function bindKeyRow(row) {
   if (row) row.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
@@ -85,7 +83,7 @@ function renderBlocked() {
           return renderBlocked();
         }
         closeNotes(curHost(), detail.pane);
-        if (item && TYPE_OWN.test(item.label)) startAnswer();
+        if (item && TYPE_OWN.test(item.label)) startAnswer(); // choices.js: an option that asks for your own words
       };
     });
     box.querySelectorAll('.toggle').forEach((b) => {
@@ -104,7 +102,6 @@ function renderBlocked() {
 // After a "Type something" choice the question waits for words: the composer sends them there.
 function startAnswer() {
   detail.answerMode = true;
-  detail.answerSeq = (currentAgent() || {}).stateSeq;
   setPlaceholder();
   updateComposer();
   const input = document.getElementById('d-input');

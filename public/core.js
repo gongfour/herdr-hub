@@ -40,15 +40,6 @@ const KIND_ICON = {
   qwen: '<svg class="logo" viewBox="0 0 24 24"><path d="M23.919 14.545 20.817 9.17l1.47-2.544a.56.56 0 0 0 0-.566l-1.633-2.83a.57.57 0 0 0-.49-.283h-6.207L12.487.402a.57.57 0 0 0-.49-.284H8.732a.56.56 0 0 0-.49.284L5.139 5.775h-2.94a.56.56 0 0 0-.49.284L.077 8.887a.56.56 0 0 0 0 .567L3.18 14.83l-1.47 2.545a.56.56 0 0 0 0 .566l1.634 2.83a.57.57 0 0 0 .49.283h6.205l1.47 2.545a.57.57 0 0 0 .49.284h3.266a.57.57 0 0 0 .49-.284l3.104-5.375h2.94a.57.57 0 0 0 .49-.283l1.634-2.828a.55.55 0 0 0-.004-.568M8.733.686l1.634 2.828-1.634 2.828H21.8L20.164 9.17H7.425L5.63 6.06Zm1.306 19.801-6.205-.002 1.634-2.83h3.265L2.201 6.344h3.267q3.182 5.517 6.367 11.032zm10.124-5.66L18.53 12l-6.532 11.315-1.634-2.83c2.129-3.673 4.25-7.351 6.373-11.028h3.592l3.102 5.374z" /></svg>',
 };
 const agentIcon = (a) => KIND_ICON[a.agent] || ICON.agent;
-const TERM_KEYS = [['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['tab', 'Tab'], ['esc', 'Esc']];
-// 키 직접 입력 (raw), the shell view's default: every key goes to the pane as it is pressed,
-// so the shell's own completion, history and suggestions work, as do full-screen programs
-// (helix, vim, less). Shell keys come first. A ":text" entry types that text; the rest are
-// herdr key names.
-const RAW_TERM_KEYS = [
-  ['ctrl+c', 'Ctrl+C'], ['tab', 'Tab'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['ctrl+r', 'Ctrl+R'],
-  ['esc', 'Esc'], [':text', ':'], ['/text', '/'], ['pageup', 'PgUp'], ['pagedown', 'PgDn'], ['ctrl+x', 'Ctrl+X'], ['enter', 'Enter'],
-];
 const ERROR_TEXT = {
   cwd_not_absolute: '절대 경로를 적어 주세요.',
   cwd_not_found: '그 폴더가 호스트에 없습니다.',

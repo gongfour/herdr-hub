@@ -207,5 +207,5 @@
 
   const api = { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, TYPE_OWN };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled });
+  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, TYPE_OWN });
 })(typeof self !== 'undefined' ? self : this);

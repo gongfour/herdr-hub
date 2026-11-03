@@ -392,7 +392,6 @@ function ensureQuestion(a) {
     .catch(() => questions.set(k, { seq, choices: null, failed: true, at: Date.now() }))
     .finally(() => listShown() && render());
 }
-const quickItems = (ch) => quickChoices(ch); // choices.js
 
 function attnStrip(list) {
   return `<section class="attn" aria-label="답 필요">
@@ -405,7 +404,7 @@ function attnRow(a) {
   const k = rowKey(a.host, a.pane);
   const q = questions.get(k);
   const ch = q && q.seq === a.stateSeq ? q.choices : null;
-  const quick = quickItems(ch);
+  const quick = quickChoices(ch); // choices.js
   const locked = quickLocked(k, a);
   const primary = ch ? primaryChoice(ch.items) : null;
   const where = `${esc(a.workspaceLabel)}${multi() && filter() === 'all' ? ` · ${esc(a.hostLabel || hostLabel(a.host))}` : ''}`;
