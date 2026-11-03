@@ -402,7 +402,9 @@ function renderDetail() {
       <div class="attach-tray" id="d-tray" hidden></div>
       <form class="composer" id="d-form">
         <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">📎</button>
+        <button type="button" class="attach" id="d-camera" aria-label="카메라로 찍기">📷</button>
         <input type="file" id="d-file" accept="image/*" multiple hidden>
+        <input type="file" id="d-cam" accept="image/*" capture="environment" hidden>
         <textarea id="d-input" rows="1" placeholder="에이전트에게 보내기" enterkeyhint="send"></textarea>
         <button type="button" class="stop" id="d-stop" aria-label="중단" hidden>${ICON.stop}</button>
         <button type="submit" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
@@ -424,12 +426,24 @@ function renderDetail() {
   input.onkeydown = (e) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) document.getElementById('d-form').requestSubmit();
   };
-  const fileInput = document.getElementById('d-file');
-  document.getElementById('d-attach').onclick = () => fileInput.click();
-  fileInput.onchange = () => {
-    addFiles([...fileInput.files]);
-    fileInput.value = ''; // the same photo can be picked again
-  };
+  // Pasted images (iOS: screenshot → Copy → long-press here → Paste) join the attachments;
+  // text pastes as usual.
+  input.addEventListener('paste', (e) => {
+    pasteDiag(e);
+    const images = pastedImages(e.clipboardData);
+    if (!images.length) return;
+    // Keep any text that came along; with images only there is nothing to insert.
+    if (!e.clipboardData.types.includes('text/plain')) e.preventDefault();
+    addFiles(images);
+  });
+  for (const [btn, id] of [['d-attach', 'd-file'], ['d-camera', 'd-cam']]) {
+    const picker = document.getElementById(id);
+    document.getElementById(btn).onclick = () => picker.click();
+    picker.onchange = () => {
+      addFiles([...picker.files]);
+      picker.value = ''; // the same photo can be picked again
+    };
+  }
   document.getElementById('d-tray').onclick = (e) => {
     const x = e.target.closest('[data-drop]');
     if (x) removeFile(Number(x.dataset.drop));
@@ -498,8 +512,10 @@ function updateComposer() {
   stop.hidden = !working;
   const files = detail.files || [];
   send.disabled = !a || (!input.value.trim() && !files.length) || a.status === 'blocked' || Boolean(detail.sending);
-  const attach = document.getElementById('d-attach');
-  if (attach) attach.disabled = Boolean(detail.sending) || files.length >= MAX_FILES;
+  for (const id of ['d-attach', 'd-camera']) {
+    const b = document.getElementById(id);
+    if (b) b.disabled = Boolean(detail.sending) || files.length >= MAX_FILES;
+  }
 }
 
 // ------------------------------------------------------------ photo attach
@@ -530,6 +546,18 @@ function userParts(m) {
     .join('\n');
   if (pics.length || m.images) text = text.replace(/\[Image #\d+\]\s?/g, '');
   return { text: text.trim(), pics };
+}
+
+// Image files on a paste: clipboardData.files, else file items (browsers differ).
+function pastedImages(dt) {
+  if (!dt) return [];
+  const isImage = (f) => f && /^image\//.test(f.type);
+  const files = [...(dt.files || [])].filter(isImage);
+  if (files.length) return files;
+  return [...(dt.items || [])]
+    .filter((it) => it.kind === 'file' && /^image\//.test(it.type))
+    .map((it) => it.getAsFile())
+    .filter(isImage);
 }
 
 let fileSeq = 0;
@@ -1244,6 +1272,25 @@ function viewportSnapshot(reason) {
     userAgent: navigator.userAgent,
     ts: Date.now(),
   };
+}
+
+// One line per paste: what the clipboard offered (types and sizes, never the content).
+function pasteDiag(e) {
+  if (!diagOn()) return;
+  const dt = e.clipboardData;
+  const snap = {
+    reason: 'paste',
+    route: location.hash || '#/',
+    types: dt ? [...dt.types] : null,
+    items: dt && dt.items ? [...dt.items].map((it) => ({ kind: it.kind, type: it.type })) : null,
+    fileCount: dt && dt.files ? dt.files.length : null,
+    files: dt && dt.files ? [...dt.files].map((f) => ({ type: f.type, size: f.size })) : null,
+    target: e.target && e.target.id ? e.target.id : null,
+    standalone: Boolean(navigator.standalone || window.matchMedia('(display-mode: standalone)').matches),
+    userAgent: navigator.userAgent,
+    ts: Date.now(),
+  };
+  fetch('/api/debug/viewport', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Paddock': '1' }, body: JSON.stringify(snap), keepalive: true }).catch(() => {});
 }
 
 // Throttled, and only when something but the reason and time changed. Always to the hub

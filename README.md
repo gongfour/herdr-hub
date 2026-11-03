@@ -23,11 +23,14 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
   - iOS 는 키보드가 열려도 레이아웃 뷰포트를 그대로 두고 보이는 영역(visual viewport)만 줄이며 문서를 위로 밀어 올린다. 그래서 틀의 높이와 위치를 `visualViewport.height`·`offsetTop` 에 맞추고(`--app-h`·`--app-top`), 문서가 밀리면 `scrollTo(0,0)` 으로 되돌린다. 머리글은 늘 맨 위, 입력 칸은 키보드 바로 위에 있다. 맨 아래를 따라가던 대화·화면은 그대로 맨 아래에 붙는다. 확대(핀치)한 동안은 건드리지 않는다. 키보드가 열리면 아래 안전 영역 여백을 없앤다.
   - iOS 에서는 손가락 아래에 그 방향으로 스크롤할 것이 없으면 `touchmove` 를 막는다(첫 움직임으로 가로·세로를 정한다). 그래서 머리글을 끌어도, 대화에서 옆으로 밀어도 페이지가 움직이지 않는다. 화면 상자는 `touch-action: pan-x pan-y` 로 옆으로 밀면 상자 안에서만 넘어가고, 글 위에서 위아래로 밀면 상자가 스크롤한다.
 - 사진 첨부(에이전트 입력 칸만): 📎 → 사진 보관함·카메라(`accept="image/*" multiple`, 한 번에 6장까지). 입력 칸 위에 미리보기가 뜨고 ✕ 로 뺀다. 글이나 사진 중 하나만 있어도 보낼 수 있다.
+  - 📷 는 바로 카메라를 연다(`capture="environment"`).
+  - 붙여넣기: 입력 칸에 이미지를 붙여 넣으면(iOS: 스크린숏 → 미리보기 누르기 → 복사(또는 복사 후 삭제) → 입력 칸 길게 눌러 붙여넣기) 같은 첨부로 들어간다(`paste` 의 `clipboardData.files`, 없으면 `items` 의 file 항목). 글은 그대로 붙는다. 이미지만 있을 때는 글자를 넣지 않는다.
   - 휴대폰에서 긴 변 2000px 까지 줄이고 JPEG 0.85 로 다시 만든다(EXIF 회전 반영, `createImageBitmap(…, {imageOrientation: 'from-image'})`, 안 되면 `<img>` 로). 2000px 안의 PNG·WebP(8MB 이하)는 그대로 보낸다. 읽을 수 없는 파일은 알림 한 줄로 거절한다.
   - 보낼 때 사진마다 에이전트가 있는 호스트에 먼저 올리고(`POST /api/uploads`, 본문은 사진 그대로 `image/jpeg|png|webp`, `X-Paddock`, 10MB 까지, 피어는 허브가 이진 그대로 넘긴다), 프롬프트는 「글 + 줄마다 절대 경로 하나」로 보낸다. 서버는 `<임시 폴더>/paddock-uploads/<yyyymmdd-hhmmss>-<임의>.<확장자>` 에 저장하고 `{path, name}` 을 돌려준다(내용이 형식과 맞아야 한다). 시작할 때와 하루에 한 번 7일 지난 파일을 지운다. `GET /api/uploads/<name>` 은 그 폴더의 그 이름 꼴 파일만 준다.
   - Claude Code 2.1.317 은 프롬프트 안의 이미지 경로를 스스로 첨부한다(경로 자리에 `[Image #N]`, 기록에는 이미지 블록과 `[Image: source: <경로>]` 메타 항목). 그래서 「읽어 달라」는 안내 줄은 붙이지 않는다(desktop·server 의 haiku 로 확인: 그림 속 글자를 읽었다).
   - 대화 탭: 보낸 말풍선에 첨부 사진을 작은 그림으로 보여 주고, 누르면 전체 화면으로 연다. 기록의 메타 항목(또는 글에 남은 경로)에서 업로드 이름을 찾아 `/api/uploads/<name>` 으로 받는다. base64 는 휴대폰으로 보내지 않는다. 업로드가 아닌 이미지(호스트에서 붙여 넣은 것)는 「이미지」 칩으로만 보인다.
 - 화면 진단(임시): 설정 → 「화면 진단 보내기」(기본 켬, 이 기기에 기억). 켜 두면 `visualViewport` 크기·스크롤, 포커스 들어옴·나감, 방향 바뀜 때(1초에 두 번까지, 값이 바뀔 때만) 상태를 허브의 `POST /api/debug/viewport` 로 보낸다. 피어로는 넘기지 않는다. 허브가 `data/viewport.log` 에 한 줄에 JSON 하나로 쌓는다. 512KB 를 넘으면 `viewport.log.1` 로 돌리므로 둘 합쳐 1MB 쯤이다. 다른 것은 기록하지 않는다.
+  - 붙여넣기마다 `reason: "paste"` 줄도 하나 남긴다: `types`, `items`(kind·type), `fileCount`, `files`(type·size). 내용은 남기지 않는다.
   - 항목: `reason`(이벤트), `route`, `innerHeight`, `clientHeight`, `vvHeight`, `offsetTop`, `pageTop`, `scale`, `scrollY`, `scrollingTop`, 틀에 준 `appH`·`appTop`, `kb`(키보드로 본 상태), `header`·`composer`·`scroller` 의 `{top,bottom,height}`, `focused`, `standalone`, `userAgent`, `ts`(휴대폰 시각), `at`(서버 시각).
   - 읽기(맥에서): `ssh kangw@desktop 'Get-Content C:\Users\kangw\src\paddock\data\viewport.log -Tail 20'`. 키보드를 연 줄에서 `header.top` 이 `offsetTop` 과 같고 `composer.bottom` 이 `offsetTop + vvHeight` 와 같으면 맞다.
   - 끄기: 휴대폰에서 설정 → 「화면 진단 보내기」를 끈다. 기본값을 끄려면 `public/app.js` 의 `diagOn()` 을 바꾼다.
