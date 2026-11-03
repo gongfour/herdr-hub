@@ -251,9 +251,11 @@ function broadcast(event, data) {
   for (const res of clients) res.write(frame);
 }
 
+// A named event, not an SSE comment: the page can see it and tell a live stream from one that
+// iOS left looking open after suspending the app.
 setInterval(() => {
-  for (const res of clients) res.write(': ping\n\n');
-}, 20000);
+  for (const res of clients) res.write(`event: ping\ndata: ${Date.now()}\n\n`);
+}, 15000);
 
 // ---------------------------------------------------------------- http
 

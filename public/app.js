@@ -491,7 +491,10 @@ function connect() {
   clearTimeout(retryTimer);
   if (stream) stream.close();
   const es = (stream = new EventSource('/api/stream'));
+  lastHeard = Date.now();
+  es.addEventListener('ping', () => (lastHeard = Date.now()));
   es.addEventListener('state', (e) => {
+    lastHeard = Date.now();
     retryDelay = 1000;
     live = true;
     state = JSON.parse(e.data);
@@ -512,9 +515,22 @@ function connect() {
   };
 }
 
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && (!stream || stream.readyState !== EventSource.OPEN)) connect();
-});
+// iOS suspends a home-screen app in the background and can hand the stream back still marked
+// OPEN though its socket is dead, so readyState can't be trusted. The hub pings every 15s: when
+// nothing has arrived for a while, or the app comes back to the foreground, open a fresh stream.
+let lastHeard = 0;
+const STALE_MS = 35000;
+function revive(reason) {
+  if (stream && stream.readyState === EventSource.OPEN && Date.now() - lastHeard < (reason === 'watchdog' ? STALE_MS : 4000)) return;
+  live = false;
+  if (view.name === 'list') render();
+  retryDelay = 1000;
+  connect();
+}
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && revive('visible'));
+window.addEventListener('pageshow', (e) => e.persisted && revive('pageshow'));
+window.addEventListener('online', () => revive('online'));
+setInterval(() => document.visibilityState === 'visible' && revive('watchdog'), 10000);
 
 function onState() {
   if (view.name === 'list') return render();
