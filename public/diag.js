@@ -98,3 +98,22 @@ function viewportDiag(reason) {
     fetch('/api/debug/viewport', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Herdr-Hub': '1' }, body: JSON.stringify(snap), keepalive: true }).catch(() => {});
   }, Math.max(0, DIAG_MS - (Date.now() - diagAt)));
 }
+
+// Its section in 설정 and the switch there.
+function diagSection() {
+  return `<section>
+        <h2>진단</h2>
+        <label class="switch"><span>화면 진단 보내기</span><input type="checkbox" id="s-diag" role="switch" ${diagOn() ? 'checked' : ''}></label>
+        <p>키보드를 열고 닫거나 화면이 움직일 때 화면 크기·위치를 허브의 <code>data/viewport.log</code> 에 남깁니다(1초에 두 번까지, 바뀔 때만). 화면 문제를 살필 때만 켜세요.</p>
+      </section>`;
+}
+function bindDiagSection() {
+  document.getElementById('s-diag').onchange = (e) => {
+    setDiag(e.target.checked);
+    if (e.target.checked) {
+      diagLast = '';
+      viewportDiag('settings');
+    }
+    toast(e.target.checked ? '화면 진단을 보냅니다' : '화면 진단을 껐습니다');
+  };
+}

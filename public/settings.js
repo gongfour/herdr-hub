@@ -107,11 +107,7 @@ function renderSettings() {
         </div>
         <p>시스템은 기기의 밝게·어둡게 설정을 따릅니다. 이 기기에만 기억합니다.</p>
       </section>
-      <section>
-        <h2>진단</h2>
-        <label class="switch"><span>화면 진단 보내기</span><input type="checkbox" id="s-diag" role="switch" ${diagOn() ? 'checked' : ''}></label>
-        <p>키보드를 열고 닫거나 화면이 움직일 때 화면 크기·위치를 허브의 <code>data/viewport.log</code> 에 남깁니다(1초에 두 번까지, 바뀔 때만). 화면 문제를 살필 때만 켜세요.</p>
-      </section>
+      ${diagSection() /* diag.js */}
       <section>
         <h2>호스트</h2>
         ${(hosts().length ? hosts() : [{ id: localId(), label: state.host, online: true, herdr: state.herdr, local: true }])
@@ -149,14 +145,7 @@ function renderSettings() {
   document.getElementById('s-color').onchange = (e) => saveColor(e.target.checked);
   document.getElementById('s-wrap-term').onchange = (e) => saveWrap('term', e.target.checked);
   document.getElementById('s-wrap-agent').onchange = (e) => saveWrap('agent', e.target.checked);
-  document.getElementById('s-diag').onchange = (e) => {
-    setDiag(e.target.checked);
-    if (e.target.checked) {
-      diagLast = '';
-      viewportDiag('settings');
-    }
-    toast(e.target.checked ? '화면 진단을 보냅니다' : '화면 진단을 껐습니다');
-  };
+  bindDiagSection(); // diag.js
   const enable = document.getElementById('s-enable');
   if (enable) enable.onclick = enablePush;
   const test = document.getElementById('s-test');
