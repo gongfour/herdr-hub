@@ -341,6 +341,32 @@ function serveStatic(req, res, pathname) {
   });
 }
 
+// Read a pane's text. source: visible | recent | recent_unwrapped (default recent).
+// An agent that is working can't give its scrollback ("agent_not_idle"): read what is visible
+// instead. A herdr without recent_unwrapped gets plain recent from then on. The answer says
+// which source was actually read.
+const READ_SOURCES = ['visible', 'recent', 'recent_unwrapped'];
+const READ_FATAL = ['pane_not_found', 'agent_not_found', 'unreachable', 'timeout', 'empty_response', 'bad_response'];
+let unwrappedOk = true;
+const notIdle = (err) => /not_idle/.test(err.code || '') || /while .* is working|--source visible/i.test(err.message || '');
+async function readScreen(method, target, wanted, lines) {
+  let source = READ_SOURCES.includes(wanted) ? wanted : 'recent';
+  if (source === 'recent_unwrapped' && !unwrappedOk) source = 'recent';
+  for (;;) {
+    try {
+      const r = await herdr.call(method, { ...target, source, lines, strip_ansi: true });
+      return { text: r.read.text, truncated: r.read.truncated, source };
+    } catch (err) {
+      if (source !== 'visible' && notIdle(err)) source = 'visible';
+      else if (source === 'recent_unwrapped' && !READ_FATAL.includes(err.code)) {
+        unwrappedOk = false;
+        console.log(`${method}: recent_unwrapped not supported (${err.code}: ${err.message}); using recent`);
+        source = 'recent';
+      } else throw err;
+    }
+  }
+}
+
 async function api(req, res, url) {
   const parts = url.pathname.split('/').filter(Boolean).slice(1).map(decodeURIComponent); // drop "api"
   const method = req.method;
@@ -418,8 +444,7 @@ async function api(req, res, url) {
 
     if (method === 'GET' && parts[2] === 'screen') {
       const lines = Math.min(Number(url.searchParams.get('lines')) || 120, 400);
-      const r = await herdr.call('pane.read', { pane_id: pane, source: 'recent', lines, strip_ansi: true });
-      return send(res, 200, { text: r.read.text, truncated: r.read.truncated });
+      return send(res, 200, await readScreen('pane.read', { pane_id: pane }, url.searchParams.get('source'), lines));
     }
     if (method === 'POST') {
       const body = await readJson(req);
@@ -456,9 +481,7 @@ async function api(req, res, url) {
 
     if (method === 'GET' && parts[2] === 'screen') {
       const lines = Math.min(Number(url.searchParams.get('lines')) || 80, 400);
-      const source = url.searchParams.get('source') === 'visible' ? 'visible' : 'recent';
-      const r = await herdr.call('agent.read', { target: pane, source, lines, strip_ansi: true });
-      return send(res, 200, { text: r.read.text, truncated: r.read.truncated });
+      return send(res, 200, await readScreen('agent.read', { target: pane }, url.searchParams.get('source'), lines));
     }
     if (method === 'GET' && parts[2] === 'transcript') {
       if (agent.agent !== 'claude' || !agent.session) return send(res, 200, { supported: false, messages: [] });

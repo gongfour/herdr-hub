@@ -129,7 +129,29 @@ button { font: inherit; color: inherit; }
 .tool b { color: var(--text); font-weight: 600; }
 .note { font-size: 13px; color: var(--muted); text-align: center; margin: 4px 0 10px; }
 
-.screen { font: 12.5px/1.4 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+/* Pane text. Unwrapped by default: a TUI drawn 125-200 columns wide keeps its shape and scrolls
+   sideways inside the box (never the page). .wrap folds each line at the phone's width. */
+.screen {
+  font: 11px/1.35 var(--mono); white-space: pre; overflow-wrap: normal; overflow-x: auto; max-width: 100%;
+  margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; tab-size: 8;
+}
+.screen.wrap { font-size: 12px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.scroll.screen-mode { padding: 8px 8px 12px; overflow-x: hidden; position: relative; }
+.screen-tools {
+  flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 12px 0 16px; min-height: 40px;
+}
+.screen-tools .s-status { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screen-tools .s-status.err { color: var(--blocked); }
+.screen-tools .toggle { min-height: 32px; }
+.toggle[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+/* Sits at the bottom of the scroll box while you read further up. */
+.pill-dock { position: sticky; bottom: 0; height: 0; display: flex; justify-content: center; pointer-events: none; }
+.new-out {
+  pointer-events: auto; transform: translateY(calc(-100% - 10px)); min-height: 36px; padding: 0 14px; border-radius: 999px;
+  border: 0; background: var(--accent); color: var(--accent-text); font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.22);
+}
 
 .blocked-box { margin: 10px 16px 0; padding: 12px; border-radius: var(--radius); background: var(--blocked-bg); color: var(--text); }
 .blocked-box strong { color: var(--blocked); }
@@ -208,7 +230,7 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 6px 24px rgb(0 0 0 / 0.2);
 }
 
-.detail { display: flex; flex-direction: column; height: 100dvh; }
+.detail { display: flex; flex-direction: column; height: var(--vvh, 100dvh); min-width: 0; }
 
 /* ---- management: forms, sheets, terminal */
 a.btn { display: inline-flex; align-items: center; text-decoration: none; }

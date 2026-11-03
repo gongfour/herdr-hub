@@ -255,6 +255,7 @@ const currentAgent = () => state.agents.find((a) => same(a, curHost(), detail.pa
 
 function route() {
   clearInterval(pollTimer);
+  scr = null;
   let h = location.hash.replace(/^#/, '') || '/';
   let host = null;
   let m = h.match(/^\/h\/([^/]+)(\/.*)?$/);
@@ -271,7 +272,8 @@ function route() {
     loadDetail();
     pollTimer = setInterval(() => {
       const a = currentAgent();
-      if (a && (a.status === 'working' || a.status === 'blocked')) loadDetail();
+      // Also retry a screen read that failed, whatever the status.
+      if (a && (a.status === 'working' || a.status === 'blocked' || (scr && scr.error))) loadDetail();
     }, 3000);
   } else if ((m = h.match(/^\/term\/(.+)$/))) {
     view = { name: 'term', host, pane: decodeURIComponent(m[1]) };
@@ -390,6 +392,7 @@ function renderDetail() {
         <button data-tab="screen">화면</button>
       </div>
       <div id="d-blocked"></div>
+      <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="d-body"></div>
       <form class="composer" id="d-form">
         <textarea id="d-input" rows="1" placeholder="에이전트에게 보내기" enterkeyhint="send"></textarea>
@@ -576,10 +579,21 @@ async function loadDetail() {
       renderBlocked();
     } else detail.blockedText = null;
     if (detail.tab === 'chat') detail.transcript = await api(hp(`/agents/${pane}/transcript?limit=150`, host));
-    else detail.screen = await api(hp(`/agents/${pane}/screen?lines=200`, host));
+    else {
+      // A working agent can't give its scrollback; Claude draws on the alternate screen anyway,
+      // so what is visible is the whole picture. The server falls back to it too.
+      const source = a.status === 'working' || a.status === 'blocked' ? 'visible' : 'recent';
+      detail.screen = await api(hp(`/agents/${pane}/screen?source=${source}&lines=200`, host));
+    }
+    detail.lastErr = null;
     renderDetailBody(false);
   } catch (err) {
-    if (!['agent_not_found', 'peer_offline'].includes(err.code)) toast(`불러오지 못했습니다: ${errText(err)}`);
+    if (['agent_not_found', 'peer_offline'].includes(err.code)) return;
+    const msg = `불러오지 못했습니다: ${errText(err)}`;
+    // Polls repeat the same failure every few seconds: say it once, inline on the screen tab.
+    if (detail.tab === 'screen' && scr) screenError(msg);
+    else if (msg !== detail.lastErr) toast(msg);
+    detail.lastErr = msg;
   } finally {
     loading = false;
     if (reloadAfter) {
@@ -592,20 +606,25 @@ async function loadDetail() {
 function renderDetailBody(reset) {
   const body = document.getElementById('d-body');
   if (!body) return;
-  const nearBottom = reset || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
   $app.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === detail.tab)));
-  if (detail.tab === 'chat') {
-    const t = detail.transcript;
-    if (!t) body.innerHTML = '<p class="note">불러오는 중…</p>';
-    else if (!t.supported)
-      body.innerHTML = `<p class="note">${!currentAgent()?.agent ? '에이전트를 시작하는 중…' : currentAgent().agent === 'claude' ? '아직 대화 기록이 없습니다.' : '이 에이전트는 대화 기록을 지원하지 않습니다. 화면 탭을 보세요.'}</p>`;
-    else if (!t.found) body.innerHTML = '<p class="note">아직 대화 기록이 없습니다.</p>';
-    else
-      body.innerHTML = `${t.truncated ? '<p class="note">최근 대화만 표시합니다</p>' : ''}<div class="msgs">${t.messages.map(message).join('')}</div>`;
-  } else {
+  if (detail.tab === 'screen') {
+    if (!scr || scr.body !== body) mountScreen(body, 'agent');
     const s = detail.screen;
-    body.innerHTML = s ? `<pre class="screen">${esc(s.text.replace(/\s+$/, ''))}</pre>` : '<p class="note">불러오는 중…</p>';
+    if (s) {
+      scr.note = s.source === 'visible' ? '보이는 화면' : '';
+      setScreenText(s.text);
+    }
+    return;
   }
+  if (scr) unmountScreen();
+  const nearBottom = reset || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
+  const t = detail.transcript;
+  if (!t) body.innerHTML = '<p class="note">불러오는 중…</p>';
+  else if (!t.supported)
+    body.innerHTML = `<p class="note">${!currentAgent()?.agent ? '에이전트를 시작하는 중…' : currentAgent().agent === 'claude' ? '아직 대화 기록이 없습니다.' : '이 에이전트는 대화 기록을 지원하지 않습니다. 화면 탭을 보세요.'}</p>`;
+  else if (!t.found) body.innerHTML = '<p class="note">아직 대화 기록이 없습니다.</p>';
+  else
+    body.innerHTML = `${t.truncated ? '<p class="note">최근 대화만 표시합니다</p>' : ''}<div class="msgs">${t.messages.map(message).join('')}</div>`;
   if (nearBottom) body.scrollTop = body.scrollHeight;
 }
 
@@ -666,7 +685,8 @@ function renderTerminal() {
         <h1 id="t-title"></h1>
         <button class="icon-btn" id="t-more" aria-label="더 보기">${ICON.more}</button>
       </header>
-      <div class="scroll" id="t-body"><p class="note">불러오는 중…</p></div>
+      <div class="screen-tools" id="s-tools" hidden></div>
+      <div class="scroll" id="t-body"></div>
       <div class="keys term-keys">${TERM_KEYS.map(([k, label]) => `<button class="key" data-key="${k}">${esc(label)}</button>`).join('')}</div>
       <form class="composer" id="t-form">
         <input class="cmd" id="t-input" placeholder="명령 (Enter 로 실행)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
@@ -691,6 +711,7 @@ function renderTerminal() {
     }
   };
   document.getElementById('t-more').onclick = terminalMenu;
+  mountScreen(document.getElementById('t-body'), 'term');
   renderTerminalHeader();
 }
 
@@ -707,20 +728,19 @@ function renderTerminalHeader() {
       : '터미널 없음<span class="sub">이 패널이 닫혔습니다</span>';
 }
 
+// Unwrapped lines, so the phone wraps each real line once instead of re-wrapping lines already
+// cut at the pane's width. (The server falls back to recent on a herdr without it.)
 async function loadTerminal() {
   if (!currentTerminal() || document.visibilityState !== 'visible') return;
+  const pane = detail.pane;
   try {
-    detail.screen = await api(hp(`/panes/${encodeURIComponent(detail.pane)}/screen?lines=200`));
+    detail.screen = await api(hp(`/panes/${encodeURIComponent(pane)}/screen?source=recent_unwrapped&lines=200`));
   } catch (err) {
-    if (!['pane_not_found', 'peer_offline'].includes(err.code)) toast(`불러오지 못했습니다: ${errText(err)}`);
+    if (scr && scr.kind === 'term' && !['pane_not_found', 'peer_offline'].includes(err.code)) screenError(`불러오지 못했습니다: ${errText(err)}`);
     return;
   }
-  const body = document.getElementById('t-body');
-  if (!body) return;
-  const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
-  body.innerHTML = `<pre class="screen">${esc(detail.screen.text.replace(/\s+$/, ''))}</pre>`;
-  if (nearBottom || !body.dataset.loaded) body.scrollTop = body.scrollHeight;
-  body.dataset.loaded = '1';
+  if (!scr || scr.kind !== 'term' || detail.pane !== pane) return;
+  setScreenText(detail.screen.text);
 }
 
 async function terminalMenu() {
@@ -745,6 +765,148 @@ async function terminalMenu() {
     if (label != null) act(hp(`/panes/${encodeURIComponent(t.pane)}/rename`), { label: label.trim() }, '이름을 바꿨습니다');
   }
   if (k === 'close') closePane(t.pane, termTitle(t), false);
+}
+
+// ------------------------------------------------------------ screen box
+
+// The pane text in the agent 화면 tab and the terminal view. Polls arrive every few seconds;
+// the box changes only when the text did, follows new output while you're at the bottom, and
+// holds still while you've scrolled up to read, selected text, or have a finger on it.
+// Wrapping is a per-view choice: off for agents (TUI layouts keep their shape and scroll
+// sideways inside the box), on for terminals.
+const WRAP_KEY = { agent: 'paddock.wrap.agent', term: 'paddock.wrap.term' };
+function getWrap(kind) {
+  try {
+    const v = localStorage.getItem(WRAP_KEY[kind]);
+    if (v === '1' || v === '0') return v === '1';
+  } catch {
+    /* private mode: default */
+  }
+  return kind === 'term';
+}
+function saveWrap(kind, on) {
+  try {
+    localStorage.setItem(WRAP_KEY[kind], on ? '1' : '0');
+  } catch {
+    /* private mode: the choice lasts until reload */
+  }
+}
+
+const FOLLOW_SLACK = 40; // px from the bottom that still counts as "at the bottom"
+let scr = null; // { kind, body, pre, pill, tools, wrap, shown, pending, follow, touching, error, note }
+const atBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight <= FOLLOW_SLACK;
+const selecting = () => {
+  const s = window.getSelection();
+  return Boolean(scr && s && !s.isCollapsed && s.rangeCount && scr.pre.contains(s.getRangeAt(0).commonAncestorContainer));
+};
+
+function mountScreen(body, kind) {
+  const tools = document.getElementById('s-tools');
+  body.classList.add('screen-mode');
+  body.innerHTML = `<p class="note">불러오는 중…</p><pre class="screen" hidden></pre>
+    <div class="pill-dock"><button type="button" class="new-out" hidden>↓ 새 출력</button></div>`;
+  const s = (scr = {
+    kind, body, tools, wrap: getWrap(kind), shown: null, pending: null, follow: true, touching: false, error: null, note: '',
+    pre: body.querySelector('.screen'), pill: body.querySelector('.new-out'), loading: body.querySelector('.note'),
+  });
+  s.pre.classList.toggle('wrap', s.wrap);
+  body.onscroll = () => {
+    if (scr !== s) return;
+    s.follow = atBottom(body);
+    flushScreen();
+  };
+  body.ontouchstart = () => scr === s && (s.touching = true);
+  body.ontouchend = body.ontouchcancel = () => {
+    if (scr !== s) return;
+    s.touching = false;
+    setTimeout(flushScreen, 60);
+  };
+  s.pill.onclick = () => {
+    s.follow = true;
+    flushScreen(true);
+  };
+  if (tools) {
+    tools.hidden = false;
+    tools.innerHTML = `<span class="s-status" id="s-status"></span>
+      <button type="button" class="toggle" id="s-wrap" aria-pressed="${s.wrap}">줄바꿈</button>`;
+    tools.querySelector('#s-wrap').onclick = (e) => {
+      s.wrap = !s.wrap;
+      saveWrap(kind, s.wrap);
+      e.currentTarget.setAttribute('aria-pressed', String(s.wrap));
+      s.pre.classList.toggle('wrap', s.wrap);
+      if (s.follow) body.scrollTop = body.scrollHeight;
+    };
+  }
+  screenStatus();
+}
+
+function unmountScreen() {
+  if (!scr) return;
+  const { body, tools } = scr;
+  body.classList.remove('screen-mode');
+  body.onscroll = body.ontouchstart = body.ontouchend = body.ontouchcancel = null;
+  if (tools) {
+    tools.hidden = true;
+    tools.innerHTML = '';
+  }
+  scr = null;
+}
+
+function screenStatus() {
+  const el = scr && document.getElementById('s-status');
+  if (!el) return;
+  el.textContent = scr.error || scr.note || '';
+  el.classList.toggle('err', Boolean(scr.error));
+  if (scr.shown == null) scr.loading.textContent = scr.error ? '화면을 읽지 못했습니다' : '불러오는 중…';
+}
+
+function screenError(msg) {
+  if (!scr || scr.error === msg) return;
+  scr.error = msg;
+  screenStatus();
+}
+
+function setScreenText(raw) {
+  if (!scr) return;
+  // Trailing blanks only widen the sideways scroll.
+  const text = String(raw).replace(/[ \t]+$/gm, '').replace(/\s+$/, '');
+  scr.error = null;
+  screenStatus();
+  scr.pending = text === scr.shown ? null : text;
+  flushScreen();
+}
+
+// Put the waiting text on screen unless the reader is busy with what's there.
+function flushScreen(force) {
+  const s = scr;
+  if (!s) return;
+  if (s.pending != null && (force || (s.follow && !s.touching && !selecting()))) {
+    s.pre.textContent = s.pending;
+    s.shown = s.pending;
+    s.pending = null;
+    s.pre.hidden = false;
+    s.loading.hidden = true;
+    if (s.follow) s.body.scrollTop = s.body.scrollHeight;
+  }
+  s.pill.hidden = s.pending == null || s.follow;
+}
+
+document.addEventListener('selectionchange', () => {
+  if (scr && scr.pending != null && !selecting()) flushScreen();
+});
+
+// iOS keeps the layout viewport when the keyboard opens and only shrinks the visual one:
+// size the detail views to what is visible so the command line and the screen's bottom stay
+// in sight. Elsewhere (interactive-widget=resizes-content) dvh already does it.
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const fit = () => {
+    const covered = document.documentElement.clientHeight - vv.height > 80;
+    if (covered) document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+    else document.documentElement.style.removeProperty('--vvh');
+    if (scr && scr.follow) requestAnimationFrame(() => scr && scr.follow && (scr.body.scrollTop = scr.body.scrollHeight));
+  };
+  vv.addEventListener('resize', fit);
 }
 
 // ------------------------------------------------------------ workspace view
