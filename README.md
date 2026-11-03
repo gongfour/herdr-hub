@@ -19,6 +19,18 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
   - 「줄바꿈」: 에이전트는 기본 끔(줄을 그대로 두고 상자 안에서 옆으로 넘김 — Claude 의 가로줄·상태 줄이 깨지지 않는다), 터미널은 기본 켬. 보기마다 이 기기에 기억한다.
   - 읽는 범위: 터미널은 `recent_unwrapped`(herdr 가 이미 패널 폭에서 자른 줄이 아니라 원래 줄; 지원하지 않는 herdr 면 `recent`). 에이전트는 작업 중·응답 필요일 때 `visible`, 그 밖에는 `recent`. 작업 중이라 `recent` 를 못 읽으면(`agent_not_idle`) 서버가 `visible` 로 다시 읽는다. 응답의 `source` 가 실제로 읽은 범위다.
   - 읽기 실패는 알림을 띄우지 않고 화면 위 한 줄에 한 번만 보여 준다.
+- 화면 틀(iPhone 키보드·밀기): 문서 자체는 스크롤하지 않는다(`html`·`body` 는 `overflow: hidden`, `overscroll-behavior: none`). 앱은 고정된 틀(`#app`) 안에 있고 목록·대화·화면·시트만 안에서 스크롤한다(`overscroll-behavior: contain`).
+  - iOS 는 키보드가 열려도 레이아웃 뷰포트를 그대로 두고 보이는 영역(visual viewport)만 줄이며 문서를 위로 밀어 올린다. 그래서 틀의 높이와 위치를 `visualViewport.height`·`offsetTop` 에 맞추고(`--app-h`·`--app-top`), 문서가 밀리면 `scrollTo(0,0)` 으로 되돌린다. 머리글은 늘 맨 위, 입력 칸은 키보드 바로 위에 있다. 맨 아래를 따라가던 대화·화면은 그대로 맨 아래에 붙는다. 확대(핀치)한 동안은 건드리지 않는다. 키보드가 열리면 아래 안전 영역 여백을 없앤다.
+  - iOS 에서는 손가락 아래에 그 방향으로 스크롤할 것이 없으면 `touchmove` 를 막는다(첫 움직임으로 가로·세로를 정한다). 그래서 머리글을 끌어도, 대화에서 옆으로 밀어도 페이지가 움직이지 않는다. 화면 상자는 `touch-action: pan-x pan-y` 로 옆으로 밀면 상자 안에서만 넘어가고, 글 위에서 위아래로 밀면 상자가 스크롤한다.
+- 사진 첨부(에이전트 입력 칸만): 📎 → 사진 보관함·카메라(`accept="image/*" multiple`, 한 번에 6장까지). 입력 칸 위에 미리보기가 뜨고 ✕ 로 뺀다. 글이나 사진 중 하나만 있어도 보낼 수 있다.
+  - 휴대폰에서 긴 변 2000px 까지 줄이고 JPEG 0.85 로 다시 만든다(EXIF 회전 반영, `createImageBitmap(…, {imageOrientation: 'from-image'})`, 안 되면 `<img>` 로). 2000px 안의 PNG·WebP(8MB 이하)는 그대로 보낸다. 읽을 수 없는 파일은 알림 한 줄로 거절한다.
+  - 보낼 때 사진마다 에이전트가 있는 호스트에 먼저 올리고(`POST /api/uploads`, 본문은 사진 그대로 `image/jpeg|png|webp`, `X-Paddock`, 10MB 까지, 피어는 허브가 이진 그대로 넘긴다), 프롬프트는 「글 + 줄마다 절대 경로 하나」로 보낸다. 서버는 `<임시 폴더>/paddock-uploads/<yyyymmdd-hhmmss>-<임의>.<확장자>` 에 저장하고 `{path, name}` 을 돌려준다(내용이 형식과 맞아야 한다). 시작할 때와 하루에 한 번 7일 지난 파일을 지운다. `GET /api/uploads/<name>` 은 그 폴더의 그 이름 꼴 파일만 준다.
+  - Claude Code 2.1.317 은 프롬프트 안의 이미지 경로를 스스로 첨부한다(경로 자리에 `[Image #N]`, 기록에는 이미지 블록과 `[Image: source: <경로>]` 메타 항목). 그래서 「읽어 달라」는 안내 줄은 붙이지 않는다(desktop·server 의 haiku 로 확인: 그림 속 글자를 읽었다).
+  - 대화 탭: 보낸 말풍선에 첨부 사진을 작은 그림으로 보여 주고, 누르면 전체 화면으로 연다. 기록의 메타 항목(또는 글에 남은 경로)에서 업로드 이름을 찾아 `/api/uploads/<name>` 으로 받는다. base64 는 휴대폰으로 보내지 않는다. 업로드가 아닌 이미지(호스트에서 붙여 넣은 것)는 「이미지」 칩으로만 보인다.
+- 화면 진단(임시): 설정 → 「화면 진단 보내기」(기본 켬, 이 기기에 기억). 켜 두면 `visualViewport` 크기·스크롤, 포커스 들어옴·나감, 방향 바뀜 때(1초에 두 번까지, 값이 바뀔 때만) 상태를 허브의 `POST /api/debug/viewport` 로 보낸다. 피어로는 넘기지 않는다. 허브가 `data/viewport.log` 에 한 줄에 JSON 하나로 쌓는다. 512KB 를 넘으면 `viewport.log.1` 로 돌리므로 둘 합쳐 1MB 쯤이다. 다른 것은 기록하지 않는다.
+  - 항목: `reason`(이벤트), `route`, `innerHeight`, `clientHeight`, `vvHeight`, `offsetTop`, `pageTop`, `scale`, `scrollY`, `scrollingTop`, 틀에 준 `appH`·`appTop`, `kb`(키보드로 본 상태), `header`·`composer`·`scroller` 의 `{top,bottom,height}`, `focused`, `standalone`, `userAgent`, `ts`(휴대폰 시각), `at`(서버 시각).
+  - 읽기(맥에서): `ssh kangw@desktop 'Get-Content C:\Users\kangw\src\paddock\data\viewport.log -Tail 20'`. 키보드를 연 줄에서 `header.top` 이 `offsetTop` 과 같고 `composer.bottom` 이 `offsetTop + vvHeight` 와 같으면 맞다.
+  - 끄기: 휴대폰에서 설정 → 「화면 진단 보내기」를 끈다. 기본값을 끄려면 `public/app.js` 의 `diagOn()` 을 바꾼다.
 
 ## 여러 호스트 (허브)
 
@@ -31,7 +43,7 @@ desktop 의 Paddock 이 **허브**다. 허브는 다른 Paddock(**피어**)을 �
 
 - 허브는 피어마다 `/api/stream`(SSE)을 구독한다. 끊기면 다시 붙고(1초부터 최대 30초 간격), 6초 안에 돌아오지 않으면 그 피어를 **오프라인**으로 표시하고 그 항목을 목록에서 뺀다. 연결은 됐는데 50초 동안 아무것도 안 오면(노트북이 잠든 경우) 끊은 것으로 본다.
 - 허브의 `/api/state`·`/api/stream` 은 모든 호스트를 합친 것이다. 에이전트·터미널·워크스페이스마다 `host`(id)·`hostLabel` 이 붙고, `hosts` 에 호스트별 `online`·`herdr`·`since` 가 들어 있다.
-- 호스트별 요청은 `/api/peers/<id>/<나머지>` 로 보내면 허브가 피어의 `/api/<나머지>` 로 넘긴다(`host`, `dirs`, `agents`, `panes`, `workspaces` 만). `X-Paddock` 검사는 허브에서 먼저 하고 피어로도 넘긴다. 피어가 오프라인이면 `503 peer_offline`, 시간 초과는 `504`(조회 15초, 변경 60초).
+- 호스트별 요청은 `/api/peers/<id>/<나머지>` 로 보내면 허브가 피어의 `/api/<나머지>` 로 넘긴다(`host`, `dirs`, `agents`, `panes`, `workspaces`, `uploads` 만). 본문은 이진 그대로 오간다(사진 업로드는 10MB, 나머지는 256KB 까지). `X-Paddock` 검사는 허브에서 먼저 하고 피어로도 넘긴다. 피어가 오프라인이면 `503 peer_offline`, 시간 초과는 `504`(조회 15초, 변경 60초).
 - 알림은 허브만 보낸다. 피어의 상태 변화(응답 필요, 완료)도 허브가 보고 보낸다. 피어는 `PADDOCK_PUSH=0` 이라 알림을 아예 보내지 않으므로 같은 알림이 두 번 오지 않는다. 피어가 잠든 사이에 생긴 변화도 다시 연결되면 알린다.
   - herdr 0.9.3 은 `completion_seq` 가 없어서, 그 호스트에서는 작업 중 → 완료 로 바뀔 때를 완료로 본다.
 - 인증: 피어도 `tailscale serve` 뒤에 있고 `Tailscale-User-Login` 을 `PADDOCK_ALLOWED_LOGINS` 와 맞춘다. desktop 노드는 사용자 소유(태그 없음)라 허브 → 피어 요청에도 `tailscale serve` 가 `kangwonjin.dev@gmail.com` 을 붙인다(직접 확인함; 요청에 위조한 값은 serve 가 덮어쓴다). 그래서 따로 비밀값을 두지 않았다. 피어를 태그 노드로 바꾸면 이 머리글이 사라지므로 그때는 공유 비밀을 넣어야 한다.
