@@ -216,8 +216,11 @@ function onState() {
   }
   if (view.name === 'agent') {
     const a = currentAgent();
+    const changed = a && a.stateSeq !== detail.lastSeq;
+    // The screen read for the previous state must not label buttons for the next prompt.
+    if (changed && detail.lastSeq !== -1) detail.blockedText = null;
     renderDetailHeader();
-    if (a && a.stateSeq !== detail.lastSeq) {
+    if (changed) {
       detail.lastSeq = a.stateSeq;
       loadDetail();
     }
@@ -452,6 +455,12 @@ function renderDetailHeader() {
   updateComposer();
 }
 
+const RAW_KEYS = [['1', '1'], ['2', '2'], ['3', '3'], ['enter', 'Enter'], ['esc', 'Esc'], ['up', '↑'], ['down', '↓']];
+// After a choice is sent, the buttons wait this long (or for the next status) so a double tap
+// can't answer the prompt that comes next.
+const CHOICE_LOCK_MS = 4000;
+const choiceLocked = (a) => detail.lock && Date.now() < detail.lock.until && a && a.stateSeq === detail.lock.seq;
+
 function renderBlocked() {
   const box = document.getElementById('d-blocked');
   const a = currentAgent();
@@ -460,15 +469,60 @@ function renderBlocked() {
     box.innerHTML = '';
     return;
   }
-  const keys = [['1', '1'], ['2', '2'], ['3', '3'], ['enter', 'Enter'], ['esc', 'Esc'], ['up', '↑'], ['down', '↓']];
-  box.innerHTML = `<div class="blocked-box">
-      <strong>응답을 기다리고 있습니다</strong>
-      ${detail.blockedText ? `<pre>${esc(detail.blockedText)}</pre>` : ''}
-      <div class="keys">${keys.map(([k, label]) => `<button class="key" data-key="${k}">${esc(label)}</button>`).join('')}</div>
-    </div>`;
+  const text = detail.blockedText;
+  const choices = text ? parseChoices(text) : null;
+  const screen = text ? `<pre>${esc(text)}</pre>` : '';
+  const keys = `<div class="keys">${RAW_KEYS.map(([k, label]) => `<button class="key" data-key="${k}">${esc(label)}</button>`).join('')}</div>`;
+  if (!choices) {
+    box.innerHTML = `<div class="blocked-box">
+        <strong>응답을 기다리고 있습니다</strong>
+        ${text == null ? '<p class="question muted">화면을 불러오는 중…</p>' : screen}
+        ${keys}
+      </div>`;
+  } else {
+    const locked = choiceLocked(a);
+    const firstYes = choices.items.find((x) => !x.negative);
+    box.innerHTML = `<div class="blocked-box">
+        <strong>응답을 기다리고 있습니다</strong>
+        ${choices.context.length ? `<pre class="context">${esc(choices.context.join('\n'))}</pre>` : ''}
+        ${choices.question ? `<p class="question">${esc(choices.question)}</p>` : ''}
+        <div class="choices">${choices.items
+          .map((x) => {
+            const ok = choiceKeys(choices, x.n);
+            const sent = locked && detail.lock.n === x.n;
+            const kind = x.negative ? ' negative' : x !== firstYes ? ' alt' : '';
+            return `<button class="choice${kind}${sent ? ' sent' : ''}" data-n="${x.n}"${locked || !ok ? ' disabled' : ''}>
+              ${choices.numbered ? `<span class="num">${x.n}</span>` : ''}<span class="label">${esc(x.label)}</span>${sent ? '<span class="state">보냄</span>' : ''}</button>`;
+          })
+          .join('')}</div>
+        <div class="toggles">
+          <button class="toggle" data-toggle="showScreen" aria-expanded="${Boolean(detail.showScreen)}">화면 보기</button>
+          <button class="toggle" data-toggle="showKeys" aria-expanded="${Boolean(detail.showKeys)}">직접 입력</button>
+        </div>
+        ${detail.showScreen ? screen : ''}
+        ${detail.showKeys ? keys : ''}
+      </div>`;
+    box.querySelectorAll('.choice').forEach((b) => {
+      b.onclick = () => {
+        const cur = currentAgent();
+        const k = choiceKeys(choices, Number(b.dataset.n));
+        if (!k || choiceLocked(cur)) return;
+        detail.lock = { until: Date.now() + CHOICE_LOCK_MS, seq: cur && cur.stateSeq, n: Number(b.dataset.n) };
+        setTimeout(renderBlocked, CHOICE_LOCK_MS + 50);
+        renderBlocked();
+        sendKeys(k);
+      };
+    });
+    box.querySelectorAll('.toggle').forEach((b) => {
+      b.onclick = () => {
+        detail[b.dataset.toggle] = !detail[b.dataset.toggle];
+        renderBlocked();
+      };
+    });
+  }
   box.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
   // The choices sit at the bottom of the prompt; show them, not the preamble.
-  const pre = box.querySelector('pre');
+  const pre = box.querySelector('pre:not(.context)');
   if (pre) pre.scrollTop = pre.scrollHeight;
 }
 
@@ -482,16 +536,21 @@ async function sendKeys(keys) {
 }
 
 let loading = false;
+let reloadAfter = false; // a load was asked for while one was running
 async function loadDetail() {
   const a = currentAgent();
-  if (!a || loading) return;
+  if (!a) return;
+  if (loading) return void (reloadAfter = true);
   loading = true;
   const pane = encodeURIComponent(a.pane);
   const host = curHost();
   try {
     if (a.status === 'blocked') {
+      const seq = a.stateSeq;
       const v = await api(hp(`/agents/${pane}/screen?source=visible&lines=30`, host));
-      detail.blockedText = v.text.replace(/\s+$/, '').split('\n').slice(-18).join('\n');
+      // Read before a state change: that screen belongs to the previous prompt.
+      if ((currentAgent() || {}).stateSeq === seq) detail.blockedText = v.text.replace(/\s+$/, '');
+      else reloadAfter = true;
       renderBlocked();
     } else detail.blockedText = null;
     if (detail.tab === 'chat') detail.transcript = await api(hp(`/agents/${pane}/transcript?limit=150`, host));
@@ -501,6 +560,10 @@ async function loadDetail() {
     if (!['agent_not_found', 'peer_offline'].includes(err.code)) toast(`불러오지 못했습니다: ${errText(err)}`);
   } finally {
     loading = false;
+    if (reloadAfter) {
+      reloadAfter = false;
+      loadDetail();
+    }
   }
 }
 

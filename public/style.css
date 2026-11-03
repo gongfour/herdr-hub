@@ -141,6 +141,41 @@ button { font: inherit; color: inherit; }
 }
 .key:active { background: var(--surface-2); }
 
+/* Choices read off the prompt: one full-width button per option. A long prompt scrolls inside
+   its box so the conversation below keeps some room. */
+#d-blocked { flex: none; max-height: 68dvh; overflow-y: auto; }
+#d-blocked:not(:empty) { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.detail .scroll { min-height: 0; }
+.blocked-box .question { margin: 8px 0 0; font-size: 16px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.blocked-box .question.muted { color: var(--muted); font-weight: 400; font-size: 14px; }
+.blocked-box pre.context { max-height: 7.5em; margin: 8px 0 0; color: var(--muted); }
+.blocked-box .keys { margin-top: 10px; }
+.choices { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.choice {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 10px 14px;
+  border-radius: 12px; border: 1px solid transparent; background: var(--accent); color: var(--accent-text);
+  font-size: 16px; font-weight: 600; text-align: left; line-height: 1.35; cursor: pointer;
+}
+.choice .num {
+  flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+  font: 600 14px/1 var(--mono); background: color-mix(in srgb, currentColor 16%, transparent);
+}
+.choice .label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.choice .state { flex: none; font-size: 12px; font-weight: 600; opacity: 0.8; }
+/* The first answer is the main one; other yes-variants are plain, refusals are warnings. */
+.choice.alt { background: var(--surface); color: var(--text); border-color: var(--line); }
+.choice.negative { background: var(--surface); color: var(--blocked); border-color: color-mix(in srgb, var(--blocked) 35%, var(--line)); }
+.choice:active:not(:disabled) { filter: brightness(0.92); }
+.choice:disabled { opacity: 0.45; cursor: default; }
+.choice.sent { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+.choice.negative.sent { outline-color: var(--blocked); }
+.toggles { display: flex; gap: 6px; margin-top: 10px; }
+.toggle {
+  min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line);
+  background: transparent; color: var(--muted); font-size: 13px; cursor: pointer;
+}
+.toggle[aria-expanded="true"] { background: var(--surface); color: var(--text); font-weight: 600; }
+
 .composer {
   position: sticky; bottom: 0; display: flex; gap: 8px; align-items: flex-end;
   padding: 10px 12px calc(10px + var(--safe-bottom)); background: var(--bg); border-top: 1px solid var(--line);
