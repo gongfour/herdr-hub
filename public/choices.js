@@ -118,10 +118,17 @@
     // a dashed rule separates paragraphs.
     let top = list.start;
     while (top > 0 && list.start - top < 20 && !SOLID_RULE.test(lines[top - 1])) top--;
+    const width = Math.max(...lines.filter((l) => !RULE.test(l)).map((l) => l.length));
     const paras = [];
     let para = [];
+    let tip = null; // the last line of a "Tip:" hint, whose wrapped rest is skipped too
     for (const l of lines.slice(top, list.start)) {
-      if (/^\s*Tip:/.test(l)) continue; // Claude Code's hints are not part of the question
+      // Claude Code's hints are not part of the question, nor is a hint's wrapped continuation.
+      if (/^\s*Tip:/.test(l) || (tip && l.trim() && wrapped({ len: tip.length }, { text: l.trim() }, width))) {
+        tip = l;
+        continue;
+      }
+      tip = null;
       if (l.trim() && !RULE.test(l)) para.push(l.trim());
       else if (para.length) paras.push(para), (para = []);
     }
@@ -135,7 +142,6 @@
     else if (paras.length) question = paras[(qi = paras.length - 1)].join(' ').replace(/\s+/g, ' ');
     const context = qi > 0 ? paras.slice(0, qi).flat().slice(-6) : [];
 
-    const width = Math.max(...lines.filter((l) => !RULE.test(l)).map((l) => l.length));
     const items = list.items.map(({ n, label, cursor, rows }) => {
       const { name, desc } = rows ? splitItem(rows, width) : { name: label, desc: '' };
       label = name.replace(/\s+/g, ' ').trim();
@@ -158,6 +164,42 @@
     return keys.length <= 8 ? keys : null; // the server takes at most 8 keys
   }
 
-  if (typeof module === 'object' && module.exports) module.exports = { parseChoices, choiceKeys };
-  else Object.assign(root, { parseChoices, choiceKeys });
+  // An option that asks for your own words (AskUserQuestion's "Type something.").
+  const TYPE_OWN = /^(type something|type your own|other\b|something else|직접 입력|기타)/i;
+
+  // The quick answers offered outside the detail view (the 답 필요 strip): up to three, a numbered
+  // menu's first options or a Yes/No menu; never "Type something".
+  function quickChoices(ch) {
+    if (!ch) return [];
+    const items = ch.items.filter((x) => !TYPE_OWN.test(x.label) && choiceKeys(ch, x.n));
+    // A permission prompt's refusal comes last (1 Yes, 2-3 Yes and …, 4 No): keep it in reach.
+    const neg = items.find((x) => x.negative);
+    if (ch.numbered) return neg && items.indexOf(neg) >= 3 ? [...items.slice(0, 2), neg] : items.slice(0, 3);
+    return items.length <= 3 && items.every((x) => /^(yes|no)\b/i.test(x.label)) ? items : [];
+  }
+
+  // A notification has room for two: the first quick answer and the refusal when there is one
+  // (Yes · No), else the first two.
+  function actionChoices(ch) {
+    const q = quickChoices(ch);
+    if (q.length <= 2) return q;
+    const neg = q.find((x) => x.negative);
+    return neg && neg !== q[0] ? [q[0], neg] : q.slice(0, 2);
+  }
+
+  // An option in a few words, for a notification line or button:
+  // "Yes, and don't ask again for echo commands in …" -> "Always".
+  function shortLabel(label) {
+    const s = String(label || '').replace(/\s+/g, ' ').trim();
+    if (/^yes,? and (don'?t ask again|always allow)/i.test(s)) return 'Always';
+    if (/^yes,? and switch to auto mode/i.test(s)) return 'Auto mode';
+    if (/^yes,? allow all/i.test(s)) return 'Allow all';
+    if (/^no,? and tell /i.test(s)) return 'No';
+    const head = s.replace(/\s*\([^)]*\)\s*$/, '').split(/[,.;:—–]\s/)[0].trim() || s;
+    return head.length > 24 ? `${head.slice(0, 23).trimEnd()}…` : head;
+  }
+
+  const api = { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, TYPE_OWN };
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel });
 })(typeof self !== 'undefined' ? self : this);

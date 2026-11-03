@@ -78,3 +78,25 @@ test('the parse is cached by size and mtime; since and rev send only what change
   assert.equal(r.reset, true);
   assert.equal(r.messages.length, 3);
 });
+
+test('bash mode: the "!" line and its output', () => {
+  const { parse } = require('../lib/transcript');
+  const L = (uuid, content) => JSON.stringify({ type: 'user', uuid, message: { role: 'user', content } });
+  const msgs = parse(
+    [
+      L('a', '<bash-input> ls -la</bash-input>'),
+      L('b', '<bash-stdout>one\n\u001b[31mtwo\u001b[0m\n</bash-stdout><bash-stderr>warn\n</bash-stderr>'),
+      L('c', [{ type: 'text', text: '<bash-input>true</bash-input>\n' }]),
+      L('d', '<bash-stdout></bash-stdout><bash-stderr></bash-stderr>'),
+    ].join('\n')
+  );
+  assert.deepEqual(
+    msgs.map(({ ts, ...m }) => m),
+    [
+      { role: 'user', text: '! ls -la', bash: true, id: 'a' },
+      { role: 'shell', text: 'one\ntwo', err: 'warn', id: 'b' },
+      { role: 'user', text: '! true', bash: true, id: 'c' },
+      { role: 'shell', text: '', id: 'd' },
+    ]
+  );
+});

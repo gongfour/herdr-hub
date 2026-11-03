@@ -16,6 +16,9 @@ const ICON = {
   term: '<svg viewBox="0 0 24 24"><path d="M12 19h8" /><path d="m4 17 6-6-6-6" /></svg>', // terminal
   x: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>', // x
   folder: '<svg viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>', // folder
+  inbox: '<svg viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></svg>', // inbox
+  grid: '<svg viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>', // layout-grid
+  chevron: '<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></svg>', // chevron-right
   file: '<svg viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /></svg>', // file
 };
 const TERM_KEYS = [['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['tab', 'Tab'], ['esc', 'Esc']];
@@ -527,6 +530,7 @@ function onState() {
     // The screen read for the previous state must not label buttons for the next prompt.
     if (changed && detail.lastSeq !== -1) detail.blockedText = null;
     renderDetailHeader();
+    markSeen(a);
     if (changed) {
       detail.lastSeq = a.stateSeq;
       loadDetail();
@@ -574,6 +578,13 @@ function route() {
   setTimeout(() => fit({ type: 'route' }), 0);
   scr = null;
   let h = location.hash.replace(/^#/, '') || '/';
+  // The app opens on the tab it was left on.
+  if (!routed && h === '/' && getTab() === 'spaces') {
+    history.replaceState(history.state, '', '#/spaces');
+    lastHash = '#/spaces';
+    h = '/spaces';
+  }
+  routed = true;
   let host = null;
   let m = h.match(/^\/h\/([^/]+)(\/.*)?$/);
   if (m) {
@@ -593,6 +604,8 @@ function route() {
       renderTray();
     }
     loadDetail();
+    closeNotes(curHost(), pane);
+    ready.then(() => view.name === 'agent' && detail.pane === pane && markSeen(currentAgent()));
     pollTimer = setInterval(() => {
       const a = currentAgent();
       // Also retry a screen read that failed, whatever the status; the sheet keeps reading while open.
@@ -614,7 +627,8 @@ function route() {
     view = { name: 'settings' };
     renderSettings();
   } else {
-    view = { name: 'list' };
+    view = { name: 'list', tab: h === '/spaces' ? 'spaces' : 'home' };
+    setTab(view.tab);
     render();
   }
 }
@@ -627,7 +641,6 @@ function route() {
 // row survive them; a card that does change closes the row open in it.
 
 const rowKey = (host, id) => `${host || localId()}|${id}`;
-let listScroll = 0; // the list's scroll position, kept while a detail view is open
 // herdr pane ids count up in base 36 (p9, pA, … pZ, p10): shorter first, then by character.
 const paneOrder = (x, y) => x.pane.length - y.pane.length || (x.pane < y.pane ? -1 : x.pane > y.pane ? 1 : 0);
 const wsRank = (agents) => (agents.some((a) => a.status === 'blocked') ? 0 : agents.some((a) => a.status === 'working') ? 1 : 2);
@@ -668,6 +681,96 @@ function wsFor(host, id) {
   return p ? { workspace_id: id, label: p.workspaceLabel, host: p.host, hostLabel: p.hostLabel, pane_count: 0, tab_count: 0 } : null;
 }
 
+// ---- tabs: 홈 (inbox) / 작업공간 (the workspace cards) / 설정, as a bottom tab bar
+const TAB_KEY = 'herdr-hub.tab';
+let memTab = null;
+let routed = false; // the first route may restore the last tab
+function getTab() {
+  if (memTab == null) {
+    try {
+      memTab = localStorage.getItem(TAB_KEY) === 'spaces' ? 'spaces' : 'home';
+    } catch {
+      memTab = 'home';
+    }
+  }
+  return memTab;
+}
+function setTab(t) {
+  memTab = t;
+  try {
+    localStorage.setItem(TAB_KEY, t);
+  } catch {
+    /* remembered for this page only */
+  }
+}
+// Where 뒤로 from an agent, shell or workspace leads: the list tab it was opened from.
+const homeHash = () => (getTab() === 'spaces' ? '#/spaces' : '#/');
+
+function tabBar(active) {
+  const n = state.agents.filter((a) => a.status === 'blocked' && shown(a)).length;
+  const tab = (key, href, icon, label, extra = '') =>
+    `<a class="tab" href="${href}"${active === key ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${extra}</a>`;
+  return `<nav class="tabbar" aria-label="탭">
+    ${tab('home', '#/', ICON.inbox, '홈', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : '')}
+    ${tab('spaces', '#/spaces', ICON.grid, '작업공간')}
+    ${tab('settings', '#/settings', ICON.gear, '설정')}
+  </nav>`;
+}
+function mountTabBar(active) {
+  const html = tabBar(active);
+  const old = $app.querySelector(':scope > .tabbar');
+  if (old && old._html === html) return;
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  const el = t.content.firstElementChild;
+  el._html = html;
+  if (old) old.replaceWith(el);
+  else $app.appendChild(el);
+}
+
+// ---- 방금 끝남: finishes this device has not opened yet (per device, in localStorage)
+const SEEN_KEY = 'herdr-hub.seen';
+const SEEN_DAYS = 7;
+let memSeen = null;
+function seenMap() {
+  if (!memSeen) {
+    try {
+      memSeen = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') || {};
+    } catch {
+      memSeen = {};
+    }
+  }
+  return memSeen;
+}
+const isSeen = (k) => Boolean(seenMap()[k]);
+// Opening an agent that has finished marks that finish read (not one that is still running).
+function markSeen(a) {
+  if (!a || a.status === 'working' || a.status === 'blocked') return;
+  const k = Inbox.seenKey({ ...a, host: a.host || localId() });
+  const m = seenMap();
+  if (m[k]) return;
+  const cut = Date.now() - SEEN_DAYS * 86400000;
+  for (const [key, t] of Object.entries(m)) if (t < cut) delete m[key];
+  m[k] = Date.now();
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(m));
+  } catch {
+    /* this page only */
+  }
+}
+
+// This agent's notification (tag host|pane, lib/notify.js): gone once it is answered or opened.
+async function closeNotes(host, pane) {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg || !reg.getNotifications) return;
+    for (const n of await reg.getNotifications({ tag: `${host || localId()}|${pane}` })) n.close();
+  } catch {
+    /* nothing to close */
+  }
+}
+
 // Workspaces with blocked agents first, then working ones, then the rest, each group in herdr's
 // order; inside a card agents before shells, each in pane order.
 function listModel() {
@@ -690,48 +793,52 @@ function listModel() {
   return { blocked: agents.filter((a) => a.status === 'blocked'), list };
 }
 
+const listScroll = { home: 0, spaces: 0 }; // each tab's scroll position, kept while a detail view is open
+let quietOpen = false; // 조용함 expanded (this page's life)
+
 function render() {
   if (swipe.g && Date.now() - swipe.g.t0 < 10000) return void (swipe.pending = true); // after the finger lifts
+  const tab = view.tab || 'home';
   const down = state.herdr !== 'up';
   const f = filter();
   const { blocked, list } = listModel();
   for (const a of blocked) ensureQuestion(a);
   // Peers in view that are offline or whose herdr is down.
   const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
-  const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '열린 워크스페이스가 없습니다.';
+  const hostLine = esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f));
   const top = `
     <header class="bar">
-      <h1>Herdr Hub<span class="sub">${esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f))}</span></h1>
+      <h1>${tab === 'home' ? '홈' : '작업공간'}<span class="sub">${hostLine}</span></h1>
       <span class="conn ${down ? 'down' : ''}"><span class="dot"></span>${down ? (state.herdr === 'down' ? 'herdr 연결 끊김' : state.herdr === 'offline' ? '연결 끊김' : '연결 중') : '실시간'}</span>
       <a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스">${ICON.plus}</a>
-      <a class="icon-btn" href="#/settings" aria-label="설정">${ICON.gear}</a>
     </header>
     ${multi() ? `
     <nav class="seg hosts" role="group" aria-label="호스트">
       <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
       ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"><span class="hdot"></span>${esc(x.label)}</button>`).join('')}
     </nav>` : ''}`;
-  const parts = [
-    ...(swipeHintShown() && list.length ? [['hint', `<p class="hint-row" role="note"><span>줄을 왼쪽으로 밀면 이름·닫기, 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
+  const head = [
+    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>줄을 왼쪽으로 밀면 이름·닫기, 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
     ...trouble.map((x) => [`off|${x.id}`, `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`]),
     ...(blocked.length ? [['attn', attnStrip(blocked)]] : []),
-    ...list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s)]),
-    ...(!list.length && empty ? [['empty', `<p class="empty">${empty}</p>`]] : []),
   ];
+  const parts = tab === 'home' ? [...head, ...inboxParts(down, f)] : [...head, ...spacesParts(list, down, f)];
   let main = $app.querySelector(':scope > main.home');
-  const fresh = !main;
-  if (!main) {
-    $app.innerHTML = `${top}<main class="list home"></main>`;
+  const fresh = !main || main.dataset.tab !== tab;
+  if (fresh) {
+    $app.innerHTML = `${top}<main class="list home" data-tab="${tab}"></main>`;
     main = $app.querySelector(':scope > main.home');
+    main._top = top;
     bindList(main);
   } else if (main._top !== top) {
-    $app.querySelectorAll(':scope > header, :scope > nav').forEach((el) => el.remove());
+    $app.querySelectorAll(':scope > header, :scope > nav:not(.tabbar)').forEach((el) => el.remove());
     main.insertAdjacentHTML('beforebegin', top);
   }
   main._top = top;
   patchList(main, parts);
-  // Back from an agent: where the list was left.
-  if (fresh && listScroll) main.scrollTop = listScroll;
+  mountTabBar(tab);
+  // Back from an agent: where this tab was left.
+  if (fresh && listScroll[tab]) main.scrollTop = listScroll[tab];
   $app.querySelectorAll('.hosts button').forEach((b) => {
     b.onclick = () => {
       setFilter(b.dataset.host);
@@ -739,6 +846,67 @@ function render() {
     };
   });
   tickList();
+}
+
+function spacesParts(list, down, f) {
+  const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '열린 워크스페이스가 없습니다.';
+  return [...list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s)]), ...(!list.length && empty ? [['empty', `<p class="empty">${empty}</p>`]] : [])];
+}
+
+// 홈: 답 필요 (the strip, above), 방금 끝남, 작업 중, and 조용함 folded into one line.
+function inboxParts(down, f) {
+  const b = Inbox.bucket(state.agents.filter(shown), { isSeen });
+  const out = [];
+  if (b.done.length) out.push(['done', inboxSection('방금 끝남', b.done, 'done')]);
+  if (b.working.length) out.push(['working', inboxSection('작업 중', b.working, 'working')]);
+  if (b.idle.length)
+    out.push([
+      'quiet',
+      `<section class="ib-sec quiet">
+        <button type="button" class="quiet-toggle" aria-expanded="${quietOpen}"><span>조용함</span><span class="quiet-n">대기 ${b.idle.length}</span><span class="chev${quietOpen ? ' open' : ''}" aria-hidden="true">${ICON.chevron}</span></button>
+        ${quietOpen ? `<div class="ib-card">${b.idle.map((a) => inboxRow(a, 'idle')).join('')}</div>` : ''}
+      </section>`,
+    ]);
+  if (!b.blocked.length && !b.done.length && !b.working.length) {
+    const none = !state.agents.filter(shown).length;
+    const msg = f !== 'all' && !online(f) ? '' : down && !state.agents.length ? 'herdr 서버에 연결하지 못했습니다.' : none ? '에이전트가 없습니다. + 로 워크스페이스를 만들거나 작업공간 탭에서 시작하세요.' : '답할 것도, 작업 중인 것도 없습니다.';
+    if (msg) out.unshift(['calm', `<p class="empty calm">${msg}</p>`]);
+  }
+  return out;
+}
+
+function inboxSection(title, agents, kind) {
+  return `<section class="ib-sec ${kind}" aria-label="${title}">
+    <h2>${title}<span class="ib-count">${agents.length}</span></h2>
+    <div class="ib-card">${agents.map((a) => inboxRow(a, kind)).join('')}</div>
+  </section>`;
+}
+
+// One compact agent row (56–64px): name · workspace · host and the time on the first line,
+// what it said or is doing on the second. Swipe and long press work as in the workspace cards.
+function inboxRow(a, kind) {
+  const host = multi() && filter() === 'all' ? ` · ${esc(a.hostLabel || hostLabel(a.host))}` : '';
+  const where = `${esc(a.workspaceLabel)}${host}`;
+  const name = a.name || a.title;
+  let sub = '';
+  let time = '';
+  if (kind === 'done') {
+    sub = a.lastReply || '';
+    time = a.doneAt ? `<span class="el ago" data-ago="${Number(a.doneAt)}" title="${esc(clock(a.doneAt))} 완료"></span>` : `<span class="el ago">완료</span>`;
+  } else if (kind === 'working') {
+    sub = a.lastTool || '작업 중…';
+    time = a.workingSince ? `<span class="el" data-since="${Number(a.workingSince)}"></span>` : '';
+  }
+  return `<div class="sw" ${rowData('agent', a.host, a.pane)}>${SWIPE_ACTS}
+    <a class="sw-front ib-row ${kind}${sub ? '' : ' one'}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
+      <span class="pane-ic" aria-hidden="true">${ICON.agent}</span>
+      <span class="ib-main">
+        <span class="ib-top"><span class="ib-name">${esc(name)}</span><span class="ib-where"> · ${where}</span></span>
+        ${sub ? `<span class="ib-sub${kind === "working" ? " ib-tool" : ""}">${esc(sub)}</span>` : ''}
+      </span>
+      ${time}
+    </a>
+  </div>`;
 }
 
 // One-time hint about the hidden row gestures: shown on the first visit to the list (and for
@@ -829,15 +997,7 @@ function ensureQuestion(a) {
     .catch(() => questions.set(k, { seq, choices: null, failed: true, at: Date.now() }))
     .finally(() => view.name === 'list' && render());
 }
-// Up to three buttons: a numbered menu's first options, or a Yes/No menu; never "Type something".
-function quickItems(ch) {
-  if (!ch) return [];
-  const items = ch.items.filter((x) => !TYPE_OWN.test(x.label) && choiceKeys(ch, x.n));
-  // A permission prompt's refusal comes last (1 Yes, 2-3 Yes and …, 4 No): keep it in reach.
-  const neg = items.find((x) => x.negative);
-  if (ch.numbered) return neg && items.indexOf(neg) >= 3 ? [...items.slice(0, 2), neg] : items.slice(0, 3);
-  return items.length <= 3 && items.every((x) => /^(yes|no)\b/i.test(x.label)) ? items : [];
-}
+const quickItems = (ch) => quickChoices(ch); // choices.js
 
 function attnStrip(list) {
   return `<section class="attn" aria-label="답 필요">
@@ -885,7 +1045,7 @@ async function quickAnswer(btn) {
     // Not sent: the buttons come back at once.
     if (quickLocks.get(k) === lock) quickLocks.delete(k);
     if (view.name === 'list') render();
-  }
+  } else closeNotes(host, pane);
 }
 
 function wsSection({ w, agents, terms }) {
@@ -996,7 +1156,7 @@ function bindList(main) {
   main.addEventListener(
     'scroll',
     () => {
-      listScroll = main.scrollTop;
+      listScroll[main.dataset.tab || 'home'] = main.scrollTop;
       if (!(swipe.g && swipe.g.axis === 'x')) closeRow();
     },
     { passive: true }
@@ -1109,6 +1269,12 @@ function rowClick(e) {
     if (!quick.disabled) quickAnswer(quick);
     return;
   }
+  const quiet = e.target.closest('.quiet-toggle');
+  if (quiet) {
+    e.preventDefault();
+    quietOpen = !quietOpen;
+    return render();
+  }
   const more = e.target.closest('.ws-more');
   if (more) {
     // The card's ⋯ opens the same menu as a long press, not another page.
@@ -1185,7 +1351,7 @@ function renderDetail() {
   $app.innerHTML = `
     <div class="detail">
       <header class="bar">
-        <a class="icon-btn" href="#/" data-back aria-label="목록">${ICON.back}</a>
+        <a class="icon-btn" href="${homeHash()}" data-back aria-label="목록">${ICON.back}</a>
         <h1 id="d-title"></h1>
         <button type="button" class="mode-chip" id="d-mode" hidden></button>
         <span id="d-badge"></span>
@@ -1257,6 +1423,14 @@ function renderDetail() {
   document.getElementById('d-body').addEventListener('click', (e) => {
     const pic = e.target.closest('.pic');
     if (pic) openViewer(pic.dataset.src);
+    const more = e.target.closest('[data-shell]');
+    if (more) {
+      const set = (detail.openShell ||= new Set());
+      const k = more.dataset.shell;
+      if (set.has(k)) set.delete(k);
+      else set.add(k);
+      return renderDetailBody(false);
+    }
     const tool = e.target.closest('[data-tool]');
     if (tool) {
       const set = (detail.openTools ||= new Set());
@@ -1857,6 +2031,7 @@ function renderBlocked() {
           if (detail.lock === lock) detail.lock = null;
           return renderBlocked();
         }
+        closeNotes(curHost(), detail.pane);
         if (item && TYPE_OWN.test(item.label)) startAnswer();
       };
     });
@@ -2154,8 +2329,26 @@ function closeScreenSheet() {
   else el.remove();
 }
 
+// Output of a "!" command (bash mode), under its line: monospace, folded after SHELL_FOLD lines.
+const SHELL_FOLD = 12;
+function shellOut(m) {
+  // A failed command's output is all recorded as stderr: tinted only next to real stdout.
+  const tint = Boolean(m.text);
+  const lines = [...(m.text ? m.text.split('\n') : []), ...(m.err ? m.err.split('\n').map((l) => (tint ? { err: l } : l)) : [])];
+  if (!lines.length) return `<div class="msg shell-out empty"><span class="muted">(출력 없음)</span></div>`;
+  const open = Boolean(detail.openShell && detail.openShell.has(m.id));
+  const shown = open || lines.length <= SHELL_FOLD + 2 ? lines : lines.slice(0, SHELL_FOLD);
+  const body = shown.map((l) => (typeof l === 'string' ? esc(l) : `<span class="err">${esc(l.err)}</span>`)).join('\n');
+  const fold = lines.length > SHELL_FOLD + 2
+    ? `<button type="button" class="shell-more" data-shell="${esc(m.id)}" aria-expanded="${open}">${open ? '접기' : `${lines.length - SHELL_FOLD}줄 더 보기`}</button>`
+    : '';
+  return `<div class="msg shell-out"><pre>${body}</pre>${fold}</div>`;
+}
+
 function message(m) {
   if (m.role === 'note') return `<p class="note">${esc(m.text)}</p>`;
+  if (m.role === 'shell') return shellOut(m);
+  if (m.role === 'user' && m.bash) return `<div class="msg user bash"><span>${esc(m.text)}</span></div>`;
   if (m.role === 'user') {
     const { text, pics } = userParts(m);
     const imgs = pics.map((n) => {
@@ -2274,7 +2467,7 @@ async function closePane(host, pane, label, isAgent) {
     ok: '닫기',
     danger: true,
   });
-  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다')) && view.name !== 'list') goBack('#/');
+  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다')) && view.name !== 'list') goBack(homeHash());
 }
 
 async function renameWorkspace(w) {
@@ -2294,7 +2487,7 @@ async function closeWorkspace(w) {
     ok: '닫기',
     danger: true,
   });
-  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다')) && view.name !== 'list') goBack('#/');
+  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다')) && view.name !== 'list') goBack(homeHash());
 }
 
 async function newTab(w) {
@@ -2325,7 +2518,7 @@ function renderTerminal() {
   $app.innerHTML = `
     <div class="detail">
       <header class="bar">
-        <a class="icon-btn" href="#/" data-back aria-label="목록">${ICON.back}</a>
+        <a class="icon-btn" href="${homeHash()}" data-back aria-label="목록">${ICON.back}</a>
         <h1 id="t-title"></h1>
         <span id="t-live"></span>
         <button class="icon-btn" id="t-more" aria-label="더 보기">${ICON.more}</button>
@@ -2927,7 +3120,7 @@ function renderWorkspace() {
   const missing = !online(host) ? `${esc(hostLabel(host))} 오프라인` : '닫혔거나 찾을 수 없습니다';
   $app.innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="#/" data-back aria-label="목록">${ICON.back}</a>
+      <a class="icon-btn" href="${homeHash()}" data-back aria-label="목록">${ICON.back}</a>
       <h1>${w ? esc(w.label) : '워크스페이스 없음'}<span class="sub">${w ? `${multi() ? `${esc(hostLabel(host))} · ` : ''}${esc(w.workspace_id)} · 탭 ${w.tab_count} · 에이전트 ${agents.length} · 셸 ${terms.length}` : missing}</span></h1>
     </header>
     <main class="list">
@@ -2959,7 +3152,7 @@ async function renderForm() {
   const term = view.mode === 'pane' ? (state.terminals || []).find((t) => same(t, host, view.target)) : null;
   const on = isNew ? '' : multi() ? ` · ${hostLabel(host)}` : '';
   const where = isNew ? '' : ws ? `${ws.label} 워크스페이스의 새 탭${on}` : term ? `${termTitle(term)} 셸 (${term.workspaceLabel})${on}` : '찾을 수 없음';
-  const back = isNew ? '#/' : ws ? link(host, `/ws/${encodeURIComponent(ws.workspace_id)}`) : term ? link(host, `/term/${encodeURIComponent(term.pane)}`) : '#/';
+  const back = isNew ? homeHash() : ws ? link(host, `/ws/${encodeURIComponent(ws.workspace_id)}`) : term ? link(host, `/term/${encodeURIComponent(term.pane)}`) : homeHash();
   $app.innerHTML = `
     <header class="bar">
       <a class="icon-btn" href="${back}" data-back aria-label="뒤로">${ICON.back}</a>
@@ -3265,7 +3458,6 @@ function renderSettings() {
   const devLine = !supported || denied ? '' : devSub === undefined ? '이 기기 알림을 확인하는 중…' : subscribed ? '이 기기는 알림을 받습니다.' : '이 기기는 알림이 꺼져 있습니다.';
   $app.innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="#/" data-back aria-label="목록">${ICON.back}</a>
       <h1>설정</h1>
     </header>
     <main class="panel">
@@ -3276,6 +3468,7 @@ function renderSettings() {
         ${off ? '<p>이 호스트는 알림을 보내지 않습니다. 알림은 허브(desktop)에서 켜세요.</p>' : !supported ? '<p>이 브라우저는 웹 푸시를 지원하지 않습니다.</p>' : ''}
         <p class="perm ${denied ? 'bad' : ''}">권한: <b>${esc(permWord)}</b>${permTodo ? ` — ${esc(permTodo)}` : ''}</p>
         ${devLine ? `<p id="s-dev">${esc(devLine)}</p>` : ''}
+        ${supported && !denied ? `<p class="muted">${actionsLine()}</p>` : ''}
         <div class="row">
           ${subscribed
             ? `<button type="button" class="btn" id="s-test">이 기기로 시험 알림</button>`
@@ -3319,7 +3512,7 @@ function renderSettings() {
           })
           .join('')}
       </section>
-    </main>`;
+    </main>${tabBar('settings')}`;
   const radios = (id, attr, set) => {
     document.getElementById(id).onclick = (e) => {
       const b = e.target.closest(`[data-${attr}]`);
@@ -3350,6 +3543,15 @@ function renderSettings() {
   if (enable) enable.onclick = enablePush;
   const test = document.getElementById('s-test');
   if (test) test.onclick = testPush;
+}
+
+// Notification buttons (답 필요 → Yes / No): what this browser says it can show. iOS Safari has
+// no Notification.maxActions and shows no buttons; the notification still opens the agent.
+function actionsLine() {
+  const n = 'Notification' in window ? Number(Notification.maxActions) || 0 : 0;
+  return n > 0
+    ? '답 필요 알림에 빠른 답 버튼(예: Yes · No)이 붙습니다. 누르면 그 질문이 그대로일 때만 보냅니다.'
+    : '이 기기의 알림에는 답 버튼이 없습니다(iPhone 은 지원하지 않음). 알림을 누르면 그 에이전트가 열립니다.';
 }
 
 // Only to this device: its own endpoint goes along and the hub sends to that one alone.
