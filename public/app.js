@@ -22,6 +22,7 @@ const ICON = {
   grid: '<svg viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>', // layout-grid
   chevron: '<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></svg>', // chevron-right
   file: '<svg viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /></svg>', // file
+  panel: '<svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" /></svg>', // panel-left
 };
 // Logos for herdr agent kinds, from Simple Icons 16.36 (CC0; the marks belong to their owners).
 // A kind without one (codex: Simple Icons carries no OpenAI mark) keeps the generic bot.
@@ -86,6 +87,21 @@ let pollTimer = null;
 let tickTimer = null; // the activity line's clock, once a second while working
 let resolveReady;
 const ready = new Promise((r) => (resolveReady = r)); // the first state has arrived
+
+// ---- wide screens: the list and the open detail side by side (split.js has the rules)
+// Narrower than Split.SPLIT_MIN, #app holds one view at a time as on the phone. Split, it holds
+// two columns: #list-pane (홈 / 작업공간 / 설정 with the tab bar) and #detail-pane (agent,
+// shell, workspace, form, or a calm placeholder). The route stays the source of truth for the
+// detail; the list column shows colTab, which a tab press changes without closing the detail.
+const splitMq = matchMedia(`(min-width: ${window.Split ? Split.SPLIT_MIN : 1000}px)`);
+let split = false;
+let colTab = null; // split only: 'home' | 'spaces' | 'settings'
+const listRoot = () => (split ? document.getElementById('list-pane') : $app);
+const detailRoot = () => (split ? document.getElementById('detail-pane') : $app);
+const isDetail = () => !['list', 'settings'].includes(view.name);
+// Whether the list (or 설정) is on screen: always when split, else only as the view itself.
+const listShown = () => split || view.name === 'list';
+const settingsShown = () => (split ? colTab === 'settings' : view.name === 'settings');
 
 // ------------------------------------------------------------ utilities
 
@@ -557,7 +573,7 @@ function connect() {
   es.onerror = () => {
     state = { ...state, herdr: 'offline' };
     live = false;
-    if (view.name === 'list') render();
+    if (listShown()) render();
     if (view.name === 'agent') renderDetailHeader();
     if (view.name === 'term') renderTerminalHeader();
     if (es.readyState === EventSource.CLOSED && es === stream) {
@@ -575,7 +591,7 @@ const STALE_MS = 35000;
 function revive(reason) {
   if (stream && stream.readyState === EventSource.OPEN && Date.now() - lastHeard < (reason === 'watchdog' ? STALE_MS : 4000)) return;
   live = false;
-  if (view.name === 'list') render();
+  if (listShown()) render();
   retryDelay = 1000;
   connect();
 }
@@ -585,7 +601,10 @@ window.addEventListener('online', () => revive('online'));
 setInterval(() => document.visibilityState === 'visible' && revive('watchdog'), 10000);
 
 function onState() {
-  if (view.name === 'list') return render();
+  if (split) {
+    renderCol();
+    if (!isDetail()) return renderEmpty();
+  } else if (view.name === 'list') return render();
   if (view.name === 'ws') return renderWorkspace();
   if (view.name === 'settings') return renderSettings();
   if (view.name === 'term') {
@@ -634,14 +653,18 @@ function stashDraft() {
   else drafts.delete(key);
 }
 
-function route() {
+// relayout: the same route drawn again for the other layout (the screen crossed the split
+// width); an open agent keeps what it had loaded and its terminal sheet.
+function route(e, { relayout = false } = {}) {
   if (!history.state || !('prev' in history.state)) history.replaceState({ ...(history.state || {}), prev: lastHash }, '');
   lastHash = location.hash || '#/';
-  stashDraft();
+  if (!relayout) stashDraft(); // relayout() kept it before the old composer went away
+  const was = relayout ? { view, detail, sheet: Boolean(detail.sheet) } : null;
   clearInterval(pollTimer);
   clearInterval(tickTimer);
   tickTimer = null;
   closeScreenSheet();
+  if (split) closeRow(); // the list stays on screen: don't leave a row slid open
   swipe.open = swipe.g = null;
   setTimeout(() => fit({ type: 'route' }), 0);
   scr = null;
@@ -665,6 +688,10 @@ function route() {
     view = { name: 'agent', host };
     const draft = drafts.get(rowKey(curHost(), pane));
     detail = { host, pane, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: draft ? draft.files : [], sheet: null, wantSheet: m[2] === 'screen', activity: null };
+    if (was && was.view.name === 'agent' && was.detail.pane === pane && (was.view.host || localId()) === curHost()) {
+      const d = was.detail;
+      Object.assign(detail, { transcript: d.transcript, blockedText: d.blockedText, lastSeq: d.lastSeq, mode: d.mode, activity: d.activity, seen: d.seen, lock: d.lock, answerMode: d.answerMode, showScreen: d.showScreen, showKeys: d.showKeys, openTools: d.openTools, openShell: d.openShell, wantSheet: was.sheet });
+    }
     if (m[2]) history.replaceState(history.state, '', location.hash.replace(/\/(?:screen|chat)$/, ''));
     renderDetail();
     if (draft) {
@@ -693,12 +720,93 @@ function route() {
     renderForm();
   } else if (h === '/settings') {
     view = { name: 'settings' };
+    if (split) colTab = 'settings';
     renderSettings();
   } else {
     view = { name: 'list', tab: h === '/spaces' ? 'spaces' : 'home' };
     setTab(view.tab);
+    if (split) colTab = view.tab;
     render();
   }
+  if (split) {
+    if (isDetail()) renderCol();
+    else renderEmpty();
+  }
+}
+
+// ---- split layout: the shell, the list column, the placeholder, the selected row
+
+// Build #app for the current layout and draw the route into it again. Called when the screen
+// crosses the split width (rotation, resize, DeX or split-screen windows); the focus goes back
+// to the composer or the shell's input when it was there.
+function relayout() {
+  const want = splitMq.matches;
+  if (want === split) return;
+  const f = document.activeElement;
+  const refocus = f && ['d-input', 't-input'].includes(f.id) ? f.id : null;
+  stashDraft();
+  split = want;
+  colTab = split ? (view.name === 'list' ? view.tab : view.name === 'settings' ? 'settings' : getTab()) : null;
+  document.documentElement.classList.toggle('split', split);
+  $app.innerHTML = split ? '<div class="col" id="list-pane"></div><div class="col" id="detail-pane"></div>' : '';
+  route(null, { relayout: true });
+  const el = refocus && document.getElementById(refocus);
+  if (el) {
+    el.focus({ preventScroll: true });
+    if (el.isContentEditable) caretToEnd(el);
+  }
+}
+
+// The list column: 설정 or the list of the tab it shows.
+function renderCol() {
+  if (colTab === 'settings') renderSettings();
+  else render();
+}
+
+// Nothing open on the right: a calm placeholder, with a way to what is waiting.
+function renderEmpty() {
+  const root = detailRoot();
+  if (!root) return;
+  const blocked = state.agents.filter((a) => a.status === 'blocked' && shown(a));
+  const first = blocked[0];
+  const html = `<div class="empty-detail">
+      <span class="ed-ic" aria-hidden="true">${ICON.panel}</span>
+      <h2>왼쪽에서 에이전트를 고르세요</h2>
+      ${first ? `<a class="ed-attn" href="${link(first.host, `/agent/${encodeURIComponent(first.pane)}`)}">답 필요 ${blocked.length} · ${esc(first.name || first.title)} 열기</a>` : ''}
+      <p class="ed-keys"><kbd>Alt</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> 또는 <kbd>[</kbd> <kbd>]</kbd> 로 목록을 옮겨 다니고, <kbd>Esc</kbd> 로 닫습니다.</p>
+    </div>`;
+  const cur = root.firstElementChild;
+  if (cur && cur.classList.contains('empty-detail') && cur._html === html) return;
+  root.innerHTML = html;
+  root.firstElementChild._html = html;
+}
+
+// The row of what is open on the right, marked in the list (aria-current) so it stands out.
+function markSelected() {
+  const main = split && listRoot() && listRoot().querySelector(':scope > main.home');
+  if (!main) return;
+  const kind = view.name === 'agent' ? 'agent' : view.name === 'term' ? 'term' : view.name === 'ws' ? 'ws' : null;
+  const id = kind === 'ws' ? view.id : detail.pane;
+  const on = new Set();
+  if (kind)
+    for (const row of main.querySelectorAll(`[data-kind="${kind}"]`))
+      if (row.dataset.id === id && (row.dataset.host || localId()) === curHost()) on.add(row.querySelector(':scope > a, :scope > .sw-front'));
+  for (const el of main.querySelectorAll('[aria-current]')) if (!on.has(el)) el.removeAttribute('aria-current');
+  for (const el of on) if (el) el.setAttribute('aria-current', 'page');
+}
+
+// Alt+↑/↓ (or [ ]): the previous or next agent or shell in the list column, opened on the right.
+function stepList(dir) {
+  const main = listRoot() && listRoot().querySelector(':scope > main.home');
+  if (!main) return false;
+  const links = [...main.querySelectorAll('a.attn-row, a.sw-front')].map((a) => a.getAttribute('href'));
+  const cur = main.querySelector('a[aria-current]');
+  const next = Split.stepRow(links, cur && cur.getAttribute('href'), dir);
+  if (!next) return true;
+  location.hash = next;
+  const el = [...main.querySelectorAll('a.attn-row, a.sw-front')].find((a) => a.getAttribute('href') === next);
+  if (el) el.scrollIntoView({ block: 'nearest' });
+  return true;
 }
 
 // ------------------------------------------------------------ list view
@@ -771,8 +879,18 @@ function setTab(t) {
     /* remembered for this page only */
   }
 }
-// Where 뒤로 from an agent, shell or workspace leads: the list tab it was opened from.
-const homeHash = () => (getTab() === 'spaces' ? '#/spaces' : '#/');
+// Where 뒤로 from an agent, shell or workspace leads: the list tab it was opened from (split:
+// whatever the list column shows, 설정 included).
+const homeHash = () => (split && colTab === 'settings' ? '#/settings' : getTab() === 'spaces' ? '#/spaces' : '#/');
+// The list tab render() draws: the view's own on the phone, the list column's when split.
+const listTab = () => (split ? (colTab === 'spaces' ? 'spaces' : 'home') : view.tab || 'home');
+
+// 뒤로 in a detail header. Split, the list is already beside it: a detail that leads back to
+// the list gets ✕ (닫기) at the end of the header instead, and closing it goes to the list route.
+function backLink(href, label = '목록') {
+  if (split && href === homeHash()) return `<a class="icon-btn close-detail" href="${href}" data-back aria-label="닫기" title="닫기 (Esc)">${ICON.x}</a>`;
+  return `<a class="icon-btn" href="${href}" data-back aria-label="${label}">${ICON.back}</a>`;
+}
 
 function tabBar(active) {
   const n = state.agents.filter((a) => a.status === 'blocked' && shown(a)).length;
@@ -785,15 +903,16 @@ function tabBar(active) {
   </nav>`;
 }
 function mountTabBar(active) {
+  const root = listRoot();
   const html = tabBar(active);
-  const old = $app.querySelector(':scope > .tabbar');
+  const old = root.querySelector(':scope > .tabbar');
   if (old && old._html === html) return;
   const t = document.createElement('template');
   t.innerHTML = html.trim();
   const el = t.content.firstElementChild;
   el._html = html;
   if (old) old.replaceWith(el);
-  else $app.appendChild(el);
+  else root.appendChild(el);
 }
 
 // ---- 방금 끝남: finishes this device has not opened yet (per device, in localStorage)
@@ -866,7 +985,9 @@ let quietOpen = false; // 조용함 expanded (this page's life)
 
 function render() {
   if (swipe.g && Date.now() - swipe.g.t0 < 10000) return void (swipe.pending = true); // after the finger lifts
-  const tab = view.tab || 'home';
+  if (split && colTab === 'settings') return; // the list column shows 설정
+  const root = listRoot();
+  const tab = listTab();
   const down = state.herdr !== 'up';
   const f = filter();
   const { blocked, list } = listModel();
@@ -891,15 +1012,15 @@ function render() {
     ...(blocked.length ? [['attn', attnStrip(blocked)]] : []),
   ];
   const parts = tab === 'home' ? [...head, ...inboxParts(down, f)] : [...head, ...spacesParts(list, down, f)];
-  let main = $app.querySelector(':scope > main.home');
+  let main = root.querySelector(':scope > main.home');
   const fresh = !main || main.dataset.tab !== tab;
   if (fresh) {
-    $app.innerHTML = `${top}<main class="list home" data-tab="${tab}"></main>`;
-    main = $app.querySelector(':scope > main.home');
+    root.innerHTML = `${top}<main class="list home" data-tab="${tab}"></main>`;
+    main = root.querySelector(':scope > main.home');
     main._top = top;
     bindList(main);
   } else if (main._top !== top) {
-    $app.querySelectorAll(':scope > header, :scope > nav:not(.tabbar)').forEach((el) => el.remove());
+    root.querySelectorAll(':scope > header, :scope > nav:not(.tabbar)').forEach((el) => el.remove());
     main.insertAdjacentHTML('beforebegin', top);
   }
   main._top = top;
@@ -907,12 +1028,14 @@ function render() {
   mountTabBar(tab);
   // Back from an agent: where this tab was left.
   if (fresh && listScroll[tab]) main.scrollTop = listScroll[tab];
-  $app.querySelectorAll('.hosts button').forEach((b) => {
+  root.querySelectorAll('.hosts button').forEach((b) => {
     b.onclick = () => {
       setFilter(b.dataset.host);
       render();
+      if (split && !isDetail()) renderEmpty(); // its 답 필요 count follows the filter
     };
   });
+  markSelected();
   tickList();
 }
 
@@ -997,7 +1120,7 @@ function swipeHintShown() {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.hint-x')) return;
   hintNow = false;
-  if (view.name === 'list') render();
+  if (listShown()) render();
 });
 
 // Reuse each keyed child whose HTML is unchanged, build the rest, and put them in order.
@@ -1026,7 +1149,7 @@ function patchList(box, parts) {
 // Times on the list and the workspace page, filled in here so the cards' HTML stays the same.
 let listTimer = null;
 function tickList() {
-  const box = ['list', 'ws'].includes(view.name) ? $app : null;
+  const box = split || ['list', 'ws'].includes(view.name) ? $app : null;
   const els = box ? box.querySelectorAll('.el[data-since], .el[data-ago]') : [];
   if (box) fillTimes(box);
   if (els.length && !listTimer) listTimer = setInterval(tickList, 1000);
@@ -1071,10 +1194,10 @@ function ensureQuestion(a) {
       if (!cur || cur.stateSeq !== seq) return questions.delete(k);
       const choices = window.parseChoices ? parseChoices(String(r.text || '').replace(/\s+$/, '')) : null;
       questions.set(k, { seq, choices, tries, at: Date.now() });
-      if (!choicesSettled(choices) && tries < QUESTION_TRIES) setTimeout(() => view.name === 'list' && render(), QUESTION_RETRY_MS + 50);
+      if (!choicesSettled(choices) && tries < QUESTION_TRIES) setTimeout(() => listShown() && render(), QUESTION_RETRY_MS + 50);
     })
     .catch(() => questions.set(k, { seq, choices: null, failed: true, at: Date.now() }))
-    .finally(() => view.name === 'list' && render());
+    .finally(() => listShown() && render());
 }
 const quickItems = (ch) => quickChoices(ch); // choices.js
 
@@ -1118,12 +1241,12 @@ async function quickAnswer(btn) {
   if (!keys) return;
   const lock = { until: Date.now() + CHOICE_LOCK_MS, seq: a.stateSeq, n };
   quickLocks.set(k, lock);
-  setTimeout(() => view.name === 'list' && render(), CHOICE_LOCK_MS + 50);
+  setTimeout(() => listShown() && render(), CHOICE_LOCK_MS + 50);
   render();
   if (!(await sendKeys(keys, host, pane))) {
     // Not sent: the buttons come back at once.
     if (quickLocks.get(k) === lock) quickLocks.delete(k);
-    if (view.name === 'list') render();
+    if (listShown()) render();
   } else closeNotes(host, pane);
 }
 
@@ -1332,7 +1455,7 @@ function rowTouchEnd(e) {
   }
   if (swipe.pending) {
     swipe.pending = false;
-    if (view.name === 'list') render();
+    if (listShown()) render();
   }
 }
 
@@ -1427,10 +1550,10 @@ async function rowAction(el, k) {
 // ------------------------------------------------------------ detail view
 
 function renderDetail() {
-  $app.innerHTML = `
+  detailRoot().innerHTML = `
     <div class="detail">
       <header class="bar">
-        <a class="icon-btn" href="${homeHash()}" data-back aria-label="목록">${ICON.back}</a>
+        ${backLink(homeHash())}
         <h1 id="d-title"></h1>
         <button type="button" class="mode-chip" id="d-mode" hidden></button>
         <span id="d-badge"></span>
@@ -1644,6 +1767,15 @@ function beforeCaret(input) {
     return input.value;
   }
   return r.toString();
+}
+
+function caretToEnd(el) {
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  r.collapse(false);
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
 }
 
 function placeCaret(input, offset) {
@@ -2547,7 +2679,18 @@ async function closePane(host, pane, label, isAgent) {
     ok: '닫기',
     danger: true,
   });
-  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다')) && view.name !== 'list') goBack(homeHash());
+  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다')) && leaveFor(host, pane)) goBack(homeHash());
+}
+
+// After closing a pane or workspace: back to the list when that was open. On the phone the list
+// is the only other place a close comes from; split, the list's rows can close something else.
+function leaveFor(host, pane, wsId) {
+  if (!split) return view.name !== 'list';
+  if (!isDetail() || curHost() !== (host || localId())) return false;
+  if (wsId == null) return ['agent', 'term'].includes(view.name) && detail.pane === pane;
+  if (view.name === 'ws') return view.id === wsId;
+  const open = [...state.agents, ...(state.terminals || [])].find((x) => same(x, curHost(), detail.pane));
+  return Boolean(open && open.workspace === wsId);
 }
 
 async function renameWorkspace(w) {
@@ -2567,7 +2710,7 @@ async function closeWorkspace(w) {
     ok: '닫기',
     danger: true,
   });
-  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다')) && view.name !== 'list') goBack(homeHash());
+  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다')) && leaveFor(host, null, w.workspace_id)) goBack(homeHash());
 }
 
 async function newTab(w) {
@@ -2595,10 +2738,10 @@ const termTitle = (t) => t.label || (/[\\/]/.test(t.title) ? basename(t.title) :
 const currentTerminal = () => (state.terminals || []).find((t) => same(t, curHost(), detail.pane));
 
 function renderTerminal() {
-  $app.innerHTML = `
+  detailRoot().innerHTML = `
     <div class="detail">
       <header class="bar">
-        <a class="icon-btn" href="${homeHash()}" data-back aria-label="목록">${ICON.back}</a>
+        ${backLink(homeHash())}
         <h1 id="t-title"></h1>
         <span id="t-live"></span>
         <button class="icon-btn" id="t-more" aria-label="더 보기">${ICON.more}</button>
@@ -2662,7 +2805,7 @@ function renderTerminal() {
     input.placeholder = on ? '누르는 키가 바로 갑니다' : '명령 (Enter 로 실행)';
     input.setAttribute('enterkeyhint', on ? 'enter' : 'send');
     document.getElementById('t-send').hidden = on;
-    $app.querySelector('.detail').classList.toggle('raw', on);
+    detailRoot().querySelector('.detail').classList.toggle('raw', on);
     drawKeys();
   };
   setRaw(getShellInput() === 'raw');
@@ -3051,7 +3194,7 @@ document.addEventListener('selectionchange', () => {
 // visual viewport (--app-top/--app-h), any page scroll is undone, and a chat or screen that
 // was following the bottom stays there. Pinch-zoomed, the layout is left alone.
 const vv = window.visualViewport || null;
-const mainScroller = () => document.getElementById('ss-body') || document.querySelector('#d-body, #t-body, #app > main, #app > form.panel');
+const mainScroller = () => document.getElementById('ss-body') || document.querySelector('#d-body, #t-body, #app > main, #app > form.panel, #detail-pane > main, #detail-pane > form.panel');
 const editable = (el) =>
   Boolean(el) && (el.tagName === 'TEXTAREA' || el.isContentEditable || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file', 'range', 'color'].includes(el.type)));
 
@@ -3243,9 +3386,9 @@ function renderWorkspace() {
   const terms = (state.terminals || []).filter((t) => same(t, host, view.id, 'workspace'));
   const id = encodeURIComponent(view.id);
   const missing = !online(host) ? `${esc(hostLabel(host))} 오프라인` : '닫혔거나 찾을 수 없습니다';
-  $app.innerHTML = `
+  detailRoot().innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="${homeHash()}" data-back aria-label="목록">${ICON.back}</a>
+      ${backLink(homeHash())}
       <h1>${w ? esc(w.label) : '워크스페이스 없음'}<span class="sub">${w ? `${multi() ? `${esc(hostLabel(host))} · ` : ''}${esc(w.workspace_id)} · 탭 ${w.tab_count} · 에이전트 ${agents.length} · 셸 ${terms.length}` : missing}</span></h1>
     </header>
     <main class="list">
@@ -3278,9 +3421,9 @@ async function renderForm() {
   const on = isNew ? '' : multi() ? ` · ${hostLabel(host)}` : '';
   const where = isNew ? '' : ws ? `${ws.label} 워크스페이스의 새 탭${on}` : term ? `${termTitle(term)} 셸 (${term.workspaceLabel})${on}` : '찾을 수 없음';
   const back = isNew ? homeHash() : ws ? link(host, `/ws/${encodeURIComponent(ws.workspace_id)}`) : term ? link(host, `/term/${encodeURIComponent(term.pane)}`) : homeHash();
-  $app.innerHTML = `
+  detailRoot().innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="${back}" data-back aria-label="뒤로">${ICON.back}</a>
+      ${backLink(back, '뒤로')}
       <h1>${isNew ? '새 워크스페이스' : '에이전트 시작'}${where ? `<span class="sub">${esc(where)}</span>` : ''}</h1>
     </header>
     <form class="panel" id="f-form">
@@ -3571,17 +3714,17 @@ function renderSettings() {
     api('/push/key')
       .then((r) => {
         pushInfo = r;
-        if (view.name === 'settings' && r.disabled) renderSettings();
+        if (settingsShown() && r.disabled) renderSettings();
       })
       .catch(() => {});
   if (devSub === undefined && supported)
-    lookupSub().then(() => view.name === 'settings' && renderSettings());
+    lookupSub().then(() => settingsShown() && renderSettings());
   const perm = 'Notification' in window ? Notification.permission : 'unsupported';
   const [permWord, permTodo] = PERM_TEXT[perm] || [perm, ''];
   const denied = perm === 'denied';
   const subscribed = Boolean(devSub);
   const devLine = !supported || denied ? '' : devSub === undefined ? '이 기기 알림을 확인하는 중…' : subscribed ? '이 기기는 알림을 받습니다.' : '이 기기는 알림이 꺼져 있습니다.';
-  $app.innerHTML = `
+  listRoot().innerHTML = `
     <header class="bar">
       <h1>설정</h1>
     </header>
@@ -3711,7 +3854,7 @@ function actionsLine() {
 async function testPush() {
   const sub = await lookupSub();
   if (!sub) {
-    if (view.name === 'settings') renderSettings();
+    if (settingsShown()) renderSettings();
     return toast('이 기기는 알림이 꺼져 있습니다', { action: { label: '알림 켜기', run: enablePush } });
   }
   try {
@@ -3720,7 +3863,7 @@ async function testPush() {
   } catch (err) {
     if (err.code === 'not_subscribed') {
       devSub = null;
-      if (view.name === 'settings') renderSettings();
+      if (settingsShown()) renderSettings();
       return toast('이 기기는 알림이 꺼져 있습니다', { action: { label: '알림 켜기', run: enablePush } });
     }
     toastErr(`시험 알림을 보내지 못했습니다: ${errText(err)}`);
@@ -3737,7 +3880,7 @@ async function enablePush() {
   try {
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') {
-      if (view.name === 'settings') renderSettings();
+      if (settingsShown()) renderSettings();
       return toastErr(perm === 'denied' ? '알림이 거부됐습니다. iPhone 설정 → 알림 → Herdr Hub 에서 허용하세요.' : '알림 권한을 받지 못했습니다.');
     }
     const reg = await navigator.serviceWorker.ready;
@@ -3747,7 +3890,7 @@ async function enablePush() {
     await api('/push/subscribe', { method: 'POST', body: JSON.stringify(sub.toJSON()) });
     devSub = sub;
     toast('이 기기 알림을 켰습니다.');
-    if (view.name === 'settings') renderSettings();
+    if (settingsShown()) renderSettings();
   } catch (err) {
     toastErr(`알림을 켜지 못했습니다: ${errText(err)}`);
   }
@@ -3805,18 +3948,35 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     f.focus();
     // At the end of what is there.
-    if (f.isContentEditable) {
-      const r = document.createRange();
-      r.selectNodeContents(f);
-      r.collapse(false);
-      const sel = getSelection();
-      sel.removeAllRanges();
-      sel.addRange(r);
-    }
+    if (f.isContentEditable) caretToEnd(f);
+    return;
   }
+  // Split: Alt+↑/↓ or [ ] open the previous or next row of the list on the right (split.js
+  // says which keys count; never while the shell's input has the focus).
+  if (split) {
+    const a = document.activeElement;
+    const dir = Split.listKey(e, { editable: editable(a), shell: Boolean(a && a.id === 't-input'), layer: Boolean(topLayer()) });
+    if (dir && stepList(dir === 'next' ? 1 : -1)) e.preventDefault();
+  }
+});
+// Split: a tab press while a detail is open changes only the list column (홈 / 작업공간 /
+// 설정); the detail stays. With nothing open it is an ordinary link to that tab's route.
+document.addEventListener('click', (e) => {
+  const a = split && e.target.closest && e.target.closest('#list-pane .tabbar a.tab');
+  if (!a || !isDetail() || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+  e.preventDefault();
+  const h = a.getAttribute('href');
+  colTab = h === '#/settings' ? 'settings' : h === '#/spaces' ? 'spaces' : 'home';
+  if (colTab !== 'settings') setTab(colTab);
+  renderCol();
+  // ✕ in the detail header leads to where the list column now is.
+  const close = detailRoot().querySelector('a.close-detail');
+  if (close) close.setAttribute('href', homeHash());
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && view.name === 'agent') loadDetail();
 });
+splitMq.addEventListener('change', relayout);
 connect();
-route();
+if (splitMq.matches) relayout();
+else route();

@@ -128,12 +128,13 @@ button { font: inherit; color: inherit; }
   display: flex; flex-direction: column; overflow: hidden;
   padding-left: var(--safe-left); padding-right: var(--safe-right);
 }
-#app > .bar, #app > nav { flex: none; }
-#app > main, #app > form.panel {
+/* The same column rules for #app on the phone and for each column of the split layout. */
+:is(#app, .col) > .bar, :is(#app, .col) > nav { flex: none; }
+:is(#app, .col) > main, :is(#app, .col) > form.panel {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
 }
-#app > .panel { padding-bottom: calc(16px + var(--safe-bottom)); }
+:is(#app, .col) > .panel { padding-bottom: calc(16px + var(--safe-bottom)); }
 
 /* ---- top bar */
 .bar {
@@ -849,7 +850,7 @@ button.tool:active { filter: brightness(0.95); }
 .term-keys + .composer, .term-keys + * + .composer { border-top: 0; padding-top: 2px; }
 
 /* ---- bottom tab bar: 홈 / 작업공간 / 설정 (iOS style: icon over a short label) */
-#app > .tabbar { flex: none; }
+:is(#app, .col) > .tabbar { flex: none; }
 .tabbar {
   display: grid; grid-template-columns: repeat(3, 1fr);
   padding: 0 8px var(--safe-bottom);
@@ -871,8 +872,8 @@ button.tool:active { filter: brightness(0.95); }
   background: var(--blocked); color: var(--bg); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
 }
 /* The tab bar already keeps clear of the home indicator. */
-#app > main.home { padding-bottom: 20px; }
-#app > main.panel:has(+ .tabbar) { padding-bottom: 20px; }
+:is(#app, .col) > main.home { padding-bottom: 20px; }
+:is(#app, .col) > main.panel:has(+ .tabbar) { padding-bottom: 20px; }
 .panel p.muted { color: var(--muted); font-size: 14px; }
 
 /* ---- 홈: inbox sections of compact rows, inset-grouped like iOS lists */
@@ -944,3 +945,56 @@ button.tool:active { filter: brightness(0.95); }
 /* The scrolling keys fade out before ⌨ instead of being cut against it. */
 .detail.raw .term-keys { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); padding-right: 28px; }
 .detail.raw .term-side { padding-left: 2px; }
+
+/* ---- split: the list and the open detail side by side (landscape tablet, laptop; split.js).
+   The list column keeps its own header, scroll and tab bar; the detail fills the rest. */
+:root { --list-w: clamp(340px, 28vw, 380px); }
+:root.split body { background: var(--bg); }
+:root.split #app {
+  width: auto; margin: 0; border-inline: 0; flex-direction: row; background: var(--bg);
+  padding-left: var(--safe-left); padding-right: var(--safe-right);
+}
+.split #app > .col { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.split #list-pane { flex: none; width: var(--list-w); border-right: 1px solid var(--line); }
+.split #detail-pane { flex: 1; }
+.split #list-pane .list, .split #list-pane .panel { padding-left: 14px; padding-right: 14px; }
+.split #list-pane .seg.hosts { margin-inline: 14px; }
+/* Forms and the workspace page keep a readable measure in the wide column; so does the chat. */
+.split #detail-pane > .panel, .split #detail-pane > main.list { padding-inline: max(24px, calc((100% - 760px) / 2)); }
+.split #detail-pane .msgs { max-width: 880px; margin-inline: auto; }
+/* ✕ (닫기) sits at the end of the detail header, where a close button is looked for. */
+.bar .close-detail { order: 10; }
+
+/* The open row, marked in the list (aria-current). */
+.split main.home .sw-front[aria-current="page"] {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent);
+}
+.split main.home .attn-row[aria-current="page"] { background: color-mix(in srgb, var(--blocked) 13%, transparent); box-shadow: inset 3px 0 0 var(--blocked); }
+.split main.home .ws-head .sw-front[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* Nothing open on the right. */
+.empty-detail {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: calc(24px + var(--safe-top)) 32px calc(24px + var(--safe-bottom)); text-align: center; color: var(--muted);
+}
+.empty-detail .ed-ic { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
+.empty-detail .ed-ic svg { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.empty-detail h2 { margin: 0; font-size: 17px; font-weight: 600; color: var(--text); }
+.ed-attn {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px;
+  background: var(--blocked-bg); color: var(--blocked); font-size: 14px; font-weight: 600; text-decoration: none; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ed-attn:active { filter: brightness(0.95); }
+.ed-keys { margin: 4px 0 0; font-size: 13px; line-height: 1.6; max-width: 420px; }
+.ed-keys kbd {
+  display: inline-block; min-width: 22px; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px;
+  background: var(--surface); color: var(--text); font: 600 12px/18px var(--mono); text-align: center;
+}
+@media (hover: hover) { .ed-attn:hover { filter: brightness(0.97); } }
+
+/* Sheets about the detail (terminal screen, folder browser) rise in the detail column; short
+   dialogs and menus stay in the middle of the screen. Toasts sit over the detail too. */
+.split .sheet-back:has(> .term-sheet), .split .sheet-back:has(> .browser) { padding-left: var(--list-w); align-items: flex-end; }
+.split .toasts { left: calc(var(--list-w) + 24px); right: 24px; align-items: center; }
+.split .toast { width: min(560px, 100%); }
