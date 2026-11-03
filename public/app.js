@@ -463,15 +463,15 @@ function renderDetail() {
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="d-body"></div>
       <div class="attach-tray" id="d-tray" hidden></div>
-      <form class="composer" id="d-form">
+      <input type="file" id="d-file" accept="image/*" multiple hidden>
+      <input type="file" id="d-cam" accept="image/*" capture="environment" hidden>
+      <div class="composer" id="d-form">
         <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">${ICON.photo}</button>
         <button type="button" class="attach" id="d-camera" aria-label="카메라로 찍기">${ICON.camera}</button>
-        <input type="file" id="d-file" accept="image/*" multiple hidden>
-        <input type="file" id="d-cam" accept="image/*" capture="environment" hidden>
         <textarea id="d-input" rows="1" placeholder="메시지 보내기" enterkeyhint="send" autocomplete="off" aria-autocomplete="none"></textarea>
         <button type="button" class="stop" id="d-stop" aria-label="중단" hidden>${ICON.stop}</button>
-        <button type="submit" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
-      </form>
+        <button type="button" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
+      </div>
     </div>`;
   document.getElementById('d-activity').onclick = openScreenSheet;
   const input = document.getElementById('d-input');
@@ -481,7 +481,7 @@ function renderDetail() {
     updateComposer();
   };
   input.onkeydown = (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) document.getElementById('d-form').requestSubmit();
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendNow();
   };
   // Pasted images (iOS: screenshot → Copy → long-press here → Paste) join the attachments;
   // text pastes as usual.
@@ -509,8 +509,8 @@ function renderDetail() {
     const pic = e.target.closest('.pic');
     if (pic) openViewer(pic.dataset.src);
   });
-  document.getElementById('d-form').onsubmit = async (e) => {
-    e.preventDefault();
+  // Not a <form>: iOS would add its ⌃ ⌄ / contact AutoFill bar above the keyboard.
+  const sendNow = async () => {
     const text = input.value;
     const files = detail.files;
     if (detail.sending || (!text.trim() && !files.length)) return;
@@ -550,6 +550,7 @@ function renderDetail() {
       updateComposer();
     }
   };
+  document.getElementById('d-send').onclick = sendNow;
   document.getElementById('d-stop').onclick = async () => {
     if (!(await sheet({ title: '작업 중단', text: '지금 작업을 중단할까요? (Esc 키를 보냅니다)', ok: '중단', danger: true }))) return;
     sendKeys(['esc']);
