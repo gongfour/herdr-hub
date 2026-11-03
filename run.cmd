@@ -8,6 +8,8 @@ set HERDR_HUB_HOST_LABEL=desktop
 rem Hub: merge these peers into this Herdr Hub (id=url, comma-separated).
 set HERDR_HUB_PEERS=server=https://server.uaru-monster.ts.net:8443
 set HERDR_HUB_VAPID_SUBJECT=https://desktop.uaru-monster.ts.net
+rem Agents in folders or workspaces named with these prefixes never notify (throwaway test workspaces).
+set HERDR_HUB_PUSH_MUTE=hub-inbox-
 rem The task runs without the interactive PATH; point at node directly.
 set NODE=C:\Users\kangw\AppData\Local\mise\installs\node\26.3.1\node.exe
 "%NODE%" server.js >> data\herdr-hub.log 2>&1

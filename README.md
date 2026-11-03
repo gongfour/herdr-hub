@@ -6,7 +6,15 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
 
 - 서버: `server.js` — herdr API 소켓(Windows 는 named pipe)에 직접 붙는다. SSH·셸을 거치지 않는다.
 - 화면: `public/` — 빌드 없는 바닐라 JS. 목록, 에이전트 보기(대화 + 작업 줄 + 터미널 화면 시트), 응답 키, 보내기, 중단(Esc), 웹 푸시 알림.
-- 목록: herdr 의 호스트 → 워크스페이스 → 패널 순서. 워크스페이스마다 카드 하나(이름, 여러 호스트를 함께 볼 때만 호스트 표시, 폴더, ⋯ 은 워크스페이스 화면), 안에 패널 줄(에이전트 먼저: 아이콘·이름·상태, 작업 중이면 이 화면이 본 뒤로 흐른 시간; 셸은 `>_`·프로그램 이름·「셸」). 응답이 필요한 에이전트가 있으면 맨 위 「답해야 할 것 (N)」 줄에 모은다. 카드 순서는 응답 필요가 있는 것 → 작업 중이 있는 것 → 나머지, 그 안에서는 herdr 순서. 상태가 바뀌면 바뀐 카드만 다시 그려서 스크롤 위치가 그대로다.
+- 탭: 아래 탭 막대 「홈 / 작업공간 / 설정」(`#/`, `#/spaces`, `#/settings`). 앱은 마지막에 본 목록 탭(홈 또는 작업공간)으로 열린다(`herdr-hub.tab`). 에이전트·셸·워크스페이스 화면의 뒤로는 그 탭으로 간다. 탭마다 스크롤 위치를 기억한다. 호스트 선택·+ 는 두 목록 탭 머리글에 있다. 홈 탭에는 답 필요 수가 뜬다.
+- 홈(받은편지함, `public/inbox.js`, 시험은 `npm test`): 「무엇이 나를 기다리나, 방금 무엇이 끝났나, 무엇이 도나」를 한 목록으로. 셸은 넣지 않는다.
+  - 답 필요: 맨 위 줄(질문과 빠른 답 버튼, 아래 「작업공간」과 같다).
+  - 방금 끝남: 끝난 지 12시간 안이고 이 기기에서 그 뒤로 열지 않은 에이전트(허브가 끝난 때를 모르는 herdr 「완료」도). 이름 · 워크스페이스 · 호스트, 「3분 전」, 둘째 줄에 마지막 답의 첫 줄(`lastReply`). 에이전트를 열면 `host|pane|doneAt` 을 이 기기의 `herdr-hub.seen` 에 적어(7일 지나면 지움) 목록에서 빠진다. 다시 끝나면 doneAt 이 바뀌어 다시 뜬다.
+  - 작업 중: 경과 시간과 마지막 도구(`lastTool`, 예 「Bash: npm test」), 오래 돈 것 먼저.
+  - 조용함: 나머지는 「조용함 · 대기 7」 한 줄로 접고, 누르면 펼친다(이 페이지 동안).
+  - 줄은 56–64px. 밀기·길게 누르기는 작업공간 탭과 같다.
+  - `lastReply`·`lastTool`: 각 호스트가 Claude 기록 끝 256KB 를 파일이 바뀔 때만 다시 읽어(`transcript.glance`) 상태에 붙인다. `lastReply` 는 완료·대기(끝난 때를 아는) 에이전트에만, `lastTool` 은 작업 중에만.
+- 작업공간 탭(목록): herdr 의 호스트 → 워크스페이스 → 패널 순서. 워크스페이스마다 카드 하나(이름, 여러 호스트를 함께 볼 때만 호스트 표시, 폴더, ⋯ 은 워크스페이스 메뉴), 안에 패널 줄(에이전트 먼저: 아이콘·이름·상태·시간; 셸은 `>_`·프로그램 이름·「셸」). 응답이 필요한 에이전트는 맨 위 「답 필요 (N)」 줄에 모은다. 카드 순서는 응답 필요가 있는 것 → 작업 중이 있는 것 → 나머지, 그 안에서는 herdr 순서. 상태가 바뀌면 바뀐 카드만 다시 그려서 스크롤 위치가 그대로다.
   - 줄 밀기: 패널 줄이나 워크스페이스 머리를 왼쪽으로 밀면 「이름」·「닫기」가 나온다(끝까지 밀어도 실행하지 않고, 한 번에 한 줄만 열리며, 다른 곳을 누르거나 스크롤하면 닫힌다). 닫기는 페이지 안에서 한 번 더 묻는다. 첫 움직임이 세로면 스크롤, 가로면 밀기. 화면 왼쪽 끝 20px 에서 시작한 밀기는 iOS 뒤로 가기에 맡긴다. 길게(0.5초) 누르면 같은 동작을 시트로 연다(텍스트 선택·콜아웃 없음).
 - 관리: 새 워크스페이스(호스트·폴더·이름, 바로 에이전트 시작), 에이전트 시작(기존 셸 패널 또는 새 탭; 종류·인자·이름), 일반 터미널 패널(화면 보기, 명령 한 줄, Ctrl+C·Enter·↑↓·Tab·Esc), 새 탭·패널 나누기, 이름 바꾸기·닫기. 닫기는 늘 페이지 안에서 한 번 더 묻는다.
   - 폴더 고르기: 최근 폴더를 큰 줄로 보여 주고 한 번 누르면 고른다. 「폴더 찾아보기」는 아래에서 올라오는 시트로, 경로 조각(누르면 그 폴더로), 바로 가기(홈·`~/Project`·`~/src`·Desktop·Documents, Windows 는 `C:`·`D:` 중 있는 것), 하위 폴더 목록, 「↑ 상위」, 늘 보이는 「이 폴더 선택」, 「새 폴더」(이름을 받아 만들고 바로 고름)가 있다. Windows 는 드라이브 루트의 상위가 드라이브 목록이다. 경로를 직접 적는 칸은 「경로 직접 입력」 뒤에 있다. 호스트를 바꾸면 고른 폴더와 찾아보기 위치가 처음으로 돌아간다. 이름을 비우면 폴더 이름이 된다.
@@ -14,6 +22,7 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
   - 폴더는 그 호스트에 있는 절대 경로만, 에이전트 종류는 `server.js` 의 `KINDS` 목록만, 인자는 영숫자와 `-_=.:/,@+%\` 만 받는다.
   - 새 폴더에서 Claude 를 처음 띄우면 폴더 신뢰 질문이 나온다. 아래 선택 버튼으로 답한다.
 - 에이전트 보기: 패널 종류마다 보기가 하나다. Claude 에이전트는 늘 대화(기록)를 보여 준다(대화/화면 탭은 없앴다). 기록이 없는 다른 에이전트(codex 등)는 그 자리에 터미널 화면을 보여 준다(`agent !== 'claude'`, 서버의 `supported: false` 와 같은 기준). 막 시작해 기록이 아직 없는 Claude 는 「아직 대화 기록이 없습니다」. 일반 셸 패널은 전처럼 `#/term/<pane>` 터미널 보기다.
+  - 셸 모드(`!명령`): 기록의 `<bash-input>` 은 내 말풍선 「! 명령」(고정폭), `<bash-stdout>`·`<bash-stderr>` 는 그 아래 고정폭 상자로 보여 준다. 12줄이 넘으면 접고 「N줄 더 보기」. 색 코드는 버리고 8000자에서 자른다. stderr 는 stdout 이 함께 있을 때만 붉게(실패한 명령은 Claude Code 가 출력을 모두 stderr 로 남긴다).
   - 작업 줄: 작업 중일 때만 머리글 아래에 한 줄. 3초마다 `screen?source=visible`(맨 글)을 읽어 `public/activity.js` 가 Claude 의 스피너 줄(`✻ Flowing… (1m 17s · ↓ 5.1k tokens)`)에서 활동 낱말·경과 시간·토큰을, 그 위 도구 줄(`⏺`/Windows `●`)에서 마지막 도구를 읽는다(시험은 `npm test`). 화면에 도구가 없으면 이번 차례 기록의 마지막 도구를 쓴다. 못 읽으면 「작업 중…」과 작업 중이 된 뒤(이 화면에서 본 때부터) 지난 시간. 시간은 읽는 사이에도 1초마다 간다.
   - 터미널 화면 시트: 작업 줄을 누르거나 ⋯ → 「터미널 화면 보기」. 아래에서 올라오는 높은 시트에 아래의 화면 상자(색상·줄바꿈, 따라가기·멈춤, 「↓ 새 출력」, 고르는 동안 멈춤)를 그대로 쓴다. ✕·바깥·Esc·맨 위 안내의 「대화」로 닫고, 닫으면 읽기를 멈춘다. 예전 화면 탭 주소 `#/h/<host>/agent/<pane>/screen` 은 대화를 열고 그 위에 시트를 띄운다.
 - 응답 필요: 화면 맨 아래의 선택지(`❯ 1. Yes` 같은 번호 목록, 또는 신뢰 질문처럼 번호 없이 커서만 있는 목록)를 읽어 질문과 선택지마다 큰 버튼을 보여 준다(`public/choices.js`, 시험은 `npm test`).
@@ -35,7 +44,7 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
   - `@`: 에이전트 폴더 아래 경로. git 저장소면 `git ls-files`(추적 + 무시되지 않은 새 파일, `.gitignore` 존중), 아니면 깊이 6·5000개까지 훑는다(`node_modules`·`.git` 제외). 폴더를 고르면 그 안을 이어서 보여 준다. 40개까지.
   - `!`(맨 앞): 셸 모드 안내 한 줄(그 줄은 에이전트 세션에서 셸 명령으로 실행되고 출력이 대화에 들어간다). `#` 메모리 단축은 2.1.317 에 없어서 넣지 않았다.
   - API(호스트마다, 피어는 허브가 넘긴다): `GET /api/agents/<pane>/commands` → `{supported, cwd, commands: [{name, desc, hint, source, menu?, scope?}]}`, `GET /api/agents/<pane>/files?q=` → `{supported, files: [{path, dir}], truncated}`. 파일 내용은 보내지 않는다. 폴더(cwd)마다 60초 캐시.
-  - 출처(`lib/commands.js`, 2.1.317 에서 실제 `/` 메뉴와 맞춰 봄): 기본 명령은 손으로 고른 목록(문서 code.claude.com/docs/en/commands 로 확인). 프로젝트 `<폴더>/.claude/commands/**/*.md`(폴더와 그 위로 git 루트까지, 하위 폴더는 `a:b`), 사용자 `~/.claude/commands/**/*.md`, 스킬 `~/.claude/skills/*/SKILL.md`·`<폴더…>/.claude/skills/*/SKILL.md`·claude.ai 에서 동기화된 `~/.claude/skills/synced/<id>/*/SKILL.md`(이름 그대로), 켜진 플러그인(`installed_plugins.json` + `settings.json` 의 `enabledPlugins`)의 `commands/`·`skills/` 를 `플러그인:이름` 으로. 이름·`description`·`argument-hint` 는 frontmatter, 설명이 없으면 본문 첫 줄. `user-invocable: false` 와 `skillOverrides` 의 `"off"` 는 숨긴다. 같은 이름이면 스킬이 명령을, 개인이 프로젝트를, 스킬·명령이 기본 명령을 이긴다. MCP 프롬프트(`/mcp__서버__프롬프트`)는 서버를 띄워야 알 수 있어 넣지 않았다.
+  - 출처(`lib/commands.js`, 2.1.317 에서 실제 `/` 메뉴와 맞춰 봄): 기본 명령은 문서 code.claude.com/docs/en/commands 의 표 전부(기본 명령·번들 스킬 `/run`·`/verify` 등·번들 워크플로 `/deep-research`, 117개; 없어진 `/vim`·`/pr-comments`·`/ultraplan` 과 별칭은 뺐다, 2026-11-03 확인). 요금제·플랫폼에 따라 실제 메뉴에 없는 것도 있다. 프로젝트 `<폴더>/.claude/commands/**/*.md`(폴더와 그 위로 git 루트까지, 하위 폴더는 `a:b`), 사용자 `~/.claude/commands/**/*.md`, 스킬 `~/.claude/skills/*/SKILL.md`·`<폴더…>/.claude/skills/*/SKILL.md`·claude.ai 에서 동기화된 `~/.claude/skills/synced/<id>/*/SKILL.md`(이름 그대로), 켜진 플러그인(`installed_plugins.json` + `settings.json` 의 `enabledPlugins`)의 `commands/`·`skills/` 를 `플러그인:이름` 으로. 이름·`description`·`argument-hint` 는 frontmatter, 설명이 없으면 본문 첫 줄. `user-invocable: false` 와 `skillOverrides` 의 `"off"` 는 숨긴다. 같은 이름이면 스킬이 명령을, 개인이 프로젝트를, 스킬·명령이 기본 명령을 이긴다. MCP 프롬프트(`/mcp__서버__프롬프트`)는 서버를 띄워야 알 수 있어 넣지 않았다.
 - 화면 모드: 설정 → 「화면 모드: 시스템 / 밝게 / 어둡게」(기본 시스템, 이 기기에 `herdr-hub.theme`). `<html data-theme>` 로 바꾼다: 어두운 값은 `style.css` 의 `--d-*` 한 곳에 있고, `:root[data-theme="dark"]` 와 시스템 다크(`:root:not([data-theme="light"])`)일 때 켜진다. `index.html` 의 짧은 스크립트가 첫 그림 전에 적용하고 `theme-color` 메타(상태 막대)·`color-scheme` 도 맞춘다. 터미널 화면은 어느 모드든 어둡다.
 - 사진 첨부(에이전트 입력 칸만): 📎 → 사진 보관함·카메라(`accept="image/*" multiple`, 한 번에 6장까지). 입력 칸 위에 미리보기가 뜨고 ✕ 로 뺀다. 글이나 사진 중 하나만 있어도 보낼 수 있다.
   - 📷 는 바로 카메라를 연다(`capture="environment"`).
@@ -62,6 +71,13 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 - 허브는 피어마다 `/api/stream`(SSE)을 구독한다. 끊기면 다시 붙고(1초부터 최대 30초 간격), 6초 안에 돌아오지 않으면 그 피어를 **오프라인**으로 표시하고 그 항목을 목록에서 뺀다. 연결은 됐는데 50초 동안 아무것도 안 오면(노트북이 잠든 경우) 끊은 것으로 본다.
 - 허브의 `/api/state`·`/api/stream` 은 모든 호스트를 합친 것이다. 에이전트·터미널·워크스페이스마다 `host`(id)·`hostLabel` 이 붙고, `hosts` 에 호스트별 `online`·`herdr`·`since` 가 들어 있다.
 - 호스트별 요청은 `/api/peers/<id>/<나머지>` 로 보내면 허브가 피어의 `/api/<나머지>` 로 넘긴다(`host`, `dirs`, `agents`, `panes`, `workspaces`, `uploads` 만). 본문은 이진 그대로 오간다(사진 업로드는 10MB, 나머지는 256KB 까지). `X-Herdr-Hub` 검사는 허브에서 먼저 하고 피어로도 넘긴다. 피어가 오프라인이면 `503 peer_offline`, 시간 초과는 `504`(조회 15초, 변경 60초).
+- 알림 내용(`lib/notify.js`, 시험은 `npm test`): 에이전트마다 `tag` 하나(`host|pane`)라 새 상태가 옛 알림을 바꾼다.
+  - 답 필요: 허브가 화면을 읽어(피어 것은 피어에게 물어) 본문에 무엇을·질문·선택지를 짧게 넣는다. 예 「Bash: echo hi > note.txt / 진행할까요? 1 Yes · 2 Always · 3 Auto mode · 4 No」. `renotify` 를 켠다.
+  - 완료: 마지막 답의 첫 줄과 「호스트 · 워크스페이스」. 조용히 바꾼다.
+  - 알림 버튼: 답 필요에 빠른 답 2개까지(첫 답과 거절, 예 Yes · No; 「Type something」 은 빼고 빠른 답 버튼과 같은 규칙). 누르면 서비스 워커가 `POST /api/answer {host, pane, stateSeq, n, label}` 을 보낸다(같은 출처라 tailscale serve 가 로그인 머리글을 붙이고, `X-Herdr-Hub` 도 붙인다). 허브는 그 호스트의 `POST /api/agents/<pane>/answer` 로 넘기고, 그 호스트는 herdr 상태를 새로 읽어 그 에이전트가 아직 같은 `stateSeq` 로 막혀 있고 화면의 n 번 선택지 이름이 같을 때만 키를 보낸다(아니면 `409 stale`·`not_blocked`·`no_choices`). 보낸 뒤 같은 자리에 「보냄: Yes」(소리 없음)를 4초 띄운다.
+  - 버튼은 브라우저가 지원할 때만 보인다(`Notification.maxActions`). iPhone·iPad Safari 웹 푸시는 버튼이 없어서 알림을 누르면 그 에이전트가 열린다. 설정의 알림 칸이 이 기기에 버튼이 붙는지 말한다.
+  - 앱에서 답하거나 에이전트를 열면 그 에이전트의 알림을 닫는다(`getNotifications({tag})`).
+  - `HERDR_HUB_PUSH_MUTE`(쉼표로 이은 앞글자): 폴더나 워크스페이스 이름이 그렇게 시작하는 에이전트는 알리지 않는다(로그에 `muted`). desktop `run.cmd` 는 시험용 `hub-inbox-` 를 둔다.
 - 알림은 허브만 보낸다. 피어의 상태 변화(응답 필요, 완료)도 허브가 보고 보낸다. 피어는 `HERDR_HUB_PUSH=0` 이라 알림을 아예 보내지 않으므로 같은 알림이 두 번 오지 않는다. 피어가 잠든 사이에 생긴 변화도 다시 연결되면 알린다.
   - herdr 0.9.3 은 `completion_seq` 가 없어서, 그 호스트에서는 작업 중 → 완료 로 바뀔 때를 완료로 본다.
 - 인증: 피어도 `tailscale serve` 뒤에 있고 `Tailscale-User-Login` 을 `HERDR_HUB_ALLOWED_LOGINS` 와 맞춘다. desktop 노드는 사용자 소유(태그 없음)라 허브 → 피어 요청에도 `tailscale serve` 가 `kangwonjin.dev@gmail.com` 을 붙인다(직접 확인함; 요청에 위조한 값은 serve 가 덮어쓴다). 그래서 따로 비밀값을 두지 않았다. 피어를 태그 노드로 바꾸면 이 머리글이 사라지므로 그때는 공유 비밀을 넣어야 한다.
@@ -76,6 +92,7 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 | `HERDR_HUB_HOST_LABEL` | 화면에 보일 이름 |
 | `HERDR_HUB_PEERS` | 허브로 만든다: `id=url` 을 쉼표로. 예 `server=https://server.uaru-monster.ts.net:8443` |
 | `HERDR_HUB_PUSH` | `0` 이면 알림을 보내지 않는다(피어용) |
+| `HERDR_HUB_PUSH_MUTE` | 알리지 않을 폴더·워크스페이스 이름 앞글자(쉼표). 시험 워크스페이스용 |
 | `HERDR_HUB_VAPID_SUBJECT`, `HERDR_HUB_DATA`, `PORT`, `HOST` | 전과 같음 |
 
 ## 운영 — desktop (허브)

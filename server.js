@@ -13,6 +13,8 @@ const uploads = require('./lib/uploads');
 const commands = require('./lib/commands');
 const names = require('./lib/names');
 const times = require('./lib/times');
+const notifyLib = require('./lib/notify');
+const { parseChoices } = require('./public/choices');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
 
@@ -25,6 +27,8 @@ const ALLOW_LOCAL = process.env.HERDR_HUB_ALLOW_LOCAL === '1';
 const HOSTNAME = process.env.HERDR_HUB_HOST_LABEL || os.hostname();
 const HOST_ID = process.env.HERDR_HUB_HOST_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^[^a-z]+/, '').slice(0, 32) || 'local';
 const PUSH_ON = process.env.HERDR_HUB_PUSH !== '0';
+// Folder or workspace name prefixes whose agents never notify (throwaway test workspaces).
+const PUSH_MUTE = notifyLib.parseMute(process.env.HERDR_HUB_PUSH_MUTE);
 const POLL_MS = 4000;
 const VIEWPORT_LOG = path.join(DATA, 'viewport.log');
 const VIEWPORT_LOG_MAX = 512 * 1024; // and one older file: about 1 MB in all
@@ -103,6 +107,7 @@ async function refresh() {
     const agentPanes = new Set(list.map((a) => a.pane));
     const terminals = panes.panes.filter((p) => !p.agent && !agentPanes.has(p.pane_id)).map((p) => shapeTerminal(p, labels));
     localTimes = times.track(localTimes, list, Date.now(), (a) => a.pane);
+    for (const a of list) addGlance(a);
     notifyTransitions(HOST_ID, HOSTNAME, list);
     local = { herdr: 'up', error: null, agents: list, terminals, workspaces: workspaces.workspaces };
     publish();
@@ -113,6 +118,22 @@ async function refresh() {
       publish();
     }
   }
+}
+
+// The home screen's one-liners, from a small cached transcript tail: what a working agent ran
+// last (lastTool) and the first line of a finished one's last reply (lastReply).
+function addGlance(a) {
+  const finished = a.status === 'done' || (a.status === 'idle' && a.doneAt);
+  if (a.agent !== 'claude' || !a.session || !(finished || a.status === 'working')) return;
+  let g = null;
+  try {
+    g = transcript.glance(a.session);
+  } catch {
+    /* an unreadable transcript only means no summary */
+  }
+  if (!g) return;
+  if (a.status === 'working' && g.lastTool) a.lastTool = g.lastTool;
+  if (finished && g.lastReply) a.lastReply = g.lastReply;
 }
 
 const tag = (id, label) => (x) => ({ ...x, host: id, hostLabel: label });
@@ -145,20 +166,32 @@ function publish() {
   if (changed) broadcast('state', state);
 }
 
-function notify(kind, hostId, hostLabel, a) {
+// The question on a blocked agent's screen: read here for this host, from the peer otherwise.
+async function blockedChoices(hostId, pane) {
+  let text = '';
+  if (hostId === HOST_ID) text = (await readScreen('agent.read', { target: pane }, 'visible', 30)).text;
+  else {
+    const peer = peers.get(hostId);
+    if (!peer || !peer.online) return null;
+    const r = await peer.request('GET', `/api/agents/${encodeURIComponent(pane)}/screen?source=visible&lines=30`, { timeoutMs: 5000 });
+    if (r.status !== 200) return null;
+    text = JSON.parse(r.body.toString('utf8')).text;
+  }
+  return parseChoices(String(text || '').replace(/\s+$/, ''));
+}
+
+async function notify(kind, hostId, hostLabel, a) {
   if (!push) return;
-  const label = a.name || a.title;
-  const where = peers.size ? `${hostLabel} · ${a.workspaceLabel}` : a.workspaceLabel;
-  const payload = {
-    title: `${label}: ${kind === 'blocked' ? '응답 필요' : '완료'}`,
-    body: `${a.agent} · ${where}`,
-    url: `/#/h/${hostId}/agent/${encodeURIComponent(a.pane)}`,
-    tag: `${hostId}:${a.pane}`,
-  };
-  push
-    .send(payload)
-    .then((r) => console.log(`${new Date().toISOString()} push ${kind} ${hostId} ${a.pane} sent=${r.sent}`))
-    .catch((err) => console.error('push error', err.message));
+  if (notifyLib.muted(a, PUSH_MUTE)) return console.log(`${new Date().toISOString()} push ${kind} ${hostId} ${a.pane} muted`);
+  let choices = null;
+  if (kind === 'blocked') {
+    // The prompt is drawn a moment after the status changes.
+    await new Promise((r) => setTimeout(r, 400));
+    choices = await blockedChoices(hostId, a.pane).catch(() => null);
+  }
+  const payload = notifyLib.buildPayload(kind, { id: hostId, label: hostLabel, multi: peers.size > 0 }, a, { choices, lastReply: a.lastReply || '' });
+  const r = await push.send(payload);
+  console.log(`${new Date().toISOString()} push ${kind} ${hostId} ${a.pane} sent=${r.sent}${payload.actions ? ` actions=${payload.actions.length}` : ''}`);
 }
 
 // Per host, so a peer that drops offline keeps its last statuses and a transition
@@ -169,9 +202,10 @@ function notifyTransitions(hostId, hostLabel, list) {
     for (const a of list) {
       const b = before.get(a.pane);
       if (!b) continue;
-      if (a.status === 'blocked' && b.status !== 'blocked') notify('blocked', hostId, hostLabel, a);
-      else if (a.completion != null && b.completion != null ? a.completion > b.completion && a.status !== 'working' : a.status === 'done' && b.status === 'working')
-        notify('done', hostId, hostLabel, a);
+      let kind = null;
+      if (a.status === 'blocked' && b.status !== 'blocked') kind = 'blocked';
+      else if (a.completion != null && b.completion != null ? a.completion > b.completion && a.status !== 'working' : a.status === 'done' && b.status === 'working') kind = 'done';
+      if (kind) notify(kind, hostId, hostLabel, a).catch((err) => console.error('push error', err.message));
     }
   }
   previous.set(hostId, new Map(list.map((a) => [a.pane, { status: a.status, completion: a.completion }])));
@@ -557,6 +591,13 @@ async function api(req, res, url) {
       refreshSoon();
       return send(res, 200, { ok: true });
     }
+    // An answer from a notification button: sent only while the agent is blocked on the same
+    // prompt (stateSeq, and the option's label when given) it was shown for.
+    if (method === 'POST' && parts[2] === 'answer') {
+      const body = await readJson(req);
+      const r = await answerLocal(pane, body);
+      return send(res, r.status || 200, r.ok ? { ok: true, n: r.item.n, label: r.item.label } : { error: r.error });
+    }
     if (method === 'POST' && parts[2] === 'rename') {
       // Empty clears the name; herdr allows only lowercase names.
       const { name } = await readJson(req);
@@ -565,6 +606,27 @@ async function api(req, res, url) {
       await refresh();
       return send(res, 200, { ok: true });
     }
+  }
+
+  // Notification action: { host, pane, stateSeq, n, label? } -> that host's /agents/<pane>/answer.
+  if (method === 'POST' && parts[0] === 'answer' && !parts[1]) {
+    const body = await readJson(req, 16 * 1024);
+    const host = body.host || HOST_ID;
+    if (typeof body.pane !== 'string' || !body.pane) return send(res, 400, { error: 'pane_required' });
+    const fwd = { stateSeq: body.stateSeq, n: body.n, label: body.label ?? null };
+    let out;
+    if (host === HOST_ID) {
+      const r = await answerLocal(body.pane, fwd);
+      out = { status: r.status || 200, body: r.ok ? { ok: true, n: r.item.n, label: r.item.label } : { error: r.error } };
+    } else {
+      const peer = peers.get(host);
+      if (!peer) return send(res, 404, { error: 'unknown_host' });
+      if (!peer.online) return send(res, 503, { error: 'peer_offline' });
+      const r = await peer.request('POST', `/api/agents/${encodeURIComponent(body.pane)}/answer`, { body: Buffer.from(JSON.stringify(fwd)), headers: { 'Content-Type': 'application/json', 'X-Herdr-Hub': '1' }, timeoutMs: 20000 });
+      out = { status: r.status, body: r.body };
+    }
+    console.log(`${new Date().toISOString()} answer ${host} ${body.pane} seq=${body.stateSeq} n=${body.n} -> ${out.status}`);
+    return send(res, out.status, out.body);
   }
 
   // Photos for the agent composer, kept on this host for the agent here to read.
@@ -619,6 +681,23 @@ async function api(req, res, url) {
   }
 
   send(res, 404, { error: 'not_found' });
+}
+
+// The guard runs on fresh state: herdr is asked again, and the screen read now.
+async function answerLocal(pane, body) {
+  await refresh();
+  const agent = findAgent(pane);
+  const stateSeq = Number.isInteger(body.stateSeq) ? body.stateSeq : null;
+  const n = Number(body.n);
+  const label = typeof body.label === 'string' ? body.label : null;
+  let choices = null;
+  if (agent && agent.status === 'blocked' && agent.stateSeq === stateSeq)
+    choices = parseChoices(String((await readScreen('agent.read', { target: pane }, 'visible', 30)).text || '').replace(/\s+$/, ''));
+  const r = notifyLib.checkAnswer({ agent, stateSeq, n, label, choices });
+  if (!r.ok) return r;
+  await herdr.call('agent.send_keys', { target: pane, keys: r.keys });
+  refreshSoon();
+  return r;
 }
 
 // /api/peers/<host>/<rest> -> <peer>/api/<rest>. Only per-host endpoints; the stream,
@@ -699,7 +778,7 @@ setInterval(() => uploads.sweep(), 24 * 3600 * 1000).unref();
 server.listen(PORT, HOST, () => {
   console.log(`herdr-hub on http://${HOST}:${PORT} (herdr socket ${herdr.defaultSocketPath()})`);
   console.log(ALLOWED.length ? `allowed tailscale logins: ${ALLOWED.join(', ')}` : 'local access only');
-  console.log(`host ${HOST_ID} (${HOSTNAME}); push ${push ? 'on' : 'off'}; peers: ${[...peers.values()].map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);
+  console.log(`host ${HOST_ID} (${HOSTNAME}); push ${push ? 'on' : 'off'}${PUSH_MUTE.length ? ` (muted: ${PUSH_MUTE.join(', ')})` : ''}; peers: ${[...peers.values()].map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);
 });
 
 for (const sig of ['SIGINT', 'SIGTERM'])
