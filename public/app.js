@@ -60,7 +60,7 @@ const errText = (err) => ERROR_TEXT[err.code] || (err.status >= 500 ? `호스트
 
 let state = { agents: [], terminals: [], workspaces: [], hosts: [], herdr: 'connecting' };
 let view = { name: 'list' };
-let detail = { host: null, pane: null, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [], sheet: null, activity: null, workingSince: null };
+let detail = { host: null, pane: null, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [], sheet: null, activity: null };
 const hostCache = new Map(); // host id -> { kinds, recentCwds, platform, home } from that host's /api/host
 let pollTimer = null;
 let tickTimer = null; // the activity line's clock, once a second while working
@@ -492,7 +492,7 @@ function connect() {
     retryDelay = 1000;
     live = true;
     state = JSON.parse(e.data);
-    trackWorking();
+
     resolveReady();
     onState();
   });
@@ -632,22 +632,32 @@ let listScroll = 0; // the list's scroll position, kept while a detail view is o
 const paneOrder = (x, y) => x.pane.length - y.pane.length || (x.pane < y.pane ? -1 : x.pane > y.pane ? 1 : 0);
 const wsRank = (agents) => (agents.some((a) => a.status === 'blocked') ? 0 : agents.some((a) => a.status === 'working') ? 1 : 2);
 
-// When each agent was seen to start working. herdr doesn't say, so an agent already working
-// when this page loaded has no start time (and shows none).
-const working = new Map(); // host|pane -> { status, since }
-let seenState = false;
-function trackWorking() {
-  const now = Date.now();
-  const live = new Set();
-  for (const a of state.agents) {
-    const k = rowKey(a.host, a.pane);
-    const prev = working.get(k);
-    live.add(k);
-    const since = a.status !== 'working' ? null : prev ? (prev.status === 'working' ? prev.since : now) : seenState ? now : null;
-    working.set(k, { status: a.status, since });
-  }
-  for (const k of working.keys()) if (!live.has(k)) working.delete(k);
-  seenState = true;
+// How long an agent has worked and when it finished: the hub keeps both (workingSince, doneAt;
+// lib/times.js), so they show as soon as the app opens. Spans carry the time and tick() fills
+// in the words, so a card's HTML stays the same from one second to the next.
+function durKo(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  if (sec < 60) return `${sec}초`;
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m}분`;
+  return `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}`;
+}
+function agoKo(t) {
+  const sec = (Date.now() - t) / 1000;
+  if (sec < 45) return '방금';
+  if (sec < 3600) return `${Math.max(1, Math.round(sec / 60))}분 전`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}시간 전`;
+  return new Date(t).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+}
+// "작업 중 · 12분" / "완료 · 3분 전" next to the badge; nothing when the hub doesn't know.
+function timeTag(a) {
+  if (a.status === 'working' && a.workingSince) return `<span class="el" data-since="${Number(a.workingSince)}"></span>`;
+  if ((a.status === 'done' || a.status === 'idle') && a.doneAt) return `<span class="el ago" data-ago="${Number(a.doneAt)}" title="${esc(clock(a.doneAt))} 완료"></span>`;
+  return '';
+}
+function fillTimes(root) {
+  for (const el of root.querySelectorAll('.el[data-since]')) el.textContent = durKo((Date.now() - Number(el.dataset.since)) / 1000);
+  for (const el of root.querySelectorAll('.el[data-ago]')) el.textContent = agoKo(Number(el.dataset.ago));
 }
 
 // A workspace by id; one herdr hasn't listed yet is made up from a pane that is in it.
@@ -685,6 +695,7 @@ function render() {
   const down = state.herdr !== 'up';
   const f = filter();
   const { blocked, list } = listModel();
+  for (const a of blocked) ensureQuestion(a);
   // Peers in view that are offline or whose herdr is down.
   const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
   const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '열린 워크스페이스가 없습니다.';
@@ -776,11 +787,12 @@ function patchList(box, parts) {
   if (swipe.open && !swipe.open.isConnected) swipe.open = null;
 }
 
-// Elapsed time of working agents, filled in here so the cards' HTML stays the same each second.
+// Times on the list and the workspace page, filled in here so the cards' HTML stays the same.
 let listTimer = null;
 function tickList() {
-  const els = view.name === 'list' ? $app.querySelectorAll('main.home .el[data-since]') : [];
-  for (const el of els) el.textContent = window.Activity ? window.Activity.formatElapsed((Date.now() - Number(el.dataset.since)) / 1000) : '';
+  const box = ['list', 'ws'].includes(view.name) ? $app : null;
+  const els = box ? box.querySelectorAll('.el[data-since], .el[data-ago]') : [];
+  if (box) fillTimes(box);
   if (els.length && !listTimer) listTimer = setInterval(tickList, 1000);
   if (!els.length && listTimer) {
     clearInterval(listTimer);
@@ -792,15 +804,88 @@ const rowData = (kind, host, id) => `data-kind="${kind}" data-host="${esc(host |
 const SWIPE_ACTS = `<div class="sw-acts" aria-hidden="true"><button type="button" class="sw-act" data-act="rename" tabindex="-1">이름</button><button type="button" class="sw-act danger" data-act="close" tabindex="-1">닫기</button></div>`;
 const agentTitle = (a) => (a.name ? `${a.name} · ${a.title}` : a.title);
 
+// ---- 답 필요 strip: each blocked agent with its question and quick answers
+// The question is read off the agent's visible screen once per prompt (stateSeq) and parsed
+// like the detail view does. One tap answers, with the same lock as there.
+const questions = new Map(); // host|pane -> { seq, choices, loading, at }
+const quickLocks = new Map(); // host|pane -> { until, seq, n }
+const quickLocked = (k, a) => {
+  const l = quickLocks.get(k);
+  return Boolean(l && Date.now() < l.until && a && a.stateSeq === l.seq);
+};
+function ensureQuestion(a) {
+  const k = rowKey(a.host, a.pane);
+  const q = questions.get(k);
+  if (q && q.seq === a.stateSeq && (q.loading || q.choices !== undefined) && !(q.failed && Date.now() - q.at > 10000)) return;
+  const seq = a.stateSeq;
+  questions.set(k, { seq, loading: true });
+  api(hp(`/agents/${encodeURIComponent(a.pane)}/screen?source=visible&lines=30`, a.host || localId()))
+    .then((r) => {
+      const cur = state.agents.find((x) => same(x, a.host || localId(), a.pane));
+      // Read after the prompt changed: that screen is not this question's.
+      if (!cur || cur.stateSeq !== seq) return questions.delete(k);
+      questions.set(k, { seq, choices: window.parseChoices ? parseChoices(String(r.text || '').replace(/\s+$/, '')) : null, at: Date.now() });
+    })
+    .catch(() => questions.set(k, { seq, choices: null, failed: true, at: Date.now() }))
+    .finally(() => view.name === 'list' && render());
+}
+// Up to three buttons: a numbered menu's first options, or a Yes/No menu; never "Type something".
+function quickItems(ch) {
+  if (!ch) return [];
+  const items = ch.items.filter((x) => !TYPE_OWN.test(x.label) && choiceKeys(ch, x.n));
+  // A permission prompt's refusal comes last (1 Yes, 2-3 Yes and …, 4 No): keep it in reach.
+  const neg = items.find((x) => x.negative);
+  if (ch.numbered) return neg && items.indexOf(neg) >= 3 ? [...items.slice(0, 2), neg] : items.slice(0, 3);
+  return items.length <= 3 && items.every((x) => /^(yes|no)\b/i.test(x.label)) ? items : [];
+}
+
 function attnStrip(list) {
   return `<section class="attn" aria-label="답 필요">
     <h2>답 필요 (${list.length})</h2>
-    ${list.map((a) => `<a class="attn-row" ${rowData('agent', a.host, a.pane)} href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
-      <span class="pane-ic" aria-hidden="true">${ICON.agent}</span>
-      <span class="pane-main"><span class="pane-title">${esc(a.name || a.title)}</span><span class="pane-meta">${esc(a.workspaceLabel)}${multi() && filter() === 'all' ? ` · ${esc(a.hostLabel || hostLabel(a.host))}` : ''}</span></span>
-      <span class="badge blocked">${STATUS_LABEL.blocked}</span>
-    </a>`).join('')}
+    ${list.map(attnRow).join('')}
   </section>`;
+}
+
+function attnRow(a) {
+  const k = rowKey(a.host, a.pane);
+  const q = questions.get(k);
+  const ch = q && q.seq === a.stateSeq ? q.choices : null;
+  const quick = quickItems(ch);
+  const locked = quickLocked(k, a);
+  const primary = ch ? primaryChoice(ch.items) : null;
+  const where = `${esc(a.workspaceLabel)}${multi() && filter() === 'all' ? ` · ${esc(a.hostLabel || hostLabel(a.host))}` : ''}`;
+  return `<div class="attn-item" ${rowData('agent', a.host, a.pane)}>
+    <a class="attn-row" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
+      <span class="pane-ic" aria-hidden="true">${ICON.agent}</span>
+      <span class="pane-main"><span class="pane-title">${esc(a.name || a.title)}<span class="pane-meta-inline"> · ${where}</span></span>${
+        ch && ch.question ? `<span class="attn-q">${esc(ch.question)}</span>` : `<span class="pane-meta">${q && q.loading ? '질문을 읽는 중…' : '열어서 답하세요'}</span>`
+      }</span>
+      <span class="go" aria-hidden="true">›</span>
+    </a>
+    ${quick.length ? `<div class="quick" role="group" aria-label="빠른 답">${quick.map((x) => choiceButton(ch, x, { locked, sentN: locked && quickLocks.get(k).n, primary, compact: true }).replace('<button ', '<button data-quick ')).join('')}</div>` : ''}
+  </div>`;
+}
+
+async function quickAnswer(btn) {
+  const row = btn.closest('[data-kind]');
+  const host = row.dataset.host || localId();
+  const pane = row.dataset.id;
+  const a = state.agents.find((x) => same(x, host, pane));
+  const k = rowKey(host, pane);
+  const q = questions.get(k);
+  if (!a || a.status !== 'blocked' || !q || q.seq !== a.stateSeq || !q.choices || quickLocked(k, a)) return;
+  const n = Number(btn.dataset.n);
+  const keys = choiceKeys(q.choices, n);
+  if (!keys) return;
+  const lock = { until: Date.now() + CHOICE_LOCK_MS, seq: a.stateSeq, n };
+  quickLocks.set(k, lock);
+  setTimeout(() => view.name === 'list' && render(), CHOICE_LOCK_MS + 50);
+  render();
+  if (!(await sendKeys(keys, host, pane))) {
+    // Not sent: the buttons come back at once.
+    if (quickLocks.get(k) === lock) quickLocks.delete(k);
+    if (view.name === 'list') render();
+  }
 }
 
 function wsSection({ w, agents, terms }) {
@@ -820,14 +905,18 @@ function wsSection({ w, agents, terms }) {
   </section>`;
 }
 
+// A blocked agent is answered from the strip on top; here it only says so (no second full row).
 function agentRow(a) {
-  const since = a.status === 'working' && (working.get(rowKey(a.host, a.pane)) || {}).since;
+  const badge =
+    a.status === 'blocked'
+      ? `<span class="badge blocked up" aria-label="답 필요 — 위 목록에서 답하세요">↑ 답 필요</span>`
+      : `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
   return `<div class="sw" ${rowData('agent', a.host, a.pane)}>${SWIPE_ACTS}
     <a class="sw-front pane-row agent" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
       <span class="pane-ic" aria-hidden="true">${ICON.agent}</span>
       <span class="pane-main"><span class="pane-title">${esc(agentTitle(a))}</span></span>
-      ${since ? `<span class="el" data-since="${since}"></span>` : ''}
-      <span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>
+      ${timeTag(a)}
+      ${badge}
     </a>
   </div>`;
 }
@@ -859,6 +948,7 @@ function card(a) {
       <div class="title">${esc(agentTitle(a))}</div>
       <div class="meta">${hostChip(a)}${esc(a.agent)} · ${esc(wsAndDir(a.workspaceLabel, a.cwd))}</div>
     </div>
+    ${timeTag(a)}
     <span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>
   </a>`;
 }
@@ -1013,6 +1103,12 @@ function rowClick(e) {
     e.stopPropagation();
     return;
   }
+  const quick = e.target.closest('[data-quick]');
+  if (quick) {
+    e.preventDefault();
+    if (!quick.disabled) quickAnswer(quick);
+    return;
+  }
   const more = e.target.closest('.ws-more');
   if (more) {
     // The card's ⋯ opens the same menu as a long press, not another page.
@@ -1091,6 +1187,7 @@ function renderDetail() {
       <header class="bar">
         <a class="icon-btn" href="#/" data-back aria-label="목록">${ICON.back}</a>
         <h1 id="d-title"></h1>
+        <button type="button" class="mode-chip" id="d-mode" hidden></button>
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기">${ICON.more}</button>
       </header>
@@ -1160,6 +1257,14 @@ function renderDetail() {
   document.getElementById('d-body').addEventListener('click', (e) => {
     const pic = e.target.closest('.pic');
     if (pic) openViewer(pic.dataset.src);
+    const tool = e.target.closest('[data-tool]');
+    if (tool) {
+      const set = (detail.openTools ||= new Set());
+      const k = tool.dataset.tool;
+      if (set.has(k)) set.delete(k);
+      else set.add(k);
+      renderDetailBody(false);
+    }
   });
   // Not a <form>: iOS would add its ⌃ ⌄ / contact AutoFill bar above the keyboard.
   const sendNow = async () => {
@@ -1224,6 +1329,7 @@ function renderDetail() {
   document.getElementById('d-send').onclick = sendNow;
   document.getElementById('d-stop').onclick = confirmStop;
   document.getElementById('d-more').onclick = agentMenu;
+  document.getElementById('d-mode').onclick = cycleMode;
   renderDetailHeader();
   renderDetailBody(true);
 }
@@ -1647,9 +1753,15 @@ function renderDetailHeader() {
     return;
   }
   title.innerHTML = `${esc(a.name || a.title)}<span class="sub">${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${esc(a.agent)} · ${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
-  document.getElementById('d-badge').innerHTML = `${liveDot()}<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
-  if (a.status !== 'working') detail.workingSince = detail.activity = null;
-  else if (!detail.workingSince) detail.workingSince = Date.now();
+  const badge = document.getElementById('d-badge');
+  const bh = `${liveDot()}${a.status === 'working' ? '' : timeTag(a)}<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
+  if (badge._html !== bh) {
+    badge._html = bh;
+    badge.innerHTML = bh;
+    fillTimes(badge);
+  }
+  if (a.status !== 'working') detail.activity = null;
+  renderMode();
   if (detail.answerMode && a.status !== 'blocked') {
     detail.answerMode = false;
     setPlaceholder();
@@ -1803,18 +1915,38 @@ async function loadDetail() {
       renderBlocked();
     } else detail.blockedText = null;
     const working = a.status === 'working';
+    const d = detail;
     let activityText = null;
-    if (!screenBody(a)) detail.transcript = await api(hp(`/agents/${pane}/transcript?limit=150`, host));
+    let footer = false; // the visible screen was read this round (for the mode chip)
+    if (!screenBody(a)) {
+      // Only what changed since the copy here (?rev, ?since): an unchanged chat costs nothing.
+      const t = d.transcript;
+      const last = t && t.messages && t.messages[t.messages.length - 1];
+      const q = `${t && t.rev ? `&rev=${encodeURIComponent(t.rev)}` : ''}${last && last.id ? `&since=${encodeURIComponent(last.id)}` : ''}`;
+      const r = await api(hp(`/agents/${pane}/transcript?limit=150${q}`, host));
+      if (d === detail) d.transcript = mergeTranscript(d.transcript, r);
+    }
     if (screenBody(a) || detail.sheet) {
       // A working agent can't give its scrollback; Claude draws on the alternate screen anyway,
       // so what is visible is the whole picture. The server falls back to it too.
       const source = working || a.status === 'blocked' ? 'visible' : 'recent';
       const s = (detail.screen = await api(hp(`/agents/${pane}/screen?source=${source}&lines=200${colorQuery()}`, host)));
       if (working && s.source === 'visible') activityText = s.format === 'ansi' && window.Ansi ? window.Ansi.strip(s.text) : s.text;
+      if (s.source === 'visible' && a.status !== 'blocked') {
+        noteMode(s.text);
+        footer = true;
+      }
     }
     // The activity line: what the visible screen says the agent is doing, only while working.
     if (working && activityText == null) activityText = (await api(hp(`/agents/${pane}/screen?source=visible&lines=60`, host))).text;
     if (working && (currentAgent() || {}).status === 'working') setActivity(activityText);
+    if (activityText != null) {
+      noteMode(activityText);
+      footer = true;
+    }
+    // Idle Claude: a short read of the bottom lines for the mode chip.
+    if (!footer && !working && a.status !== 'blocked' && a.agent === 'claude' && d === detail) noteMode((await api(hp(`/agents/${pane}/screen?source=visible&lines=8`, host))).text);
+    renderMode();
     detail.lastErr = null;
     renderDetailBody(false);
     renderScreen();
@@ -1842,6 +1974,7 @@ function renderDetailBody(reset) {
   const body = document.getElementById('d-body');
   if (!body) return;
   if (screenBody()) {
+    body._html = null;
     closeScreenSheet();
     if (!scr || scr.body !== body)
       mountScreen(body, 'agent', document.getElementById('s-tools'), '이 에이전트는 대화 기록이 없어 터미널 화면을 보여 줍니다. 지금 보이는 화면만 있습니다.');
@@ -1850,16 +1983,35 @@ function renderDetailBody(reset) {
   }
   if (scr && scr.body === body) {
     unmountScreen();
+    body._html = null;
     reset = true;
   }
   const nearBottom = reset || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
   const t = detail.transcript;
-  if (!t) body.innerHTML = '<p class="note">불러오는 중…</p>';
-  else if (!t.supported) body.innerHTML = `<p class="note">${currentAgent()?.agent ? '아직 대화 기록이 없습니다.' : '에이전트를 시작하는 중…'}</p>`;
-  else if (!t.found) body.innerHTML = '<p class="note">아직 대화 기록이 없습니다.</p>';
-  else
-    body.innerHTML = `${t.truncated ? '<p class="note">최근 대화만 표시합니다</p>' : ''}<div class="msgs">${t.messages.map(message).join('')}</div>`;
+  const note = !t ? '불러오는 중…' : !t.supported ? (currentAgent()?.agent ? '아직 대화 기록이 없습니다.' : '에이전트를 시작하는 중…') : !t.found ? '아직 대화 기록이 없습니다.' : '';
+  if (note) {
+    const html = `<p class="note">${note}</p>`;
+    if (body._html !== html) body.innerHTML = body._html = html;
+  } else {
+    if (body._html !== 'chat' || !body.querySelector('.msgs')) {
+      body.innerHTML = '<p class="note trunc" hidden>최근 대화만 표시합니다</p><div class="msgs"></div>';
+      body._html = 'chat';
+    }
+    body.querySelector('.trunc').hidden = !t.truncated;
+    // One element per message, replaced only when its HTML changed: a poll that brings
+    // nothing new touches nothing, so a text selection or a press survives it.
+    patchList(body.querySelector('.msgs'), t.messages.map((m, i) => [m.id || `i${i}`, message(m)]));
+  }
   if (nearBottom) body.scrollTop = body.scrollHeight;
+}
+
+// The server's answer onto the copy here: unchanged, the tail from `since` on, or all of it.
+function mergeTranscript(old, r) {
+  if (!r || !r.supported || !r.found || !old || !old.messages || r.reset || (!r.unchanged && !r.since)) return r;
+  if (r.unchanged) return old;
+  const i = old.messages.findIndex((m) => m.id === r.since);
+  if (i < 0) return r;
+  return { ...r, truncated: old.truncated || r.truncated, messages: old.messages.slice(0, i).concat(r.messages).slice(-300) };
 }
 
 // The latest screen read, into whichever screen box is mounted (the body or the sheet).
@@ -1910,14 +2062,56 @@ function transcriptTool() {
   return null;
 }
 
-// Elapsed time runs on between reads: from the spinner's own count, else since the status
-// turned to working (as seen here).
+// Elapsed time runs on between reads: since the hub saw the status turn to working, else from
+// the spinner's own count. The header's "완료 · 3분 전" ticks here too.
 function tickActivity() {
+  const badge = document.getElementById('d-badge');
+  if (badge) fillTimes(badge);
   const el = document.querySelector('#d-activity .el');
   if (!el) return;
   const act = detail.activity;
-  const since = act && act.seconds != null ? act.at - act.seconds * 1000 : detail.workingSince;
-  el.textContent = since && window.Activity ? window.Activity.formatElapsed((Date.now() - since) / 1000) : '';
+  const a = currentAgent();
+  const since = a && a.workingSince ? a.workingSince : act && act.seconds != null ? act.at - act.seconds * 1000 : null;
+  el.textContent = since ? durKo((Date.now() - since) / 1000) : '';
+}
+
+// ---- permission mode chip (Claude): read off the footer; a tap sends ⇧Tab, the next mode
+const MODE_LABEL = { auto: '자동', manual: '수동 승인', accept: '편집 허용', plan: '계획', bypass: '권한 우회' };
+function noteMode(text) {
+  if (text == null || !window.parseMode) return;
+  const m = parseMode(window.Ansi ? window.Ansi.strip(String(text)) : String(text));
+  if (m) detail.mode = m;
+}
+function renderMode() {
+  const chip = document.getElementById('d-mode');
+  const a = currentAgent();
+  if (!chip) return;
+  const m = a && a.agent === 'claude' ? detail.mode : null;
+  chip.hidden = !m;
+  if (!m) return;
+  chip.textContent = MODE_LABEL[m] || m;
+  chip.dataset.mode = m;
+  // ⇧Tab in the middle of a question would act on the question.
+  chip.disabled = a.status === 'blocked' || Boolean(detail.modeBusy);
+  chip.setAttribute('aria-label', `권한 모드: ${MODE_LABEL[m] || m}. 누르면 다음 모드로 바꿉니다(⇧Tab)`);
+}
+async function cycleMode() {
+  const a = currentAgent();
+  if (!a || a.status === 'blocked' || detail.modeBusy) return;
+  const pane = a.pane;
+  const host = curHost();
+  detail.modeBusy = true;
+  renderMode();
+  const ok = await sendKeys(['shift+tab'], host, pane);
+  // Read the footer again once Claude has redrawn it.
+  if (ok)
+    await new Promise((r) => setTimeout(r, 450)).then(() =>
+      api(hp(`/agents/${encodeURIComponent(pane)}/screen?source=visible&lines=8`, host))
+        .then((s) => detail.pane === pane && noteMode(s.text))
+        .catch(() => {})
+    );
+  detail.modeBusy = false;
+  renderMode();
 }
 
 // ---- the terminal screen as a tall sheet over the chat
@@ -1974,14 +2168,21 @@ function message(m) {
     // No whitespace between tags: the bubble keeps line breaks (pre-wrap).
     return `<div class="msg user">${media}${text ? `<span>${esc(text)}</span>` : ''}</div>`;
   }
-  const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map(toolLine).join('')}</div>` : '';
+  const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map((t, i) => toolLine(t, `${m.id}:${i}`)).join('')}</div>` : '';
   return `<div class="msg assistant">${m.text ? md(m.text) : ''}${tools}</div>`;
 }
 
-// A tool line; AskUserQuestion shows what was chosen ("Pick a color? → Red").
-function toolLine(t) {
+// A tool line; AskUserQuestion shows what was chosen ("Pick a color? → Red"). One with a
+// result in the transcript opens to show it (cut at 2000 characters by the server).
+function toolLine(t, key) {
   const asked = t.answers && t.answers.length ? t.answers.map((x) => `${esc(x.q)} → <span class="ans">${esc(x.a)}</span>`).join(' · ') : '';
-  return `<div class="tool${asked ? ' asked' : ''}"><b>${esc(t.name)}</b> ${asked || esc(t.summary)}</div>`;
+  const head = `<b>${esc(t.name)}</b> ${asked || esc(t.summary)}`;
+  const cls = `tool${asked ? ' asked' : ''}${t.error ? ' failed' : ''}`;
+  if (!t.result) return `<div class="${cls}">${head}</div>`;
+  const open = Boolean(detail.openTools && detail.openTools.has(key));
+  return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span><span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${
+    open ? `<pre class="tool-out">${esc(t.result)}${t.cut ? '\n… (뒤는 잘림)' : ''}</pre>` : ''
+  }</div>`;
 }
 
 async function agentMenu() {
@@ -2741,6 +2942,7 @@ function renderWorkspace() {
       <section class="group danger-zone"><button type="button" class="btn secondary danger-text wide" id="w-close">워크스페이스 닫기</button></section>` : ''}
     </main>`;
   if (!w) return;
+  tickList();
   document.getElementById('w-tab').onclick = () => newTab(w);
   document.getElementById('w-rename').onclick = () => renameWorkspace(w);
   document.getElementById('w-close').onclick = () => closeWorkspace(w);

@@ -12,6 +12,7 @@ const dirs = require('./lib/dirs');
 const uploads = require('./lib/uploads');
 const commands = require('./lib/commands');
 const names = require('./lib/names');
+const times = require('./lib/times');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
 
@@ -57,6 +58,9 @@ let state = null;
 const previous = new Map(); // host id -> Map(pane -> { status, completion }) from that host's last update
 const clients = new Set();
 let watchedPanes = '';
+// workingSince / doneAt per agent (lib/times): this host's own, and every host's as merged.
+let localTimes = new Map();
+let mergedTimes = new Map();
 
 function shapeAgent(a, labels) {
   return {
@@ -98,6 +102,7 @@ async function refresh() {
       .sort((x, y) => (STATUS_RANK[x.status] ?? 9) - (STATUS_RANK[y.status] ?? 9) || y.stateSeq - x.stateSeq);
     const agentPanes = new Set(list.map((a) => a.pane));
     const terminals = panes.panes.filter((p) => !p.agent && !agentPanes.has(p.pane_id)).map((p) => shapeTerminal(p, labels));
+    localTimes = times.track(localTimes, list, Date.now(), (a) => a.pane);
     notifyTransitions(HOST_ID, HOSTNAME, list);
     local = { herdr: 'up', error: null, agents: list, terminals, workspaces: workspaces.workspaces };
     publish();
@@ -121,6 +126,8 @@ function publish() {
   const agents = all('agents').sort(
     (x, y) => (STATUS_RANK[x.status] ?? 9) - (STATUS_RANK[y.status] ?? 9) || order.get(x.host) - order.get(y.host) || y.stateSeq - x.stateSeq
   );
+  // Peers on this version bring their own times; for an older peer the hub tracks them here.
+  mergedTimes = times.track(mergedTimes, agents, Date.now(), (a) => `${a.host}|${a.pane}`);
   const next = {
     host: HOSTNAME, // kept for older clients
     hostId: HOST_ID,
@@ -530,7 +537,8 @@ async function api(req, res, url) {
     if (method === 'GET' && parts[2] === 'transcript') {
       if (agent.agent !== 'claude' || !agent.session) return send(res, 200, { supported: false, messages: [] });
       const limit = Math.min(Number(url.searchParams.get('limit')) || 120, 500);
-      return send(res, 200, { supported: true, ...transcript.read(agent.session, limit) });
+      const opts = { since: url.searchParams.get('since') || null, rev: url.searchParams.get('rev') || null };
+      return send(res, 200, { supported: true, ...transcript.read(agent.session, limit, opts) });
     }
     if (method === 'POST' && parts[2] === 'prompt') {
       const { text } = await readJson(req);
