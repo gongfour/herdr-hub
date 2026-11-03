@@ -204,6 +204,7 @@ function renderDetailHeader() {
   if (!a) {
     // Before the first state arrives (or before a peer's first report) nothing is known yet.
     const known = state.herdr !== 'connecting' && (state.hosts || []).some((h) => h.id === curHost());
+    title._html = null;
     title.innerHTML = !known
       ? '불러오는 중…'
       : !online(curHost())
@@ -214,9 +215,18 @@ function renderDetailHeader() {
     updateComposer();
     return;
   }
-  title.innerHTML = `${esc(a.name || a.title)}<span class="sub">${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${esc(a.agent)} · ${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
+  // The status and its time sit beside the title on wide screens (#d-badge) and lead the
+  // subtitle on the phone (.sub-st), where the title row is left to the name (style.css).
+  const time = a.status === 'working' ? '' : timeTag(a);
+  const status = esc(STATUS_LABEL[a.status] || a.status);
+  const th = `<span class="t">${esc(a.name || a.title)}</span><span class="sub"><span class="sub-st"><b class="st ${esc(a.status)}">${status}</b>${time ? ` · ${time}` : ''} · </span>${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${a.agent === 'claude' ? '' : `${esc(a.agent)} · `}${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
+  if (title._html !== th) {
+    title._html = th;
+    title.innerHTML = th;
+    fillTimes(title);
+  }
   const badge = document.getElementById('d-badge');
-  const bh = `${liveDot()}${a.status === 'working' ? '' : timeTag(a)}<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
+  const bh = `${liveDot()}${time}<span class="badge ${esc(a.status)}">${status}</span>`;
   if (badge._html !== bh) {
     badge._html = bh;
     badge.innerHTML = bh;
@@ -397,8 +407,10 @@ function transcriptTool() {
 // Elapsed time runs on between reads: since the hub saw the status turn to working, else from
 // the spinner's own count. The header's "완료 · 3분 전" ticks here too.
 function tickActivity() {
-  const badge = document.getElementById('d-badge');
-  if (badge) fillTimes(badge);
+  for (const id of ['d-badge', 'd-title']) {
+    const box = document.getElementById(id);
+    if (box) fillTimes(box);
+  }
   const el = document.querySelector('#d-activity .el');
   if (!el) return;
   const act = detail.activity;
@@ -409,6 +421,8 @@ function tickActivity() {
 
 // ---- permission mode chip (Claude): read off the footer; a tap sends ⇧Tab, the next mode
 const MODE_LABEL = { auto: '자동', manual: '수동 승인', accept: '편집 허용', plan: '계획', bypass: '권한 우회' };
+// The phone's narrow header shows the chip in two letters (style.css picks one).
+const MODE_SHORT = { auto: '자동', manual: '수동', accept: '편집', plan: '계획', bypass: '우회' };
 function noteMode(text) {
   if (text == null || !window.parseMode) return;
   const m = parseMode(window.Ansi ? window.Ansi.strip(String(text)) : String(text));
@@ -421,7 +435,7 @@ function renderMode() {
   const m = a && a.agent === 'claude' ? detail.mode : null;
   chip.hidden = !m;
   if (!m) return;
-  chip.textContent = MODE_LABEL[m] || m;
+  chip.innerHTML = `<span class="full">${esc(MODE_LABEL[m] || m)}</span><span class="short" aria-hidden="true">${esc(MODE_SHORT[m] || MODE_LABEL[m] || m)}</span>`;
   chip.dataset.mode = m;
   // ⇧Tab in the middle of a question would act on the question.
   chip.disabled = a.status === 'blocked' || Boolean(detail.modeBusy);
