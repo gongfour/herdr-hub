@@ -36,3 +36,27 @@ test('rawKeyName: Ctrl and Alt letter chords; typed text and ⌘ shortcuts are n
   assert.equal(rawKeyName(key('c', { metaKey: true })), null);
   assert.equal(rawKeyName(key('Enter', { ctrlKey: true })), null);
 });
+
+test('queueRaw: presses merge per pane and never cross to another one', () => {
+  const { queueRaw } = require('../public/keys');
+  const A = { host: 'server', pane: 'w1:p1' };
+  const B = { host: 'server', pane: 'w1:p2' };
+  const q = [];
+  queueRaw(q, A, { text: 'rm -rf ' });
+  queueRaw(q, A, { text: 'build' });
+  queueRaw(q, A, { key: 'enter' });
+  queueRaw(q, B, { text: 'ls' }); // the view moved to B: a new item for B
+  queueRaw(q, B, { key: 'enter' });
+  queueRaw(q, B, { key: 'up' });
+  queueRaw(q, { host: 'desktop', pane: 'w1:p2' }, { key: 'enter' }); // same pane id, other host
+  assert.deepEqual(q, [
+    { ...A, text: 'rm -rf build', keys: [] },
+    { ...A, text: '', keys: ['enter'] },
+    { ...B, text: 'ls', keys: [] },
+    { ...B, text: '', keys: ['enter', 'up'] },
+    { host: 'desktop', pane: 'w1:p2', text: '', keys: ['enter'] },
+  ]);
+  const many = [];
+  for (let i = 0; i < 10; i++) queueRaw(many, A, { key: 'down' });
+  assert.deepEqual(many.map((x) => x.keys.length), [8, 2]); // herdr takes 8 keys at once
+});

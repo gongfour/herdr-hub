@@ -1,6 +1,6 @@
 'use strict';
 // What a keydown means: Enter in the agent composer, and the herdr key name a key press in the
-// shell's 키 직접 입력 sends.
+// shell's 키 직접 입력 sends (and how those queue up).
 // Pure: loaded as a plain script in the page (window.Keys), required by the tests.
 (function (root) {
   // What Enter does in the composer: 'send', 'newline' or null (leave it to the IME).
@@ -24,7 +24,21 @@
     return null;
   }
 
-  const api = { enterAction, rawKeyName };
+  // The raw-mode send queue: { host, pane, text, keys } items, one request each, in order. A new
+  // key press joins the last item when that is for the same pane and of the same kind (text runs
+  // merge; keys gather up to 8, the most herdr takes at once); otherwise it starts its own. Each
+  // item keeps the pane it was typed for, so keys still waiting when the view moves on go there
+  // and nowhere else. Mutates and returns q.
+  function queueRaw(q, target, press) {
+    const last = q[q.length - 1];
+    const here = last && last.host === target.host && last.pane === target.pane;
+    if (press.text != null && here && last.text != null && !last.keys.length && last.text.length < 2000) last.text += press.text;
+    else if (press.key && here && !last.text && last.keys.length < 8) last.keys.push(press.key);
+    else q.push({ host: target.host, pane: target.pane, text: press.text || '', keys: press.key ? [press.key] : [] });
+    return q;
+  }
+
+  const api = { enterAction, rawKeyName, queueRaw };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keys = api;
 })(typeof self !== 'undefined' ? self : this);

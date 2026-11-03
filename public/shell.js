@@ -166,36 +166,40 @@ function renderTerminalHeader() {
 }
 
 // Raw-mode keys in order: text runs merge, one request at a time, the screen read soon after.
+// Each queued item carries the pane it was typed for (keys.js queueRaw): keys still waiting when
+// the view moves to another shell go to the one they were typed in, never to the new one.
 const rawQ = [];
 let rawBusy = false;
 let rawLoadTimer = null;
-function rawSend(item) {
-  const last = rawQ[rawQ.length - 1];
-  if (item.text != null && last && last.text != null && !last.keys.length && last.text.length < 2000) last.text += item.text;
-  else if (item.key && last && !last.text && last.keys.length < 8) last.keys.push(item.key);
-  else rawQ.push({ text: item.text || '', keys: item.key ? [item.key] : [] });
+const termHere = (host, pane) => view.name === 'term' && detail.pane === pane && curHost() === host;
+function rawSend(press) {
+  Keys.queueRaw(rawQ, { host: curHost(), pane: detail.pane }, press);
   pumpRaw();
 }
 async function pumpRaw() {
   if (rawBusy) return;
   rawBusy = true;
-  const host = curHost();
-  const pane = detail.pane;
   try {
     while (rawQ.length) {
       const it = rawQ.shift();
-      // The reply carries the screen (the echo); a read follows a moment later for slower output.
+      const { host, pane } = it;
+      // The reply carries the screen (the echo) when this is the last item for the pane on
+      // screen; a read follows a moment later for slower output.
+      const echo = termHere(host, pane) && !rawQ.some((x) => x.host === host && x.pane === pane);
       const n = ++termReads;
-      const last = !rawQ.length;
-      const r = await api(hp(`/panes/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify(last ? { ...it, echo: { format: getColor() ? 'ansi' : 'text' } } : it) });
-      detail.keyAt = Date.now();
-      if (r && r.screen && detail.pane === pane) drawTerminal(r.screen, n);
-      clearTimeout(rawLoadTimer);
-      rawLoadTimer = setTimeout(loadTerminal, RAW_FOLLOW_MS);
+      try {
+        const r = await api(hp(`/panes/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ text: it.text, keys: it.keys, ...(echo ? { echo: { format: getColor() ? 'ansi' : 'text' } } : {}) }) });
+        if (!termHere(host, pane)) continue;
+        detail.keyAt = Date.now();
+        if (r && r.screen) drawTerminal(r.screen, n);
+        clearTimeout(rawLoadTimer);
+        rawLoadTimer = setTimeout(loadTerminal, RAW_FOLLOW_MS);
+      } catch (err) {
+        // What was typed after a failed key would land out of order: drop the rest for that pane.
+        for (let i = rawQ.length - 1; i >= 0; i--) if (rawQ[i].host === host && rawQ[i].pane === pane) rawQ.splice(i, 1);
+        toastErr(`키를 보내지 못했습니다: ${errText(err)}`);
+      }
     }
-  } catch (err) {
-    rawQ.length = 0;
-    toastErr(`키를 보내지 못했습니다: ${errText(err)}`);
   } finally {
     rawBusy = false;
   }
