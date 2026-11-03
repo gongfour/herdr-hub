@@ -193,9 +193,19 @@ function md(src) {
 
 // ------------------------------------------------------------ live state
 
+// EventSource retries a dropped connection by itself, but gives up for good on a non-200
+// answer such as the 502 tailscale serve returns while Paddock restarts. Reopen it then,
+// and whenever the app comes back to the foreground (iOS suspends home-screen apps).
+let stream = null;
+let retryTimer = null;
+let retryDelay = 1000;
+
 function connect() {
-  const es = new EventSource('/api/stream');
+  clearTimeout(retryTimer);
+  if (stream) stream.close();
+  const es = (stream = new EventSource('/api/stream'));
   es.addEventListener('state', (e) => {
+    retryDelay = 1000;
     state = JSON.parse(e.data);
     resolveReady();
     onState();
@@ -203,8 +213,16 @@ function connect() {
   es.onerror = () => {
     state = { ...state, herdr: 'offline' };
     if (view.name === 'list') render();
+    if (es.readyState === EventSource.CLOSED && es === stream) {
+      retryTimer = setTimeout(connect, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 15000);
+    }
   };
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && (!stream || stream.readyState !== EventSource.OPEN)) connect();
+});
 
 function onState() {
   if (view.name === 'list') return render();
