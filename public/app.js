@@ -203,6 +203,23 @@ function setEnter(v) {
     /* private mode: the choice lasts until reload */
   }
 }
+// iOS takes the focus off the text field when a button is tapped: the keyboard drops, the
+// layout jumps under the finger and the tap's click is lost, so 보내기 only closed the keyboard.
+// A tap on such a button acts on touchend instead, leaving the focus (and keyboard) in place.
+function keepFocusTap(btn, run) {
+  let start = null;
+  btn.addEventListener('touchstart', (e) => (start = e.touches.length === 1 ? e.touches[0] : null), { passive: true });
+  btn.addEventListener('touchend', (e) => {
+    const t = e.changedTouches[0];
+    const from = start;
+    start = null;
+    if (btn.disabled || !from || !t || Math.hypot(t.clientX - from.clientX, t.clientY - from.clientY) > 12) return;
+    e.preventDefault(); // no focus change and no click after it
+    run();
+  });
+  btn.addEventListener('mousedown', (e) => e.preventDefault()); // a mouse keeps the focus too
+}
+
 // What Enter does in the composer: 'send', 'newline' or null (leave it to the IME).
 // Korean (and other) IMEs send Enter while a syllable is still being composed: never act then.
 function enterAction(e, mode) {
@@ -1541,6 +1558,7 @@ function renderDetail() {
     }
   };
   document.getElementById('d-send').onclick = sendNow;
+  keepFocusTap(document.getElementById('d-send'), sendNow);
   document.getElementById('d-stop').onclick = confirmStop;
   document.getElementById('d-more').onclick = agentMenu;
   document.getElementById('d-mode').onclick = cycleMode;
@@ -2610,6 +2628,7 @@ function renderTerminal() {
     clearInterval(pollTimer);
     pollTimer = setInterval(loadTerminal, detail.raw ? 1000 : 2500);
   };
+  keepFocusTap(document.getElementById('t-send'), () => document.getElementById('t-form').requestSubmit());
   document.getElementById('t-form').onsubmit = async (e) => {
     e.preventDefault();
     if (detail.raw) return;
