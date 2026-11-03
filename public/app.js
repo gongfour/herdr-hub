@@ -187,6 +187,24 @@ function setTheme(t) {
 }
 applyTheme(getTheme());
 
+// 셸 입력 in the shell view: 'raw' (default; keys go to the shell as they are pressed, tap the
+// screen to type) or 'line' (a command line, run with Enter).
+const SHELL_INPUT_KEY = 'herdr-hub.shellInput';
+function getShellInput() {
+  try {
+    return localStorage.getItem(SHELL_INPUT_KEY) === 'line' ? 'line' : 'raw';
+  } catch {
+    return 'raw';
+  }
+}
+function setShellInput(v) {
+  try {
+    localStorage.setItem(SHELL_INPUT_KEY, v);
+  } catch {
+    /* private mode: this page only */
+  }
+}
+
 // 리턴 키 for the agent composer: newline (default; send with the ↑ button or ⌘/Ctrl+Enter) or
 // send (Shift+Enter for a newline on a hardware keyboard). The shell line always runs on Enter.
 const ENTER_KEY = 'herdr-hub.enter';
@@ -2591,11 +2609,9 @@ function renderTerminal() {
         <div class="keys term-keys" id="t-keys"></div>
         <div class="term-side">
           <button type="button" class="key" id="t-kbd" aria-pressed="false" aria-label="키보드 올리기">${ICON.keyboard}</button>
-          <button type="button" class="key" id="t-line" aria-label="한 줄 입력으로 바꾸기">한 줄</button>
         </div>
       </div>
       <form class="composer" id="t-form">
-        <button type="button" class="mode" id="t-raw" aria-label="키 직접 입력으로 바꾸기">키 직접<br>입력</button>
         <input class="cmd" id="t-input" placeholder="명령 (Enter 로 실행)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
         <button type="submit" class="send" id="t-send" aria-label="실행">${ICON.send}</button>
       </form>
@@ -2637,10 +2653,9 @@ function renderTerminal() {
       setTimeout(loadTerminal, 300);
     }
   };
-  // 키 직접 입력 has no visible command line, like a terminal app: a tap on the screen (or ⌨)
-  // brings up the keyboard and the hidden field passes each key on. 한 줄 (write a line, then
-  // run it; for long commands, pasting and Korean) shows the line, and 키 직접 입력 there goes back.
-  const rawBtn = document.getElementById('t-raw');
+  // 설정 → 셸 입력 picks the mode. 키 직접 입력 has no visible command line, like a terminal
+  // app: a tap on the screen (or ⌨) brings up the keyboard and the hidden field passes each key
+  // on. 한 줄 입력 shows the line, run with Enter.
   const setRaw = (on) => {
     detail.raw = on;
     input.value = '';
@@ -2650,15 +2665,7 @@ function renderTerminal() {
     $app.querySelector('.detail').classList.toggle('raw', on);
     drawKeys();
   };
-  setRaw(true);
-  const toMode = (on) => () => {
-    setRaw(on);
-    input.focus();
-  };
-  rawBtn.onclick = toMode(true);
-  const lineBtn = document.getElementById('t-line');
-  keepFocusTap(lineBtn, toMode(false));
-  lineBtn.onclick = toMode(false);
+  setRaw(getShellInput() === 'raw');
   const kbd = document.getElementById('t-kbd');
   const toggleKbd = () => (document.activeElement === input ? input.blur() : input.focus());
   keepFocusTap(kbd, toggleKbd);
@@ -3607,6 +3614,19 @@ function renderSettings() {
         } 에이전트 입력 칸에만 해당하고, 셸 명령 줄은 늘 리턴으로 실행합니다.</p>
       </section>
       <section>
+        <h2>셸 입력</h2>
+        <div class="seg" role="radiogroup" aria-label="셸 입력" id="s-shell">
+          ${[['raw', '키 직접 입력'], ['line', '한 줄 입력']]
+            .map(([k, label]) => `<button type="button" class="toggle" role="radio" data-shell="${k}" aria-checked="${getShellInput() === k}" aria-pressed="${getShellInput() === k}">${label}</button>`)
+            .join('')}
+        </div>
+        <p>${
+          getShellInput() === 'raw'
+            ? '터미널 앱처럼 화면을 탭해 키보드를 올리고, 누르는 키가 바로 셸로 갑니다. 셸의 탭 완성·기록·자동 제안이 그대로 됩니다.'
+            : '아래 입력 줄에 명령을 다 쓴 뒤 리턴으로 실행합니다. 한글이나 긴 명령을 쓰기 편합니다.'
+        }</p>
+      </section>
+      <section>
         <h2>터미널 화면</h2>
         <label class="switch"><span>색상</span><input type="checkbox" id="s-color" role="switch" ${getColor() ? 'checked' : ''}></label>
         <label class="switch"><span>셸 줄바꿈</span><input type="checkbox" id="s-wrap-term" role="switch" ${getWrap('term') ? 'checked' : ''}></label>
@@ -3651,6 +3671,11 @@ function renderSettings() {
     };
   };
   radios('s-theme', 'theme', setTheme);
+  radios('s-shell', 'shell', (v) => {
+    setShellInput(v);
+    renderSettings();
+    document.querySelector(`#s-shell [data-shell="${v}"]`).focus();
+  });
   radios('s-enter', 'enter', (v) => {
     setEnter(v);
     renderSettings();
