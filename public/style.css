@@ -119,8 +119,16 @@ body {
   font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
+  /* Korean breaks between words, not inside them; anywhere still splits long paths and URLs. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
+/* Code and terminal text break as code does. */
+pre, code, kbd, .screen { word-break: normal; }
 button { font: inherit; color: inherit; }
+/* Anything disabled looks it: no pointer, and dimmed where the control has no rule of its own. */
+button:disabled { cursor: default; }
+.btn:disabled, .key:disabled, .toggle:disabled, .chip:disabled, .crumb:disabled, .action:disabled, .field:disabled { opacity: 0.45; filter: none; }
 /* App shell: pinned to the visual viewport. app.js sets --app-top/--app-h from visualViewport,
    so with the iOS keyboard open the header stays at the top and the composer sits on the keyboard. */
 #app {
@@ -252,8 +260,6 @@ button { font: inherit; color: inherit; }
 
 .scroll { flex: 1; overflow-y: auto; padding: 12px 16px 16px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .msgs { display: flex; flex-direction: column; gap: 14px; }
-/* keep-all: Korean breaks between words, not inside them; anywhere still splits long paths and URLs. */
-.msg { word-break: keep-all; overflow-wrap: anywhere; }
 .msg.user { align-self: flex-end; max-width: 85%; padding: 10px 13px; border-radius: 16px; background: var(--bubble-me); color: var(--bubble-me-text); border-bottom-right-radius: 5px; white-space: pre-wrap; }
 /* Replies use the full width like a terminal transcript; only what you sent is a bubble. */
 .msg.assistant { align-self: stretch; line-height: 1.55; }
@@ -362,7 +368,7 @@ button { font: inherit; color: inherit; }
   --ansi-12: #8fbfff; --ansi-13: #e6a8f7; --ansi-14: #86e6ea; --ansi-15: #f5f4ef;
   background: var(--term-bg); color-scheme: dark;
 }
-.screen-top { padding: 10px 12px 8px; font-size: 12px; line-height: 1.45; color: #a9a69d; border-bottom: 1px dashed #3a3935; word-break: keep-all; }
+.screen-top { padding: 10px 12px 8px; font-size: 12px; line-height: 1.45; color: #a9a69d; border-bottom: 1px dashed #3a3935; }
 /* Inline in the sentence; the padding makes a 44px target without changing the line. */
 .screen-top .linkish { border: 0; background: none; padding: 13px 6px; margin: -13px -6px; color: #8fbfff; text-decoration: underline; cursor: pointer; font: inherit; border-radius: 6px; }
 .screen-top .linkish:active { background: rgb(255 255 255 / 0.1); }
@@ -394,10 +400,10 @@ button { font: inherit; color: inherit; }
 /* Choices read off the prompt: one full-width button per option. A long prompt scrolls inside
    its box so the conversation below keeps some room. */
 #d-blocked { flex: none; max-height: min(52%, 520px); overflow-y: auto; overscroll-behavior: contain; }
-.blocked-box .b-title { display: block; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
+.blocked-box .b-title { display: block; font-size: 16px; line-height: 1.4; }
 #d-blocked:not(:empty) { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .detail .scroll { min-height: 0; }
-.blocked-box .question { margin: 8px 0 0; font-size: 16px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.blocked-box .question { margin: 8px 0 0; font-size: 16px; font-weight: 600; line-height: 1.4; }
 .blocked-box .question.muted { color: var(--muted); font-weight: 400; font-size: 14px; }
 .blocked-box pre.context { max-height: 4.2em; margin: 8px 0 0; color: var(--muted); }
 .blocked-box .keys { margin-top: 10px; }
@@ -415,7 +421,7 @@ button { font: inherit; color: inherit; }
   flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
   font: 600 14px/1 var(--mono); background: color-mix(in srgb, currentColor 16%, transparent);
 }
-.choice .label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.choice .label { flex: 1; min-width: 0; }
 .choice .state { flex: none; font-size: 12px; font-weight: 600; opacity: 0.8; }
 /* Only the first plain "Yes" is filled; the rest weigh the same, refusals are warnings. */
 .choice.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
@@ -439,7 +445,7 @@ button { font: inherit; color: inherit; }
   flex: 1; min-width: 0; resize: none; max-height: 40vh; min-height: 44px; padding: 11px 14px; border-radius: 22px;
   border: 1px solid var(--field-line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px; line-height: 1.35;
 }
-.composer .input { overflow-y: auto; overscroll-behavior: contain; white-space: pre-wrap; overflow-wrap: anywhere; word-break: keep-all; cursor: text; -webkit-user-select: text; user-select: text; }
+.composer .input { overflow-y: auto; overscroll-behavior: contain; white-space: pre-wrap; cursor: text; -webkit-user-select: text; user-select: text; }
 .composer .input:empty::before { content: attr(data-placeholder); color: var(--muted); pointer-events: none; }
 .composer textarea:focus, .composer .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .send, .stop {
@@ -565,7 +571,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* ---- folder choice (new workspace) */
 .picked {
   display: flex; flex-direction: column; gap: 1px; margin-top: 6px; padding: 10px 12px; border-radius: 10px;
-  background: var(--surface-2); color: var(--muted); font-size: 14px; overflow-wrap: anywhere;
+  background: var(--surface-2); color: var(--muted); font-size: 14px;
 }
 .picked.on { background: var(--done-bg); color: var(--text); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
 .picked .k { font-size: 12px; font-weight: 600; }
@@ -580,7 +586,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   border: 1px solid var(--line); border-radius: 12px; background: var(--bg); text-align: left; cursor: pointer; min-width: 0;
 }
 .dir-row b { font-size: 16px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dir-row span { font: 12px/1.35 var(--mono); color: var(--muted); max-width: 100%; overflow-wrap: anywhere; }
+.dir-row span { font: 12px/1.35 var(--mono); color: var(--muted); max-width: 100%; }
 .dir-row:active { background: var(--surface-2); }
 .dir-row[aria-pressed="true"] { border-color: var(--accent); background: var(--done-bg); box-shadow: inset 0 0 0 1px var(--accent); }
 .dir-more { min-height: 44px; border: 0; background: transparent; color: var(--accent); font-weight: 600; cursor: pointer; text-align: left; padding: 0 4px; }
@@ -603,7 +609,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 0 2px; padding: 2px 0; border-top: 1px solid var(--line); }
 .crumb {
   min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--accent);
-  font-size: 15px; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; text-align: left;
+  font-size: 15px; cursor: pointer; max-width: 100%; text-align: left;
 }
 .crumb:active { background: var(--surface-2); }
 .crumb[aria-current] { color: var(--text); font-weight: 700; }
@@ -619,7 +625,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .dir-item:active { background: var(--surface-2); }
 .dir-item .ico { flex: none; width: 20px; text-align: center; color: var(--muted); }
-.dir-item .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.dir-item .nm { flex: 1; min-width: 0; }
 .dir-item.up { color: var(--accent); font-weight: 600; }
 .dir-item.up .ico { color: var(--accent); }
 .dir-note { padding: 16px; text-align: center; }
@@ -629,7 +635,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .browser-foot .btn { min-height: 52px; }
 .browser-foot [data-pick] { flex: 1; min-width: 0; }
-.browser-foot .btn:disabled { opacity: 0.45; cursor: default; }
 
 /* ---- photo attach */
 .attach {
