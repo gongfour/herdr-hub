@@ -43,6 +43,7 @@ self.addEventListener('push', (event) => {
 const ANSWER_ERR = {
   stale: '그 질문은 이미 바뀌었습니다',
   not_blocked: '이미 답했거나 더 기다리지 않습니다',
+  answered: '이미 답을 보냈습니다',
   needs_text: '이 선택은 앱에서 답을 적어야 합니다',
   agent_not_found: '에이전트가 없습니다',
   peer_offline: '호스트가 오프라인입니다',

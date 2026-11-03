@@ -358,13 +358,8 @@ const agentTitle = (a) => (a.name ? `${a.name} · ${a.title}` : a.title);
 
 // ---- 답 필요 strip: each blocked agent with its question and quick answers
 // The question is read off the agent's visible screen once per prompt (stateSeq) and parsed
-// like the detail view does. One tap answers, with the same lock as there.
+// like the detail view does. One tap answers through the same guard as there (answer.js).
 const questions = new Map(); // host|pane -> { seq, choices, loading, at }
-const quickLocks = new Map(); // host|pane -> { until, seq, n }
-const quickLocked = (k, a) => {
-  const l = quickLocks.get(k);
-  return Boolean(l && Date.now() < l.until && a && a.stateSeq === l.seq);
-};
 // A read that caught the prompt half drawn (choicesSettled) is repeated a few times.
 const QUESTION_RETRY_MS = 1200;
 const QUESTION_TRIES = 4;
@@ -405,7 +400,7 @@ function attnRow(a) {
   const q = questions.get(k);
   const ch = q && q.seq === a.stateSeq ? q.choices : null;
   const quick = quickChoices(ch); // choices.js
-  const locked = quickLocked(k, a);
+  const press = pressedOn(a.host || localId(), a);
   const primary = ch ? primaryChoice(ch.items) : null;
   const where = `${esc(a.workspaceLabel)}${multi() && filter() === 'all' ? ` · ${esc(a.hostLabel || hostLabel(a.host))}` : ''}`;
   return `<div class="attn-item" ${rowData('agent', a.host, a.pane)}>
@@ -416,30 +411,19 @@ function attnRow(a) {
       }</span>
       <span class="go" aria-hidden="true">›</span>
     </a>
-    ${quick.length ? `<div class="quick" role="group" aria-label="빠른 답">${quick.map((x) => choiceButton(ch, x, { locked, sentN: locked && quickLocks.get(k).n, primary, compact: true }).replace('<button ', '<button data-quick ')).join('')}</div>` : ''}
+    ${quick.length ? `<div class="quick" role="group" aria-label="빠른 답">${quick.map((x) => choiceButton(ch, x, { press, primary, compact: true }).replace('<button ', '<button data-quick ')).join('')}</div>` : ''}
   </div>`;
 }
 
-async function quickAnswer(btn) {
+function quickAnswer(btn) {
   const row = btn.closest('[data-kind]');
   const host = row.dataset.host || localId();
   const pane = row.dataset.id;
   const a = state.agents.find((x) => same(x, host, pane));
-  const k = rowKey(host, pane);
-  const q = questions.get(k);
-  if (!a || a.status !== 'blocked' || !q || q.seq !== a.stateSeq || !q.choices || quickLocked(k, a)) return;
-  const n = Number(btn.dataset.n);
-  const keys = choiceKeys(q.choices, n);
-  if (!keys) return;
-  const lock = { until: Date.now() + CHOICE_LOCK_MS, seq: a.stateSeq, n };
-  quickLocks.set(k, lock);
-  setTimeout(() => listShown() && render(), CHOICE_LOCK_MS + 50);
-  render();
-  if (!(await sendKeys(keys, host, pane))) {
-    // Not sent: the buttons come back at once.
-    if (quickLocks.get(k) === lock) quickLocks.delete(k);
-    if (listShown()) render();
-  } else closeNotes(host, pane);
+  const q = questions.get(rowKey(host, pane));
+  if (!a || a.status !== 'blocked' || !q || q.seq !== a.stateSeq || !q.choices) return;
+  const item = q.choices.items.find((x) => x.n === Number(btn.dataset.n));
+  if (item && choiceKeys(q.choices, item.n)) answerChoice(host, a, item);
 }
 
 function wsSection({ w, agents, terms }) {

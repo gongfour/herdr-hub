@@ -10,22 +10,74 @@ const keyRow = (keys, cls = '') => `<div class="keys ${cls}">${keys.map(([k, lab
 function bindKeyRow(row) {
   if (row) row.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
 }
-// After a choice is sent, the buttons wait this long (or for the next status) so a double tap
-// can't answer the prompt that comes next.
-const CHOICE_LOCK_MS = 4000;
-const choiceLocked = (a) => detail.lock && Date.now() < detail.lock.until && a && a.stateSeq === detail.lock.seq;
+// A choice button (the blocked box here, or a quick answer on the 답 필요 strip) goes through
+// the host's guard (POST /agents/<pane>/answer, lib/notify checkAnswer): the keys go only while
+// the agent is still blocked on the prompt the buttons were drawn for (stateSeq) and option n
+// still reads the same. A tapped button stays pressed while the answer is on its way and a
+// moment after (or until the next status), so a double tap sends once; the host also refuses a
+// second answer to the same prompt.
+const PRESS_MS = 1500;
+const pressed = new Map(); // host|pane -> { seq, n, until } (until is Infinity while in flight)
+function pressedOn(host, a) {
+  const p = a && pressed.get(rowKey(host, a.pane));
+  return p && a.stateSeq === p.seq && Date.now() < p.until ? p : null;
+}
+// Both places that show choices, drawn again (each only changes what changed).
+function redrawChoices() {
+  if (listShown()) render();
+  renderBlocked();
+}
+// The prompt moved on before the answer arrived: forget what was read for it and read again.
+function questionChanged(host, pane) {
+  questions.delete(rowKey(host, pane));
+  if (view.name === 'agent' && detail.pane === pane && curHost() === host) {
+    detail.blockedText = null;
+    loadDetail();
+  }
+}
+// True when the answer went.
+async function answerChoice(host, a, item) {
+  const k = rowKey(host, a.pane);
+  if (pressedOn(host, a)) return false;
+  const press = { seq: a.stateSeq, n: item.n, until: Infinity };
+  pressed.set(k, press);
+  redrawChoices();
+  let ok = false;
+  try {
+    await api(hp(`/agents/${encodeURIComponent(a.pane)}/answer`, host), {
+      method: 'POST',
+      body: JSON.stringify({ stateSeq: a.stateSeq, n: item.n, label: item.label, own: TYPE_OWN.test(item.label) }),
+    });
+    ok = true;
+  } catch (err) {
+    if (err.code === 'answered') ok = true; // it went already (the other tap, or a notification)
+    else if (err.status === 409) {
+      toast('질문이 바뀌었습니다. 새 질문을 보고 다시 고르세요');
+      questionChanged(host, a.pane);
+    } else toastErr(`답을 보내지 못했습니다: ${errText(err)}`);
+  }
+  if (ok) {
+    press.until = Date.now() + PRESS_MS;
+    setTimeout(redrawChoices, PRESS_MS + 50);
+    closeNotes(host, a.pane);
+    if (view.name === 'agent' && detail.pane === a.pane && curHost() === host) setTimeout(loadDetail, 500);
+  } else if (pressed.get(k) === press) pressed.delete(k); // not sent: the buttons come back at once
+  redrawChoices();
+  return ok;
+}
 
 // The emphasised answer: the first plain "Yes" only. Everything else has the same weight;
 // refusals are tinted as a warning.
 const primaryChoice = (items) => items.find((x) => !x.negative && /^yes\b/i.test(x.label)) || null;
 
 // One choice button: name (bold) over its description (muted), when the menu has one.
-function choiceButton(choices, x, { locked, sentN, primary, compact = false }) {
+// press: pressedOn() for this agent (every button waits; the pressed one says so).
+function choiceButton(choices, x, { press, primary, compact = false }) {
   const ok = choiceKeys(choices, x.n);
-  const sent = locked && sentN === x.n;
+  const sent = Boolean(press) && press.n === x.n;
   const kind = x.negative ? ' negative' : x === primary ? ' primary' : '';
-  return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}" data-n="${x.n}"${locked || !ok ? ' disabled' : ''}>
-    ${choices.numbered ? `<span class="num">${x.n}</span>` : ''}<span class="label"><span class="name">${esc(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? '<span class="state">보냄</span>' : ''}</button>`;
+  return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}" data-n="${x.n}"${press || !ok ? ' disabled' : ''}>
+    ${choices.numbered ? `<span class="num">${x.n}</span>` : ''}<span class="label"><span class="name">${esc(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? `<span class="state">${press.until === Infinity ? '보내는 중' : '보냄'}</span>` : ''}</button>`;
 }
 
 // Re-drawn only when what it shows changed: a poll must not swallow a tap or a selection.
@@ -49,12 +101,12 @@ function renderBlocked() {
         ${keys}
       </div>`;
   } else {
-    const locked = choiceLocked(a);
+    const press = pressedOn(curHost(), a);
     const primary = primaryChoice(choices.items);
     html = `<div class="blocked-box">
         <strong class="b-title">${esc(choices.question || '답 필요')}</strong>
         ${choices.context.length ? `<pre class="context">${esc(choices.context.join('\n'))}</pre>` : ''}
-        <div class="choices">${choices.items.map((x) => choiceButton(choices, x, { locked, sentN: locked && detail.lock.n, primary })).join('')}</div>
+        <div class="choices">${choices.items.map((x) => choiceButton(choices, x, { press, primary })).join('')}</div>
         <div class="toggles">
           <button type="button" class="toggle" data-toggle="showScreen" aria-expanded="${Boolean(detail.showScreen)}">화면 보기</button>
           <button type="button" class="toggle" data-toggle="showKeys" aria-expanded="${Boolean(detail.showKeys)}">직접 입력</button>
@@ -70,20 +122,13 @@ function renderBlocked() {
     box.querySelectorAll('.choice').forEach((b) => {
       b.onclick = async () => {
         const cur = currentAgent();
-        const n = Number(b.dataset.n);
-        const k = choiceKeys(choices, n);
-        if (!k || choiceLocked(cur)) return;
-        const lock = (detail.lock = { until: Date.now() + CHOICE_LOCK_MS, seq: cur && cur.stateSeq, n });
-        setTimeout(renderBlocked, CHOICE_LOCK_MS + 50);
-        renderBlocked();
-        const item = choices.items.find((x) => x.n === n);
-        if (!(await sendKeys(k))) {
-          // Not sent: the buttons come back at once.
-          if (detail.lock === lock) detail.lock = null;
-          return renderBlocked();
-        }
-        closeNotes(curHost(), detail.pane);
-        if (item && TYPE_OWN.test(item.label)) startAnswer(); // choices.js: an option that asks for your own words
+        const host = curHost();
+        const item = choices.items.find((x) => x.n === Number(b.dataset.n));
+        // The buttons belong to the prompt read for this stateSeq (app.js clears it on a change).
+        if (!cur || cur.status !== 'blocked' || !item || !choiceKeys(choices, item.n)) return;
+        const ok = await answerChoice(host, cur, item);
+        // choices.js: an option that asks for your own words, typed into the composer next.
+        if (ok && TYPE_OWN.test(item.label) && view.name === 'agent' && detail.pane === cur.pane && curHost() === host) startAnswer();
       };
     });
     box.querySelectorAll('.toggle').forEach((b) => {

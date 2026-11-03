@@ -103,6 +103,14 @@ test('checkAnswer: only the prompt the notification was for', () => {
   assert.deepEqual(checkAnswer({ agent, stateSeq: 42, n: 3, label: 'Type something.', choices: parseChoices(ASK) }), { status: 409, error: 'needs_text' });
 });
 
+test('checkAnswer: the app may pick "Type something"; labels compare without spacing', () => {
+  const own = checkAnswer({ agent, stateSeq: 42, n: 3, label: 'Type something.', choices: parseChoices(ASK), allowOwn: true });
+  assert.equal(own.ok, true);
+  assert.deepEqual(own.keys, ['3']);
+  assert.equal(checkAnswer({ agent, stateSeq: 42, n: 1, label: ' Yes ', choices: parseChoices(BASH) }).ok, true);
+  assert.deepEqual(checkAnswer({ agent, stateSeq: 42, n: 1, label: 'No', choices: parseChoices(BASH) }), { status: 409, error: 'stale' });
+});
+
 test('muted: by folder or workspace name prefix', () => {
   const m = parseMute(' hub-inbox-, tmp-x ');
   assert.deepEqual(m, ['hub-inbox-', 'tmp-x']);

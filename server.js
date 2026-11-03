@@ -505,11 +505,13 @@ async function api(req, res, url) {
       refreshSoon();
       return send(res, 200, { ok: true });
     }
-    // An answer from a notification button: sent only while the agent is blocked on the same
-    // prompt (stateSeq, and the option's label when given) it was shown for.
+    // An answer from a notification button or a choice button in the app: sent only while the
+    // agent is blocked on the same prompt (stateSeq, and the option's label when given) it was
+    // shown for. own: the app's "Type something" pick.
     if (method === 'POST' && parts[2] === 'answer') {
       const body = await readJson(req);
-      const r = await answerLocal(pane, body);
+      const r = await answerLocal(pane, body, { allowOwn: body.own === true });
+      console.log(`${new Date().toISOString()} answer here ${pane} seq=${body.stateSeq} n=${body.n} -> ${r.status || 200}${r.error ? ` ${r.error}` : ''}`);
       return send(res, r.status || 200, answerBody(r));
     }
     if (method === 'POST' && parts[2] === 'rename') {
@@ -592,19 +594,38 @@ async function api(req, res, url) {
 // What an answer request gets back (here, or through the hub from a notification button).
 const answerBody = (r) => (r.ok ? { ok: true, n: r.item.n, label: r.item.label } : { error: r.error });
 
-// The guard runs on fresh state: herdr is asked again, and the screen read now.
-async function answerLocal(pane, body) {
+// The guard runs on fresh state: herdr is asked again, and the screen read now. A second answer
+// to the same prompt soon after (a double tap, or the app and a notification both) is refused:
+// the first one's keys may not have moved the agent on yet.
+const answered = new Map(); // pane -> { seq, at }
+const ANSWER_HOLD_MS = 5000;
+async function answerLocal(pane, body, { allowOwn = false } = {}) {
   await refresh();
   const agent = findAgent(pane);
   const stateSeq = Number.isInteger(body.stateSeq) ? body.stateSeq : null;
   const n = Number(body.n);
   const label = typeof body.label === 'string' ? body.label : null;
+  const held = () => {
+    const last = answered.get(pane);
+    return Boolean(last && last.seq === stateSeq && Date.now() - last.at < ANSWER_HOLD_MS);
+  };
+  if (held()) return { status: 409, error: 'answered' };
   let choices = null;
   if (agent && agent.status === 'blocked' && agent.stateSeq === stateSeq)
     choices = parseChoices(String((await readScreen('agent.read', { target: pane }, 'visible', 30)).text || '').replace(/\s+$/, ''));
-  const r = notifyLib.checkAnswer({ agent, stateSeq, n, label, choices });
+  const r = notifyLib.checkAnswer({ agent, stateSeq, n, label, choices, allowOwn });
   if (!r.ok) return r;
-  await herdr.call('agent.send_keys', { target: pane, keys: r.keys });
+  // Checked again after the reads above, and claimed before the keys go: a request that arrived
+  // meanwhile is refused.
+  if (held()) return { status: 409, error: 'answered' };
+  const claim = { seq: stateSeq, at: Date.now() };
+  answered.set(pane, claim);
+  try {
+    await herdr.call('agent.send_keys', { target: pane, keys: r.keys });
+  } catch (err) {
+    if (answered.get(pane) === claim) answered.delete(pane);
+    throw err;
+  }
   refreshSoon();
   return r;
 }
