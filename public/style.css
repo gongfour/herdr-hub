@@ -924,3 +924,9 @@ button.tool:active { filter: brightness(0.95); }
 .shell-more:active { background: var(--surface-2); }
 /* Agent-kind logos (KIND_ICON) are filled marks, drawn a little smaller than the line icons. */
 .pane-ic svg.logo { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+/* Grey suggestion over the shell's command line (updateGhost): the typed part is invisible
+   and only lines the rest up; the rest is tappable to take it. */
+.composer .ghost { position: absolute; display: flex; align-items: center; overflow: hidden; white-space: pre; font: 16px var(--mono); pointer-events: none; }
+.composer .ghost[hidden] { display: none; }
+.composer .ghost-typed { visibility: hidden; }
+.composer .ghost-rest { color: var(--muted); opacity: 0.75; overflow: hidden; text-overflow: ellipsis; pointer-events: auto; cursor: pointer; }

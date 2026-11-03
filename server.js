@@ -13,6 +13,7 @@ const uploads = require('./lib/uploads');
 const commands = require('./lib/commands');
 const names = require('./lib/names');
 const times = require('./lib/times');
+const history = require('./lib/history');
 const notifyLib = require('./lib/notify');
 const { parseChoices, choicesSettled } = require('./public/choices');
 const { Push } = require('./lib/push');
@@ -548,6 +549,11 @@ async function api(req, res, url) {
       const lines = Math.min(Number(url.searchParams.get('lines')) || 120, 400);
       return send(res, 200, await readScreen('pane.read', { pane_id: pane }, url.searchParams.get('source'), lines, url.searchParams.get('format')));
     }
+    // The shell's command history, for the grey suggestion in the command line.
+    if (method === 'GET' && parts[2] === 'history') {
+      const shell = await paneShell(pane);
+      return send(res, 200, shell ? history.read(shell) : { shell: null, file: null, items: [] });
+    }
     if (method === 'POST') {
       const body = await readJson(req);
       let result = { ok: true };
@@ -725,6 +731,20 @@ async function answerLocal(pane, body) {
   refreshSoon();
   return r;
 }
+
+// Which shell a pane runs: the shell among its foreground processes. null when something
+// else holds the foreground (ssh, a REPL): this host's history would not be that prompt's.
+// Windows reports only the shell even then, so an ssh session there still gets pwsh's.
+async function paneShell(pane) {
+  try {
+    const r = await herdr.call('pane.process_info', { pane_id: pane });
+    const names = (r.process_info.foreground_processes || []).map((p) => history.shellName(p.argv0) || history.shellName(p.name));
+    return names.length ? names.find(Boolean) || null : fallbackShell();
+  } catch {
+    return fallbackShell(); // a herdr without process_info
+  }
+}
+const fallbackShell = () => (process.platform === 'win32' ? 'pwsh' : history.shellName(os.userInfo().shell) || history.shellName(process.env.SHELL) || 'zsh');
 
 // /api/peers/<host>/<rest> -> <peer>/api/<rest>. Only per-host endpoints; the stream,
 // state and push stay with the hub. The X-Herdr-Hub check has already run above.
