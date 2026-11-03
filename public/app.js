@@ -468,16 +468,21 @@ function renderDetail() {
       <div class="composer" id="d-form">
         <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">${ICON.photo}</button>
         <button type="button" class="attach" id="d-camera" aria-label="카메라로 찍기">${ICON.camera}</button>
-        <textarea id="d-input" rows="1" placeholder="메시지 보내기" enterkeyhint="send" autocomplete="off" aria-autocomplete="none"></textarea>
+        <div id="d-input" class="input" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="메시지" data-placeholder="메시지 보내기" enterkeyhint="send" autocapitalize="sentences"></div>
         <button type="button" class="stop" id="d-stop" aria-label="중단" hidden>${ICON.stop}</button>
         <button type="button" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
       </div>
     </div>`;
   document.getElementById('d-activity').onclick = openScreenSheet;
+  // An editable div, not a <textarea>: iOS puts its ⌃ ⌄ / contact AutoFill bar over the keyboard
+  // for text fields, but not for contenteditable. `value` keeps the textarea-style API below.
   const input = document.getElementById('d-input');
+  Object.defineProperty(input, 'value', {
+    get: () => input.innerText.replace(/\n$/, ''),
+    set: (v) => (input.textContent = v),
+  });
   input.oninput = () => {
-    input.style.height = 'auto';
-    input.style.height = `${input.scrollHeight}px`;
+    if (!input.innerText.trim()) input.textContent = ''; // a leftover <br> would hide the placeholder
     updateComposer();
   };
   input.onkeydown = (e) => {
@@ -532,7 +537,6 @@ function renderDetail() {
       await api(hp(`/agents/${encodeURIComponent(pane)}/prompt`, host), { method: 'POST', body: JSON.stringify({ text: promptText(text, files.map((f) => f.path)) }) });
       if (detail.pane === pane) {
         input.value = '';
-        input.style.height = 'auto';
         dropFiles();
         renderTray();
       }
