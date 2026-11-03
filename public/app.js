@@ -258,15 +258,6 @@ function keepFocusTap(btn, run) {
   btn.addEventListener('mousedown', (e) => e.preventDefault()); // a mouse keeps the focus too
 }
 
-// What Enter does in the composer: 'send', 'newline' or null (leave it to the IME).
-// Korean (and other) IMEs send Enter while a syllable is still being composed: never act then.
-function enterAction(e, mode) {
-  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return null;
-  if (e.metaKey || e.ctrlKey) return 'send';
-  if (mode === 'send' && !e.shiftKey && !e.altKey) return 'send';
-  return 'newline';
-}
-
 const clock = (t) => (t ? new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '');
 
 async function hostInfo(id) {
@@ -461,88 +452,6 @@ function toast(text, { error = false, action = null, ms } = {}) {
 }
 const toastErr = (text, action) => toast(text, { error: true, action });
 
-// Minimal markdown: fenced code, inline code, bold, links, paragraphs. Input is escaped first.
-function inline(text) {
-  let h = esc(text);
-  h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-  h = h.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-  h = h.replace(/(https?:\/\/[^\s<)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  return h;
-}
-
-const TABLE_ROW = /^\s*\|.*\|\s*$/;
-const TABLE_SEP = /^\s*\|?(\s*:?-{2,}:?\s*\|)+\s*(:?-{2,}:?\s*)?\|?\s*$/;
-const LIST_ITEM = /^\s*(?:[-*•]|\d+[.)])\s+/;
-
-function cells(line) {
-  // An escaped pipe (\|) is part of the cell text, not a column break.
-  return line.trim().replace(/^\|/, '').replace(/\|$/, '').replace(/\\\|/g, '\u0000').split('|').map((c) => c.replace(/\u0000/g, '|').trim());
-}
-
-function table(lines) {
-  const align = cells(lines[1]).map((c) => (/^:-+:$/.test(c) ? 'center' : /-:$/.test(c) ? 'right' : ''));
-  const row = (line, tag) =>
-    `<tr>${cells(line).map((c, i) => `<${tag}${align[i] ? ` style="text-align:${align[i]}"` : ''}>${inline(c)}</${tag}>`).join('')}</tr>`;
-  return `<div class="table-wrap"><table><thead>${row(lines[0], 'th')}</thead><tbody>${lines.slice(2).map((l) => row(l, 'td')).join('')}</tbody></table></div>`;
-}
-
-// One blank-line-separated block: tables and lists become real elements, other lines stay a paragraph.
-function block(p) {
-  const lines = p.replace(/\s+$/, '').split('\n');
-  let out = '';
-  let text = [];
-  const flush = () => {
-    if (text.length) out += `<p>${text.map(inline).join('<br>')}</p>`;
-    text = [];
-  };
-  for (let i = 0; i < lines.length; ) {
-    const line = lines[i];
-    const heading = line.trim().match(/^(#{1,4})\s+(.+)$/);
-    if (heading) {
-      flush();
-      out += `<p><strong>${inline(heading[2])}</strong></p>`;
-      i++;
-    } else if (TABLE_ROW.test(line) && TABLE_SEP.test(lines[i + 1] || '')) {
-      flush();
-      let j = i + 2;
-      while (j < lines.length && TABLE_ROW.test(lines[j])) j++;
-      out += table(lines.slice(i, j));
-      i = j;
-    } else if (LIST_ITEM.test(line)) {
-      flush();
-      const ordered = /^\s*\d/.test(line);
-      const items = [];
-      const same = (l) => LIST_ITEM.test(l) && /^\s*\d/.test(l) === ordered;
-      while (i < lines.length && (same(lines[i]) || (items.length && !LIST_ITEM.test(lines[i]) && /^\s{2,}\S/.test(lines[i])))) {
-        if (same(lines[i])) items.push(lines[i].replace(LIST_ITEM, ''));
-        else items[items.length - 1] += '\n' + lines[i].trim();
-        i++;
-      }
-      const tag = ordered ? 'ol' : 'ul';
-      out += `<${tag}>${items.map((t) => `<li>${t.split('\n').map(inline).join('<br>')}</li>`).join('')}</${tag}>`;
-    } else {
-      text.push(line);
-      i++;
-    }
-  }
-  flush();
-  return out;
-}
-
-function md(src) {
-  const parts = String(src).split(/```[^\n]*\n?([\s\S]*?)```/g);
-  return parts
-    .map((chunk, i) => {
-      if (i % 2) return `<pre><code>${esc(chunk.replace(/\n$/, ''))}</code></pre>`;
-      return chunk
-        .split(/\n{2,}/)
-        .filter((p) => p.trim())
-        .map(block)
-        .join('');
-    })
-    .join('');
-}
-
 // ------------------------------------------------------------ live state
 
 // EventSource retries a dropped connection by itself, but gives up for good on a non-200
@@ -676,23 +585,20 @@ function route(e, { relayout = false } = {}) {
     h = '/spaces';
   }
   routed = true;
-  let host = null;
-  let m = h.match(/^\/h\/([^/]+)(\/.*)?$/);
-  if (m) {
-    host = decodeURIComponent(m[1]);
-    h = m[2] || '/';
-  }
-  if ((m = h.match(/^\/agent\/([^/]+)(?:\/(screen|chat))?$/))) {
+  // The route as data (route.js); the views below keep the shapes they always had.
+  const r = Route.parse(h);
+  const host = r.host;
+  if (r.name === 'agent') {
     // An agent always shows its chat. …/screen (the old 화면 tab) opens the terminal sheet over it.
-    const pane = decodeURIComponent(m[1]);
+    const pane = r.pane;
     view = { name: 'agent', host };
     const draft = drafts.get(rowKey(curHost(), pane));
-    detail = { host, pane, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: draft ? draft.files : [], sheet: null, wantSheet: m[2] === 'screen', activity: null };
+    detail = { host, pane, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: draft ? draft.files : [], sheet: null, wantSheet: r.sub === 'screen', activity: null };
     if (was && was.view.name === 'agent' && was.detail.pane === pane && (was.view.host || localId()) === curHost()) {
       const d = was.detail;
       Object.assign(detail, { transcript: d.transcript, blockedText: d.blockedText, lastSeq: d.lastSeq, mode: d.mode, activity: d.activity, seen: d.seen, lock: d.lock, answerMode: d.answerMode, showScreen: d.showScreen, showKeys: d.showKeys, openTools: d.openTools, openShell: d.openShell, wantSheet: was.sheet });
     }
-    if (m[2]) history.replaceState(history.state, '', location.hash.replace(/\/(?:screen|chat)$/, ''));
+    if (r.sub) history.replaceState(history.state, '', location.hash.replace(/\/(?:screen|chat)$/, ''));
     renderDetail();
     if (draft) {
       document.getElementById('d-input').value = draft.text;
@@ -706,24 +612,24 @@ function route(e, { relayout = false } = {}) {
       // Also retry a screen read that failed, whatever the status; the sheet keeps reading while open.
       if (a && (a.status === 'working' || a.status === 'blocked' || detail.sheet || (scr && scr.error))) loadDetail();
     }, 3000);
-  } else if ((m = h.match(/^\/term\/(.+)$/))) {
-    view = { name: 'term', host, pane: decodeURIComponent(m[1]) };
+  } else if (r.name === 'term') {
+    view = { name: 'term', host, pane: r.pane };
     detail = { host, pane: view.pane, screen: null };
     renderTerminal();
     loadTerminal();
     pollTimer = setInterval(pollTerminal, TERM_TICK_MS);
-  } else if ((m = h.match(/^\/ws\/(.+)$/))) {
-    view = { name: 'ws', host, id: decodeURIComponent(m[1]) };
+  } else if (r.name === 'ws') {
+    view = { name: 'ws', host, id: r.id };
     renderWorkspace();
-  } else if (h === '/new' || (m = h.match(/^\/start\/(ws|pane)\/(.+)$/))) {
-    view = h === '/new' ? { name: 'form', mode: 'new', host } : { name: 'form', mode: m[1], host, target: decodeURIComponent(m[2]) };
+  } else if (r.name === 'form') {
+    view = r.mode === 'new' ? { name: 'form', mode: 'new', host } : { name: 'form', mode: r.mode, host, target: r.target };
     renderForm();
-  } else if (h === '/settings') {
+  } else if (r.name === 'settings') {
     view = { name: 'settings' };
     if (split) colTab = 'settings';
     renderSettings();
   } else {
-    view = { name: 'list', tab: h === '/spaces' ? 'spaces' : 'home' };
+    view = { name: 'list', tab: r.tab };
     setTab(view.tab);
     if (split) colTab = view.tab;
     render();
@@ -1590,7 +1496,7 @@ function renderDetail() {
   };
   input.onkeydown = (e) => {
     if (paletteKey(e)) return;
-    if (enterAction(e, getEnter()) === 'send') {
+    if (Keys.enterAction(e, getEnter()) === 'send') {
       e.preventDefault();
       sendNow();
     }
@@ -2574,7 +2480,7 @@ function message(m) {
     return `<div class="msg user">${media}${text ? `<span>${esc(text)}</span>` : ''}</div>`;
   }
   const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map((t, i) => toolLine(t, `${m.id}:${i}`)).join('')}</div>` : '';
-  return `<div class="msg assistant">${m.text ? md(m.text) : ''}${tools}</div>`;
+  return `<div class="msg assistant">${m.text ? Markdown.md(m.text) : ''}${tools}</div>`;
 }
 
 // A tool line; AskUserQuestion shows what was chosen ("Pick a color? → Red"). One with a
@@ -2859,7 +2765,7 @@ function renderTerminal() {
   });
   input.addEventListener('keydown', (e) => {
     if (!detail.raw || e.isComposing || e.keyCode === 229) return;
-    const k = rawKeyName(e);
+    const k = Keys.rawKeyName(e);
     if (!k) return;
     e.preventDefault();
     rawSend({ key: k });
@@ -2885,15 +2791,6 @@ function renderTerminalHeader() {
 }
 
 // Raw-mode keys in order: text runs merge, one request at a time, the screen read soon after.
-const RAW_NAMES = { Enter: 'enter', Escape: 'esc', Tab: 'tab', Backspace: 'backspace', Delete: 'delete', ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', PageUp: 'pageup', PageDown: 'pagedown', Home: 'home', End: 'end' };
-function rawKeyName(e) {
-  if (e.metaKey) return null;
-  if (e.key === 'Tab' && e.shiftKey) return 'shift+tab';
-  if (RAW_NAMES[e.key] && !e.ctrlKey && !e.altKey) return RAW_NAMES[e.key];
-  if (e.ctrlKey && /^[a-z]$/i.test(e.key)) return `ctrl+${e.key.toLowerCase()}`;
-  if (e.altKey && /^[a-z]$/i.test(e.key)) return `alt+${e.key.toLowerCase()}`;
-  return null;
-}
 const rawQ = [];
 let rawBusy = false;
 let rawLoadTimer = null;
