@@ -828,6 +828,7 @@ button.tool { display: flex; align-items: center; gap: 6px; width: 100%; border:
 button.tool .tool-head { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.tool.asked .tool-head { white-space: normal; }
 button.tool .chev { flex: none; color: var(--muted); }
+.tool-out .tool-cmd { color: var(--muted); }
 button.tool:active { filter: brightness(0.95); }
 .tool.failed b { color: var(--blocked); }
 .msg .tool-out { margin: 4px 0 2px; max-height: 40vh; overflow: auto; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }

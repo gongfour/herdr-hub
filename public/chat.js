@@ -76,7 +76,8 @@ function message(m) {
 }
 
 // A tool line; AskUserQuestion shows what was chosen ("Pick a color? → Red"). One with a
-// result in the transcript opens to show it (cut at 2000 characters by the server).
+// result in the transcript opens to show it (cut at 2000 characters by the server), under the
+// whole command when the line shows only its description or the part after `cd … &&`.
 function toolLine(t, key) {
   const asked = t.answers && t.answers.length ? t.answers.map((x) => `${esc(x.q)} → <span class="ans">${esc(x.a)}</span>`).join(' · ') : '';
   const head = `<b>${esc(t.name)}</b> ${asked || esc(t.summary)}`;
@@ -84,7 +85,7 @@ function toolLine(t, key) {
   if (!t.result) return `<div class="${cls}">${head}</div>`;
   const open = Boolean(detail.openTools && detail.openTools.has(key));
   return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span><span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${
-    open ? `<pre class="tool-out">${esc(t.result)}${t.cut ? '\n… (뒤는 잘림)' : ''}</pre>` : ''
+    open ? `<pre class="tool-out">${t.cmd ? `<span class="tool-cmd">$ ${esc(t.cmd)}</span>\n` : ''}${esc(t.result)}${t.cut ? '\n… (뒤는 잘림)' : ''}</pre>` : ''
   }</div>`;
 }
 
