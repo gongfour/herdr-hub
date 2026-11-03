@@ -8,6 +8,7 @@ const os = require('os');
 const path = require('path');
 const herdr = require('./lib/herdr');
 const transcript = require('./lib/transcript');
+const dirs = require('./lib/dirs');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
 
@@ -360,7 +361,20 @@ async function api(req, res, url) {
   if (parts[0] === 'peers' && parts[1]) return proxy(req, res, url);
 
   if (method === 'GET' && parts[0] === 'host')
-    return send(res, 200, { id: HOST_ID, label: HOSTNAME, platform: process.platform, home: os.homedir(), kinds: KINDS, recentCwds: recentCwds() });
+    return send(res, 200, { id: HOST_ID, label: HOSTNAME, platform: process.platform, home: os.homedir(), kinds: KINDS, recentCwds: recentCwds(), places: dirs.places() });
+
+  // Folder browser: subfolders of ?path= (home when empty), or the drive letters on Windows.
+  if (method === 'GET' && parts[0] === 'dirs' && !parts[1]) {
+    const p = url.searchParams.get('path') || '';
+    if (url.searchParams.get('drives') === '1' || p === dirs.DRIVES) return send(res, 200, await dirs.drives());
+    return send(res, 200, await dirs.list(p ? cleanCwd(p) : os.homedir()));
+  }
+
+  if (method === 'POST' && parts[0] === 'dirs' && !parts[1]) {
+    const body = await readJson(req);
+    const parent = cleanCwd(body.parent);
+    return send(res, 200, { ok: true, path: dirs.create(parent, body.name) });
+  }
 
   if (method === 'POST' && parts[0] === 'workspaces' && !parts[1]) {
     const body = await readJson(req);
@@ -499,7 +513,7 @@ async function api(req, res, url) {
 
 // /api/peers/<host>/<rest> -> <peer>/api/<rest>. Only per-host endpoints; the stream,
 // state and push stay with the hub. The X-Paddock check has already run above.
-const PROXIED = new Set(['host', 'agents', 'panes', 'workspaces']);
+const PROXIED = new Set(['host', 'dirs', 'agents', 'panes', 'workspaces']);
 
 async function proxy(req, res, url) {
   const raw = url.pathname.split('/').filter(Boolean); // api, peers, <host>, ...rest (still encoded)

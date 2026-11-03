@@ -33,6 +33,9 @@ const ERROR_TEXT = {
   peer_unreachable: '그 호스트에 닿지 못했습니다.',
   peer_timeout: '그 호스트가 제때 답하지 않았습니다.',
   unknown_host: '모르는 호스트입니다.',
+  bad_dir_name: '폴더 이름이 올바르지 않습니다. / \\ : * ? " < > | 와 . 이나 .. 은 쓸 수 없고 100자까지입니다.',
+  dir_exists: '같은 이름의 폴더가 이미 있습니다.',
+  dir_forbidden: '그 위치에 폴더를 만들 권한이 없습니다.',
 };
 const errText = (err) => ERROR_TEXT[err.code] || err.message;
 
@@ -106,13 +109,14 @@ async function api(path, opts = {}) {
 
 // In-page sheet instead of confirm()/prompt(): those block the page (and automated tests).
 // Resolves with the input's value (or true) on OK, null on cancel.
-function sheet({ title, text = '', input = null, ok = '확인', danger = false }) {
+function sheet({ title, text = '', error = '', input = null, ok = '확인', danger = false }) {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.className = 'sheet-back';
     el.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
         <h2>${esc(title)}</h2>
         ${text ? `<p>${esc(text)}</p>` : ''}
+        ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
         ${input ? `<input class="field" name="v" value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off" autocapitalize="off" spellcheck="false">` : ''}
         <div class="row end">
           <button type="button" class="btn secondary" data-cancel>취소</button>
@@ -812,9 +816,14 @@ async function renderForm() {
         <h2>호스트</h2>
         <select class="field" id="f-host">${hosts().map((x) => `<option value="${esc(x.id)}" ${x.id === host ? 'selected' : ''} ${x.online ? '' : 'disabled'}>${esc(x.label)}${x.online ? '' : ' (오프라인)'}</option>`).join('')}</select>` : ''}
         <h2>폴더</h2>
-        <input class="field" id="f-cwd" list="f-cwds" autocomplete="off" autocapitalize="off" spellcheck="false" required>
-        <datalist id="f-cwds"></datalist>
-        <div class="chips" id="f-recent"></div>
+        <div class="picked" id="f-picked" aria-live="polite"></div>
+        <div class="dir-rows" id="f-recent"></div>
+        <button type="button" class="btn secondary wide" id="f-browse">폴더 찾아보기</button>
+        <details class="manual" id="f-manual">
+          <summary>경로 직접 입력</summary>
+          <input class="field" id="f-cwd" list="f-cwds" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <datalist id="f-cwds"></datalist>
+        </details>
         <h2>이름 (선택)</h2>
         <input class="field" id="f-label" placeholder="폴더 이름" autocomplete="off">
         <label class="check"><input type="checkbox" id="f-with" checked> 에이전트도 바로 시작</label>
@@ -835,8 +844,160 @@ async function renderForm() {
   document.getElementById('f-form').onsubmit = submitForm;
   const pick = document.getElementById('f-host');
   if (pick) pick.onchange = () => fillForm(pick.value);
+  if (isNew) {
+    const cwd = document.getElementById('f-cwd');
+    cwd.oninput = () => showPicked();
+    document.getElementById('f-browse').onclick = () => browseDirs(view.formHost || host);
+  }
   if (isNew || ws || term) fillForm(host);
 }
+
+// ---- folder choice: recent rows, a browser sheet, or a typed path
+
+let browseAt = { host: null, path: null }; // where the browser was left, per form host
+const RECENT_SHOWN = 5;
+
+function pickCwd(p) {
+  const cwd = document.getElementById('f-cwd');
+  if (!cwd) return;
+  cwd.value = p;
+  showPicked();
+}
+
+function showPicked() {
+  const p = (document.getElementById('f-cwd')?.value || '').trim();
+  const box = document.getElementById('f-picked');
+  if (!box) return;
+  box.classList.toggle('on', Boolean(p));
+  box.innerHTML = p ? `<span class="k">선택됨</span><b>${esc(basename(p))}</b><span class="p">${esc(p)}</span>` : '<span class="k">아래에서 폴더를 고르세요</span>';
+  document.getElementById('f-label').placeholder = p ? basename(p) : '폴더 이름';
+  document.querySelectorAll('#f-recent .dir-row').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cwd === p)));
+}
+
+function renderRecent(list, all = false) {
+  const box = document.getElementById('f-recent');
+  if (!box) return;
+  const rows = all ? list : list.slice(0, RECENT_SHOWN);
+  box.innerHTML = rows.length
+    ? `<div class="dir-cap">최근 폴더</div>${rows.map((c) => `<button type="button" class="dir-row" data-cwd="${esc(c)}"><b>${esc(basename(c))}</b><span>${esc(c)}</span></button>`).join('')}${
+        list.length > rows.length ? `<button type="button" class="dir-more" id="f-more">${list.length - rows.length}개 더 보기</button>` : ''
+      }`
+    : '';
+  box.querySelectorAll('.dir-row').forEach((b) => (b.onclick = () => pickCwd(b.dataset.cwd)));
+  const more = document.getElementById('f-more');
+  if (more) more.onclick = () => renderRecent(list, true);
+  showPicked();
+}
+
+// A tall sheet over the form: breadcrumb, shortcuts, subfolders, and a sticky footer.
+async function browseDirs(host) {
+  let info;
+  try {
+    info = await hostInfo(host);
+  } catch (err) {
+    return toast(`불러오지 못했습니다: ${errText(err)}`);
+  }
+  if (browseAt.host !== host) browseAt = { host, path: null };
+  const start = (document.getElementById('f-cwd')?.value || '').trim();
+  const el = document.createElement('div');
+  el.className = 'sheet-back';
+  el.innerHTML = `<div class="sheet browser" role="dialog" aria-modal="true" aria-label="폴더 찾아보기">
+      <div class="browser-head">
+        <h2>폴더 찾아보기${multi() ? `<span class="sub">${esc(hostLabel(host))}</span>` : ''}</h2>
+        <button type="button" class="icon-btn" data-close aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="chips places">${(info.places || []).map((p) => `<button type="button" class="chip" data-go="${esc(p.path)}" title="${esc(p.path)}">${esc(p.name)}</button>`).join('')}</div>
+      <nav class="crumbs" aria-label="현재 위치"></nav>
+      <div class="dir-list" role="list"></div>
+      <div class="browser-foot">
+        <button type="button" class="btn secondary" data-mkdir>새 폴더</button>
+        <button type="button" class="btn" data-pick>이 폴더 선택</button>
+      </div>
+    </div>`;
+  const $ = (q) => el.querySelector(q);
+  let cur = null; // the last listing shown
+  const close = () => {
+    el.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape' && el.isConnected && document.querySelectorAll('.sheet-back').length === 1) close();
+  };
+  document.addEventListener('keydown', onKey);
+  el.onclick = (e) => {
+    if (e.target === el) close();
+  };
+  $('[data-close]').onclick = close;
+
+  async function open(p) {
+    const list = $('.dir-list');
+    list.setAttribute('aria-busy', 'true');
+    let r;
+    try {
+      r = await api(hp(`/dirs${p == null ? '' : `?path=${encodeURIComponent(p)}`}`, host));
+    } catch (err) {
+      list.removeAttribute('aria-busy');
+      // A remembered folder that has since gone away: start over at home.
+      if (p != null && ['cwd_not_found', 'cwd_not_directory'].includes(err.code) && cur == null) return open(null);
+      return toast(`열지 못했습니다: ${errText(err)}`);
+    }
+    if (!el.isConnected) return;
+    cur = r;
+    if (!r.drives) browseAt.path = r.path;
+    const crumbs = r.drives ? [] : r.crumbs;
+    $('.crumbs').innerHTML = [
+      ...(info.platform === 'win32' ? [`<button type="button" class="crumb" data-go="::drives" ${r.drives ? 'aria-current="page"' : ''}>드라이브</button>`] : []),
+      ...crumbs.map((c, i) => `<button type="button" class="crumb" data-go="${esc(c.path)}" ${i === crumbs.length - 1 ? 'aria-current="page"' : ''}>${esc(c.name)}</button>`),
+    ].join('<span class="crumb-sep" aria-hidden="true">›</span>');
+    const up = r.parent ? `<button type="button" class="dir-item up" data-go="${esc(r.parent)}" role="listitem"><span class="ico">↑</span><span class="nm">상위</span></button>` : '';
+    const items = r.dirs
+      .map((d) => {
+        const full = r.drives ? d : joinPath(r.path, d, r.sep);
+        return `<button type="button" class="dir-item" data-go="${esc(full)}" role="listitem"><span class="ico">${r.drives ? '◼' : '▸'}</span><span class="nm">${esc(r.drives ? d.replace(/\\$/, '') : d)}</span></button>`;
+      })
+      .join('');
+    const note = r.denied ? '이 폴더를 읽을 권한이 없습니다.' : !r.dirs.length ? (r.drives ? '드라이브가 없습니다.' : '하위 폴더가 없습니다.') : r.truncated ? `처음 ${r.dirs.length}개만 보입니다.` : '';
+    list.innerHTML = up + items + (note ? `<p class="dir-note">${esc(note)}</p>` : '');
+    list.scrollTop = 0;
+    list.removeAttribute('aria-busy');
+    el.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => open(b.dataset.go)));
+    const pickBtn = $('[data-pick]');
+    pickBtn.disabled = Boolean(r.drives);
+    $('[data-mkdir]').disabled = Boolean(r.drives) || Boolean(r.denied);
+    pickBtn.innerHTML = r.drives ? '이 폴더 선택' : `이 폴더 선택<span class="sub">${esc(basename(r.path) || r.path)}</span>`;
+  }
+
+  $('[data-pick]').onclick = () => {
+    if (!cur || cur.drives) return;
+    pickCwd(cur.path);
+    close();
+  };
+  $('[data-mkdir]').onclick = async () => {
+    if (!cur || cur.drives) return;
+    let name = '';
+    let error = '';
+    for (;;) {
+      name = await sheet({ title: '새 폴더', text: `${cur.path} 안에 만들고 바로 선택합니다.`, error, input: { value: name, placeholder: '폴더 이름' }, ok: '만들기' });
+      if (name == null) return;
+      name = name.trim();
+      try {
+        const r = await api(hp('/dirs', host), { method: 'POST', body: JSON.stringify({ parent: cur.path, name }) });
+        toast('폴더를 만들었습니다');
+        pickCwd(r.path);
+        browseAt.path = r.path;
+        close();
+        return;
+      } catch (err) {
+        error = errText(err);
+      }
+    }
+  };
+
+  document.body.appendChild(el);
+  open(browseAt.path || start || null);
+}
+
+const joinPath = (dir, name, sep) => (dir.endsWith(sep) ? dir + name : dir + sep + name);
 
 // Allowed kinds and folder suggestions come from the chosen host.
 async function fillForm(host) {
@@ -856,11 +1017,13 @@ async function fillForm(host) {
   if (info.kinds.includes(prev)) kind.value = prev;
   const cwd = document.getElementById('f-cwd');
   if (cwd) {
+    // Another host's folder means nothing here: a host change starts the choice over.
+    if (cwd.dataset.host && cwd.dataset.host !== host) cwd.value = '';
+    cwd.dataset.host = host;
+    if (browseAt.host !== host) browseAt = { host, path: null };
     cwd.placeholder = info.platform === 'win32' ? 'C:\\Users\\…\\project' : `${info.home || '/home/…'}/project`;
     document.getElementById('f-cwds').innerHTML = info.recentCwds.map((c) => `<option value="${esc(c)}">`).join('');
-    const chips = document.getElementById('f-recent');
-    chips.innerHTML = info.recentCwds.map((c) => `<button type="button" class="chip" title="${esc(c)}" data-cwd="${esc(c)}">${esc(basename(c))}</button>`).join('');
-    chips.querySelectorAll('.chip').forEach((b) => (b.onclick = () => (cwd.value = b.dataset.cwd)));
+    renderRecent(info.recentCwds);
   }
   btn.disabled = false;
 }
@@ -875,6 +1038,10 @@ async function submitForm(e) {
   let r = null;
   let started = true;
   if (view.mode === 'new') {
+    if (!val('f-cwd')) {
+      btn.disabled = false;
+      return toast('폴더를 먼저 고르세요.');
+    }
     const withAgent = document.getElementById('f-with').checked;
     r = await act(hp('/workspaces', host), { cwd: val('f-cwd'), label: val('f-label'), agent: withAgent ? agent : null });
     if (r) {
