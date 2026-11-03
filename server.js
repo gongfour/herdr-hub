@@ -11,6 +11,7 @@ const transcript = require('./lib/transcript');
 const dirs = require('./lib/dirs');
 const uploads = require('./lib/uploads');
 const commands = require('./lib/commands');
+const names = require('./lib/names');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
 
@@ -260,7 +261,26 @@ const KINDS = ['claude', 'codex', 'gemini', 'opencode', 'pi', 'copilot', 'cursor
 const KEYS = /^(esc|enter|tab|up|down|left|right|backspace|space|[0-9]|y|n|ctrl\+c|shift\+tab)$/;
 const ARG = /^[A-Za-z0-9_@%+=:,./\\-]{1,200}$/;
 const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/; // herdr's rule for agent names
-const validKeys = (keys) => Array.isArray(keys) && keys.length > 0 && keys.length <= 8 && keys.every((k) => typeof k === 'string' && KEYS.test(k));
+// A shell pane also takes what full-screen programs (helix, vim, less) need: page and edit
+// keys, F-keys and Ctrl/Alt chords.
+const PANE_KEYS = /^(esc|enter|tab|up|down|left|right|backspace|delete|space|home|end|pageup|pagedown|insert|shift\+tab|f([1-9]|1[0-2])|(ctrl|alt)\+[a-z]|[0-9]|y|n)$/;
+// Keys herdr has no name for (0.9: "unsupported key"): their xterm sequences, typed as text.
+const SEQ_KEYS = { pageup: '\x1b[5~', pagedown: '\x1b[6~', home: '\x1b[H', end: '\x1b[F', delete: '\x1b[3~', insert: '\x1b[2~' };
+async function sendPaneKeys(pane, keys) {
+  let run = [];
+  const flush = async () => {
+    if (run.length) await herdr.call('pane.send_keys', { pane_id: pane, keys: run });
+    run = [];
+  };
+  for (const k of keys) {
+    if (SEQ_KEYS[k]) {
+      await flush();
+      await herdr.call('pane.send_text', { pane_id: pane, text: SEQ_KEYS[k] });
+    } else run.push(k);
+  }
+  await flush();
+}
+const validKeys = (keys, rule = KEYS) => Array.isArray(keys) && keys.length > 0 && keys.length <= 8 && keys.every((k) => typeof k === 'string' && rule.test(k));
 const bad = (code) => Object.assign(new Error(code), { status: 400, code });
 
 function cleanLabel(label, { required = false } = {}) {
@@ -291,15 +311,16 @@ function cleanCwd(cwd) {
   return p;
 }
 
-function cleanAgentSpec(spec) {
+// nameFrom: what to name an agent that comes without a name (workspace label, folder).
+function cleanAgentSpec(spec, nameFrom = []) {
   if (!spec || typeof spec !== 'object') throw bad('bad_agent');
   if (!KINDS.includes(spec.kind)) throw bad('bad_kind');
   const args = spec.args == null ? [] : spec.args;
   if (!Array.isArray(args) || args.length > 16 || !args.every((a) => typeof a === 'string' && ARG.test(a))) throw bad('bad_args');
   let name = spec.name || '';
   if (name && (typeof name !== 'string' || !AGENT_NAME.test(name))) throw bad('bad_agent_name');
-  // herdr requires a unique name; make one up when none is given.
-  if (!name) name = `${spec.kind}-${Date.now().toString(36).slice(-5)}`;
+  // herdr requires a unique name: none given, the folder or workspace name, made unique.
+  if (!name) name = names.defaultName(nameFrom, spec.kind, local.agents.map((a) => a.name).filter(Boolean));
   return { kind: spec.kind, args, name };
 }
 
@@ -420,7 +441,7 @@ async function api(req, res, url) {
     const body = await readJson(req);
     const cwd = cleanCwd(body.cwd);
     const label = cleanLabel(body.label);
-    const spec = body.agent ? cleanAgentSpec(body.agent) : null;
+    const spec = body.agent ? cleanAgentSpec(body.agent, [label, path.basename(cwd)]) : null;
     const r = await herdr.call('workspace.create', { cwd, label: label || path.basename(cwd) || cwd, focus: false });
     const pane = r.root_pane.pane_id;
     let agentError = null;
@@ -439,7 +460,7 @@ async function api(req, res, url) {
       await herdr.call('workspace.close', { workspace_id: ws.workspace_id });
     } else if (parts[2] === 'tabs' || parts[2] === 'agents') {
       // New tab, optionally with an agent started in its root pane.
-      const spec = parts[2] === 'agents' ? cleanAgentSpec(body) : null;
+      const spec = parts[2] === 'agents' ? cleanAgentSpec(body, [ws.label]) : null;
       const r = await herdr.call('tab.create', { workspace_id: ws.workspace_id, label: cleanLabel(body.label), focus: false });
       const pane = r.root_pane.pane_id;
       if (spec) await startAgent(pane, spec);
@@ -469,9 +490,11 @@ async function api(req, res, url) {
         const { text = '' } = body;
         const keys = parts[2] === 'input' ? ['enter'] : body.keys;
         if (typeof text !== 'string' || text.length > 4000 || /[\x00-\x1f\x7f]/.test(text)) return send(res, 400, { error: 'bad_text' });
-        if (!validKeys(keys)) return send(res, 400, { error: 'bad_keys' });
+        // keys may be empty when there is text: raw mode typing one character at a time.
+        const textOnly = parts[2] === 'keys' && text && Array.isArray(keys) && keys.length === 0;
+        if (!textOnly && !validKeys(keys, PANE_KEYS)) return send(res, 400, { error: 'bad_keys' });
         if (text) await herdr.call('pane.send_text', { pane_id: pane, text });
-        await herdr.call('pane.send_keys', { pane_id: pane, keys });
+        if (!textOnly) await sendPaneKeys(pane, keys);
       } else if (parts[2] === 'rename') {
         await herdr.call('pane.rename', { pane_id: pane, label: cleanLabel(body.label) });
       } else if (parts[2] === 'split') {
@@ -479,7 +502,7 @@ async function api(req, res, url) {
         const r = await herdr.call('pane.split', { target_pane_id: pane, direction, focus: false });
         result = { ok: true, pane: r.pane.pane_id };
       } else if (parts[2] === 'agent') {
-        await startAgent(pane, cleanAgentSpec(body));
+        await startAgent(pane, cleanAgentSpec(body, [term.workspaceLabel, path.basename(term.cwd || '')]));
       } else if (parts[2] === 'close') {
         await herdr.call('pane.close', { pane_id: pane });
       } else return send(res, 404, { error: 'not_found' });
@@ -517,8 +540,11 @@ async function api(req, res, url) {
       return send(res, 200, { ok: true });
     }
     if (method === 'POST' && parts[2] === 'keys') {
-      const { keys } = await readJson(req);
+      // text: typed first without Enter, e.g. the answer after a "Type something" choice.
+      const { keys, text = '' } = await readJson(req);
       if (!validKeys(keys)) return send(res, 400, { error: 'bad_keys' });
+      if (typeof text !== 'string' || text.length > 4000 || /[\x00-\x1f\x7f]/.test(text)) return send(res, 400, { error: 'bad_text' });
+      if (text) await herdr.call('pane.send_text', { pane_id: pane, text });
       await herdr.call('agent.send_keys', { target: pane, keys });
       refreshSoon();
       return send(res, 200, { ok: true });
@@ -569,10 +595,18 @@ async function api(req, res, url) {
       push.remove(endpoint);
       return send(res, 200, { ok: true });
     }
+    // 시험 알림: only to the device that asks (its subscription endpoint), never to all.
     if (method === 'POST' && parts[1] === 'test') {
-      const r = await push.send({ title: 'Herdr Hub', body: `${HOSTNAME} 알림 시험`, url: '/' });
-      console.log(`${new Date().toISOString()} push test sent=${r.sent}`);
+      const { endpoint } = await readJson(req);
+      if (typeof endpoint !== 'string' || !endpoint) return send(res, 400, { error: 'endpoint_required' });
+      const r = await push.sendTo(endpoint, { title: 'Herdr Hub', body: `${HOSTNAME} 알림 시험 — 이 기기`, url: '/' });
+      console.log(`${new Date().toISOString()} push test found=${r.found} sent=${r.sent}`);
+      if (!r.found) return send(res, 404, { error: 'not_subscribed' });
       return send(res, 200, r);
+    }
+    if (method === 'POST' && parts[1] === 'status') {
+      const { endpoint } = await readJson(req);
+      return send(res, 200, { subscribed: typeof endpoint === 'string' && push.has(endpoint) });
     }
   }
 

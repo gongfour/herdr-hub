@@ -199,3 +199,42 @@ test('a menu without numbers whose cursor is far down walks with up/down', () =>
   assert.equal(c.cursor, 3);
   assert.deepEqual(choiceKeys(c, 1), ['up', 'up', 'enter']);
 });
+
+// Claude Code 2.1.317 AskUserQuestion (desktop, haiku): each option's description on its own lines.
+const ASK = `
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ☐ Color
+
+Which color do you like?
+
+❯ 1. Red
+     Choose red.
+  2. Blue
+     Choose blue.
+  3. Green
+     A long description that goes on for a while so that it wraps across more than one line on a narrow terminal
+     window, to test wrapping.
+  4. Type something.
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  5. Chat about this
+
+Enter to select · ↑/↓ to navigate · Esc to cancel`;
+
+test('AskUserQuestion options split into name and description', () => {
+  const c = parseChoices(ASK);
+  assert.equal(c.question, 'Which color do you like?');
+  assert.deepEqual(labels(c), ['Red', 'Blue', 'Green', 'Type something.']);
+  assert.equal(c.items[0].desc, 'Choose red.');
+  assert.equal(c.items[2].desc, 'A long description that goes on for a while so that it wraps across more than one line on a narrow terminal window, to test wrapping.');
+  assert.equal(c.items[3].desc, undefined);
+  assert.equal(c.cursor, 1);
+});
+
+test('a name that wraps at the screen edge stays one name', () => {
+  const first = "   2. Yes, and don't ask again for commands like this one in the folder C:\\Users\\kangw\\src\\some-long-proj";
+  const wide = 'x'.repeat(first.length); // the screen is as wide as the cut line
+  const text = `${wide}\n Do you want to proceed?\n ❯ 1. Yes\n${first}\n      ect-name-here\n   3. No\n`;
+  const c = parseChoices(text);
+  assert.equal(c.items[1].label, "Yes, and don't ask again for commands like this one in the folder C:\\Users\\kangw\\src\\some-long-proj ect-name-here");
+  assert.equal(c.items[1].desc, undefined);
+});

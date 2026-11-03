@@ -1,7 +1,7 @@
 'use strict';
 
 const $app = document.getElementById('app');
-const STATUS_LABEL = { blocked: '응답 필요', done: '완료', working: '작업 중', idle: '대기', unknown: '알 수 없음' };
+const STATUS_LABEL = { blocked: '답 필요', done: '완료', working: '작업 중', idle: '대기', unknown: '알 수 없음' };
 const ICON = {
   // Lucide (ISC, lucide.dev) throughout, so stroke, corners and proportions match.
   back: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg>', // chevron-left
@@ -19,6 +19,12 @@ const ICON = {
   file: '<svg viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /></svg>', // file
 };
 const TERM_KEYS = [['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['tab', 'Tab'], ['esc', 'Esc']];
+// 키 직접 입력 (raw) in the shell view: for full-screen programs (helix, vim, less). A ":text"
+// entry types that text; the rest are herdr key names.
+const RAW_TERM_KEYS = [
+  ['esc', 'Esc'], [':text', ':'], ['/text', '/'], ['ctrl+x', 'Ctrl+X'], ['pageup', 'PgUp'], ['pagedown', 'PgDn'],
+  ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['tab', 'Tab'], ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C'],
+];
 const ERROR_TEXT = {
   cwd_not_absolute: '절대 경로를 적어 주세요.',
   cwd_not_found: '그 폴더가 호스트에 없습니다.',
@@ -40,8 +46,17 @@ const ERROR_TEXT = {
   image_too_large: '사진이 너무 큽니다(10MB까지).',
   body_too_large: '사진이 너무 큽니다(10MB까지).',
   bad_image_type: 'JPEG·PNG·WebP 사진만 보낼 수 있습니다.',
+  network: '연결이 끊겼습니다. 다시 시도해 주세요.',
+  timeout: '응답이 늦어 기다리기를 멈췄습니다. 다시 시도해 주세요.',
+  agent_not_found: '에이전트가 끝났거나 닫혔습니다.',
+  pane_not_found: '셸이 닫혔습니다.',
+  workspace_not_found: '워크스페이스가 닫혔습니다.',
+  agent_blocked: '에이전트가 답을 기다리는 중입니다. 위 버튼으로 먼저 답해 주세요.',
+  not_subscribed: '이 기기는 알림이 꺼져 있습니다.',
+  forbidden: '이 기기는 허용되지 않았습니다.',
 };
-const errText = (err) => ERROR_TEXT[err.code] || err.message;
+// Korean for every failure: the server's code, else a plain 'try again' (never "Load failed").
+const errText = (err) => ERROR_TEXT[err.code] || (err.status >= 500 ? `호스트 오류(${err.status})입니다. 잠시 뒤에 다시 시도해 주세요.` : err.message && /[가-힣]/.test(err.message) ? err.message : `요청이 실패했습니다${err.code ? ` (${err.code})` : ''}. 다시 시도해 주세요.`);
 
 let state = { agents: [], terminals: [], workspaces: [], hosts: [], herdr: 'connecting' };
 let view = { name: 'list' };
@@ -73,6 +88,11 @@ const hp = (path, host = curHost()) => (host && host !== localId() ? `/peers/${e
 const link = (host, path) => `#/h/${encodeURIComponent(host || localId() || '')}${path}`;
 const same = (x, host, id, key = 'pane') => x[key] === id && (x.host || localId()) === host;
 const hostChip = (x) => (multi() ? `<span class="host-chip">${esc(x.hostLabel || hostLabel(x.host))}</span>` : '');
+// "hub-pol-d1 · hub-pol-d1" says the same thing twice: one when the folder is named like the workspace.
+const wsAndDir = (label, cwd) => {
+  const dir = basename(cwd);
+  return !dir || dir === label ? label || dir : `${label} · ${dir}`;
+};
 
 // Settings saved before the rename lived under paddock.*; move them across once.
 try {
@@ -147,6 +167,35 @@ function setTheme(t) {
 }
 applyTheme(getTheme());
 
+// 리턴 키 for the agent composer: newline (default; send with the ↑ button or ⌘/Ctrl+Enter) or
+// send (Shift+Enter for a newline on a hardware keyboard). The shell line always runs on Enter.
+const ENTER_KEY = 'herdr-hub.enter';
+let memEnter = null;
+function getEnter() {
+  if (memEnter) return memEnter;
+  try {
+    return localStorage.getItem(ENTER_KEY) === 'send' ? 'send' : 'newline';
+  } catch {
+    return 'newline';
+  }
+}
+function setEnter(v) {
+  memEnter = v;
+  try {
+    localStorage.setItem(ENTER_KEY, v);
+  } catch {
+    /* private mode: the choice lasts until reload */
+  }
+}
+// What Enter does in the composer: 'send', 'newline' or null (leave it to the IME).
+// Korean (and other) IMEs send Enter while a syllable is still being composed: never act then.
+function enterAction(e, mode) {
+  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return null;
+  if (e.metaKey || e.ctrlKey) return 'send';
+  if (mode === 'send' && !e.shiftKey && !e.altKey) return 'send';
+  return 'newline';
+}
+
 const clock = (t) => (t ? new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '');
 
 async function hostInfo(id) {
@@ -154,19 +203,72 @@ async function hostInfo(id) {
   return hostCache.get(id);
 }
 
+// Reads give up after 15 s, writes after 60 s: a dead connection after iOS wakes the app must
+// not hold up the next poll. Failures carry a code: the server's, else network / timeout.
 async function api(path, opts = {}) {
-  const res = await fetch(`/api${path}`, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', 'X-Herdr-Hub': '1', ...(opts.headers || {}) },
-  });
+  const write = opts.method && opts.method !== 'GET';
+  const signal = opts.signal || (window.AbortSignal && AbortSignal.timeout ? AbortSignal.timeout(write ? 60000 : 15000) : undefined);
+  let res;
+  try {
+    res = await fetch(`/api${path}`, {
+      ...opts,
+      signal,
+      headers: { 'Content-Type': 'application/json', 'X-Herdr-Hub': '1', ...(opts.headers || {}) },
+    });
+  } catch (err) {
+    const timeout = err && (err.name === 'TimeoutError' || err.name === 'AbortError');
+    throw Object.assign(new Error(timeout ? 'timeout' : 'network'), { code: timeout ? 'timeout' : 'network', network: true });
+  }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(body.message || body.error || res.statusText), { code: body.error });
+  if (!res.ok) throw Object.assign(new Error(body.message || body.error || res.statusText), { code: body.error, status: res.status });
   return body;
 }
 
+// ---- layers: sheets, menus, the terminal sheet, the photo viewer
+// One stack: Escape closes the top one, focus moves into it and comes back afterwards, and
+// everything underneath is inert. Sheets slide up, the backdrop fades (not with reduced motion).
+const layers = [];
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function syncInert() {
+  $app.inert = layers.length > 0;
+  layers.forEach((l, i) => (l.el.inert = i < layers.length - 1));
+}
+function openLayer(el, { onClose, focus, animate = true } = {}) {
+  const layer = { el, onClose, back: document.activeElement, closed: false };
+  layers.push(layer);
+  if (!animate) el.classList.add('no-anim');
+  document.body.appendChild(el);
+  syncInert();
+  const target = typeof focus === 'string' ? el.querySelector(focus) : focus || el.querySelector('[autofocus], input, [data-k], button');
+  if (target) target.focus({ preventScroll: true });
+  layer.close = (v) => closeLayer(layer, v);
+  return layer;
+}
+function closeLayer(layer, value) {
+  if (!layer || layer.closed) return;
+  layer.closed = true;
+  const i = layers.indexOf(layer);
+  if (i >= 0) layers.splice(i, 1);
+  syncInert();
+  const { el } = layer;
+  if (reduced() || el.classList.contains('no-anim')) el.remove();
+  else {
+    el.classList.add('closing');
+    el.inert = true;
+    setTimeout(() => el.remove(), 160);
+  }
+  // Back to where focus was, if that is still on the page and not under another layer.
+  const back = layer.back;
+  if (back && back.isConnected && !back.closest('[inert]') && typeof back.focus === 'function') back.focus({ preventScroll: true });
+  if (layer.onClose) layer.onClose(value);
+}
+const topLayer = () => layers[layers.length - 1] || null;
+
 // In-page sheet instead of confirm()/prompt(): those block the page (and automated tests).
 // Resolves with the input's value (or true) on OK, null on cancel.
-function sheet({ title, text = '', error = '', input = null, ok = '확인', danger = false }) {
+// validate(value) -> a hint while the typed value can't be used ('' when it can): shown under
+// the field as you type, and OK waits for a usable value.
+function sheet({ title, text = '', error = '', input = null, ok = '확인', danger = false, validate = null, again = false }) {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.className = 'sheet-back';
@@ -174,60 +276,119 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', dang
         <h2>${esc(title)}</h2>
         ${text ? `<p>${esc(text)}</p>` : ''}
         ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
-        ${input ? `<input class="field" name="v" value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off" autocapitalize="off" spellcheck="false">` : ''}
+        ${input ? `<input class="field" name="v" value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="sheet-hint">
+        <p class="hint" id="sheet-hint" aria-live="polite"></p>` : ''}
         <div class="row end">
           <button type="button" class="btn secondary" data-cancel>취소</button>
           <button type="submit" class="btn ${danger ? 'danger' : ''}">${esc(ok)}</button>
         </div>
       </form>`;
-    const done = (v) => {
-      el.remove();
-      resolve(v);
+    const field = el.querySelector('input');
+    const submit = el.querySelector('[type=submit]');
+    const check = () => {
+      if (!validate || !field) return true;
+      const hint = validate(field.value);
+      el.querySelector('.hint').textContent = hint || '';
+      field.setAttribute('aria-invalid', String(Boolean(hint)));
+      submit.disabled = Boolean(hint);
+      return !hint;
     };
+    let layer = null;
+    const done = (v) => closeLayer(layer, v);
     // A block body: an onclick that returns false would cancel the submit button's click.
     el.onclick = (e) => {
       if (e.target === el) done(null);
     };
     el.querySelector('[data-cancel]').onclick = () => done(null);
+    if (field) field.oninput = check;
     el.querySelector('form').onsubmit = (e) => {
       e.preventDefault();
-      done(input ? el.querySelector('input').value : true);
+      if (!check()) return;
+      done(input ? field.value : true);
     };
-    document.body.appendChild(el);
-    (el.querySelector('input') || el.querySelector('[type=submit]')).focus();
+    check();
+    // Shown again after an error: no slide, so it reads as the same sheet.
+    layer = openLayer(el, { onClose: (v) => resolve(v === undefined ? null : v), focus: field || submit, animate: !again });
   });
 }
 
+// Ask, post, and on failure ask again with the error and the typed text kept (the 새 폴더 way).
+async function askLoop(opts, post) {
+  let value = opts.input ? opts.input.value || '' : '';
+  let error = '';
+  for (let n = 0; ; n++) {
+    const v = await sheet({ ...opts, error, again: n > 0, input: opts.input ? { ...opts.input, value } : null });
+    if (v == null) return null;
+    value = v;
+    try {
+      return (await post(v.trim())) || true;
+    } catch (err) {
+      error = errText(err);
+    }
+  }
+}
+
 // A list of actions in a sheet. Resolves with the chosen key or null.
-function menu(title, items) {
+// items: [key, label, danger?, sub?]; a null item is skipped. Danger items go last, under a gap.
+function menu(title, items, { sub = '' } = {}) {
   return new Promise((resolve) => {
+    const list = items.filter(Boolean);
+    const row = ([key, label, danger, note]) =>
+      `<button class="action ${danger ? 'danger' : ''}" data-k="${esc(key)}">${esc(label)}${note ? `<span class="sub">${esc(note)}</span>` : ''}</button>`;
+    const plain = list.filter((x) => !x[2]);
+    const risky = list.filter((x) => x[2]);
     const el = document.createElement('div');
     el.className = 'sheet-back';
     el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-        <h2>${esc(title)}</h2>
-        <div class="actions">${items.map(([key, label, danger]) => `<button class="action ${danger ? 'danger' : ''}" data-k="${esc(key)}">${esc(label)}</button>`).join('')}</div>
+        <h2>${esc(title)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</h2>
+        ${plain.length ? `<div class="actions">${plain.map(row).join('')}</div>` : ''}
+        ${risky.length ? `<div class="actions">${risky.map(row).join('')}</div>` : ''}
         <button class="btn secondary wide" data-k="">취소</button>
       </div>`;
-    const done = (v) => {
-      el.remove();
-      resolve(v || null);
-    };
+    let layer = null;
+    const done = (v) => closeLayer(layer, v);
     // A block body: an onclick that returns false would cancel the submit button's click.
     el.onclick = (e) => {
       if (e.target === el) done(null);
     };
     el.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => done(b.dataset.k)));
-    document.body.appendChild(el);
+    layer = openLayer(el, { onClose: (v) => resolve(v || null), focus: '.action' });
   });
 }
 
-function toast(text) {
+// Toasts stack above the composer (newest at the bottom, three at most); the same text again
+// replaces the old one. Errors are announced at once (role=alert), the rest politely.
+// action: { label, run } adds a button (다시 보내기).
+let toastBox = null;
+function toast(text, { error = false, action = null, ms } = {}) {
+  if (!toastBox || !toastBox.isConnected) {
+    toastBox = document.createElement('div');
+    toastBox.className = 'toasts';
+    document.body.appendChild(toastBox);
+  }
+  for (const old of toastBox.querySelectorAll('.toast')) if (old.dataset.text === text) old.remove();
   const el = document.createElement('div');
-  el.className = 'toast';
-  el.textContent = text;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3200);
+  el.className = `toast${error ? ' err' : ''}`;
+  el.setAttribute('role', error ? 'alert' : 'status');
+  el.dataset.text = text;
+  el.innerHTML = `<span class="t">${esc(text)}</span>${action ? `<button type="button" class="t-act">${esc(action.label)}</button>` : ''}`;
+  const remove = () => {
+    if (!el.isConnected) return;
+    if (reduced()) return el.remove();
+    el.classList.add('closing');
+    setTimeout(() => el.remove(), 160);
+  };
+  if (action)
+    el.querySelector('.t-act').onclick = () => {
+      remove();
+      action.run();
+    };
+  toastBox.appendChild(el);
+  const all = toastBox.querySelectorAll('.toast:not(.closing)');
+  for (let i = 0; i < all.length - 3; i++) all[i].remove();
+  setTimeout(remove, ms || (action ? 6000 : error ? 4500 : 3200));
 }
+const toastErr = (text, action) => toast(text, { error: true, action });
 
 // Minimal markdown: fenced code, inline code, bold, links, paragraphs. Input is escaped first.
 function inline(text) {
@@ -319,6 +480,9 @@ function md(src) {
 let stream = null;
 let retryTimer = null;
 let retryDelay = 1000;
+let live = false; // the live stream is open and has sent a state
+// A small dot in a detail header while the live stream is down (statuses may be stale).
+const liveDot = () => (live ? '' : '<span class="live-dot" role="img" aria-label="실시간 연결 끊김" title="실시간 연결 끊김 — 다시 붙는 중"></span>');
 
 function connect() {
   clearTimeout(retryTimer);
@@ -326,6 +490,7 @@ function connect() {
   const es = (stream = new EventSource('/api/stream'));
   es.addEventListener('state', (e) => {
     retryDelay = 1000;
+    live = true;
     state = JSON.parse(e.data);
     trackWorking();
     resolveReady();
@@ -333,7 +498,10 @@ function connect() {
   });
   es.onerror = () => {
     state = { ...state, herdr: 'offline' };
+    live = false;
     if (view.name === 'list') render();
+    if (view.name === 'agent') renderDetailHeader();
+    if (view.name === 'term') renderTerminalHeader();
     if (es.readyState === EventSource.CLOSED && es === stream) {
       retryTimer = setTimeout(connect, retryDelay);
       retryDelay = Math.min(retryDelay * 2, 15000);
@@ -370,7 +538,34 @@ const currentAgent = () => state.agents.find((a) => same(a, curHost(), detail.pa
 
 // ------------------------------------------------------------ routing
 
+// Where each history entry came from (history.state.prev), so 뒤로 can go back to the list
+// instead of stacking a new entry (an iOS edge swipe would then re-enter the agent).
+let lastHash = null;
+const normHash = (h) => String(h || '').replace(/^#/, '') || '/';
+function goBack(target) {
+  const st = history.state;
+  if (st && st.prev != null && normHash(st.prev) === normHash(target)) history.back();
+  else {
+    history.replaceState({ prev: null }, '', target);
+    route();
+  }
+}
+
+// Unsent text and photos per agent (host|pane), kept while the page lives.
+const drafts = new Map();
+function stashDraft() {
+  if (view.name !== 'agent' || !detail.pane) return;
+  const input = document.getElementById('d-input');
+  const text = input ? input.value : '';
+  const key = rowKey(curHost(), detail.pane);
+  if (text.trim() || (detail.files && detail.files.length)) drafts.set(key, { text, files: detail.files });
+  else drafts.delete(key);
+}
+
 function route() {
+  if (!history.state || !('prev' in history.state)) history.replaceState({ ...(history.state || {}), prev: lastHash }, '');
+  lastHash = location.hash || '#/';
+  stashDraft();
   clearInterval(pollTimer);
   clearInterval(tickTimer);
   tickTimer = null;
@@ -388,11 +583,15 @@ function route() {
   if ((m = h.match(/^\/agent\/([^/]+)(?:\/(screen|chat))?$/))) {
     // An agent always shows its chat. …/screen (the old 화면 tab) opens the terminal sheet over it.
     const pane = decodeURIComponent(m[1]);
-    dropFiles();
     view = { name: 'agent', host };
-    detail = { host, pane, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [], sheet: null, wantSheet: m[2] === 'screen', activity: null, workingSince: null };
-    if (m[2]) history.replaceState(null, '', location.hash.replace(/\/(?:screen|chat)$/, ''));
+    const draft = drafts.get(rowKey(curHost(), pane));
+    detail = { host, pane, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: draft ? draft.files : [], sheet: null, wantSheet: m[2] === 'screen', activity: null };
+    if (m[2]) history.replaceState(history.state, '', location.hash.replace(/\/(?:screen|chat)$/, ''));
     renderDetail();
+    if (draft) {
+      document.getElementById('d-input').value = draft.text;
+      renderTray();
+    }
     loadDetail();
     pollTimer = setInterval(() => {
       const a = currentAgent();
@@ -428,6 +627,7 @@ function route() {
 // row survive them; a card that does change closes the row open in it.
 
 const rowKey = (host, id) => `${host || localId()}|${id}`;
+let listScroll = 0; // the list's scroll position, kept while a detail view is open
 // herdr pane ids count up in base 36 (p9, pA, … pZ, p10): shorter first, then by character.
 const paneOrder = (x, y) => x.pane.length - y.pane.length || (x.pane < y.pane ? -1 : x.pane > y.pane ? 1 : 0);
 const wsRank = (agents) => (agents.some((a) => a.status === 'blocked') ? 0 : agents.some((a) => a.status === 'working') ? 1 : 2);
@@ -501,12 +701,14 @@ function render() {
       ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"><span class="hdot"></span>${esc(x.label)}</button>`).join('')}
     </nav>` : ''}`;
   const parts = [
+    ...(swipeHintShown() && list.length ? [['hint', `<p class="hint-row" role="note"><span>줄을 왼쪽으로 밀면 이름·닫기, 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
     ...trouble.map((x) => [`off|${x.id}`, `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`]),
     ...(blocked.length ? [['attn', attnStrip(blocked)]] : []),
     ...list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s)]),
     ...(!list.length && empty ? [['empty', `<p class="empty">${empty}</p>`]] : []),
   ];
   let main = $app.querySelector(':scope > main.home');
+  const fresh = !main;
   if (!main) {
     $app.innerHTML = `${top}<main class="list home"></main>`;
     main = $app.querySelector(':scope > main.home');
@@ -517,6 +719,8 @@ function render() {
   }
   main._top = top;
   patchList(main, parts);
+  // Back from an agent: where the list was left.
+  if (fresh && listScroll) main.scrollTop = listScroll;
   $app.querySelectorAll('.hosts button').forEach((b) => {
     b.onclick = () => {
       setFilter(b.dataset.host);
@@ -525,6 +729,29 @@ function render() {
   });
   tickList();
 }
+
+// One-time hint about the hidden row gestures: shown on the first visit to the list (and for
+// the rest of that page's life) until its ✕ is pressed.
+const HINT_KEY = 'herdr-hub.hint.swipe';
+let hintNow = null;
+function swipeHintShown() {
+  if (hintNow == null) {
+    // Swipe and long press are touch gestures; a mouse has right-click and the ⋯ buttons.
+    if (!matchMedia('(pointer: coarse)').matches) return (hintNow = false);
+    try {
+      hintNow = !localStorage.getItem(HINT_KEY);
+      localStorage.setItem(HINT_KEY, '1');
+    } catch {
+      hintNow = false;
+    }
+  }
+  return hintNow;
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.hint-x')) return;
+  hintNow = false;
+  if (view.name === 'list') render();
+});
 
 // Reuse each keyed child whose HTML is unchanged, build the rest, and put them in order.
 function patchList(box, parts) {
@@ -566,8 +793,8 @@ const SWIPE_ACTS = `<div class="sw-acts" aria-hidden="true"><button type="button
 const agentTitle = (a) => (a.name ? `${a.name} · ${a.title}` : a.title);
 
 function attnStrip(list) {
-  return `<section class="attn" aria-label="답해야 할 것">
-    <h2>답해야 할 것 (${list.length})</h2>
+  return `<section class="attn" aria-label="답 필요">
+    <h2>답 필요 (${list.length})</h2>
     ${list.map((a) => `<a class="attn-row" ${rowData('agent', a.host, a.pane)} href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
       <span class="pane-ic" aria-hidden="true">${ICON.agent}</span>
       <span class="pane-main"><span class="pane-title">${esc(a.name || a.title)}</span><span class="pane-meta">${esc(a.workspaceLabel)}${multi() && filter() === 'all' ? ` · ${esc(a.hostLabel || hostLabel(a.host))}` : ''}</span></span>
@@ -586,7 +813,7 @@ function wsSection({ w, agents, terms }) {
           <div class="ws-label">${filter() === 'all' ? hostChip(w) : ''}${esc(w.label)}</div>
           ${first && first.cwd ? `<div class="ws-cwd">${esc(first.cwd)}</div>` : ''}
         </div>
-        <a class="icon-btn ws-more" href="${link(w.host, `/ws/${encodeURIComponent(w.workspace_id)}`)}" aria-label="${esc(w.label)} 워크스페이스">${ICON.more}</a>
+        <button type="button" class="icon-btn ws-more" aria-haspopup="dialog" aria-label="${esc(w.label)} 워크스페이스 메뉴">${ICON.more}</button>
       </div>
     </div>
     <div class="ws-panes">${rows || '<p class="ws-empty">패널 없음</p>'}</div>
@@ -622,7 +849,7 @@ function termCard(t) {
       <div class="title">${esc(termTitle(t))}</div>
       <div class="meta">${hostChip(t)}셸 · ${esc(t.workspaceLabel)} · ${esc(basename(t.cwd))}</div>
     </div>
-    <span class="badge idle">터미널</span>
+    <span class="badge idle">셸</span>
   </a>`;
 }
 
@@ -630,7 +857,7 @@ function card(a) {
   return `<a class="card" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
     <div class="main">
       <div class="title">${esc(agentTitle(a))}</div>
-      <div class="meta">${hostChip(a)}${esc(a.agent)} · ${esc(a.workspaceLabel)} · ${esc(basename(a.cwd))}</div>
+      <div class="meta">${hostChip(a)}${esc(a.agent)} · ${esc(wsAndDir(a.workspaceLabel, a.cwd))}</div>
     </div>
     <span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>
   </a>`;
@@ -676,7 +903,14 @@ function bindList(main) {
   main.addEventListener('touchmove', rowTouchMove, { passive: false });
   main.addEventListener('touchend', rowTouchEnd);
   main.addEventListener('touchcancel', rowTouchEnd);
-  main.addEventListener('scroll', () => !(swipe.g && swipe.g.axis === 'x') && closeRow(), { passive: true });
+  main.addEventListener(
+    'scroll',
+    () => {
+      listScroll = main.scrollTop;
+      if (!(swipe.g && swipe.g.axis === 'x')) closeRow();
+    },
+    { passive: true }
+  );
   main.addEventListener('click', rowClick, true);
   // Right-click (and a long press where the browser makes one of it) opens the same menu.
   main.addEventListener('contextmenu', (e) => {
@@ -779,6 +1013,14 @@ function rowClick(e) {
     e.stopPropagation();
     return;
   }
+  const more = e.target.closest('.ws-more');
+  if (more) {
+    // The card's ⋯ opens the same menu as a long press, not another page.
+    e.preventDefault();
+    closeRow();
+    rowMenu(more.closest('[data-kind]'));
+    return;
+  }
   const act = e.target.closest('.sw-act');
   if (act) {
     e.preventDefault();
@@ -807,25 +1049,36 @@ async function rowMenu(el) {
   if (!x) return;
   const items =
     kind === 'ws'
-      ? [['open', '워크스페이스 보기'], ['rename', '이름 바꾸기'], ['close', '워크스페이스 닫기', true]]
-      : [['open', kind === 'agent' ? '대화 열기' : '셸 열기'], ['rename', '이름 바꾸기'], ['ws', '워크스페이스 보기'], ['close', kind === 'agent' ? '패널 닫기(에이전트 종료)' : '패널 닫기', true]];
-  const k = await menu(rowLabel(kind, x), items);
+      ? [['open', '워크스페이스 보기'], ['agent', '에이전트 시작'], ['tab', '새 탭'], ['rename', '이름 바꾸기'], ['close', '워크스페이스 닫기', true]]
+      : [
+          ['open', kind === 'agent' ? '대화 열기' : '셸 열기'],
+          kind === 'agent' && x.status === 'working' ? ['stop', '멈추기'] : null,
+          ['rename', '이름 바꾸기'],
+          ['ws', '워크스페이스 보기'],
+          ['close', kind === 'agent' ? '패널 닫기(에이전트 종료)' : '패널 닫기', true],
+        ];
+  const k = await menu(rowLabel(kind, x), items, { sub: kind === 'ws' ? '워크스페이스' : kind === 'agent' ? '에이전트' : '셸' });
   if (k) rowAction(el, k);
 }
 
 // The same calls the agent, shell and workspace menus make.
-function rowAction(el, k) {
+async function rowAction(el, k) {
   const kind = el.dataset.kind;
   const x = rowTarget(el);
   if (!x) return toast('이미 닫혔습니다');
   if (kind === 'ws') {
     if (k === 'open') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace_id)}`);
+    if (k === 'agent') location.hash = link(x.host, `/start/ws/${encodeURIComponent(x.workspace_id)}`);
+    if (k === 'tab') newTab(x);
     if (k === 'rename') renameWorkspace(x);
     if (k === 'close') closeWorkspace(x);
     return;
   }
   if (k === 'open') location.hash = link(x.host, `/${kind === 'agent' ? 'agent' : 'term'}/${encodeURIComponent(x.pane)}`);
   if (k === 'ws') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace)}`);
+  if (k === 'stop' && (await sheet({ title: '작업 멈추기', text: `‘${rowLabel(kind, x)}’ 의 작업을 멈출까요? 대화는 남습니다.`, ok: '멈추기', danger: true }))) {
+    if (await sendKeys(['esc'], x.host || localId(), x.pane)) toast('멈추라고 보냈습니다');
+  }
   if (k === 'rename') renamePane(x, kind === 'agent');
   if (k === 'close') closePane(x.host, x.pane, rowLabel(kind, x), kind === 'agent');
 }
@@ -836,7 +1089,7 @@ function renderDetail() {
   $app.innerHTML = `
     <div class="detail">
       <header class="bar">
-        <a class="icon-btn" href="#/" aria-label="목록">${ICON.back}</a>
+        <a class="icon-btn" href="#/" data-back aria-label="목록">${ICON.back}</a>
         <h1 id="d-title"></h1>
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기">${ICON.more}</button>
@@ -852,7 +1105,7 @@ function renderDetail() {
       <div class="composer" id="d-form">
         <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">${ICON.photo}</button>
         <button type="button" class="attach" id="d-camera" aria-label="카메라로 찍기">${ICON.camera}</button>
-        <div id="d-input" class="input" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="메시지" data-placeholder="메시지 보내기" enterkeyhint="send" autocapitalize="sentences"></div>
+        <div id="d-input" class="input" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="메시지" data-placeholder="메시지 보내기" enterkeyhint="${getEnter() === 'send' ? 'send' : 'enter'}" autocapitalize="sentences"></div>
         <button type="button" class="stop" id="d-stop" aria-label="중단" hidden>${ICON.stop}</button>
         <button type="button" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
       </div>
@@ -872,7 +1125,10 @@ function renderDetail() {
   };
   input.onkeydown = (e) => {
     if (paletteKey(e)) return;
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendNow();
+    if (enterAction(e, getEnter()) === 'send') {
+      e.preventDefault();
+      sendNow();
+    }
   };
   input.addEventListener('click', updatePalette);
   input.addEventListener('focus', updatePalette);
@@ -907,14 +1163,35 @@ function renderDetail() {
   });
   // Not a <form>: iOS would add its ⌃ ⌄ / contact AutoFill bar above the keyboard.
   const sendNow = async () => {
-    const text = input.value;
+    const text = input.value.replace(/\s+$/, '');
     const files = detail.files;
     if (detail.sending || (!text.trim() && !files.length)) return;
     if (files.some((f) => !f.blob)) return toast('사진을 준비하는 중입니다. 잠시 뒤에 보내 주세요.');
     const host = curHost();
     const pane = detail.pane;
+    const key = rowKey(host, pane);
+    const here = () => view.name === 'agent' && detail.pane === pane && curHost() === host;
     detail.sending = true;
     updateComposer();
+    // The answer typed after a "Type something" choice: into the open question, then Enter.
+    if (detail.answerMode && !files.length) {
+      try {
+        await api(hp(`/agents/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ text: text.replace(/\s+/g, ' ').trim(), keys: ['enter'] }) });
+        if (here()) {
+          input.value = '';
+          detail.answerMode = false;
+          setPlaceholder();
+        }
+        drafts.delete(key);
+        setTimeout(loadDetail, 500);
+      } catch (err) {
+        toastErr(`답을 보내지 못했습니다: ${errText(err)} 글은 그대로 있습니다.`, { label: '다시 보내기', run: () => here() && sendNow() });
+      } finally {
+        detail.sending = false;
+        updateComposer();
+      }
+      return;
+    }
     try {
       // Photos go to the agent's own host first; the prompt then names each file on its own line.
       for (const f of files) {
@@ -926,34 +1203,39 @@ function renderDetail() {
         }
       }
       await api(hp(`/agents/${encodeURIComponent(pane)}/prompt`, host), { method: 'POST', body: JSON.stringify({ text: promptText(text, files.map((f) => f.path)) }) });
-      if (detail.pane === pane) {
+      if (here() && detail.files === files) {
         input.value = '';
         hidePalette();
         dropFiles();
         renderTray();
-      }
+      } else for (const f of files) URL.revokeObjectURL(f.url);
+      if ((drafts.get(key) || {}).files === files) drafts.delete(key);
       setTimeout(loadDetail, 600);
     } catch (err) {
-      toast(
-        err.upload
-          ? `사진을 올리지 못했습니다: ${errText(err)}`
-          : err.code === 'agent_blocked'
-            ? '에이전트가 응답을 기다리는 중입니다. 위 버튼으로 먼저 답해 주세요.'
-            : `보내지 못했습니다: ${err.message}`
-      );
+      const retry = { label: '다시 보내기', run: () => here() && sendNow() };
+      if (err.code === 'agent_blocked') toastErr(errText(err));
+      else if (err.network) toastErr(`연결이 끊겨 ${err.upload ? '사진을 올리지' : '보내지'} 못했습니다. 글은 그대로 있습니다.`, retry);
+      else toastErr(`${err.upload ? '사진을 올리지' : '보내지'} 못했습니다: ${errText(err)} 글은 그대로 있습니다.`, retry);
     } finally {
       detail.sending = false;
       updateComposer();
     }
   };
   document.getElementById('d-send').onclick = sendNow;
-  document.getElementById('d-stop').onclick = async () => {
-    if (!(await sheet({ title: '작업 중단', text: '지금 작업을 중단할까요? (Esc 키를 보냅니다)', ok: '중단', danger: true }))) return;
-    sendKeys(['esc']);
-  };
+  document.getElementById('d-stop').onclick = confirmStop;
   document.getElementById('d-more').onclick = agentMenu;
   renderDetailHeader();
   renderDetailBody(true);
+}
+
+async function confirmStop() {
+  if (!(await sheet({ title: '작업 멈추기', text: '작업을 멈출까요? 대화는 남습니다.', ok: '멈추기', danger: true }))) return;
+  sendKeys(['esc']);
+}
+
+function setPlaceholder() {
+  const input = document.getElementById('d-input');
+  if (input) input.dataset.placeholder = detail.answerMode ? '답을 적어 보내세요' : '메시지 보내기';
 }
 
 function updateComposer() {
@@ -965,7 +1247,9 @@ function updateComposer() {
   const working = a && a.status === 'working';
   stop.hidden = !working;
   const files = detail.files || [];
-  send.disabled = !a || (!input.value.trim() && !files.length) || a.status === 'blocked' || Boolean(detail.sending);
+  // Blocked: only the answer to a "Type something" choice goes from here.
+  const blockedNow = a && a.status === 'blocked' && !detail.answerMode;
+  send.disabled = !a || (!input.value.trim() && !files.length) || blockedNow || Boolean(detail.sending);
   for (const id of ['d-attach', 'd-camera']) {
     const b = document.getElementById(id);
     if (b) b.disabled = Boolean(detail.sending) || files.length >= MAX_FILES;
@@ -1158,7 +1442,7 @@ function choosePalette(i) {
 
 // ↑↓ move, Enter/Tab insert, Esc closes until the text changes. True when the key was used.
 function paletteKey(e) {
-  if (!pal || !pal.kind || e.isComposing) return false;
+  if (!pal || !pal.kind || e.isComposing || e.keyCode === 229) return false;
   if (e.key === 'Escape') {
     e.preventDefault();
     hidePalette(document.getElementById('d-input').value);
@@ -1337,14 +1621,8 @@ function openViewer(src) {
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', '사진');
   el.innerHTML = `<img src="${esc(src)}" alt="첨부 사진"><button type="button" class="icon-btn x" aria-label="닫기">${ICON.x}</button>`;
-  const close = () => {
-    el.remove();
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => e.key === 'Escape' && close();
-  el.onclick = close;
-  document.addEventListener('keydown', onKey);
-  document.body.appendChild(el);
+  const layer = openLayer(el, { focus: '.x' });
+  el.onclick = () => closeLayer(layer);
 }
 
 function renderDetailHeader() {
@@ -1368,10 +1646,14 @@ function renderDetailHeader() {
     updateComposer();
     return;
   }
-  title.innerHTML = `${esc(a.name || a.title)}<span class="sub">${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${esc(a.agent)} · ${esc(a.workspaceLabel)} · ${esc(basename(a.cwd))}</span>`;
-  document.getElementById('d-badge').innerHTML = `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
+  title.innerHTML = `${esc(a.name || a.title)}<span class="sub">${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${esc(a.agent)} · ${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
+  document.getElementById('d-badge').innerHTML = `${liveDot()}<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
   if (a.status !== 'working') detail.workingSince = detail.activity = null;
   else if (!detail.workingSince) detail.workingSince = Date.now();
+  if (detail.answerMode && a.status !== 'blocked') {
+    detail.answerMode = false;
+    setPlaceholder();
+  }
   if (detail.wantSheet) {
     detail.wantSheet = false;
     openScreenSheet();
@@ -1381,62 +1663,89 @@ function renderDetailHeader() {
   updateComposer();
 }
 
-const RAW_KEYS = [['1', '1'], ['2', '2'], ['3', '3'], ['enter', 'Enter'], ['esc', 'Esc'], ['up', '↑'], ['down', '↓']];
+// Keys an agent takes from here: the blocked box's 직접 입력, the ⋯ 키 보내기 menu and the
+// terminal sheet's key row (which adds Ctrl+C).
+const AGENT_KEYS = [['esc', 'Esc'], ['shift+tab', '⇧Tab'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['1', '1'], ['2', '2'], ['3', '3']];
+const SHEET_KEYS = [...AGENT_KEYS, ['ctrl+c', 'Ctrl+C']];
+// An option that asks for your own words (AskUserQuestion's "Type something.").
+const TYPE_OWN = /^(type something|type your own|other\b|something else|직접 입력|기타)/i;
+const keyRow = (keys, cls = '') => `<div class="keys ${cls}">${keys.map(([k, label]) => `<button type="button" class="key" data-key="${k}" aria-label="${esc(label)} 키 보내기">${esc(label)}</button>`).join('')}</div>`;
+function bindKeyRow(row) {
+  if (row) row.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
+}
 // After a choice is sent, the buttons wait this long (or for the next status) so a double tap
 // can't answer the prompt that comes next.
 const CHOICE_LOCK_MS = 4000;
 const choiceLocked = (a) => detail.lock && Date.now() < detail.lock.until && a && a.stateSeq === detail.lock.seq;
 
+// The emphasised answer: the first plain "Yes" only. Everything else has the same weight;
+// refusals are tinted as a warning.
+const primaryChoice = (items) => items.find((x) => !x.negative && /^yes\b/i.test(x.label)) || null;
+
+// One choice button: name (bold) over its description (muted), when the menu has one.
+function choiceButton(choices, x, { locked, sentN, primary, compact = false }) {
+  const ok = choiceKeys(choices, x.n);
+  const sent = locked && sentN === x.n;
+  const kind = x.negative ? ' negative' : x === primary ? ' primary' : '';
+  return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}" data-n="${x.n}"${locked || !ok ? ' disabled' : ''}>
+    ${choices.numbered ? `<span class="num">${x.n}</span>` : ''}<span class="label"><span class="name">${esc(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? '<span class="state">보냄</span>' : ''}</button>`;
+}
+
+// Re-drawn only when what it shows changed: a poll must not swallow a tap or a selection.
 function renderBlocked() {
   const box = document.getElementById('d-blocked');
   const a = currentAgent();
   if (!box) return;
   if (!a || a.status !== 'blocked') {
-    box.innerHTML = '';
+    if (box._html !== '') box.innerHTML = box._html = '';
     return;
   }
   const text = detail.blockedText;
   const choices = text ? parseChoices(text) : null;
   const screen = text ? `<pre>${esc(text)}</pre>` : '';
-  const keys = `<div class="keys">${RAW_KEYS.map(([k, label]) => `<button class="key" data-key="${k}">${esc(label)}</button>`).join('')}</div>`;
+  const keys = keyRow(AGENT_KEYS);
+  let html;
   if (!choices) {
-    box.innerHTML = `<div class="blocked-box">
-        <strong>응답을 기다리고 있습니다</strong>
+    html = `<div class="blocked-box">
+        <strong class="b-title">답 필요</strong>
         ${text == null ? '<p class="question muted">화면을 불러오는 중…</p>' : screen}
         ${keys}
       </div>`;
   } else {
     const locked = choiceLocked(a);
-    const firstYes = choices.items.find((x) => !x.negative);
-    box.innerHTML = `<div class="blocked-box">
-        <strong>응답을 기다리고 있습니다</strong>
+    const primary = primaryChoice(choices.items);
+    html = `<div class="blocked-box">
+        <strong class="b-title">${esc(choices.question || '답 필요')}</strong>
         ${choices.context.length ? `<pre class="context">${esc(choices.context.join('\n'))}</pre>` : ''}
-        ${choices.question ? `<p class="question">${esc(choices.question)}</p>` : ''}
-        <div class="choices">${choices.items
-          .map((x) => {
-            const ok = choiceKeys(choices, x.n);
-            const sent = locked && detail.lock.n === x.n;
-            const kind = x.negative ? ' negative' : x !== firstYes ? ' alt' : '';
-            return `<button class="choice${kind}${sent ? ' sent' : ''}" data-n="${x.n}"${locked || !ok ? ' disabled' : ''}>
-              ${choices.numbered ? `<span class="num">${x.n}</span>` : ''}<span class="label">${esc(x.label)}</span>${sent ? '<span class="state">보냄</span>' : ''}</button>`;
-          })
-          .join('')}</div>
+        <div class="choices">${choices.items.map((x) => choiceButton(choices, x, { locked, sentN: locked && detail.lock.n, primary })).join('')}</div>
         <div class="toggles">
-          <button class="toggle" data-toggle="showScreen" aria-expanded="${Boolean(detail.showScreen)}">화면 보기</button>
-          <button class="toggle" data-toggle="showKeys" aria-expanded="${Boolean(detail.showKeys)}">직접 입력</button>
+          <button type="button" class="toggle" data-toggle="showScreen" aria-expanded="${Boolean(detail.showScreen)}">화면 보기</button>
+          <button type="button" class="toggle" data-toggle="showKeys" aria-expanded="${Boolean(detail.showKeys)}">직접 입력</button>
         </div>
         ${detail.showScreen ? screen : ''}
         ${detail.showKeys ? keys : ''}
       </div>`;
+  }
+  if (box._html === html) return;
+  box._html = html;
+  box.innerHTML = html;
+  if (choices) {
     box.querySelectorAll('.choice').forEach((b) => {
-      b.onclick = () => {
+      b.onclick = async () => {
         const cur = currentAgent();
-        const k = choiceKeys(choices, Number(b.dataset.n));
+        const n = Number(b.dataset.n);
+        const k = choiceKeys(choices, n);
         if (!k || choiceLocked(cur)) return;
-        detail.lock = { until: Date.now() + CHOICE_LOCK_MS, seq: cur && cur.stateSeq, n: Number(b.dataset.n) };
+        const lock = (detail.lock = { until: Date.now() + CHOICE_LOCK_MS, seq: cur && cur.stateSeq, n });
         setTimeout(renderBlocked, CHOICE_LOCK_MS + 50);
         renderBlocked();
-        sendKeys(k);
+        const item = choices.items.find((x) => x.n === n);
+        if (!(await sendKeys(k))) {
+          // Not sent: the buttons come back at once.
+          if (detail.lock === lock) detail.lock = null;
+          return renderBlocked();
+        }
+        if (item && TYPE_OWN.test(item.label)) startAnswer();
       };
     });
     box.querySelectorAll('.toggle').forEach((b) => {
@@ -1446,18 +1755,32 @@ function renderBlocked() {
       };
     });
   }
-  box.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
+  bindKeyRow(box.querySelector('.keys'));
   // The choices sit at the bottom of the prompt; show them, not the preamble.
   const pre = box.querySelector('pre:not(.context)');
   if (pre) pre.scrollTop = pre.scrollHeight;
 }
 
-async function sendKeys(keys) {
+// After a "Type something" choice the question waits for words: the composer sends them there.
+function startAnswer() {
+  detail.answerMode = true;
+  detail.answerSeq = (currentAgent() || {}).stateSeq;
+  setPlaceholder();
+  updateComposer();
+  const input = document.getElementById('d-input');
+  if (input) input.focus();
+  toast('답을 아래 입력 칸에 적어 보내세요');
+}
+
+// True when the keys went through. A failure says so in Korean and changes nothing else.
+async function sendKeys(keys, host = curHost(), pane = detail.pane) {
   try {
-    await api(hp(`/agents/${encodeURIComponent(detail.pane)}/keys`), { method: 'POST', body: JSON.stringify({ keys }) });
-    setTimeout(loadDetail, 500);
+    await api(hp(`/agents/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ keys }) });
+    if (view.name === 'agent' && detail.pane === pane) setTimeout(loadDetail, 500);
+    return true;
   } catch (err) {
-    toast(`키를 보내지 못했습니다: ${err.message}`);
+    toastErr(`키를 보내지 못했습니다: ${errText(err)}`);
+    return false;
   }
 }
 
@@ -1569,7 +1892,7 @@ function renderActivity() {
   box.disabled = screenBody(a); // the screen is already the body
   box.innerHTML = `<span class="spin" aria-hidden="true"></span><b>${esc(act ? act.word : '작업 중…')}</b><span class="el"></span>${
     tail ? `<span class="tail">${esc(tail)}</span>` : ''
-  }${box.disabled ? '' : '<span class="go" aria-hidden="true">화면 ›</span>'}`;
+  }${box.disabled ? '' : '<span class="go" aria-hidden="true">터미널 ›</span>'}`;
   box.hidden = false;
   tickActivity();
   if (!tickTimer) tickTimer = setInterval(tickActivity, 1000);
@@ -1611,17 +1934,18 @@ function openScreenSheet() {
       </div>
       <div class="screen-tools"></div>
       <div class="scroll" id="ss-body"></div>
+      ${keyRow(SHEET_KEYS, 'sheet-keys')}
     </div>`;
   el.onclick = (e) => {
     if (e.target === el) closeScreenSheet();
   };
   el.querySelector('[data-close]').onclick = closeScreenSheet;
   detail.sheet = el;
-  document.body.appendChild(el);
-  document.addEventListener('keydown', sheetKey);
+  // Closed by Escape or the backdrop too: whichever way, the screen box goes with it.
+  detail.sheetLayer = openLayer(el, { focus: '[data-close]', onClose: () => closeScreenSheet() });
   mountScreen(el.querySelector('#ss-body'), 'agent', el.querySelector('.screen-tools'), '터미널에 지금 보이는 화면의 맨 위입니다. 이전 내용은 <button type="button" class="linkish">대화</button>에서 볼 수 있습니다.');
   el.querySelector('.screen-top .linkish').onclick = closeScreenSheet;
-  el.querySelector('[data-close]').focus();
+  bindKeyRow(el.querySelector('.sheet-keys'));
   loadDetail();
 }
 
@@ -1630,13 +1954,10 @@ function closeScreenSheet() {
   if (!el) return;
   if (scr && el.contains(scr.body)) unmountScreen();
   detail.sheet = null;
-  el.remove();
-  document.removeEventListener('keydown', sheetKey);
-}
-
-function sheetKey(e) {
-  // Another sheet on top (a menu) takes Escape first.
-  if (e.key === 'Escape' && detail.sheet && document.querySelectorAll('.sheet-back').length === 1) closeScreenSheet();
+  const layer = detail.sheetLayer;
+  detail.sheetLayer = null;
+  if (layer) closeLayer(layer);
+  else el.remove();
 }
 
 function message(m) {
@@ -1653,52 +1974,113 @@ function message(m) {
     // No whitespace between tags: the bubble keeps line breaks (pre-wrap).
     return `<div class="msg user">${media}${text ? `<span>${esc(text)}</span>` : ''}</div>`;
   }
-  const tools = m.tools && m.tools.length
-    ? `<div class="tools">${m.tools.map((t) => `<div class="tool"><b>${esc(t.name)}</b> ${esc(t.summary)}</div>`).join('')}</div>`
-    : '';
+  const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map(toolLine).join('')}</div>` : '';
   return `<div class="msg assistant">${m.text ? md(m.text) : ''}${tools}</div>`;
+}
+
+// A tool line; AskUserQuestion shows what was chosen ("Pick a color? → Red").
+function toolLine(t) {
+  const asked = t.answers && t.answers.length ? t.answers.map((x) => `${esc(x.q)} → <span class="ans">${esc(x.a)}</span>`).join(' · ') : '';
+  return `<div class="tool${asked ? ' asked' : ''}"><b>${esc(t.name)}</b> ${asked || esc(t.summary)}</div>`;
 }
 
 async function agentMenu() {
   const a = currentAgent();
   if (!a) return;
+  const last = lastReply();
   const k = await menu(a.name || a.title, [
-    ...(screenBody(a) ? [] : [['screen', '터미널 화면 보기']]),
+    a.status === 'working' ? ['stop', '멈추기'] : null,
+    screenBody(a) ? null : ['screen', '터미널 화면 보기'],
+    ['keys', '키 보내기', false, 'Esc · ⇧Tab · Enter · ↑ ↓ · 1–3'],
+    last ? ['copy', '마지막 답 복사'] : null,
     ['rename', '이름 바꾸기'],
     ['ws', '워크스페이스 보기'],
     ['close', '패널 닫기(에이전트 종료)', true],
   ]);
+  if (k === 'stop') confirmStop();
   if (k === 'screen') openScreenSheet();
+  if (k === 'keys') {
+    const key = await menu('키 보내기', AGENT_KEYS.map(([key, label]) => [key, label]), { sub: a.name || a.title });
+    if (key) {
+      const host = a.host;
+      const pane = a.pane;
+      if (await sendKeys([key], host, pane)) toast(`${AGENT_KEYS.find((x) => x[0] === key)[1]} 키를 보냈습니다`);
+    }
+  }
+  if (k === 'copy') copyText(lastReply(), '마지막 답을 복사했습니다');
   if (k === 'ws') location.hash = link(a.host, `/ws/${encodeURIComponent(a.workspace)}`);
   if (k === 'rename') renamePane(a, true);
   if (k === 'close') closePane(a.host, a.pane, a.name || a.title, true);
 }
 
+// The agent's last reply in the transcript, as it wrote it (markdown).
+function lastReply() {
+  const msgs = (detail.transcript && detail.transcript.messages) || [];
+  for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === 'assistant' && msgs[i].text) return msgs[i].text;
+  return '';
+}
+
+async function copyText(text, okText) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Older Safari, or no permission: a hidden field and the copy command.
+    const t = document.createElement('textarea');
+    t.value = text;
+    t.setAttribute('readonly', '');
+    t.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(t);
+    t.select();
+    const ok = document.execCommand && document.execCommand('copy');
+    t.remove();
+    if (!ok) return toastErr('복사하지 못했습니다');
+  }
+  toast(okText);
+}
+
 // Rename and close, shared by the agent, shell and workspace menus and the list's row actions.
 // Each takes the host explicitly: from the list it is the row's, not the route's.
+// herdr's rule for agent names, checked while typing (the server checks again).
+const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
+const agentNameHint = (v) => {
+  const t = v.trim();
+  if (!t || AGENT_NAME.test(t)) return '';
+  if (/[A-Z]/.test(t)) return '대문자는 쓸 수 없습니다. 소문자로 적어 주세요.';
+  if (!/^[a-z]/.test(t)) return '영문 소문자로 시작해야 합니다.';
+  if (t.length > 32) return `32자까지입니다(지금 ${t.length}자).`;
+  return '영문 소문자·숫자·-·_ 만 쓸 수 있습니다.';
+};
+const labelHint = (v) => (v.trim().length > 60 ? `60자까지입니다(지금 ${v.trim().length}자).` : '');
+
+// A mistake keeps the sheet (and what was typed) with the error in it, like 새 폴더.
 async function renamePane(x, isAgent) {
-  if (isAgent) {
-    const name = await sheet({ title: '에이전트 이름', text: '영문 소문자·숫자·-·_ 만 됩니다. 비우면 이름을 지웁니다.', input: { value: x.name || '', placeholder: 'reviewer' }, ok: '바꾸기' });
-    if (name != null) act(hp(`/agents/${encodeURIComponent(x.pane)}/rename`, x.host), { name: name.trim() }, '이름을 바꿨습니다');
-  } else {
-    const label = await sheet({ title: '패널 이름', text: '비우면 이름을 지웁니다.', input: { value: x.label || '', placeholder: '빌드' }, ok: '바꾸기' });
-    if (label != null) act(hp(`/panes/${encodeURIComponent(x.pane)}/rename`, x.host), { label: label.trim() }, '이름을 바꿨습니다');
-  }
+  const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
+  const r = isAgent
+    ? await askLoop(
+        { title: '에이전트 이름', text: '영문 소문자로 시작하고 소문자·숫자·-·_ 만, 32자까지. 비우면 이름을 지웁니다.', input: { value: x.name || '', placeholder: 'reviewer' }, ok: '바꾸기', validate: agentNameHint },
+        (name) => post(hp(`/agents/${encodeURIComponent(x.pane)}/rename`, x.host), { name })
+      )
+    : await askLoop({ title: '셸 이름', text: '비우면 이름을 지웁니다.', input: { value: x.label || '', placeholder: '빌드' }, ok: '바꾸기', validate: labelHint }, (label) =>
+        post(hp(`/panes/${encodeURIComponent(x.pane)}/rename`, x.host), { label })
+      );
+  if (r) toast('이름을 바꿨습니다');
 }
 
 async function closePane(host, pane, label, isAgent) {
   const ok = await sheet({
-    title: '패널 닫기',
-    text: `${label} 패널을 닫을까요?${isAgent ? ' 에이전트도 함께 끝납니다.' : ''} 되돌릴 수 없습니다.`,
+    title: isAgent ? '에이전트 닫기' : '셸 닫기',
+    text: `‘${label}’ 패널을 닫을까요?${isAgent ? ' 에이전트도 함께 끝납니다.' : ''} 되돌릴 수 없습니다.`,
     ok: '닫기',
     danger: true,
   });
-  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다')) && view.name !== 'list') location.hash = '#/';
+  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다')) && view.name !== 'list') goBack('#/');
 }
 
 async function renameWorkspace(w) {
-  const label = await sheet({ title: '워크스페이스 이름', input: { value: w.label }, ok: '바꾸기' });
-  if (label != null) act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/rename`, w.host), { label }, '이름을 바꿨습니다');
+  const r = await askLoop({ title: '워크스페이스 이름', input: { value: w.label }, ok: '바꾸기', validate: (v) => (!v.trim() ? '이름을 적어 주세요.' : labelHint(v)) }, (label) =>
+    api(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/rename`, w.host), { method: 'POST', body: JSON.stringify({ label }) })
+  );
+  if (r) toast('이름을 바꿨습니다');
 }
 
 async function closeWorkspace(w) {
@@ -1707,11 +2089,17 @@ async function closeWorkspace(w) {
   const panes = w.pane_count || agents + (state.terminals || []).filter((t) => same(t, host, w.workspace_id, 'workspace')).length;
   const ok = await sheet({
     title: '워크스페이스 닫기',
-    text: `${w.label} 을(를) 닫을까요? 안의 패널 ${panes}개${agents ? `와 에이전트 ${agents}개` : ''}가 모두 끝납니다. 되돌릴 수 없습니다.`,
+    text: `‘${w.label}’ 워크스페이스를 닫을까요? 안의 패널 ${panes}개${agents ? `와 에이전트 ${agents}개` : ''}가 모두 끝납니다. 되돌릴 수 없습니다.`,
     ok: '닫기',
     danger: true,
   });
-  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다')) && view.name !== 'list') location.hash = '#/';
+  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다')) && view.name !== 'list') goBack('#/');
+}
+
+async function newTab(w) {
+  const host = w.host || localId();
+  const r = await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/tabs`, host), {}, '새 탭을 열었습니다');
+  if (r && r.pane) location.hash = link(host, `/term/${encodeURIComponent(r.pane)}`);
 }
 
 // POST a mutation; toasts on failure. Returns the response body or null.
@@ -1721,7 +2109,7 @@ async function act(path, body, okText) {
     if (okText) toast(okText);
     return r;
   } catch (err) {
-    toast(`실패: ${errText(err)}`);
+    toastErr(`하지 못했습니다: ${errText(err)}`);
     return null;
   }
 }
@@ -1736,35 +2124,92 @@ function renderTerminal() {
   $app.innerHTML = `
     <div class="detail">
       <header class="bar">
-        <a class="icon-btn" href="#/" aria-label="목록">${ICON.back}</a>
+        <a class="icon-btn" href="#/" data-back aria-label="목록">${ICON.back}</a>
         <h1 id="t-title"></h1>
+        <span id="t-live"></span>
         <button class="icon-btn" id="t-more" aria-label="더 보기">${ICON.more}</button>
       </header>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="t-body"></div>
-      <div class="keys term-keys">${TERM_KEYS.map(([k, label]) => `<button class="key" data-key="${k}">${esc(label)}</button>`).join('')}</div>
+      <div class="keys term-keys" id="t-keys"></div>
       <form class="composer" id="t-form">
+        <button type="button" class="mode" id="t-raw" aria-pressed="false" aria-label="키 직접 입력">키 직접<br>입력</button>
         <input class="cmd" id="t-input" placeholder="명령 (Enter 로 실행)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
-        <button type="submit" class="send" aria-label="실행">${ICON.send}</button>
+        <button type="submit" class="send" id="t-send" aria-label="실행">${ICON.send}</button>
       </form>
     </div>`;
   const input = document.getElementById('t-input');
-  // A key goes after whatever is in the input line, typed without Enter (Tab completes it).
-  $app.querySelectorAll('.term-keys .key').forEach((b) => {
-    b.onclick = async () => {
-      if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [b.dataset.key], text: input.value })) {
-        input.value = '';
-        setTimeout(loadTerminal, 300);
-      }
-    };
-  });
+  detail.raw = false; // command mode first, every time
+  const keysBox = document.getElementById('t-keys');
+  const drawKeys = () => {
+    const list = detail.raw ? RAW_TERM_KEYS : TERM_KEYS;
+    keysBox.innerHTML = list.map(([k, label]) => `<button type="button" class="key" data-key="${esc(k)}" aria-label="${esc(label)} 키 보내기">${esc(label)}</button>`).join('');
+    keysBox.scrollLeft = 0;
+  };
+  drawKeys();
+  // Raw mode: pressing a key button leaves the caret (and the iPhone keyboard) in the field,
+  // so the next typed key still goes to the program, not to the button.
+  keysBox.addEventListener('mousedown', (e) => detail.raw && e.preventDefault());
+  // Command mode: a key goes after whatever is in the input line, typed without Enter (Tab
+  // completes it). Raw mode: the key alone, at once.
+  keysBox.onclick = async (e) => {
+    const b = e.target.closest('.key');
+    if (!b) return;
+    const k = b.dataset.key;
+    if (detail.raw) return rawSend(k.endsWith('text') ? { text: k.slice(0, -4) } : { key: k });
+    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [k], text: input.value })) {
+      input.value = '';
+      setTimeout(loadTerminal, 300);
+    }
+  };
+  const rawBtn = document.getElementById('t-raw');
+  rawBtn.onclick = () => {
+    detail.raw = !detail.raw;
+    rawBtn.setAttribute('aria-pressed', String(detail.raw));
+    input.value = '';
+    input.placeholder = detail.raw ? '누르는 키가 바로 갑니다' : '명령 (Enter 로 실행)';
+    input.setAttribute('enterkeyhint', detail.raw ? 'enter' : 'send');
+    document.getElementById('t-send').hidden = detail.raw;
+    $app.querySelector('.detail').classList.toggle('raw', detail.raw);
+    drawKeys();
+    input.focus();
+    clearInterval(pollTimer);
+    pollTimer = setInterval(loadTerminal, detail.raw ? 1000 : 2500);
+  };
   document.getElementById('t-form').onsubmit = async (e) => {
     e.preventDefault();
+    if (detail.raw) return;
     if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: input.value })) {
       input.value = '';
       setTimeout(loadTerminal, 400);
     }
   };
+  // Raw mode: typed characters go as text, editing keys as keys; the field stays empty.
+  // A Korean (IME) syllable goes once it is composed.
+  input.addEventListener('beforeinput', (e) => {
+    if (!detail.raw || e.isComposing || e.inputType === 'insertCompositionText') return;
+    e.preventDefault();
+    const t = e.inputType;
+    if (t === 'insertText' || t === 'insertReplacementText' || t === 'insertFromPaste') {
+      const text = (e.data != null ? e.data : e.dataTransfer ? e.dataTransfer.getData('text/plain') : '') || '';
+      const clean = text.replace(/[\x00-\x1f\x7f]+/g, ' ');
+      if (clean) rawSend({ text: clean });
+    } else if (t === 'insertLineBreak' || t === 'insertParagraph') rawSend({ key: 'enter' });
+    else if (t.startsWith('deleteContentBackward') || t === 'deleteWordBackward') rawSend({ key: 'backspace' });
+    else if (t === 'deleteContentForward') rawSend({ key: 'delete' });
+  });
+  input.addEventListener('compositionend', (e) => {
+    if (!detail.raw) return;
+    if (e.data) rawSend({ text: e.data });
+    setTimeout(() => (input.value = ''), 0);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (!detail.raw || e.isComposing || e.keyCode === 229) return;
+    const k = rawKeyName(e);
+    if (!k) return;
+    e.preventDefault();
+    rawSend({ key: k });
+  });
   document.getElementById('t-more').onclick = terminalMenu;
   mountScreen(document.getElementById('t-body'), 'term', document.getElementById('s-tools'));
   renderTerminalHeader();
@@ -1780,7 +2225,49 @@ function renderTerminalHeader() {
     ? `${esc(termTitle(t))}<span class="sub">${multi() ? `${esc(hostLabel(t.host))} · ` : ''}셸 · ${esc(t.workspaceLabel)} · ${esc(t.cwd)}</span>`
     : !online(curHost())
       ? `${esc(hostLabel(curHost()))} 오프라인<span class="sub">호스트가 돌아오면 다시 보입니다</span>`
-      : '터미널 없음<span class="sub">이 패널이 닫혔습니다</span>';
+      : '셸 없음<span class="sub">이 셸이 닫혔습니다</span>';
+  const dot = document.getElementById('t-live');
+  if (dot) dot.innerHTML = liveDot();
+}
+
+// Raw-mode keys in order: text runs merge, one request at a time, the screen read soon after.
+const RAW_NAMES = { Enter: 'enter', Escape: 'esc', Tab: 'tab', Backspace: 'backspace', Delete: 'delete', ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', PageUp: 'pageup', PageDown: 'pagedown', Home: 'home', End: 'end' };
+function rawKeyName(e) {
+  if (e.metaKey) return null;
+  if (e.key === 'Tab' && e.shiftKey) return 'shift+tab';
+  if (RAW_NAMES[e.key] && !e.ctrlKey && !e.altKey) return RAW_NAMES[e.key];
+  if (e.ctrlKey && /^[a-z]$/i.test(e.key)) return `ctrl+${e.key.toLowerCase()}`;
+  if (e.altKey && /^[a-z]$/i.test(e.key)) return `alt+${e.key.toLowerCase()}`;
+  return null;
+}
+const rawQ = [];
+let rawBusy = false;
+let rawLoadTimer = null;
+function rawSend(item) {
+  const last = rawQ[rawQ.length - 1];
+  if (item.text != null && last && last.text != null && !last.keys.length && last.text.length < 2000) last.text += item.text;
+  else if (item.key && last && !last.text && last.keys.length < 8) last.keys.push(item.key);
+  else rawQ.push({ text: item.text || '', keys: item.key ? [item.key] : [] });
+  pumpRaw();
+}
+async function pumpRaw() {
+  if (rawBusy) return;
+  rawBusy = true;
+  const host = curHost();
+  const pane = detail.pane;
+  try {
+    while (rawQ.length) {
+      const it = rawQ.shift();
+      await api(hp(`/panes/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify(it) });
+      clearTimeout(rawLoadTimer);
+      rawLoadTimer = setTimeout(loadTerminal, 150);
+    }
+  } catch (err) {
+    rawQ.length = 0;
+    toastErr(`키를 보내지 못했습니다: ${errText(err)}`);
+  } finally {
+    rawBusy = false;
+  }
 }
 
 // Unwrapped lines, so the phone wraps each real line once instead of re-wrapping lines already
@@ -1805,6 +2292,7 @@ async function terminalMenu() {
     ['agent', '여기서 에이전트 시작'],
     ['down', '아래로 나누기'],
     ['right', '오른쪽으로 나누기'],
+    ['tab', '새 탭'],
     ['rename', '이름 바꾸기'],
     ['ws', '워크스페이스 보기'],
     ['close', '패널 닫기', true],
@@ -1812,8 +2300,12 @@ async function terminalMenu() {
   if (k === 'agent') location.hash = link(t.host, `/start/pane/${encodeURIComponent(t.pane)}`);
   if (k === 'ws') location.hash = link(t.host, `/ws/${encodeURIComponent(t.workspace)}`);
   if (k === 'down' || k === 'right') {
-    const r = await act(hp(`/panes/${encodeURIComponent(t.pane)}/split`), { direction: k }, '패널을 나눴습니다');
+    const r = await act(hp(`/panes/${encodeURIComponent(t.pane)}/split`), { direction: k }, '새 셸을 열었습니다');
     if (r && r.pane) location.hash = link(t.host, `/term/${encodeURIComponent(r.pane)}`);
+  }
+  if (k === 'tab') {
+    const w = wsFor(t.host || localId(), t.workspace);
+    if (w) newTab(w);
   }
   if (k === 'rename') renamePane(t, false);
   if (k === 'close') closePane(t.host, t.pane, termTitle(t), false);
@@ -1926,6 +2418,7 @@ function unmountScreen() {
   if (!scr) return;
   const { body, tools } = scr;
   body.classList.remove('screen-mode');
+  body.style.removeProperty('--term-bg');
   body.onscroll = body.ontouchstart = body.ontouchend = body.ontouchcancel = null;
   if (tools && tools.id === 's-tools') {
     tools.hidden = true;
@@ -1979,6 +2472,28 @@ function screenColors(pre) {
 function drawScreen(s, p) {
   if (p.view === 'ansi') s.pre.innerHTML = window.Ansi.toHtml(p.text, screenColors(s.pre));
   else s.pre.textContent = p.view === 'strip' ? window.Ansi.strip(p.text) : p.text;
+  paneBackground(s, p.view === 'ansi');
+}
+
+// A full-screen program (helix, vim) paints its own background on most cells. That colour then
+// fills the whole box, padding included, so no dark gutter or gaps show around its rows.
+function paneBackground(s, ansi) {
+  let best = '';
+  if (ansi) {
+    const counts = new Map();
+    let most = 0;
+    for (const sp of s.pre.querySelectorAll('span')) {
+      const bg = sp.style.backgroundColor || (/(^|\s)a[bB]\d/.test(sp.className) ? getComputedStyle(sp).backgroundColor : '');
+      if (!bg) continue;
+      const n = (counts.get(bg) || 0) + sp.textContent.length;
+      counts.set(bg, n);
+      if (n > most) (most = n), (best = bg);
+    }
+    const cells = s.pre.textContent.replace(/\n/g, '').length;
+    if (!cells || most / cells < 0.4) best = '';
+  }
+  if (best) s.body.style.setProperty('--term-bg', best);
+  else s.body.style.removeProperty('--term-bg');
 }
 
 // Put the waiting text on screen unless the reader is busy with what's there.
@@ -2031,11 +2546,14 @@ function setVar(name, value) {
 
 function fit(e) {
   const de = document.documentElement;
-  if (window.scrollY || de.scrollTop || document.body.scrollTop) window.scrollTo(0, 0);
+  const zoomed = !vv || vv.scale > 1.01;
+  // Pinch-zoomed, iOS scrolls the page to keep the focused field in view: undoing that each
+  // time made the page jump between two positions twice a second (the shell view, whose
+  // 15px field made iOS zoom in). Only an unzoomed page is put back at the top.
+  if (!zoomed && (window.scrollY || de.scrollTop || document.body.scrollTop)) window.scrollTo(0, 0);
   const sc = mainScroller();
   // Measured before the shell changes size.
   const pinned = Boolean(sc) && (scr && scr.body === sc ? scr.follow : atBottom(sc));
-  const zoomed = !vv || vv.scale > 1.01;
   // Never taller than the layout viewport (some engines report a stale height at load).
   const h = zoomed ? '' : `${Math.round(Math.min(vv.height, de.clientHeight))}px`;
   const top = zoomed || vv.offsetTop < 0.5 ? '' : `${Math.round(vv.offsetTop)}px`;
@@ -2105,10 +2623,10 @@ if (IOS) {
 // ---- viewport diagnostics: snapshots to the hub's data/viewport.log (settings switch)
 
 const DIAG_KEY = 'herdr-hub.vpdiag';
-let memDiag = true;
+let memDiag = false;
 function diagOn() {
   try {
-    return localStorage.getItem(DIAG_KEY) !== '0'; // on unless switched off
+    return localStorage.getItem(DIAG_KEY) === '1'; // off unless switched on
   } catch {
     return memDiag;
   }
@@ -2208,25 +2726,22 @@ function renderWorkspace() {
   const missing = !online(host) ? `${esc(hostLabel(host))} 오프라인` : '닫혔거나 찾을 수 없습니다';
   $app.innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="#/" aria-label="목록">${ICON.back}</a>
-      <h1>${w ? esc(w.label) : '워크스페이스 없음'}<span class="sub">${w ? `${multi() ? `${esc(hostLabel(host))} · ` : ''}${esc(w.workspace_id)} · 탭 ${w.tab_count} · 패널 ${w.pane_count}` : missing}</span></h1>
+      <a class="icon-btn" href="#/" data-back aria-label="목록">${ICON.back}</a>
+      <h1>${w ? esc(w.label) : '워크스페이스 없음'}<span class="sub">${w ? `${multi() ? `${esc(hostLabel(host))} · ` : ''}${esc(w.workspace_id)} · 탭 ${w.tab_count} · 에이전트 ${agents.length} · 셸 ${terms.length}` : missing}</span></h1>
     </header>
     <main class="list">
       ${w ? `
       <div class="row">
         <a class="btn" href="${link(host, `/start/ws/${id}`)}">에이전트 시작</a>
-        <button class="btn secondary" id="w-tab">새 탭</button>
-        <button class="btn secondary" id="w-rename">이름 바꾸기</button>
-        <button class="btn secondary danger-text" id="w-close">닫기</button>
+        <button type="button" class="btn secondary" id="w-tab">새 탭</button>
+        <button type="button" class="btn secondary" id="w-rename">이름 바꾸기</button>
       </div>
       ${agents.length ? `<section class="group"><h2>에이전트 · ${agents.length}</h2><div class="cards">${agents.map(card).join('')}</div></section>` : ''}
-      ${terms.length ? `<section class="group"><h2>터미널 · ${terms.length}</h2><div class="cards">${terms.map(termCard).join('')}</div></section>` : ''}` : ''}
+      ${terms.length ? `<section class="group"><h2>셸 · ${terms.length}</h2><div class="cards">${terms.map(termCard).join('')}</div></section>` : ''}
+      <section class="group danger-zone"><button type="button" class="btn secondary danger-text wide" id="w-close">워크스페이스 닫기</button></section>` : ''}
     </main>`;
   if (!w) return;
-  document.getElementById('w-tab').onclick = async () => {
-    const r = await act(hp(`/workspaces/${id}/tabs`, host), {}, '새 탭을 열었습니다');
-    if (r && r.pane) location.hash = link(host, `/term/${encodeURIComponent(r.pane)}`);
-  };
+  document.getElementById('w-tab').onclick = () => newTab(w);
   document.getElementById('w-rename').onclick = () => renameWorkspace(w);
   document.getElementById('w-close').onclick = () => closeWorkspace(w);
 }
@@ -2241,11 +2756,11 @@ async function renderForm() {
   const ws = view.mode === 'ws' ? (state.workspaces || []).find((x) => same(x, host, view.target, 'workspace_id')) : null;
   const term = view.mode === 'pane' ? (state.terminals || []).find((t) => same(t, host, view.target)) : null;
   const on = isNew ? '' : multi() ? ` · ${hostLabel(host)}` : '';
-  const where = isNew ? '' : ws ? `${ws.label} 워크스페이스의 새 탭${on}` : term ? `${termTitle(term)} 패널 (${term.workspaceLabel})${on}` : '찾을 수 없음';
+  const where = isNew ? '' : ws ? `${ws.label} 워크스페이스의 새 탭${on}` : term ? `${termTitle(term)} 셸 (${term.workspaceLabel})${on}` : '찾을 수 없음';
   const back = isNew ? '#/' : ws ? link(host, `/ws/${encodeURIComponent(ws.workspace_id)}`) : term ? link(host, `/term/${encodeURIComponent(term.pane)}`) : '#/';
   $app.innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="${back}" aria-label="뒤로">${ICON.back}</a>
+      <a class="icon-btn" href="${back}" data-back aria-label="뒤로">${ICON.back}</a>
       <h1>${isNew ? '새 워크스페이스' : '에이전트 시작'}${where ? `<span class="sub">${esc(where)}</span>` : ''}</h1>
     </header>
     <form class="panel" id="f-form">
@@ -2273,13 +2788,20 @@ async function renderForm() {
         <h2>인자 (선택)</h2>
         <input class="field" id="f-args" placeholder="--model haiku" autocomplete="off" autocapitalize="off" spellcheck="false">
         <h2>이름 (선택)</h2>
-        <input class="field" id="f-name" placeholder="자동 (영문 소문자)" autocomplete="off" autocapitalize="off" spellcheck="false">
-        ${isNew ? '<p>새 폴더에서 Claude 를 처음 띄우면 폴더 신뢰 질문이 나옵니다. 에이전트 화면의 응답 키로 답하세요.</p>' : ''}
+        <input class="field" id="f-name" placeholder="비우면 폴더·워크스페이스 이름" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="f-name-hint">
+        <p class="hint" id="f-name-hint" aria-live="polite"></p>
+        ${isNew ? '<p>새 폴더에서 Claude 를 처음 띄우면 폴더 신뢰 질문이 나옵니다. 에이전트 화면에 나오는 버튼으로 답하세요.</p>' : ''}
       </section>
       <div class="row end"><button type="submit" class="btn" id="f-submit" disabled>${isNew ? '만들기' : '시작'}</button></div>
     </form>`;
   const withAgent = document.getElementById('f-with');
   if (withAgent) withAgent.onchange = () => (document.getElementById('f-agent').hidden = !withAgent.checked);
+  const fname = document.getElementById('f-name');
+  fname.oninput = () => {
+    const hint = agentNameHint(fname.value);
+    document.getElementById('f-name-hint').textContent = hint;
+    fname.setAttribute('aria-invalid', String(Boolean(hint)));
+  };
   document.getElementById('f-form').onsubmit = submitForm;
   const pick = document.getElementById('f-host');
   if (pick) pick.onchange = () => fillForm(pick.value);
@@ -2355,14 +2877,8 @@ async function browseDirs(host) {
     </div>`;
   const $ = (q) => el.querySelector(q);
   let cur = null; // the last listing shown
-  const close = () => {
-    el.remove();
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => {
-    if (e.key === 'Escape' && el.isConnected && document.querySelectorAll('.sheet-back').length === 1) close();
-  };
-  document.addEventListener('keydown', onKey);
+  let layer = null;
+  const close = () => closeLayer(layer);
   el.onclick = (e) => {
     if (e.target === el) close();
   };
@@ -2380,7 +2896,7 @@ async function browseDirs(host) {
       if (p != null && ['cwd_not_found', 'cwd_not_directory'].includes(err.code) && cur == null) return open(null);
       return toast(`열지 못했습니다: ${errText(err)}`);
     }
-    if (!el.isConnected) return;
+    if (!el.isConnected || layer.closed) return;
     cur = r;
     if (!r.drives) browseAt.path = r.path;
     const crumbs = r.drives ? [] : r.crumbs;
@@ -2432,7 +2948,7 @@ async function browseDirs(host) {
     }
   };
 
-  document.body.appendChild(el);
+  layer = openLayer(el, { focus: '[data-close]' });
   open(browseAt.path || start || null);
 }
 
@@ -2473,6 +2989,10 @@ async function submitForm(e) {
   const agent = { kind: val('f-kind'), args: val('f-args').split(/\s+/).filter(Boolean), name: val('f-name') };
   const host = view.formHost || curHost();
   const btn = document.getElementById('f-submit');
+  if (agentNameHint(agent.name)) {
+    document.getElementById('f-name').focus();
+    return toastErr(agentNameHint(agent.name));
+  }
   btn.disabled = true;
   let r = null;
   let started = true;
@@ -2499,6 +3019,29 @@ async function submitForm(e) {
 // ------------------------------------------------------------ settings
 
 let pushInfo = null; // /api/push/key; { disabled: true } on a peer that leaves notifications to its hub
+// This device's push subscription: undefined until looked up, null when there is none (or the
+// hub doesn't know it), else the PushSubscription.
+let devSub;
+async function lookupSub() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return (devSub = null);
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg && (await reg.pushManager.getSubscription());
+    if (!sub) return (devSub = null);
+    const r = await api('/push/status', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) });
+    devSub = r.subscribed ? sub : null;
+  } catch {
+    devSub = null;
+  }
+  return devSub;
+}
+
+const PERM_TEXT = {
+  granted: ['허용됨', ''],
+  denied: ['거부됨', 'iPhone 설정 → 알림 → Herdr Hub 에서 허용하세요.'],
+  default: ['아직 묻지 않음', '알림 켜기를 누르면 묻습니다.'],
+  unsupported: ['지원 안 됨', '이 브라우저는 알림을 받을 수 없습니다.'],
+};
 
 function renderSettings() {
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
@@ -2511,23 +3054,44 @@ function renderSettings() {
         if (view.name === 'settings' && r.disabled) renderSettings();
       })
       .catch(() => {});
+  if (devSub === undefined && supported)
+    lookupSub().then(() => view.name === 'settings' && renderSettings());
   const perm = 'Notification' in window ? Notification.permission : 'unsupported';
+  const [permWord, permTodo] = PERM_TEXT[perm] || [perm, ''];
+  const denied = perm === 'denied';
+  const subscribed = Boolean(devSub);
+  const devLine = !supported || denied ? '' : devSub === undefined ? '이 기기 알림을 확인하는 중…' : subscribed ? '이 기기는 알림을 받습니다.' : '이 기기는 알림이 꺼져 있습니다.';
   $app.innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="#/" aria-label="목록">${ICON.back}</a>
+      <a class="icon-btn" href="#/" data-back aria-label="목록">${ICON.back}</a>
       <h1>설정</h1>
     </header>
     <main class="panel">
       <section>
         <h2>알림</h2>
-        <p>에이전트가 응답을 기다리거나 작업을 끝내면 알림을 받습니다.</p>
+        <p>에이전트가 답을 기다리거나 작업을 끝내면 알림을 받습니다.</p>
         ${!standalone ? '<p>iPhone에서는 먼저 Safari 공유 버튼 → <b>홈 화면에 추가</b>로 설치한 뒤, 설치된 앱에서 알림을 켜야 합니다.</p>' : ''}
         ${off ? '<p>이 호스트는 알림을 보내지 않습니다. 알림은 허브(desktop)에서 켜세요.</p>' : !supported ? '<p>이 브라우저는 웹 푸시를 지원하지 않습니다.</p>' : ''}
-        <p>현재 권한: <b>${esc(perm)}</b></p>
+        <p class="perm ${denied ? 'bad' : ''}">권한: <b>${esc(permWord)}</b>${permTodo ? ` — ${esc(permTodo)}` : ''}</p>
+        ${devLine ? `<p id="s-dev">${esc(devLine)}</p>` : ''}
         <div class="row">
-          <button class="btn" id="s-enable" ${supported ? '' : 'disabled'}>알림 켜기</button>
-          <button class="btn secondary" id="s-test" ${supported ? '' : 'disabled'}>시험 알림</button>
+          ${subscribed
+            ? `<button type="button" class="btn" id="s-test">이 기기로 시험 알림</button>`
+            : `<button type="button" class="btn" id="s-enable" ${supported && !denied ? '' : 'disabled'}>알림 켜기</button>`}
         </div>
+      </section>
+      <section>
+        <h2>리턴 키</h2>
+        <div class="seg" role="radiogroup" aria-label="리턴 키" id="s-enter">
+          ${[['newline', '줄바꿈'], ['send', '보내기']]
+            .map(([k, label]) => `<button type="button" class="toggle" role="radio" data-enter="${k}" aria-checked="${getEnter() === k}" aria-pressed="${getEnter() === k}">${label}</button>`)
+            .join('')}
+        </div>
+        <p>${
+          getEnter() === 'send'
+            ? '리턴 키로 바로 보냅니다. 키보드가 있으면 Shift+리턴으로 줄을 바꿉니다. iPhone 화면 키보드에는 Shift+리턴이 없어 줄바꿈은 붙여넣기로만 넣을 수 있습니다.'
+            : '리턴 키는 줄을 바꿉니다. 보내기는 ↑ 버튼이나 ⌘/Ctrl+리턴입니다.'
+        } 에이전트 입력 칸에만 해당하고, 셸 명령 줄은 늘 리턴으로 실행합니다.</p>
       </section>
       <section>
         <h2>화면 모드</h2>
@@ -2541,29 +3105,37 @@ function renderSettings() {
       <section>
         <h2>진단</h2>
         <label class="switch"><span>화면 진단 보내기</span><input type="checkbox" id="s-diag" role="switch" ${diagOn() ? 'checked' : ''}></label>
-        <p>키보드를 열고 닫거나 화면이 움직일 때 화면 크기·위치를 허브의 <code>data/viewport.log</code> 에 남깁니다(1초에 두 번까지, 바뀔 때만). 확인이 끝나면 끄세요.</p>
+        <p>키보드를 열고 닫거나 화면이 움직일 때 화면 크기·위치를 허브의 <code>data/viewport.log</code> 에 남깁니다(1초에 두 번까지, 바뀔 때만). 화면 문제를 살필 때만 켜세요.</p>
       </section>
       <section>
         <h2>호스트</h2>
         ${(hosts().length ? hosts() : [{ id: localId(), label: state.host, online: true, herdr: state.herdr, local: true }])
           .map((x) => {
             const n = state.agents.filter((a) => (a.host || localId()) === x.id).length;
-            const status = !x.online ? `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''}` : `herdr ${esc(x.herdr)} · 에이전트 ${n}개`;
+            const status = !x.online ? `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''}` : `herdr ${x.herdr === 'up' ? '연결됨' : esc(x.herdr)} · 에이전트 ${n}개`;
             return `<p><b>${esc(x.label)}</b>${x.local && multi() ? ' (허브)' : ''} · ${status}</p>`;
           })
           .join('')}
       </section>
     </main>`;
-  document.getElementById('s-theme').onclick = (e) => {
-    const b = e.target.closest('[data-theme]');
-    if (!b) return;
-    setTheme(b.dataset.theme);
-    for (const x of document.querySelectorAll('#s-theme [data-theme]')) {
-      const on = String(x.dataset.theme === b.dataset.theme);
-      x.setAttribute('aria-checked', on);
-      x.setAttribute('aria-pressed', on);
-    }
+  const radios = (id, attr, set) => {
+    document.getElementById(id).onclick = (e) => {
+      const b = e.target.closest(`[data-${attr}]`);
+      if (!b) return;
+      set(b.dataset[attr]);
+      for (const x of document.querySelectorAll(`#${id} [data-${attr}]`)) {
+        const on = String(x.dataset[attr] === b.dataset[attr]);
+        x.setAttribute('aria-checked', on);
+        x.setAttribute('aria-pressed', on);
+      }
+    };
   };
+  radios('s-theme', 'theme', setTheme);
+  radios('s-enter', 'enter', (v) => {
+    setEnter(v);
+    renderSettings();
+    document.querySelector(`#s-enter [data-enter="${v}"]`).focus();
+  });
   document.getElementById('s-diag').onchange = (e) => {
     setDiag(e.target.checked);
     if (e.target.checked) {
@@ -2575,15 +3147,27 @@ function renderSettings() {
   const enable = document.getElementById('s-enable');
   if (enable) enable.onclick = enablePush;
   const test = document.getElementById('s-test');
-  if (test)
-    test.onclick = async () => {
-      try {
-        const r = await api('/push/test', { method: 'POST' });
-        toast(r.sent ? `알림을 ${r.sent}개 기기로 보냈습니다` : '등록된 기기가 없습니다. 먼저 알림을 켜 주세요.');
-      } catch (err) {
-        toast(`실패: ${err.message}`);
-      }
-    };
+  if (test) test.onclick = testPush;
+}
+
+// Only to this device: its own endpoint goes along and the hub sends to that one alone.
+async function testPush() {
+  const sub = await lookupSub();
+  if (!sub) {
+    if (view.name === 'settings') renderSettings();
+    return toast('이 기기는 알림이 꺼져 있습니다', { action: { label: '알림 켜기', run: enablePush } });
+  }
+  try {
+    await api('/push/test', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) });
+    toast('이 기기로 시험 알림을 보냈습니다');
+  } catch (err) {
+    if (err.code === 'not_subscribed') {
+      devSub = null;
+      if (view.name === 'settings') renderSettings();
+      return toast('이 기기는 알림이 꺼져 있습니다', { action: { label: '알림 켜기', run: enablePush } });
+    }
+    toastErr(`시험 알림을 보내지 못했습니다: ${errText(err)}`);
+  }
 }
 
 function b64ToBytes(b64) {
@@ -2595,23 +3179,85 @@ function b64ToBytes(b64) {
 async function enablePush() {
   try {
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted') return toast('알림 권한이 허용되지 않았습니다.');
+    if (perm !== 'granted') {
+      if (view.name === 'settings') renderSettings();
+      return toastErr(perm === 'denied' ? '알림이 거부됐습니다. iPhone 설정 → 알림 → Herdr Hub 에서 허용하세요.' : '알림 권한을 받지 못했습니다.');
+    }
     const reg = await navigator.serviceWorker.ready;
     const { publicKey } = await api('/push/key');
     let sub = await reg.pushManager.getSubscription();
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) });
     await api('/push/subscribe', { method: 'POST', body: JSON.stringify(sub.toJSON()) });
-    toast('알림을 켰습니다.');
-    renderSettings();
+    devSub = sub;
+    toast('이 기기 알림을 켰습니다.');
+    if (view.name === 'settings') renderSettings();
   } catch (err) {
-    toast(`알림을 켜지 못했습니다: ${err.message}`);
+    toastErr(`알림을 켜지 못했습니다: ${errText(err)}`);
   }
 }
 
 // ------------------------------------------------------------ boot
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+  // A tapped notification while the app is open: just the route changes (sw.js).
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    const d = e.data || {};
+    if (d.type !== 'open' || typeof d.url !== 'string') return;
+    let u;
+    try {
+      u = new URL(d.url, location.origin);
+    } catch {
+      return;
+    }
+    if (u.origin !== location.origin) return;
+    const hash = u.hash || '#/';
+    if (hash !== location.hash) location.hash = hash;
+  });
+}
 window.addEventListener('hashchange', route);
+// Links marked data-back go back in history when that is where they lead (see goBack).
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a[data-back]');
+  if (!a || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+  e.preventDefault();
+  goBack(a.getAttribute('href'));
+});
+// Keyboard: Escape closes the top sheet or menu, else leaves a field, else goes back;
+// "/" puts the caret in the composer (or the shell's command line).
+document.addEventListener('keydown', (e) => {
+  if (e.defaultPrevented || e.isComposing) return;
+  if (e.key === 'Escape') {
+    const top = topLayer();
+    if (top) {
+      e.preventDefault();
+      return closeLayer(top);
+    }
+    if (swipe.open) return closeRow();
+    if (editable(document.activeElement)) return document.activeElement.blur();
+    const back = view.name !== 'list' && $app.querySelector('a[data-back]');
+    if (back) {
+      e.preventDefault();
+      goBack(back.getAttribute('href'));
+    }
+    return;
+  }
+  if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !topLayer() && !editable(document.activeElement)) {
+    const f = document.getElementById('d-input') || document.getElementById('t-input');
+    if (!f || f.disabled) return;
+    e.preventDefault();
+    f.focus();
+    // At the end of what is there.
+    if (f.isContentEditable) {
+      const r = document.createRange();
+      r.selectNodeContents(f);
+      r.collapse(false);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  }
+});
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && view.name === 'agent') loadDetail();
 });

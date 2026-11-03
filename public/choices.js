@@ -43,12 +43,13 @@
       const m = line.match(ITEM);
       if (m) {
         const n = Number(m[3]);
+        const item = { n, label: m[4], cursor: Boolean(m[2]), col: line.search(/[1-9][.)]/), rows: [{ text: m[4], len: line.length }] };
         if (cur && n === cur.items.length + 1 && gap <= 1) {
-          cur.items.push({ n, label: m[4], cursor: Boolean(m[2]), col: line.search(/[1-9][.)]/) });
+          cur.items.push(item);
         } else {
           close();
           if (n !== 1) return;
-          cur = { start: i, items: [{ n, label: m[4], cursor: Boolean(m[2]), col: line.search(/[1-9][.)]/) }] };
+          cur = { start: i, items: [item] };
         }
         cur.end = i;
         gap = 0;
@@ -63,6 +64,7 @@
       // A wrapped option is indented past its number; anything else ends the list.
       if (gap === 0 && indent(line) > last.col && !RULE.test(line)) {
         last.label += ` ${line.trim()}`;
+        last.rows.push({ text: line.trim(), len: line.length });
         cur.end = i;
       } else close();
     });
@@ -88,6 +90,19 @@
   }
 
   const nonEmptyAfter = (lines, end) => lines.slice(end + 1).filter((l) => l.trim() && !RULE.test(l)).length;
+
+  // An option's lines: the name, then (AskUserQuestion) its description on lines of their own.
+  // A line was wrapped when the next line's first word would not have fitted after it within
+  // the screen's width (the longest text line); otherwise it ended there and what follows is
+  // the description.
+  const wrapped = (prev, next, width) => prev.len + 1 + (next.text.match(/^\S+/) || [''])[0].length > width;
+  function splitItem(rows, width) {
+    let i = 1;
+    let name = rows[0].text;
+    while (i < rows.length && wrapped(rows[i - 1], rows[i], width)) name += ` ${rows[i++].text}`;
+    const desc = rows.slice(i).map((r) => r.text).join(' ');
+    return { name, desc };
+  }
 
   function parseChoices(text) {
     if (!text) return null;
@@ -120,9 +135,13 @@
     else if (paras.length) question = paras[(qi = paras.length - 1)].join(' ').replace(/\s+/g, ' ');
     const context = qi > 0 ? paras.slice(0, qi).flat().slice(-6) : [];
 
-    const items = list.items.map(({ n, label, cursor }) => {
-      label = label.replace(/\s+/g, ' ').trim();
-      return { n, label, cursor, negative: NEGATIVE.test(label) };
+    const width = Math.max(...lines.filter((l) => !RULE.test(l)).map((l) => l.length));
+    const items = list.items.map(({ n, label, cursor, rows }) => {
+      const { name, desc } = rows ? splitItem(rows, width) : { name: label, desc: '' };
+      label = name.replace(/\s+/g, ' ').trim();
+      const item = { n, label, cursor, negative: NEGATIVE.test(label) };
+      if (desc.trim()) item.desc = desc.replace(/\s+/g, ' ').trim();
+      return item;
     });
     const sel = items.find((x) => x.cursor);
     return { question, context, items, cursor: sel ? sel.n : null, numbered: list.numbered };

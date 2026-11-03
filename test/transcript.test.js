@@ -26,3 +26,25 @@ test('inline images are counted, never passed on, and their uploads named', () =
   assert.deepEqual({ images: m[3].images, uploads: m[3].uploads, text: m[3].text }, { images: 1, uploads: undefined, text: '' });
   assert.ok(!JSON.stringify(m).includes('iVBOR'));
 });
+
+test('tool results attach to their tool; AskUserQuestion keeps the answer', () => {
+  const lines = [
+    line({ type: 'user', message: { role: 'user', content: '색 골라' } }),
+    line({ type: 'assistant', message: { id: 'a2', content: [{ type: 'tool_use', id: 'tu1', name: 'AskUserQuestion', input: { questions: [{ question: 'Pick a color?', options: [] }] } }] } }),
+    line({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu1', content: 'User has answered your questions: "Pick a color?"="Red". You can now continue with the user\'s answers in mind.' }] } }),
+    line({ type: 'assistant', message: { id: 'a3', content: [{ type: 'tool_use', id: 'tu2', name: 'Bash', input: { command: 'ls' } }] } }),
+    line({ type: 'user', toolUseResult: { stdout: 'x' }, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu2', is_error: true, content: [{ type: 'text', text: 'x'.repeat(2500) }] }] } }),
+    line({ type: 'assistant', message: { id: 'a4', content: [{ type: 'tool_use', id: 'tu3', name: 'AskUserQuestion', input: { questions: [{ question: 'Size?' }] } }] } }),
+    line({ type: 'user', toolUseResult: { answers: { 'Size?': 'Large' } }, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu3', content: 'whatever' }] } }),
+  ].join('\n');
+  const m = parse(lines);
+  assert.equal(m.length, 4); // the prompt and three assistant turns; tool results are not messages
+  const ask = m[1].tools[0];
+  assert.equal(ask.summary, 'Pick a color?');
+  assert.deepEqual(ask.answers, [{ q: 'Pick a color?', a: 'Red' }]);
+  const bash = m[2].tools[0];
+  assert.equal(bash.result.length, 2000);
+  assert.equal(bash.cut, true);
+  assert.equal(bash.error, true);
+  assert.deepEqual(m[3].tools[0].answers, [{ q: 'Size?', a: 'Large' }]);
+});
