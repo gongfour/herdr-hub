@@ -861,7 +861,7 @@ async function loadDetail() {
       // A working agent can't give its scrollback; Claude draws on the alternate screen anyway,
       // so what is visible is the whole picture. The server falls back to it too.
       const source = a.status === 'working' || a.status === 'blocked' ? 'visible' : 'recent';
-      detail.screen = await api(hp(`/agents/${pane}/screen?source=${source}&lines=200`, host));
+      detail.screen = await api(hp(`/agents/${pane}/screen?source=${source}&lines=200${colorQuery()}`, host));
     }
     detail.lastErr = null;
     renderDetailBody(false);
@@ -890,7 +890,7 @@ function renderDetailBody(reset) {
     const s = detail.screen;
     if (s) {
       scr.note = s.source === 'visible' ? '보이는 화면' : '';
-      setScreenText(s.text);
+      setScreenText(s.text, s.format);
     }
     return;
   }
@@ -1023,13 +1023,13 @@ async function loadTerminal() {
   if (!currentTerminal() || document.visibilityState !== 'visible') return;
   const pane = detail.pane;
   try {
-    detail.screen = await api(hp(`/panes/${encodeURIComponent(pane)}/screen?source=recent_unwrapped&lines=200`));
+    detail.screen = await api(hp(`/panes/${encodeURIComponent(pane)}/screen?source=recent_unwrapped&lines=200${colorQuery()}`));
   } catch (err) {
     if (scr && scr.kind === 'term' && !['pane_not_found', 'peer_offline'].includes(err.code)) screenError(`불러오지 못했습니다: ${errText(err)}`);
     return;
   }
   if (!scr || scr.kind !== 'term' || detail.pane !== pane) return;
-  setScreenText(detail.screen.text);
+  setScreenText(detail.screen.text, detail.screen.format);
 }
 
 async function terminalMenu() {
@@ -1081,8 +1081,26 @@ function saveWrap(kind, on) {
   }
 }
 
+// Colours (herdr's ansi read) are one choice for both views, on unless switched off.
+const COLOR_KEY = 'paddock.color';
+function getColor() {
+  try {
+    return localStorage.getItem(COLOR_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+function saveColor(on) {
+  try {
+    localStorage.setItem(COLOR_KEY, on ? '1' : '0');
+  } catch {
+    /* private mode: the choice lasts until reload */
+  }
+}
+const colorQuery = () => (getColor() ? '&format=ansi' : '');
+
 const FOLLOW_SLACK = 40; // px from the bottom that still counts as "at the bottom"
-let scr = null; // { kind, body, pre, pill, tools, wrap, shown, pending, follow, touching, error, note }
+let scr = null; // { kind, body, pre, pill, tools, wrap, color, raw, shown, pending, follow, touching, error, note }
 const atBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight <= FOLLOW_SLACK;
 const selecting = () => {
   const s = window.getSelection();
@@ -1095,7 +1113,7 @@ function mountScreen(body, kind) {
   body.innerHTML = `<p class="note">불러오는 중…</p><pre class="screen" hidden></pre>
     <div class="pill-dock"><button type="button" class="new-out" hidden>↓ 새 출력</button></div>`;
   const s = (scr = {
-    kind, body, tools, wrap: getWrap(kind), shown: null, pending: null, follow: true, touching: false, error: null, note: '',
+    kind, body, tools, wrap: getWrap(kind), color: getColor(), raw: null, shown: null, pending: null, follow: true, touching: false, error: null, note: '',
     pre: body.querySelector('.screen'), pill: body.querySelector('.new-out'), loading: body.querySelector('.note'),
   });
   s.pre.classList.toggle('wrap', s.wrap);
@@ -1117,7 +1135,17 @@ function mountScreen(body, kind) {
   if (tools) {
     tools.hidden = false;
     tools.innerHTML = `<span class="s-status" id="s-status"></span>
+      <button type="button" class="toggle" id="s-color" aria-pressed="${s.color}">색상</button>
       <button type="button" class="toggle" id="s-wrap" aria-pressed="${s.wrap}">줄바꿈</button>`;
+    tools.querySelector('#s-color').onclick = (e) => {
+      s.color = !s.color;
+      saveColor(s.color);
+      e.currentTarget.setAttribute('aria-pressed', String(s.color));
+      // Redraw what's there at once (an ansi read strips to plain), then read again in the new format.
+      if (s.raw) setScreenText(s.raw.text, s.raw.format, true);
+      if (kind === 'agent') loadDetail();
+      else loadTerminal();
+    };
     tools.querySelector('#s-wrap').onclick = (e) => {
       s.wrap = !s.wrap;
       saveWrap(kind, s.wrap);
@@ -1155,14 +1183,37 @@ function screenError(msg) {
   screenStatus();
 }
 
-function setScreenText(raw) {
+// format "ansi": herdr's coloured read, drawn as spans (ansi.js); "text" or missing: plain.
+// Change detection compares the raw string, colour codes and all.
+function setScreenText(raw, format, force) {
   if (!scr) return;
-  // Trailing blanks only widen the sideways scroll.
-  const text = String(raw).replace(/[ \t]+$/gm, '').replace(/\s+$/, '');
+  const ansi = format === 'ansi' && Boolean(window.Ansi);
+  scr.raw = { text: raw, format };
+  // Trailing blanks only widen the sideways scroll (ansi.js trims the ansi read the same way).
+  const text = ansi ? String(raw).replace(/\r/g, '') : String(raw).replace(/[ \t]+$/gm, '').replace(/\s+$/, '');
+  const view = ansi ? (scr.color ? 'ansi' : 'strip') : 'text';
+  const key = `${view}\u0000${text}`;
   scr.error = null;
   screenStatus();
-  scr.pending = text === scr.shown ? null : text;
-  flushScreen();
+  scr.pending = key === scr.shown && !force ? null : { key, view, text };
+  flushScreen(force);
+}
+
+function screenColors(pre) {
+  const cs = getComputedStyle(pre);
+  const rgb = (v) => (v.match(/\d+(\.\d+)?/g) || []).slice(0, 3).map(Number);
+  const bg = rgb(cs.backgroundColor);
+  const fg = rgb(cs.color);
+  const palette = Array.from({ length: 16 }, (_, i) => {
+    const h = cs.getPropertyValue(`--ansi-${i}`).trim();
+    return /^#[0-9a-f]{6}$/i.test(h) ? [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)) : null;
+  });
+  return { fg: fg.length === 3 ? fg : undefined, bg: bg.length === 3 ? bg : undefined, palette, dark: matchMedia('(prefers-color-scheme: dark)').matches };
+}
+
+function drawScreen(s, p) {
+  if (p.view === 'ansi') s.pre.innerHTML = window.Ansi.toHtml(p.text, screenColors(s.pre));
+  else s.pre.textContent = p.view === 'strip' ? window.Ansi.strip(p.text) : p.text;
 }
 
 // Put the waiting text on screen unless the reader is busy with what's there.
@@ -1170,8 +1221,8 @@ function flushScreen(force) {
   const s = scr;
   if (!s) return;
   if (s.pending != null && (force || (s.follow && !s.touching && !selecting()))) {
-    s.pre.textContent = s.pending;
-    s.shown = s.pending;
+    drawScreen(s, s.pending);
+    s.shown = s.pending.key;
     s.pending = null;
     s.pre.hidden = false;
     s.loading.hidden = true;
@@ -1179,6 +1230,11 @@ function flushScreen(force) {
   }
   s.pill.hidden = s.pending == null || s.follow;
 }
+
+// The guarded colours depend on the theme: redraw when it flips.
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (scr && scr.raw && scr.pending == null) setScreenText(scr.raw.text, scr.raw.format, true);
+});
 
 document.addEventListener('selectionchange', () => {
   if (scr && scr.pending != null && !selecting()) flushScreen();
