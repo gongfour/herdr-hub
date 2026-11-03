@@ -46,9 +46,10 @@ const errText = (err) => ERROR_TEXT[err.code] || err.message;
 
 let state = { agents: [], terminals: [], workspaces: [], hosts: [], herdr: 'connecting' };
 let view = { name: 'list' };
-let detail = { host: null, pane: null, tab: 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [] };
+let detail = { host: null, pane: null, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [], sheet: null, activity: null, workingSince: null };
 const hostCache = new Map(); // host id -> { kinds, recentCwds, platform, home } from that host's /api/host
 let pollTimer = null;
+let tickTimer = null; // the activity line's clock, once a second while working
 let resolveReady;
 const ready = new Promise((r) => (resolveReady = r)); // the first state has arrived
 
@@ -319,6 +320,9 @@ const currentAgent = () => state.agents.find((a) => same(a, curHost(), detail.pa
 
 function route() {
   clearInterval(pollTimer);
+  clearInterval(tickTimer);
+  tickTimer = null;
+  closeScreenSheet();
   setTimeout(() => fit({ type: 'route' }), 0);
   scr = null;
   let h = location.hash.replace(/^#/, '') || '/';
@@ -328,18 +332,19 @@ function route() {
     host = decodeURIComponent(m[1]);
     h = m[2] || '/';
   }
-  if ((m = h.match(/^\/agent\/(.+)$/))) {
+  if ((m = h.match(/^\/agent\/([^/]+)(?:\/(screen|chat))?$/))) {
+    // An agent always shows its chat. …/screen (the old 화면 tab) opens the terminal sheet over it.
     const pane = decodeURIComponent(m[1]);
-    const keepTab = detail.pane === pane && detail.host === host && detail.tab;
     dropFiles();
     view = { name: 'agent', host };
-    detail = { host, pane, tab: keepTab ? detail.tab : 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [] };
+    detail = { host, pane, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [], sheet: null, wantSheet: m[2] === 'screen', activity: null, workingSince: null };
+    if (m[2]) history.replaceState(null, '', location.hash.replace(/\/(?:screen|chat)$/, ''));
     renderDetail();
     loadDetail();
     pollTimer = setInterval(() => {
       const a = currentAgent();
-      // Also retry a screen read that failed, whatever the status.
-      if (a && (a.status === 'working' || a.status === 'blocked' || (scr && scr.error))) loadDetail();
+      // Also retry a screen read that failed, whatever the status; the sheet keeps reading while open.
+      if (a && (a.status === 'working' || a.status === 'blocked' || detail.sheet || (scr && scr.error))) loadDetail();
     }, 3000);
   } else if ((m = h.match(/^\/term\/(.+)$/))) {
     view = { name: 'term', host, pane: decodeURIComponent(m[1]) };
@@ -453,10 +458,7 @@ function renderDetail() {
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기">${ICON.more}</button>
       </header>
-      <div class="seg" role="group" aria-label="보기">
-        <button data-tab="chat">대화</button>
-        <button data-tab="screen">화면</button>
-      </div>
+      <button type="button" class="activity" id="d-activity" aria-label="터미널 화면 보기" hidden></button>
       <div id="d-blocked"></div>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="d-body"></div>
@@ -471,13 +473,7 @@ function renderDetail() {
         <button type="submit" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
       </form>
     </div>`;
-  $app.querySelectorAll('.seg button').forEach((b) => {
-    b.onclick = () => {
-      detail.tab = b.dataset.tab;
-      renderDetailBody(true);
-      loadDetail();
-    };
-  });
+  document.getElementById('d-activity').onclick = openScreenSheet;
   const input = document.getElementById('d-input');
   input.oninput = () => {
     input.style.height = 'auto';
@@ -748,13 +744,20 @@ function renderDetailHeader() {
       ? `${esc(hostLabel(curHost()))} 오프라인<span class="sub">호스트가 돌아오면 다시 보입니다</span>`
       : `에이전트 없음<span class="sub">이 패널의 에이전트가 끝났거나 닫혔습니다</span>`;
     document.getElementById('d-badge').innerHTML = '';
+    renderActivity();
     updateComposer();
     return;
   }
   title.innerHTML = `${esc(a.name || a.title)}<span class="sub">${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${esc(a.agent)} · ${esc(a.workspaceLabel)} · ${esc(basename(a.cwd))}</span>`;
   document.getElementById('d-badge').innerHTML = `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
-  $app.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === detail.tab)));
+  if (a.status !== 'working') detail.workingSince = detail.activity = null;
+  else if (!detail.workingSince) detail.workingSince = Date.now();
+  if (detail.wantSheet) {
+    detail.wantSheet = false;
+    openScreenSheet();
+  }
   renderBlocked();
+  renderActivity();
   updateComposer();
 }
 
@@ -856,20 +859,28 @@ async function loadDetail() {
       else reloadAfter = true;
       renderBlocked();
     } else detail.blockedText = null;
-    if (detail.tab === 'chat') detail.transcript = await api(hp(`/agents/${pane}/transcript?limit=150`, host));
-    else {
+    const working = a.status === 'working';
+    let activityText = null;
+    if (!screenBody(a)) detail.transcript = await api(hp(`/agents/${pane}/transcript?limit=150`, host));
+    if (screenBody(a) || detail.sheet) {
       // A working agent can't give its scrollback; Claude draws on the alternate screen anyway,
       // so what is visible is the whole picture. The server falls back to it too.
-      const source = a.status === 'working' || a.status === 'blocked' ? 'visible' : 'recent';
-      detail.screen = await api(hp(`/agents/${pane}/screen?source=${source}&lines=200${colorQuery()}`, host));
+      const source = working || a.status === 'blocked' ? 'visible' : 'recent';
+      const s = (detail.screen = await api(hp(`/agents/${pane}/screen?source=${source}&lines=200${colorQuery()}`, host)));
+      if (working && s.source === 'visible') activityText = s.format === 'ansi' && window.Ansi ? window.Ansi.strip(s.text) : s.text;
     }
+    // The activity line: what the visible screen says the agent is doing, only while working.
+    if (working && activityText == null) activityText = (await api(hp(`/agents/${pane}/screen?source=visible&lines=60`, host))).text;
+    if (working && (currentAgent() || {}).status === 'working') setActivity(activityText);
     detail.lastErr = null;
     renderDetailBody(false);
+    renderScreen();
+    renderActivity();
   } catch (err) {
     if (['agent_not_found', 'peer_offline'].includes(err.code)) return;
     const msg = `불러오지 못했습니다: ${errText(err)}`;
-    // Polls repeat the same failure every few seconds: say it once, inline on the screen tab.
-    if (detail.tab === 'screen' && scr) screenError(msg);
+    // Polls repeat the same failure every few seconds: say it once, inline on the screen.
+    if (scr) screenError(msg);
     else if (msg !== detail.lastErr) toast(msg);
     detail.lastErr = msg;
   } finally {
@@ -881,29 +892,131 @@ async function loadDetail() {
   }
 }
 
+// Only Claude has a transcript; any other agent kind shows its terminal screen in the body.
+const screenBody = (a = currentAgent()) => Boolean(a && a.agent && a.agent !== 'claude');
+
 function renderDetailBody(reset) {
   const body = document.getElementById('d-body');
   if (!body) return;
-  $app.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === detail.tab)));
-  if (detail.tab === 'screen') {
-    if (!scr || scr.body !== body) mountScreen(body, 'agent');
-    const s = detail.screen;
-    if (s) {
-      scr.note = s.source === 'visible' ? '보이는 화면' : '';
-      setScreenText(s.text, s.format);
-    }
+  if (screenBody()) {
+    closeScreenSheet();
+    if (!scr || scr.body !== body)
+      mountScreen(body, 'agent', document.getElementById('s-tools'), '이 에이전트는 대화 기록이 없어 터미널 화면을 보여 줍니다. 지금 보이는 화면만 있습니다.');
+    renderScreen();
     return;
   }
-  if (scr) unmountScreen();
+  if (scr && scr.body === body) {
+    unmountScreen();
+    reset = true;
+  }
   const nearBottom = reset || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
   const t = detail.transcript;
   if (!t) body.innerHTML = '<p class="note">불러오는 중…</p>';
-  else if (!t.supported)
-    body.innerHTML = `<p class="note">${!currentAgent()?.agent ? '에이전트를 시작하는 중…' : currentAgent().agent === 'claude' ? '아직 대화 기록이 없습니다.' : '이 에이전트는 대화 기록을 지원하지 않습니다. 화면 탭을 보세요.'}</p>`;
+  else if (!t.supported) body.innerHTML = `<p class="note">${currentAgent()?.agent ? '아직 대화 기록이 없습니다.' : '에이전트를 시작하는 중…'}</p>`;
   else if (!t.found) body.innerHTML = '<p class="note">아직 대화 기록이 없습니다.</p>';
   else
     body.innerHTML = `${t.truncated ? '<p class="note">최근 대화만 표시합니다</p>' : ''}<div class="msgs">${t.messages.map(message).join('')}</div>`;
   if (nearBottom) body.scrollTop = body.scrollHeight;
+}
+
+// The latest screen read, into whichever screen box is mounted (the body or the sheet).
+function renderScreen() {
+  const s = detail.screen;
+  if (!scr || scr.kind !== 'agent' || !s) return;
+  scr.note = s.source === 'visible' ? '보이는 화면' : '';
+  setScreenText(s.text, s.format);
+}
+
+// ---- live activity line: under the header while the agent works; a tap opens the screen
+
+function setActivity(text) {
+  const p = text != null && window.Activity ? window.Activity.parseActivity(text) : null;
+  detail.activity = p ? { ...p, at: Date.now() } : null;
+}
+
+function renderActivity() {
+  const box = document.getElementById('d-activity');
+  if (!box) return;
+  const a = currentAgent();
+  if (!a || a.status !== 'working') {
+    box.hidden = true;
+    clearInterval(tickTimer);
+    tickTimer = null;
+    return;
+  }
+  const act = detail.activity;
+  const tail = (act && act.tool) || transcriptTool() || (act && (act.detail || act.tokens));
+  box.disabled = screenBody(a); // the screen is already the body
+  box.innerHTML = `<span class="spin" aria-hidden="true"></span><b>${esc(act ? act.word : '작업 중…')}</b><span class="el"></span>${
+    tail ? `<span class="tail">${esc(tail)}</span>` : ''
+  }${box.disabled ? '' : '<span class="go" aria-hidden="true">화면 ›</span>'}`;
+  box.hidden = false;
+  tickActivity();
+  if (!tickTimer) tickTimer = setInterval(tickActivity, 1000);
+}
+
+// The last tool of this turn from the transcript, for screens that don't show the tool block
+// (Claude on Windows often has only the spinner in view): the tools of the replies after the
+// last prompt.
+function transcriptTool() {
+  const msgs = (detail.transcript && detail.transcript.messages) || [];
+  for (let i = msgs.length - 1; i >= 0 && !['user', 'note'].includes(msgs[i].role); i--) {
+    const t = msgs[i].tools && msgs[i].tools[msgs[i].tools.length - 1];
+    if (t) return `${t.name}: ${t.summary}`;
+  }
+  return null;
+}
+
+// Elapsed time runs on between reads: from the spinner's own count, else since the status
+// turned to working (as seen here).
+function tickActivity() {
+  const el = document.querySelector('#d-activity .el');
+  if (!el) return;
+  const act = detail.activity;
+  const since = act && act.seconds != null ? act.at - act.seconds * 1000 : detail.workingSince;
+  el.textContent = since && window.Activity ? window.Activity.formatElapsed((Date.now() - since) / 1000) : '';
+}
+
+// ---- the terminal screen as a tall sheet over the chat
+
+function openScreenSheet() {
+  const a = currentAgent();
+  if (!a || screenBody(a) || detail.sheet || !document.getElementById('d-body')) return;
+  const el = document.createElement('div');
+  el.className = 'sheet-back';
+  el.innerHTML = `<div class="sheet term-sheet" role="dialog" aria-modal="true" aria-label="터미널 화면">
+      <div class="term-sheet-head">
+        <h2>터미널 화면<span class="sub">${esc(a.name || a.title)}</span></h2>
+        <button type="button" class="icon-btn" data-close aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="screen-tools"></div>
+      <div class="scroll" id="ss-body"></div>
+    </div>`;
+  el.onclick = (e) => {
+    if (e.target === el) closeScreenSheet();
+  };
+  el.querySelector('[data-close]').onclick = closeScreenSheet;
+  detail.sheet = el;
+  document.body.appendChild(el);
+  document.addEventListener('keydown', sheetKey);
+  mountScreen(el.querySelector('#ss-body'), 'agent', el.querySelector('.screen-tools'), '터미널에 지금 보이는 화면의 맨 위입니다. 이전 내용은 <button type="button" class="linkish">대화</button>에서 볼 수 있습니다.');
+  el.querySelector('.screen-top .linkish').onclick = closeScreenSheet;
+  el.querySelector('[data-close]').focus();
+  loadDetail();
+}
+
+function closeScreenSheet() {
+  const el = detail.sheet;
+  if (!el) return;
+  if (scr && el.contains(scr.body)) unmountScreen();
+  detail.sheet = null;
+  el.remove();
+  document.removeEventListener('keydown', sheetKey);
+}
+
+function sheetKey(e) {
+  // Another sheet on top (a menu) takes Escape first.
+  if (e.key === 'Escape' && detail.sheet && document.querySelectorAll('.sheet-back').length === 1) closeScreenSheet();
 }
 
 function message(m) {
@@ -929,7 +1042,13 @@ function message(m) {
 async function agentMenu() {
   const a = currentAgent();
   if (!a) return;
-  const k = await menu(a.name || a.title, [['rename', '이름 바꾸기'], ['ws', '워크스페이스 보기'], ['close', '패널 닫기(에이전트 종료)', true]]);
+  const k = await menu(a.name || a.title, [
+    ...(screenBody(a) ? [] : [['screen', '터미널 화면 보기']]),
+    ['rename', '이름 바꾸기'],
+    ['ws', '워크스페이스 보기'],
+    ['close', '패널 닫기(에이전트 종료)', true],
+  ]);
+  if (k === 'screen') openScreenSheet();
   if (k === 'ws') location.hash = link(a.host, `/ws/${encodeURIComponent(a.workspace)}`);
   if (k === 'rename') {
     const name = await sheet({ title: '에이전트 이름', text: '영문 소문자·숫자·-·_ 만 됩니다. 비우면 이름을 지웁니다.', input: { value: a.name || '', placeholder: 'reviewer' }, ok: '바꾸기' });
@@ -1000,7 +1119,7 @@ function renderTerminal() {
     }
   };
   document.getElementById('t-more').onclick = terminalMenu;
-  mountScreen(document.getElementById('t-body'), 'term');
+  mountScreen(document.getElementById('t-body'), 'term', document.getElementById('s-tools'));
   renderTerminalHeader();
 }
 
@@ -1058,7 +1177,7 @@ async function terminalMenu() {
 
 // ------------------------------------------------------------ screen box
 
-// The pane text in the agent 화면 tab and the terminal view. Polls arrive every few seconds;
+// The pane text in the agent screen sheet (or body) and the terminal view. Polls arrive every few seconds;
 // the box changes only when the text did, follows new output while you're at the bottom, and
 // holds still while you've scrolled up to read, selected text, or have a finger on it.
 // Wrapping is a per-view choice: off for agents (TUI layouts keep their shape and scroll
@@ -1107,11 +1226,11 @@ const selecting = () => {
   return Boolean(scr && s && !s.isCollapsed && s.rangeCount && scr.pre.contains(s.getRangeAt(0).commonAncestorContainer));
 };
 
-function mountScreen(body, kind) {
-  const tools = document.getElementById('s-tools');
+// tools: the bar for the status and the colour/wrap toggles. topHtml: a note above the text
+// (agent TUIs draw on the alternate screen, so herdr has nothing above what is on screen now).
+function mountScreen(body, kind, tools, topHtml = '') {
   body.classList.add('screen-mode');
-  // Agent TUIs draw on the alternate screen, so herdr has nothing above what is on screen now.
-  const top = kind === 'agent' ? '<div class="screen-top">터미널에 지금 보이는 화면의 맨 위입니다. 이전 내용은 <button type="button" class="linkish">대화 탭</button>에서 볼 수 있습니다.</div>' : '';
+  const top = topHtml ? `<div class="screen-top">${topHtml}</div>` : '';
   body.innerHTML = `<p class="note">불러오는 중…</p>${top}<pre class="screen" hidden></pre>
     <div class="pill-dock"><button type="button" class="new-out" hidden>↓ 새 출력</button></div>`;
   const s = (scr = {
@@ -1119,8 +1238,6 @@ function mountScreen(body, kind) {
     pre: body.querySelector('.screen'), pill: body.querySelector('.new-out'), loading: body.querySelector('.note'),
   });
   s.pre.classList.toggle('wrap', s.wrap);
-  const toChat = body.querySelector('.screen-top .linkish');
-  if (toChat) toChat.onclick = () => document.querySelector('[data-tab="chat"]')?.click();
   body.onscroll = () => {
     if (scr !== s) return;
     s.follow = atBottom(body);
@@ -1138,10 +1255,10 @@ function mountScreen(body, kind) {
   };
   if (tools) {
     tools.hidden = false;
-    tools.innerHTML = `<span class="s-status" id="s-status"></span>
-      <button type="button" class="toggle" id="s-color" aria-pressed="${s.color}">색상</button>
-      <button type="button" class="toggle" id="s-wrap" aria-pressed="${s.wrap}">줄바꿈</button>`;
-    tools.querySelector('#s-color').onclick = (e) => {
+    tools.innerHTML = `<span class="s-status"></span>
+      <button type="button" class="toggle" data-s="color" aria-pressed="${s.color}">색상</button>
+      <button type="button" class="toggle" data-s="wrap" aria-pressed="${s.wrap}">줄바꿈</button>`;
+    tools.querySelector('[data-s="color"]').onclick = (e) => {
       s.color = !s.color;
       saveColor(s.color);
       e.currentTarget.setAttribute('aria-pressed', String(s.color));
@@ -1150,7 +1267,7 @@ function mountScreen(body, kind) {
       if (kind === 'agent') loadDetail();
       else loadTerminal();
     };
-    tools.querySelector('#s-wrap').onclick = (e) => {
+    tools.querySelector('[data-s="wrap"]').onclick = (e) => {
       s.wrap = !s.wrap;
       saveWrap(kind, s.wrap);
       e.currentTarget.setAttribute('aria-pressed', String(s.wrap));
@@ -1166,7 +1283,7 @@ function unmountScreen() {
   const { body, tools } = scr;
   body.classList.remove('screen-mode');
   body.onscroll = body.ontouchstart = body.ontouchend = body.ontouchcancel = null;
-  if (tools) {
+  if (tools && tools.id === 's-tools') {
     tools.hidden = true;
     tools.innerHTML = '';
   }
@@ -1174,7 +1291,7 @@ function unmountScreen() {
 }
 
 function screenStatus() {
-  const el = scr && document.getElementById('s-status');
+  const el = scr && scr.tools && scr.tools.querySelector('.s-status');
   if (!el) return;
   el.textContent = scr.error || scr.note || '';
   el.classList.toggle('err', Boolean(scr.error));
@@ -1252,7 +1369,7 @@ document.addEventListener('selectionchange', () => {
 // visual viewport (--app-top/--app-h), any page scroll is undone, and a chat or screen that
 // was following the bottom stays there. Pinch-zoomed, the layout is left alone.
 const vv = window.visualViewport || null;
-const mainScroller = () => document.querySelector('#d-body, #t-body, #app > main, #app > form.panel');
+const mainScroller = () => document.getElementById('ss-body') || document.querySelector('#d-body, #t-body, #app > main, #app > form.panel');
 const editable = (el) =>
   Boolean(el) && (el.tagName === 'TEXTAREA' || el.isContentEditable || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file', 'range', 'color'].includes(el.type)));
 
