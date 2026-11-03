@@ -130,6 +130,55 @@ button { font: inherit; color: inherit; }
 .badge.idle, .badge.unknown { color: var(--idle); background: var(--idle-bg); }
 .empty { color: var(--muted); text-align: center; padding: 48px 16px; }
 
+/* ---- list: one card per workspace, panes inside; blocked agents also in a strip on top */
+.list.home { gap: 12px; }
+/* flex: none — the list is a fixed-height flex column, and a card with overflow: hidden has no
+   minimum height, so it would be squeezed (rows cut in half) once the list overflows. */
+.attn, .ws, .list.home > * { flex: none; }
+.attn { border-radius: var(--radius); background: var(--blocked-bg); padding: 2px 0; }
+.attn h2 { font-size: 13px; font-weight: 700; color: var(--blocked); margin: 10px 14px 2px; }
+.attn-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 14px; color: inherit; text-decoration: none; }
+.attn-row + .attn-row { border-top: 1px solid color-mix(in srgb, var(--blocked) 16%, transparent); }
+.attn-row:active { background: color-mix(in srgb, var(--blocked) 10%, transparent); }
+.attn-row .pane-ic { background: var(--surface); color: var(--blocked); }
+.ws { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.ws-front { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 9px 8px 9px 14px; }
+.ws-main { flex: 1; min-width: 0; }
+.ws-label { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-cwd { font: 12px/1.4 var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.ws .ws-more { margin: -6px 0; color: var(--muted); }
+.ws-panes { border-top: 1px solid var(--line); }
+.ws-panes > .sw + .sw { border-top: 1px solid var(--line); }
+.ws-empty { margin: 0; padding: 12px 14px 12px 28px; font-size: 13px; color: var(--muted); }
+.pane-row { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 8px 12px 8px 22px; color: inherit; text-decoration: none; }
+.pane-row:active { background: var(--surface-2); }
+/* A shell is quieter than an agent: tinted row, monospace title, no badge colour. */
+.pane-row.term { background: color-mix(in srgb, var(--surface-2) 40%, var(--surface)); }
+.pane-row.term:active { background: var(--surface-2); }
+.pane-ic { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; }
+.pane-ic svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pane-row.agent .pane-ic { background: var(--done-bg); color: var(--accent); }
+.pane-row.term .pane-ic { background: var(--surface-2); color: var(--muted); font: 700 11px/1 var(--mono); letter-spacing: -0.04em; }
+.pane-main { flex: 1; min-width: 0; }
+.pane-title { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-row.term .pane-title { font: 14px var(--mono); }
+.pane-meta { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-kind { flex: none; font-size: 12px; color: var(--muted); }
+.pane-row .el { flex: none; font-size: 12px; color: var(--working); font-variant-numeric: tabular-nums; }
+
+/* Swipe a row left: the front slides over 이름 / 닫기 underneath. No callout or text selection
+   on rows, so a long press can open the action menu instead. */
+.sw, .attn-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.sw { position: relative; overflow: hidden; touch-action: pan-y; }
+.sw-front { position: relative; z-index: 1; background: var(--surface); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.sw.drag > .sw-front { transition: none; }
+.sw-acts { position: absolute; top: 0; right: 0; bottom: 0; display: flex; visibility: hidden; }
+.sw.live > .sw-acts { visibility: visible; }
+.sw-act { width: 76px; border: 0; padding: 0; font-size: 15px; font-weight: 600; cursor: pointer; background: var(--idle); color: var(--bg); }
+.sw-act.danger { background: var(--blocked); }
+.sw-act:active { filter: brightness(0.92); }
+@media (prefers-reduced-motion: reduce) { .sw-front { transition: none; } }
+
 /* ---- detail */
 /* What a working agent is doing, read off its screen; a tap opens the terminal sheet. */
 .activity {

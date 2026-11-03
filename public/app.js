@@ -2,21 +2,16 @@
 
 const $app = document.getElementById('app');
 const STATUS_LABEL = { blocked: '응답 필요', done: '완료', working: '작업 중', idle: '대기', unknown: '알 수 없음' };
-const GROUPS = [
-  ['blocked', '응답이 필요한 에이전트'],
-  ['done', '방금 끝난 에이전트'],
-  ['working', '작업 중'],
-  ['idle', '대기 중'],
-  ['unknown', '상태를 알 수 없음'],
-];
 const ICON = {
   back: '<svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>',
-  gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  // Lucide "settings": six teeth, calmer than Feather's eight at 22px.
+  gear: '<svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
   send: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
   stop: '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   photo: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 15.5l-4.6-4.6a1.2 1.2 0 0 0-1.7 0L6 19.2"/></svg>',
   camera: '<svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.3-1.8a1.5 1.5 0 0 1 1.2-.7h2.8a1.5 1.5 0 0 1 1.2.7L15.9 6h1.6A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg>',
+  agent: '<svg viewBox="0 0 24 24"><rect x="4.5" y="8" width="15" height="11" rx="3"/><path d="M12 4.5V8M9.5 13v1M14.5 13v1"/></svg>',
   more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
 };
 const TERM_KEYS = [['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['tab', 'Tab'], ['esc', 'Esc']];
@@ -286,6 +281,7 @@ function connect() {
   es.addEventListener('state', (e) => {
     retryDelay = 1000;
     state = JSON.parse(e.data);
+    trackWorking();
     resolveReady();
     onState();
   });
@@ -333,6 +329,7 @@ function route() {
   clearInterval(tickTimer);
   tickTimer = null;
   closeScreenSheet();
+  swipe.open = swipe.g = null;
   setTimeout(() => fit({ type: 'route' }), 0);
   scr = null;
   let h = location.hash.replace(/^#/, '') || '/';
@@ -379,17 +376,73 @@ function route() {
 
 // ------------------------------------------------------------ list view
 
+// The herdr hierarchy: host → workspace → pane, one card per workspace, with blocked agents
+// from every workspace also in a strip on top. State updates patch the list in place (one
+// element per card, replaced only when its HTML changed), so the scroll position and an open
+// row survive them; a card that does change closes the row open in it.
+
+const rowKey = (host, id) => `${host || localId()}|${id}`;
+// herdr pane ids count up in base 36 (p9, pA, … pZ, p10): shorter first, then by character.
+const paneOrder = (x, y) => x.pane.length - y.pane.length || (x.pane < y.pane ? -1 : x.pane > y.pane ? 1 : 0);
+const wsRank = (agents) => (agents.some((a) => a.status === 'blocked') ? 0 : agents.some((a) => a.status === 'working') ? 1 : 2);
+
+// When each agent was seen to start working. herdr doesn't say, so an agent already working
+// when this page loaded has no start time (and shows none).
+const working = new Map(); // host|pane -> { status, since }
+let seenState = false;
+function trackWorking() {
+  const now = Date.now();
+  const live = new Set();
+  for (const a of state.agents) {
+    const k = rowKey(a.host, a.pane);
+    const prev = working.get(k);
+    live.add(k);
+    const since = a.status !== 'working' ? null : prev ? (prev.status === 'working' ? prev.since : now) : seenState ? now : null;
+    working.set(k, { status: a.status, since });
+  }
+  for (const k of working.keys()) if (!live.has(k)) working.delete(k);
+  seenState = true;
+}
+
+// A workspace by id; one herdr hasn't listed yet is made up from a pane that is in it.
+function wsFor(host, id) {
+  const w = (state.workspaces || []).find((x) => same(x, host, id, 'workspace_id'));
+  if (w) return w;
+  const p = [...state.agents, ...(state.terminals || [])].find((x) => same(x, host, id, 'workspace'));
+  return p ? { workspace_id: id, label: p.workspaceLabel, host: p.host, hostLabel: p.hostLabel, pane_count: 0, tab_count: 0 } : null;
+}
+
+// Workspaces with blocked agents first, then working ones, then the rest, each group in herdr's
+// order; inside a card agents before shells, each in pane order.
+function listModel() {
+  const agents = state.agents.filter(shown);
+  const spaces = new Map();
+  for (const w of (state.workspaces || []).filter(shown)) spaces.set(rowKey(w.host, w.workspace_id), { w, agents: [], terms: [] });
+  const into = (x) => {
+    const k = rowKey(x.host, x.workspace);
+    if (!spaces.has(k)) spaces.set(k, { w: wsFor(x.host, x.workspace), agents: [], terms: [] });
+    return spaces.get(k);
+  };
+  for (const a of agents) into(a).agents.push(a);
+  for (const t of (state.terminals || []).filter(shown)) into(t).terms.push(t);
+  const list = [...spaces.values()].map((s, i) => ({ ...s, i, rank: wsRank(s.agents) }));
+  list.sort((x, y) => x.rank - y.rank || x.i - y.i);
+  for (const s of list) {
+    s.agents.sort(paneOrder);
+    s.terms.sort(paneOrder);
+  }
+  return { blocked: agents.filter((a) => a.status === 'blocked'), list };
+}
+
 function render() {
+  if (swipe.g && Date.now() - swipe.g.t0 < 10000) return void (swipe.pending = true); // after the finger lifts
   const down = state.herdr !== 'up';
   const f = filter();
-  const agents = state.agents.filter(shown);
-  const groups = GROUPS.map(([status, title]) => [title, agents.filter((a) => a.status === status)]).filter(([, list]) => list.length);
-  const terms = (state.terminals || []).filter(shown);
-  const spaces = (state.workspaces || []).filter(shown);
+  const { blocked, list } = listModel();
   // Peers in view that are offline or whose herdr is down.
   const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
-  const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '실행 중인 에이전트가 없습니다.';
-  $app.innerHTML = `
+  const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '열린 워크스페이스가 없습니다.';
+  const top = `
     <header class="bar">
       <h1>Herdr Hub<span class="sub">${esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f))}</span></h1>
       <span class="conn ${down ? 'down' : ''}"><span class="dot"></span>${down ? (state.herdr === 'down' ? 'herdr 연결 끊김' : state.herdr === 'offline' ? '연결 끊김' : '연결 중') : '실시간'}</span>
@@ -400,33 +453,123 @@ function render() {
     <nav class="seg hosts" role="group" aria-label="호스트">
       <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
       ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"><span class="hdot"></span>${esc(x.label)}</button>`).join('')}
-    </nav>` : ''}
-    <main class="list">
-      ${trouble.map((x) => `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`).join('')}
-      ${groups.length ? groups.map(([title, list]) => `
-        <section class="group">
-          <h2>${esc(title)} · ${list.length}</h2>
-          <div class="cards">${list.map(card).join('')}</div>
-        </section>`).join('') : empty ? `<p class="empty">${empty}</p>` : ''}
-      ${terms.length ? `
-        <section class="group">
-          <h2>터미널 · ${terms.length}</h2>
-          <div class="cards">${terms.map(termCard).join('')}</div>
-        </section>` : ''}
-      ${spaces.length ? `
-        <section class="group">
-          <h2>워크스페이스 · ${spaces.length}</h2>
-          <div class="cards">${spaces.map(wsCard).join('')}</div>
-        </section>` : ''}
-    </main>`;
+    </nav>` : ''}`;
+  const parts = [
+    ...trouble.map((x) => [`off|${x.id}`, `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`]),
+    ...(blocked.length ? [['attn', attnStrip(blocked)]] : []),
+    ...list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s)]),
+    ...(!list.length && empty ? [['empty', `<p class="empty">${empty}</p>`]] : []),
+  ];
+  let main = $app.querySelector(':scope > main.home');
+  if (!main) {
+    $app.innerHTML = `${top}<main class="list home"></main>`;
+    main = $app.querySelector(':scope > main.home');
+    bindList(main);
+  } else if (main._top !== top) {
+    $app.querySelectorAll(':scope > header, :scope > nav').forEach((el) => el.remove());
+    main.insertAdjacentHTML('beforebegin', top);
+  }
+  main._top = top;
+  patchList(main, parts);
   $app.querySelectorAll('.hosts button').forEach((b) => {
     b.onclick = () => {
       setFilter(b.dataset.host);
       render();
     };
   });
+  tickList();
 }
 
+// Reuse each keyed child whose HTML is unchanged, build the rest, and put them in order.
+function patchList(box, parts) {
+  const old = new Map([...box.children].map((el) => [el.dataset.key, el]));
+  const next = parts.map(([key, html]) => {
+    const el = old.get(key);
+    if (el && el._html === html) {
+      old.delete(key);
+      return el;
+    }
+    const t = document.createElement('template');
+    t.innerHTML = html.trim();
+    const fresh = t.content.firstElementChild;
+    fresh.dataset.key = key;
+    fresh._html = html;
+    return fresh;
+  });
+  for (const el of old.values()) el.remove();
+  next.forEach((el, i) => {
+    if (box.children[i] !== el) box.insertBefore(el, box.children[i] || null);
+  });
+  if (swipe.open && !swipe.open.isConnected) swipe.open = null;
+}
+
+// Elapsed time of working agents, filled in here so the cards' HTML stays the same each second.
+let listTimer = null;
+function tickList() {
+  const els = view.name === 'list' ? $app.querySelectorAll('main.home .el[data-since]') : [];
+  for (const el of els) el.textContent = window.Activity ? window.Activity.formatElapsed((Date.now() - Number(el.dataset.since)) / 1000) : '';
+  if (els.length && !listTimer) listTimer = setInterval(tickList, 1000);
+  if (!els.length && listTimer) {
+    clearInterval(listTimer);
+    listTimer = null;
+  }
+}
+
+const rowData = (kind, host, id) => `data-kind="${kind}" data-host="${esc(host || '')}" data-id="${esc(id)}"`;
+const SWIPE_ACTS = `<div class="sw-acts" aria-hidden="true"><button type="button" class="sw-act" data-act="rename" tabindex="-1">이름</button><button type="button" class="sw-act danger" data-act="close" tabindex="-1">닫기</button></div>`;
+const agentTitle = (a) => (a.name ? `${a.name} · ${a.title}` : a.title);
+
+function attnStrip(list) {
+  return `<section class="attn" aria-label="답해야 할 것">
+    <h2>답해야 할 것 (${list.length})</h2>
+    ${list.map((a) => `<a class="attn-row" ${rowData('agent', a.host, a.pane)} href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
+      <span class="pane-ic" aria-hidden="true">${ICON.agent}</span>
+      <span class="pane-main"><span class="pane-title">${esc(a.name || a.title)}</span><span class="pane-meta">${esc(a.workspaceLabel)}${multi() && filter() === 'all' ? ` · ${esc(a.hostLabel || hostLabel(a.host))}` : ''}</span></span>
+      <span class="badge blocked">${STATUS_LABEL.blocked}</span>
+    </a>`).join('')}
+  </section>`;
+}
+
+function wsSection({ w, agents, terms }) {
+  const first = [...agents, ...terms].sort(paneOrder)[0];
+  const rows = [...agents.map(agentRow), ...terms.map(termRow)].join('');
+  return `<section class="ws">
+    <div class="sw ws-head" ${rowData('ws', w.host, w.workspace_id)}>${SWIPE_ACTS}
+      <div class="sw-front ws-front">
+        <div class="ws-main">
+          <div class="ws-label">${filter() === 'all' ? hostChip(w) : ''}${esc(w.label)}</div>
+          ${first && first.cwd ? `<div class="ws-cwd">${esc(first.cwd)}</div>` : ''}
+        </div>
+        <a class="icon-btn ws-more" href="${link(w.host, `/ws/${encodeURIComponent(w.workspace_id)}`)}" aria-label="${esc(w.label)} 워크스페이스">${ICON.more}</a>
+      </div>
+    </div>
+    <div class="ws-panes">${rows || '<p class="ws-empty">패널 없음</p>'}</div>
+  </section>`;
+}
+
+function agentRow(a) {
+  const since = a.status === 'working' && (working.get(rowKey(a.host, a.pane)) || {}).since;
+  return `<div class="sw" ${rowData('agent', a.host, a.pane)}>${SWIPE_ACTS}
+    <a class="sw-front pane-row agent" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
+      <span class="pane-ic" aria-hidden="true">${ICON.agent}</span>
+      <span class="pane-main"><span class="pane-title">${esc(agentTitle(a))}</span></span>
+      ${since ? `<span class="el" data-since="${since}"></span>` : ''}
+      <span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>
+    </a>
+  </div>`;
+}
+
+function termRow(t) {
+  return `<div class="sw" ${rowData('term', t.host, t.pane)}>${SWIPE_ACTS}
+    <a class="sw-front pane-row term" href="${link(t.host, `/term/${encodeURIComponent(t.pane)}`)}">
+      <span class="pane-ic" aria-hidden="true">&gt;_</span>
+      <span class="pane-main"><span class="pane-title">${esc(termTitle(t))}</span></span>
+      <span class="pane-kind">셸</span>
+    </a>
+  </div>`;
+}
+
+// Cards for the workspace view (agents and shells of one workspace).
 function termCard(t) {
   return `<a class="card" href="${link(t.host, `/term/${encodeURIComponent(t.pane)}`)}">
     <div class="main">
@@ -437,24 +580,208 @@ function termCard(t) {
   </a>`;
 }
 
-function wsCard(w) {
-  const agents = state.agents.filter((a) => same(a, w.host, w.workspace_id, 'workspace')).length;
-  return `<a class="card" href="${link(w.host, `/ws/${encodeURIComponent(w.workspace_id)}`)}">
-    <div class="main">
-      <div class="title">${esc(w.label)}</div>
-      <div class="meta">${hostChip(w)}탭 ${w.tab_count} · 패널 ${w.pane_count} · 에이전트 ${agents}</div>
-    </div>
-  </a>`;
-}
-
 function card(a) {
   return `<a class="card" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
     <div class="main">
-      <div class="title">${esc(a.name ? `${a.name} · ${a.title}` : a.title)}</div>
+      <div class="title">${esc(agentTitle(a))}</div>
       <div class="meta">${hostChip(a)}${esc(a.agent)} · ${esc(a.workspaceLabel)} · ${esc(basename(a.cwd))}</div>
     </div>
     <span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>
   </a>`;
+}
+
+// ---- row actions: swipe a row left for 이름 / 닫기, or long-press it for a menu
+
+// iOS style: a swipe only reveals the buttons (a full swipe never runs one), one row is open
+// at a time, and a tap elsewhere or a scroll closes it. The first move decides the axis:
+// vertical scrolls the list, horizontal slides the row. A touch that starts at the left edge
+// is left to iOS (back). The document-level touch guard lets sideways drags on .sw through.
+const SWIPE_EDGE = 20; // px from the left screen edge
+const SWIPE_SLOP = 8; // px before the axis is decided
+const LONG_MS = 500;
+const swipe = { open: null, g: null, mute: 0, pending: false };
+
+function slideTo(el, x, animate) {
+  const front = el.querySelector(':scope > .sw-front');
+  el.classList.toggle('drag', !animate);
+  el.classList.add('live');
+  front.style.transform = x ? `translateX(${x}px)` : '';
+  if (x || !animate) return;
+  // Hide the buttons once the row has slid shut (at once without a transition).
+  const hide = () => el !== swipe.open && !front.style.transform && el.classList.remove('live');
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return hide();
+  front.addEventListener('transitionend', hide, { once: true });
+  setTimeout(hide, 400);
+}
+const actsWidth = (el) => el.querySelector(':scope > .sw-acts').offsetWidth;
+function openRow(el) {
+  if (swipe.open && swipe.open !== el) closeRow();
+  swipe.open = el;
+  slideTo(el, -actsWidth(el), true);
+}
+function closeRow() {
+  const el = swipe.open;
+  swipe.open = null;
+  if (el) slideTo(el, 0, true);
+}
+
+function bindList(main) {
+  main.addEventListener('touchstart', rowTouchStart, { passive: true });
+  main.addEventListener('touchmove', rowTouchMove, { passive: false });
+  main.addEventListener('touchend', rowTouchEnd);
+  main.addEventListener('touchcancel', rowTouchEnd);
+  main.addEventListener('scroll', () => !(swipe.g && swipe.g.axis === 'x') && closeRow(), { passive: true });
+  main.addEventListener('click', rowClick, true);
+  // Right-click (and a long press where the browser makes one of it) opens the same menu.
+  main.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('[data-kind]');
+    if (!row) return;
+    e.preventDefault();
+    if ((swipe.g && swipe.g.long) || Date.now() < swipe.mute) return;
+    closeRow();
+    rowMenu(row);
+  });
+}
+
+// A press outside the list (header, host filter) closes an open row too.
+document.addEventListener('pointerdown', (e) => {
+  if (swipe.open && !e.target.closest('main.home')) closeRow();
+});
+
+function rowTouchStart(e) {
+  clearTimeout(swipe.g && swipe.g.timer);
+  if (e.touches.length !== 1) return void (swipe.g = null);
+  const t = e.touches[0];
+  const onActs = e.target.closest('.sw-acts');
+  const sw = onActs ? null : e.target.closest('.sw');
+  const row = onActs ? null : e.target.closest('[data-kind]');
+  const g = { x: t.clientX, y: t.clientY, t0: Date.now(), sw, row, axis: null, base: 0, dx: 0, eat: false, long: false, timer: null, lastX: t.clientX, lastT: Date.now(), v: 0 };
+  if (swipe.open && !(onActs && swipe.open.contains(onActs))) {
+    // While a row is open, a tap only closes it; dragging the open row itself moves it.
+    g.eat = true;
+    if (sw === swipe.open) g.base = -actsWidth(sw);
+    else closeRow();
+  }
+  g.edge = t.clientX < SWIPE_EDGE;
+  if (row) g.timer = setTimeout(() => {
+    g.long = true;
+    closeRow();
+    rowMenu(row);
+  }, LONG_MS);
+  swipe.g = g;
+}
+
+function rowTouchMove(e) {
+  const g = swipe.g;
+  if (!g || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  const dx = t.clientX - g.x;
+  const dy = t.clientY - g.y;
+  if (!g.axis) {
+    if (Math.hypot(dx, dy) < SWIPE_SLOP) return;
+    clearTimeout(g.timer);
+    g.axis = Math.abs(dx) > Math.abs(dy) ? (g.sw && !g.edge && !g.long ? 'x' : 'none') : 'y';
+    if (g.axis === 'x' && swipe.open && swipe.open !== g.sw) closeRow();
+    if (g.axis === 'y' && swipe.open) closeRow();
+  }
+  if (g.axis === 'y') return;
+  if (e.cancelable) e.preventDefault(); // sideways: never the page
+  if (g.axis !== 'x') return;
+  const w = actsWidth(g.sw);
+  let x = Math.min(0, g.base + dx);
+  if (x < -w) x = -w + (x + w) / 3; // past the buttons: resist, and never run one
+  g.dx = x;
+  const now = Date.now();
+  if (now > g.lastT) g.v = (t.clientX - g.lastX) / (now - g.lastT);
+  g.lastX = t.clientX;
+  g.lastT = now;
+  slideTo(g.sw, x, false);
+}
+
+function rowTouchEnd(e) {
+  const g = swipe.g;
+  swipe.g = null;
+  if (!g) return;
+  clearTimeout(g.timer);
+  const eatClick = () => {
+    swipe.mute = Date.now() + 450;
+    if (e.cancelable) e.preventDefault();
+  };
+  if (g.axis === 'x') {
+    const w = actsWidth(g.sw);
+    const open = g.v < -0.3 ? true : g.v > 0.3 ? false : g.dx < -w / 2;
+    if (open) openRow(g.sw);
+    else {
+      if (swipe.open === g.sw) swipe.open = null;
+      slideTo(g.sw, 0, true);
+    }
+    eatClick();
+  } else if (g.long || g.axis === 'none') eatClick();
+  else if (g.eat && !g.axis) {
+    closeRow();
+    eatClick();
+  }
+  if (swipe.pending) {
+    swipe.pending = false;
+    if (view.name === 'list') render();
+  }
+}
+
+function rowClick(e) {
+  if (Date.now() < swipe.mute) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+  const act = e.target.closest('.sw-act');
+  if (act) {
+    e.preventDefault();
+    const row = act.closest('.sw');
+    closeRow();
+    rowAction(row, act.dataset.act);
+  } else if (swipe.open) {
+    // A mouse click elsewhere: close only.
+    e.preventDefault();
+    e.stopPropagation();
+    closeRow();
+  }
+}
+
+function rowTarget(el) {
+  const { kind, id } = el.dataset;
+  const host = el.dataset.host || localId();
+  if (kind === 'ws') return wsFor(host, id);
+  return (kind === 'agent' ? state.agents : state.terminals || []).find((x) => same(x, host, id));
+}
+const rowLabel = (kind, x) => (kind === 'ws' ? x.label : kind === 'agent' ? x.name || x.title : termTitle(x));
+
+async function rowMenu(el) {
+  const kind = el.dataset.kind;
+  const x = rowTarget(el);
+  if (!x) return;
+  const items =
+    kind === 'ws'
+      ? [['open', '워크스페이스 보기'], ['rename', '이름 바꾸기'], ['close', '워크스페이스 닫기', true]]
+      : [['open', kind === 'agent' ? '대화 열기' : '셸 열기'], ['rename', '이름 바꾸기'], ['ws', '워크스페이스 보기'], ['close', kind === 'agent' ? '패널 닫기(에이전트 종료)' : '패널 닫기', true]];
+  const k = await menu(rowLabel(kind, x), items);
+  if (k) rowAction(el, k);
+}
+
+// The same calls the agent, shell and workspace menus make.
+function rowAction(el, k) {
+  const kind = el.dataset.kind;
+  const x = rowTarget(el);
+  if (!x) return toast('이미 닫혔습니다');
+  if (kind === 'ws') {
+    if (k === 'open') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace_id)}`);
+    if (k === 'rename') renameWorkspace(x);
+    if (k === 'close') closeWorkspace(x);
+    return;
+  }
+  if (k === 'open') location.hash = link(x.host, `/${kind === 'agent' ? 'agent' : 'term'}/${encodeURIComponent(x.pane)}`);
+  if (k === 'ws') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace)}`);
+  if (k === 'rename') renamePane(x, kind === 'agent');
+  if (k === 'close') closePane(x.host, x.pane, rowLabel(kind, x), kind === 'agent');
 }
 
 // ------------------------------------------------------------ detail view
@@ -1065,21 +1392,48 @@ async function agentMenu() {
   ]);
   if (k === 'screen') openScreenSheet();
   if (k === 'ws') location.hash = link(a.host, `/ws/${encodeURIComponent(a.workspace)}`);
-  if (k === 'rename') {
-    const name = await sheet({ title: '에이전트 이름', text: '영문 소문자·숫자·-·_ 만 됩니다. 비우면 이름을 지웁니다.', input: { value: a.name || '', placeholder: 'reviewer' }, ok: '바꾸기' });
-    if (name != null) act(hp(`/agents/${encodeURIComponent(a.pane)}/rename`), { name: name.trim() }, '이름을 바꿨습니다');
-  }
-  if (k === 'close') closePane(a.pane, a.name || a.title, true);
+  if (k === 'rename') renamePane(a, true);
+  if (k === 'close') closePane(a.host, a.pane, a.name || a.title, true);
 }
 
-async function closePane(pane, label, isAgent) {
+// Rename and close, shared by the agent, shell and workspace menus and the list's row actions.
+// Each takes the host explicitly: from the list it is the row's, not the route's.
+async function renamePane(x, isAgent) {
+  if (isAgent) {
+    const name = await sheet({ title: '에이전트 이름', text: '영문 소문자·숫자·-·_ 만 됩니다. 비우면 이름을 지웁니다.', input: { value: x.name || '', placeholder: 'reviewer' }, ok: '바꾸기' });
+    if (name != null) act(hp(`/agents/${encodeURIComponent(x.pane)}/rename`, x.host), { name: name.trim() }, '이름을 바꿨습니다');
+  } else {
+    const label = await sheet({ title: '패널 이름', text: '비우면 이름을 지웁니다.', input: { value: x.label || '', placeholder: '빌드' }, ok: '바꾸기' });
+    if (label != null) act(hp(`/panes/${encodeURIComponent(x.pane)}/rename`, x.host), { label: label.trim() }, '이름을 바꿨습니다');
+  }
+}
+
+async function closePane(host, pane, label, isAgent) {
   const ok = await sheet({
     title: '패널 닫기',
     text: `${label} 패널을 닫을까요?${isAgent ? ' 에이전트도 함께 끝납니다.' : ''} 되돌릴 수 없습니다.`,
     ok: '닫기',
     danger: true,
   });
-  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`), {}, '패널을 닫았습니다'))) location.hash = '#/';
+  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다')) && view.name !== 'list') location.hash = '#/';
+}
+
+async function renameWorkspace(w) {
+  const label = await sheet({ title: '워크스페이스 이름', input: { value: w.label }, ok: '바꾸기' });
+  if (label != null) act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/rename`, w.host), { label }, '이름을 바꿨습니다');
+}
+
+async function closeWorkspace(w) {
+  const host = w.host || localId();
+  const agents = state.agents.filter((a) => same(a, host, w.workspace_id, 'workspace')).length;
+  const panes = w.pane_count || agents + (state.terminals || []).filter((t) => same(t, host, w.workspace_id, 'workspace')).length;
+  const ok = await sheet({
+    title: '워크스페이스 닫기',
+    text: `${w.label} 을(를) 닫을까요? 안의 패널 ${panes}개${agents ? `와 에이전트 ${agents}개` : ''}가 모두 끝납니다. 되돌릴 수 없습니다.`,
+    ok: '닫기',
+    danger: true,
+  });
+  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다')) && view.name !== 'list') location.hash = '#/';
 }
 
 // POST a mutation; toasts on failure. Returns the response body or null.
@@ -1183,11 +1537,8 @@ async function terminalMenu() {
     const r = await act(hp(`/panes/${encodeURIComponent(t.pane)}/split`), { direction: k }, '패널을 나눴습니다');
     if (r && r.pane) location.hash = link(t.host, `/term/${encodeURIComponent(r.pane)}`);
   }
-  if (k === 'rename') {
-    const label = await sheet({ title: '패널 이름', text: '비우면 이름을 지웁니다.', input: { value: t.label || '', placeholder: '빌드' }, ok: '바꾸기' });
-    if (label != null) act(hp(`/panes/${encodeURIComponent(t.pane)}/rename`), { label: label.trim() }, '이름을 바꿨습니다');
-  }
-  if (k === 'close') closePane(t.pane, termTitle(t), false);
+  if (k === 'rename') renamePane(t, false);
+  if (k === 'close') closePane(t.host, t.pane, termTitle(t), false);
 }
 
 // ------------------------------------------------------------ screen box
@@ -1460,7 +1811,8 @@ if (IOS) {
       if (touch.allow == null) {
         const t = e.touches[0];
         const axis = Math.abs(t.clientX - touch.x) > Math.abs(t.clientY - touch.y) ? 'x' : 'y';
-        touch.allow = canScroll(touch.target, axis);
+        // A list row slides sideways itself (rowTouchMove), so it counts as scrollable on x.
+        touch.allow = canScroll(touch.target, axis) || (axis === 'x' && Boolean(touch.target.closest && touch.target.closest('main.home .sw')));
       }
       if (!touch.allow && e.cancelable) e.preventDefault();
     },
@@ -1593,19 +1945,8 @@ function renderWorkspace() {
     const r = await act(hp(`/workspaces/${id}/tabs`, host), {}, '새 탭을 열었습니다');
     if (r && r.pane) location.hash = link(host, `/term/${encodeURIComponent(r.pane)}`);
   };
-  document.getElementById('w-rename').onclick = async () => {
-    const label = await sheet({ title: '워크스페이스 이름', input: { value: w.label }, ok: '바꾸기' });
-    if (label != null) act(hp(`/workspaces/${id}/rename`, host), { label }, '이름을 바꿨습니다');
-  };
-  document.getElementById('w-close').onclick = async () => {
-    const ok = await sheet({
-      title: '워크스페이스 닫기',
-      text: `${w.label} 을(를) 닫을까요? 안의 패널 ${w.pane_count}개${agents.length ? `와 에이전트 ${agents.length}개` : ''}가 모두 끝납니다. 되돌릴 수 없습니다.`,
-      ok: '닫기',
-      danger: true,
-    });
-    if (ok && (await act(hp(`/workspaces/${id}/close`, host), {}, '워크스페이스를 닫았습니다'))) location.hash = '#/';
-  };
+  document.getElementById('w-rename').onclick = () => renameWorkspace(w);
+  document.getElementById('w-close').onclick = () => closeWorkspace(w);
 }
 
 // ------------------------------------------------------------ new workspace / start agent
