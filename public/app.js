@@ -2587,7 +2587,6 @@ function renderTerminal() {
       <form class="composer" id="t-form">
         <button type="button" class="mode" id="t-raw" aria-pressed="false" aria-label="키 직접 입력">키 직접<br>입력</button>
         <input class="cmd" id="t-input" placeholder="명령 (Enter 로 실행)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
-        <span class="ghost" id="t-ghost" hidden><span class="ghost-typed"></span><span class="ghost-rest" role="button" aria-label="제안 채우기"></span></span>
         <button type="submit" class="send" id="t-send" aria-label="실행">${ICON.send}</button>
       </form>
     </div>`;
@@ -2620,7 +2619,6 @@ function renderTerminal() {
     detail.raw = !detail.raw;
     rawBtn.setAttribute('aria-pressed', String(detail.raw));
     input.value = '';
-    updateGhost();
     input.placeholder = detail.raw ? '누르는 키가 바로 갑니다' : '명령 (Enter 로 실행)';
     input.setAttribute('enterkeyhint', detail.raw ? 'enter' : 'send');
     document.getElementById('t-send').hidden = detail.raw;
@@ -2634,15 +2632,11 @@ function renderTerminal() {
   document.getElementById('t-form').onsubmit = async (e) => {
     e.preventDefault();
     if (detail.raw) return;
-    const cmd = input.value;
-    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: cmd })) {
+    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: input.value })) {
       input.value = '';
-      rememberCommand(cmd);
-      updateGhost();
       setTimeout(loadTerminal, 400);
     }
   };
-  bindGhost(input);
   // Raw mode: typed characters go as text, editing keys as keys; the field stays empty.
   // A Korean (IME) syllable goes once it is composed.
   input.addEventListener('beforeinput', (e) => {
@@ -2672,84 +2666,6 @@ function renderTerminal() {
   document.getElementById('t-more').onclick = terminalMenu;
   mountScreen(document.getElementById('t-body'), 'term', document.getElementById('s-tools'));
   renderTerminalHeader();
-}
-
-// ---- grey suggestion in the shell's command line
-// Like fish or zsh-autosuggestions: the newest command in the pane's shell history that starts
-// with what is typed shows after it in grey. → (at the end) or a tap on the grey part takes it.
-// The history is read once per visit (GET /panes/<id>/history) and grows with what is run here.
-// Read again on focus once it is a little old: commands typed at the computer count too.
-const HISTORY_FRESH_MS = 15000;
-function loadHistory() {
-  // Until the first state arrives the local host is unknown and hp() would ask a peer.
-  if (!localId()) return;
-  const pane = detail.pane;
-  detail.historyAt = Date.now();
-  api(hp(`/panes/${encodeURIComponent(pane)}/history`))
-    .then((r) => {
-      if (detail.pane !== pane) return;
-      detail.history = Array.isArray(r.items) ? r.items : [];
-      updateGhost();
-    })
-    .catch(() => (detail.historyAt = 0)); // no suggestions is fine; try again next focus
-}
-function rememberCommand(cmd) {
-  const t = cmd.trim();
-  if (!t) return;
-  detail.history = [t, ...(detail.history || []).filter((x) => x !== t)];
-}
-function suggestion(typed) {
-  if (!typed.trim()) return '';
-  const hit = (detail.history || []).find((x) => x.length > typed.length && x.startsWith(typed));
-  return hit ? hit.slice(typed.length) : '';
-}
-function updateGhost() {
-  const input = document.getElementById('t-input');
-  const ghost = document.getElementById('t-ghost');
-  if (!input || !ghost) return;
-  const v = input.value;
-  const atEnd = input.selectionStart === v.length && input.selectionEnd === v.length;
-  const rest = !detail.raw && document.activeElement === input && atEnd ? suggestion(v) : '';
-  // A line already wider than the field has scrolled; the grey text would not line up.
-  if (!rest || input.scrollWidth > input.clientWidth + 1) return (ghost.hidden = true);
-  const cs = getComputedStyle(input);
-  const left = input.offsetLeft + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
-  Object.assign(ghost.style, {
-    left: `${left}px`,
-    top: `${input.offsetTop}px`,
-    height: `${input.offsetHeight}px`,
-    width: `${input.offsetLeft + input.offsetWidth - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight) - left}px`,
-  });
-  ghost.firstChild.textContent = v;
-  ghost.lastChild.textContent = rest;
-  ghost.hidden = false;
-}
-function acceptGhost() {
-  const input = document.getElementById('t-input');
-  const rest = suggestion(input.value);
-  if (!rest) return false;
-  input.value += rest;
-  input.setSelectionRange(input.value.length, input.value.length);
-  updateGhost();
-  return true;
-}
-function bindGhost(input) {
-  detail.history = [];
-  detail.historyAt = 0;
-  loadHistory();
-  input.addEventListener('focus', () => Date.now() - (detail.historyAt || 0) > HISTORY_FRESH_MS && loadHistory());
-  for (const ev of ['input', 'focus', 'blur', 'select', 'keyup']) input.addEventListener(ev, () => setTimeout(updateGhost, 0));
-  if (!bindGhost.once) {
-    bindGhost.once = true; // one document listener for every visit
-    document.addEventListener('selectionchange', () => document.activeElement && document.activeElement.id === 't-input' && updateGhost());
-  }
-  input.addEventListener('keydown', (e) => {
-    if (detail.raw || e.isComposing || e.keyCode === 229) return;
-    if ((e.key === 'ArrowRight' || e.key === 'End') && input.selectionStart === input.value.length && acceptGhost()) e.preventDefault();
-  });
-  const rest = document.querySelector('#t-ghost .ghost-rest');
-  keepFocusTap(rest, acceptGhost);
-  rest.addEventListener('click', acceptGhost);
 }
 
 function renderTerminalHeader() {
