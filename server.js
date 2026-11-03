@@ -9,6 +9,7 @@ const path = require('path');
 const herdr = require('./lib/herdr');
 const transcript = require('./lib/transcript');
 const dirs = require('./lib/dirs');
+const uploads = require('./lib/uploads');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
 
@@ -22,6 +23,8 @@ const HOSTNAME = process.env.PADDOCK_HOST_LABEL || os.hostname();
 const HOST_ID = process.env.PADDOCK_HOST_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^[^a-z]+/, '').slice(0, 32) || 'local';
 const PUSH_ON = process.env.PADDOCK_PUSH !== '0';
 const POLL_MS = 4000;
+const VIEWPORT_LOG = path.join(DATA, 'viewport.log');
+const VIEWPORT_LOG_MAX = 512 * 1024; // and one older file: about 1 MB in all
 
 if (!HOST_ID_RULE.test(HOST_ID) || HOST_ID === 'all') {
   console.error(`PADDOCK_HOST_ID must match ${HOST_ID_RULE} and not be "all".`);
@@ -512,6 +515,30 @@ async function api(req, res, url) {
     }
   }
 
+  // Photos for the agent composer, kept on this host for the agent here to read.
+  if (parts[0] === 'uploads') {
+    if (method === 'POST' && !parts[1]) {
+      const body = await readRaw(req, uploads.MAX_BYTES);
+      return send(res, 200, uploads.save(req.headers['content-type'], body));
+    }
+    if (method === 'GET' && parts[1] && !parts[2]) {
+      const f = uploads.find(parts[1]);
+      if (!f) return send(res, 404, { error: 'not_found' });
+      // Names are never reused, so the phone may keep a copy.
+      return fs.readFile(f.file, (err, data) =>
+        err ? send(res, 404, { error: 'not_found' }) : send(res, 200, data, { 'Content-Type': f.type, 'Cache-Control': 'private, max-age=604800, immutable', 'X-Content-Type-Options': 'nosniff' })
+      );
+    }
+  }
+
+  // Viewport snapshots from the phone, for checking the keyboard layout without a debugger.
+  // The hub's own: never proxied (peers is not routed here and "debug" is not in PROXIED).
+  if (method === 'POST' && parts[0] === 'debug' && parts[1] === 'viewport' && !parts[2]) {
+    const body = await readJson(req, 16 * 1024);
+    appendViewport({ at: new Date().toISOString(), ...body });
+    return send(res, 200, { ok: true });
+  }
+
   if (parts[0] === 'push') {
     if (!push) return send(res, method === 'GET' ? 200 : 409, { error: 'push_disabled', disabled: true });
     if (method === 'GET' && parts[1] === 'key') return send(res, 200, { publicKey: push.publicKey });
@@ -536,7 +563,7 @@ async function api(req, res, url) {
 
 // /api/peers/<host>/<rest> -> <peer>/api/<rest>. Only per-host endpoints; the stream,
 // state and push stay with the hub. The X-Paddock check has already run above.
-const PROXIED = new Set(['host', 'dirs', 'agents', 'panes', 'workspaces']);
+const PROXIED = new Set(['host', 'dirs', 'agents', 'panes', 'workspaces', 'uploads']);
 
 async function proxy(req, res, url) {
   const raw = url.pathname.split('/').filter(Boolean); // api, peers, <host>, ...rest (still encoded)
@@ -544,8 +571,9 @@ async function proxy(req, res, url) {
   if (!peer) return send(res, 404, { error: 'unknown_host' });
   if (!PROXIED.has(raw[3])) return send(res, 404, { error: 'not_found' });
   if (!peer.online) return send(res, 503, { error: 'peer_offline', message: `${peer.label} 오프라인` });
-  const body = req.method === 'GET' ? null : await readRaw(req);
-  const headers = req.method === 'GET' ? {} : { 'Content-Type': 'application/json', 'X-Paddock': '1' };
+  // Photo uploads are raw image bytes; everything else is JSON. Bodies stay Buffers both ways.
+  const body = req.method === 'GET' ? null : await readRaw(req, raw[3] === 'uploads' ? uploads.MAX_BYTES : undefined);
+  const headers = req.method === 'GET' ? {} : { 'Content-Type': req.headers['content-type'] || 'application/json', 'X-Paddock': '1' };
   let r;
   try {
     r = await peer.request(req.method, `/api/${raw.slice(3).join('/')}${url.search}`, { body, headers, timeoutMs: req.method === 'GET' ? 15000 : 60000 });
@@ -554,7 +582,24 @@ async function proxy(req, res, url) {
     console.error(`${new Date().toISOString()} proxy ${req.method} ${peer.id} ${raw.slice(3).join('/')}: ${err.code || err.message}`);
     return send(res, timeout ? 504 : 502, { error: timeout ? 'peer_timeout' : 'peer_unreachable', message: `${peer.label}: ${err.code || err.message}` });
   }
-  send(res, r.status, r.body, { 'Content-Type': r.type });
+  send(res, r.status, r.body, { 'Content-Type': r.type, ...(r.cache ? { 'Cache-Control': r.cache } : {}) });
+}
+
+// One JSON line per snapshot. Past the cap the file becomes viewport.log.1 (the older one goes).
+function appendViewport(entry) {
+  try {
+    fs.mkdirSync(DATA, { recursive: true });
+    let size = 0;
+    try {
+      size = fs.statSync(VIEWPORT_LOG).size;
+    } catch {
+      /* first line */
+    }
+    if (size > VIEWPORT_LOG_MAX) fs.renameSync(VIEWPORT_LOG, `${VIEWPORT_LOG}.1`);
+    fs.appendFileSync(VIEWPORT_LOG, JSON.stringify(entry) + '\n');
+  } catch {
+    /* diagnostics must never break the app */
+  }
 }
 
 function readRaw(req, limit = 256 * 1024) {
@@ -564,8 +609,8 @@ function readRaw(req, limit = 256 * 1024) {
     req.on('data', (c) => {
       size += c.length;
       if (size > limit) {
-        reject(Object.assign(new Error('body too large'), { status: 413 }));
-        req.destroy();
+        reject(Object.assign(new Error('body too large'), { status: 413, code: 'body_too_large' }));
+        req.resume();
       } else chunks.push(c);
     });
     req.on('end', () => resolve(Buffer.concat(chunks)));
@@ -586,6 +631,10 @@ const server = http.createServer(async (req, res) => {
     else res.end();
   }
 });
+
+// Old photos go at start and once a day.
+uploads.sweep();
+setInterval(() => uploads.sweep(), 24 * 3600 * 1000).unref();
 
 server.listen(PORT, HOST, () => {
   console.log(`paddock on http://${HOST}:${PORT} (herdr socket ${herdr.defaultSocketPath()})`);
