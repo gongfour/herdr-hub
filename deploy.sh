@@ -23,6 +23,8 @@ deploy_server() {
   (cd "$dir" && PATH="$node_bin:$PATH" npm ci --silent --omit=dev >/dev/null)
   sed "s#__DIR__#$dir#g" mac/local.paddock.plist > "$plist"
   launchctl bootout "gui/$(id -u)/local.paddock" 2>/dev/null || true
+  # bootout returns before the job is gone; bootstrapping too early fails with EIO.
+  for _ in 1 2 3 4 5 6 7 8 9 10; do launchctl print "gui/$(id -u)/local.paddock" >/dev/null 2>&1 || break; sleep 0.5; done
   launchctl bootstrap "gui/$(id -u)" "$plist"
   sleep 2
   launchctl print "gui/$(id -u)/local.paddock" | grep -E '^\s+(state|pid) ='

@@ -434,7 +434,11 @@ function renderDetailHeader() {
   if (a) detail.seen = true;
   else if (detail.seen && (state.terminals || []).some((t) => same(t, curHost(), detail.pane))) return (location.hash = link(curHost(), `/term/${encodeURIComponent(detail.pane)}`));
   if (!a) {
-    title.innerHTML = !online(curHost())
+    // Before the first state arrives (or before a peer's first report) nothing is known yet.
+    const known = state.herdr !== 'connecting' && (state.hosts || []).some((h) => h.id === curHost());
+    title.innerHTML = !known
+      ? '불러오는 중…'
+      : !online(curHost())
       ? `${esc(hostLabel(curHost()))} 오프라인<span class="sub">호스트가 돌아오면 다시 보입니다</span>`
       : `에이전트 없음<span class="sub">이 패널의 에이전트가 끝났거나 닫혔습니다</span>`;
     document.getElementById('d-badge').innerHTML = '';
