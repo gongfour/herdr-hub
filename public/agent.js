@@ -58,7 +58,6 @@ function renderDetail() {
   // Pasted images (iOS: screenshot → Copy → long-press here → Paste) join the attachments;
   // text pastes as usual.
   input.addEventListener('paste', (e) => {
-    pasteDiag(e); // diag.js
     const images = pastedImages(e.clipboardData);
     if (!images.length) return;
     // Keep any text that came along; with images only there is nothing to insert.

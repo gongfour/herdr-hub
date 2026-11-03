@@ -107,7 +107,6 @@ function renderSettings() {
         </div>
         <p>시스템은 기기의 밝게·어둡게 설정을 따릅니다. 이 기기에만 기억합니다.</p>
       </section>
-      ${diagSection() /* diag.js */}
       <section>
         <h2>호스트</h2>
         ${(hosts().length ? hosts() : [{ id: localId(), label: state.host, online: true, herdr: state.herdr, local: true }])
@@ -145,7 +144,6 @@ function renderSettings() {
   document.getElementById('s-color').onchange = (e) => saveColor(e.target.checked);
   document.getElementById('s-wrap-term').onchange = (e) => saveWrap('term', e.target.checked);
   document.getElementById('s-wrap-agent').onchange = (e) => saveWrap('agent', e.target.checked);
-  bindDiagSection(); // diag.js
   const enable = document.getElementById('s-enable');
   if (enable) enable.onclick = enablePush;
   const test = document.getElementById('s-test');

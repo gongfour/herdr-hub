@@ -19,7 +19,6 @@ const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
 const { send, readJson, readRaw, serveStatic } = require('./lib/http');
 const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
 const { screenReader } = require('./lib/screen');
-const { viewportLog } = require('./lib/viewport-log');
 
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -54,9 +53,8 @@ if (peers.has(HOST_ID)) {
   process.exit(2);
 }
 
-// Pane reads with herdr's fallbacks (lib/screen), and the phone's viewport log (lib/viewport-log).
+// Pane reads with herdr's fallbacks (lib/screen).
 const readScreen = screenReader(herdr.call);
-const appendViewport = viewportLog(DATA);
 
 // ---------------------------------------------------------------- live state
 
@@ -550,14 +548,6 @@ async function api(req, res, url) {
         err ? send(res, 404, { error: 'not_found' }) : send(res, 200, data, { 'Content-Type': f.type, 'Cache-Control': 'private, max-age=604800, immutable', 'X-Content-Type-Options': 'nosniff' })
       );
     }
-  }
-
-  // Viewport snapshots from the phone, for checking the keyboard layout without a debugger.
-  // The hub's own: never proxied (peers is not routed here and "debug" is not in PROXIED).
-  if (method === 'POST' && parts[0] === 'debug' && parts[1] === 'viewport' && !parts[2]) {
-    const body = await readJson(req, 16 * 1024);
-    appendViewport({ at: new Date().toISOString(), ...body });
-    return send(res, 200, { ok: true });
   }
 
   if (parts[0] === 'push') {
