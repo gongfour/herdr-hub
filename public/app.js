@@ -466,7 +466,7 @@ function renderDetail() {
         <button type="button" class="attach" id="d-camera" aria-label="카메라로 찍기">${ICON.camera}</button>
         <input type="file" id="d-file" accept="image/*" multiple hidden>
         <input type="file" id="d-cam" accept="image/*" capture="environment" hidden>
-        <textarea id="d-input" rows="1" placeholder="메시지 보내기" enterkeyhint="send"></textarea>
+        <textarea id="d-input" rows="1" placeholder="메시지 보내기" enterkeyhint="send" autocomplete="off" aria-autocomplete="none"></textarea>
         <button type="button" class="stop" id="d-stop" aria-label="중단" hidden>${ICON.stop}</button>
         <button type="submit" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
       </form>
@@ -1110,13 +1110,17 @@ const selecting = () => {
 function mountScreen(body, kind) {
   const tools = document.getElementById('s-tools');
   body.classList.add('screen-mode');
-  body.innerHTML = `<p class="note">불러오는 중…</p><pre class="screen" hidden></pre>
+  // Agent TUIs draw on the alternate screen, so herdr has nothing above what is on screen now.
+  const top = kind === 'agent' ? '<div class="screen-top">터미널에 지금 보이는 화면의 맨 위입니다. 이전 내용은 <button type="button" class="linkish">대화 탭</button>에서 볼 수 있습니다.</div>' : '';
+  body.innerHTML = `<p class="note">불러오는 중…</p>${top}<pre class="screen" hidden></pre>
     <div class="pill-dock"><button type="button" class="new-out" hidden>↓ 새 출력</button></div>`;
   const s = (scr = {
     kind, body, tools, wrap: getWrap(kind), color: getColor(), raw: null, shown: null, pending: null, follow: true, touching: false, error: null, note: '',
     pre: body.querySelector('.screen'), pill: body.querySelector('.new-out'), loading: body.querySelector('.note'),
   });
   s.pre.classList.toggle('wrap', s.wrap);
+  const toChat = body.querySelector('.screen-top .linkish');
+  if (toChat) toChat.onclick = () => document.querySelector('[data-tab="chat"]')?.click();
   body.onscroll = () => {
     if (scr !== s) return;
     s.follow = atBottom(body);

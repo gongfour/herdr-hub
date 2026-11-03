@@ -171,7 +171,7 @@ button { font: inherit; color: inherit; }
    sideways inside the box (never the page). .wrap folds each line at the phone's width. */
 .screen {
   font: 11px/1.35 var(--mono); white-space: pre; overflow-wrap: normal; overflow-x: auto; max-width: 100%;
-  margin: 0; background: var(--term-bg); color: var(--term-fg); border: 0; border-radius: 0; padding: 10px 12px; min-height: 100%; box-sizing: border-box;
+  margin: 0; background: var(--term-bg); color: var(--term-fg); border: 0; border-radius: 0; padding: 10px 12px; box-sizing: border-box;
   -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; tab-size: 8;
   /* x only: a vertical drag over the text must still scroll the box around it (which contains it). */
   overscroll-behavior-x: contain;
@@ -247,6 +247,8 @@ button { font: inherit; color: inherit; }
   --ansi-12: #8fbfff; --ansi-13: #e6a8f7; --ansi-14: #86e6ea; --ansi-15: #f5f4ef;
   background: var(--term-bg); color-scheme: dark;
 }
+.screen-top { padding: 10px 12px 8px; font-size: 12px; line-height: 1.45; color: #a9a69d; border-bottom: 1px dashed #3a3935; word-break: keep-all; }
+.screen-top .linkish { border: 0; background: none; padding: 0; color: #8fbfff; text-decoration: underline; cursor: pointer; font: inherit; }
 .screen-tools {
   flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 12px 6px 16px; min-height: 40px;
 }
