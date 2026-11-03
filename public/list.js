@@ -237,9 +237,17 @@ function spacesParts(list, down, f) {
   return [...list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s)]), ...(!list.length && empty ? [['empty', `<p class="empty">${empty}</p>`]] : [])];
 }
 
+// The agent open now (on the right when split). Opening marks its finish read at once, but the
+// mark only moves it out of 방금 끝남 once it is closed: while it is open its row stays where
+// it was, under the finger, and Alt+↑/↓ steps on from there.
+const openRowKey = () => (view.name === 'agent' && detail.pane ? rowKey(curHost(), detail.pane) : null);
+
 // 홈: 답 필요 (the strip, above), 방금 끝남, 작업 중, and 조용함 folded into one line.
 function inboxParts(down, f) {
-  const b = Inbox.bucket(state.agents.filter(shown), { isSeen });
+  const open = openRowKey();
+  const b = Inbox.bucket(state.agents.filter(shown), { isSeen: (k) => isSeen(k) && !(open && k.startsWith(`${open}|`)) });
+  // A quiet agent that is open shows under the folded 조용함 line, so its row is never hidden.
+  const openQuiet = !quietOpen && open ? b.idle.find((a) => rowKey(a.host, a.pane) === open) : null;
   const out = [];
   if (b.done.length) out.push(['done', inboxSection('방금 끝남', b.done, 'done')]);
   if (b.working.length) out.push(['working', inboxSection('작업 중', b.working, 'working')]);
@@ -248,7 +256,7 @@ function inboxParts(down, f) {
       'quiet',
       `<section class="ib-sec quiet">
         <button type="button" class="quiet-toggle" aria-expanded="${quietOpen}"><span>조용함</span><span class="quiet-n">대기 ${b.idle.length}</span><span class="chev${quietOpen ? ' open' : ''}" aria-hidden="true">${ICON.chevron}</span></button>
-        ${quietOpen ? `<div class="ib-card">${b.idle.map((a) => inboxRow(a, 'idle')).join('')}</div>` : ''}
+        ${quietOpen ? `<div class="ib-card">${b.idle.map((a) => inboxRow(a, 'idle')).join('')}</div>` : openQuiet ? `<div class="ib-card">${inboxRow(openQuiet, 'idle')}</div>` : ''}
       </section>`,
     ]);
   if (!b.blocked.length && !b.done.length && !b.working.length) {
