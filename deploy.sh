@@ -8,10 +8,12 @@ cd "$(dirname "$0")"
 target="${1:-desktop}"
 
 deploy_desktop() {
+  # cmd reads a batch file by offset: a run.cmd left running would go on in the new file once its
+  # node is stopped and start node again with the old settings. It goes first.
   COPYFILE_DISABLE=1 tar --exclude=node_modules --exclude=data --exclude=.git --exclude=deploy.sh --exclude=mac -czf /tmp/herdr-hub-deploy.tgz .
   scp -q /tmp/herdr-hub-deploy.tgz kangw@desktop:C:/Users/kangw/src/herdr-hub-deploy.tgz
   rm /tmp/herdr-hub-deploy.tgz
-  ssh kangw@desktop 'Set-Location C:\Users\kangw\src\herdr-hub; tar -xzf ..\herdr-hub-deploy.tgz; Remove-Item ..\herdr-hub-deploy.tgz; Stop-ScheduledTask HerdrHub; Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; npm ci --silent --omit=dev 2>&1 | Out-Null; Start-ScheduledTask HerdrHub; Start-Sleep 3; (Get-ScheduledTask HerdrHub).State'
+  ssh kangw@desktop 'Set-Location C:\Users\kangw\src\herdr-hub; tar -xzf ..\herdr-hub-deploy.tgz; Remove-Item ..\herdr-hub-deploy.tgz; Stop-ScheduledTask HerdrHub; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "herdr-hub\\run.cmd" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; npm ci --silent --omit=dev 2>&1 | Out-Null; Start-ScheduledTask HerdrHub; Start-Sleep 3; (Get-ScheduledTask HerdrHub).State'
 }
 
 deploy_server() {
