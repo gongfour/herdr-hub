@@ -12,6 +12,8 @@ const ICON = {
   photo: '<svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>', // image
   camera: '<svg viewBox="0 0 24 24"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z" /><circle cx="12" cy="13" r="3" /></svg>', // camera
   agent: '<svg viewBox="0 0 24 24"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" /></svg>', // bot
+  keyboard: '<svg viewBox="0 0 24 24"><path d="M10 8h.01" /><path d="M12 12h.01" /><path d="M14 8h.01" /><path d="M16 12h.01" /><path d="M18 8h.01" /><path d="M6 8h.01" /><path d="M7 16h10" /><path d="M8 12h.01" /><rect width="20" height="16" x="2" y="4" rx="2" /></svg>',
+  keyboardOff: '<svg viewBox="0 0 24 24"><path d="M 20 4 A2 2 0 0 1 22 6" /><path d="M 22 6 L 22 16.41" /><path d="M 7 16 L 16 16" /><path d="M 9.69 4 L 20 4" /><path d="M14 8h.01" /><path d="M18 8h.01" /><path d="m2 2 20 20" /><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2" /><path d="M6 8h.01" /><path d="M8 12h.01" /></svg>', // keyboard-off
   more: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>', // ellipsis
   term: '<svg viewBox="0 0 24 24"><path d="M12 19h8" /><path d="m4 17 6-6-6-6" /></svg>', // terminal
   x: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>', // x
@@ -2585,9 +2587,15 @@ function renderTerminal() {
       </header>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="t-body"></div>
-      <div class="keys term-keys" id="t-keys"></div>
+      <div class="term-bar">
+        <div class="keys term-keys" id="t-keys"></div>
+        <div class="term-side">
+          <button type="button" class="key" id="t-kbd" aria-pressed="false" aria-label="키보드 올리기">${ICON.keyboard}</button>
+          <button type="button" class="key" id="t-line" aria-label="한 줄 입력으로 바꾸기">한 줄</button>
+        </div>
+      </div>
       <form class="composer" id="t-form">
-        <button type="button" class="mode" id="t-raw"></button>
+        <button type="button" class="mode" id="t-raw" aria-label="키 직접 입력으로 바꾸기">키 직접<br>입력</button>
         <input class="cmd" id="t-input" placeholder="명령 (Enter 로 실행)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
         <button type="submit" class="send" id="t-send" aria-label="실행">${ICON.send}</button>
       </form>
@@ -2629,13 +2637,12 @@ function renderTerminal() {
       setTimeout(loadTerminal, 300);
     }
   };
-  // The button names the other mode: 한 줄 입력 (write a line, then run it; for long commands,
-  // pasting and Korean) or back to 키 직접 입력.
+  // 키 직접 입력 has no visible command line, like a terminal app: a tap on the screen (or ⌨)
+  // brings up the keyboard and the hidden field passes each key on. 한 줄 (write a line, then
+  // run it; for long commands, pasting and Korean) shows the line, and 키 직접 입력 there goes back.
   const rawBtn = document.getElementById('t-raw');
   const setRaw = (on) => {
     detail.raw = on;
-    rawBtn.innerHTML = on ? '한 줄<br>입력' : '키 직접<br>입력';
-    rawBtn.setAttribute('aria-label', on ? '한 줄 입력으로 바꾸기' : '키 직접 입력으로 바꾸기');
     input.value = '';
     input.placeholder = on ? '누르는 키가 바로 갑니다' : '명령 (Enter 로 실행)';
     input.setAttribute('enterkeyhint', on ? 'enter' : 'send');
@@ -2644,10 +2651,34 @@ function renderTerminal() {
     drawKeys();
   };
   setRaw(true);
-  rawBtn.onclick = () => {
-    setRaw(!detail.raw);
+  const toMode = (on) => () => {
+    setRaw(on);
     input.focus();
   };
+  rawBtn.onclick = toMode(true);
+  const lineBtn = document.getElementById('t-line');
+  keepFocusTap(lineBtn, toMode(false));
+  lineBtn.onclick = toMode(false);
+  const kbd = document.getElementById('t-kbd');
+  const toggleKbd = () => (document.activeElement === input ? input.blur() : input.focus());
+  keepFocusTap(kbd, toggleKbd);
+  kbd.onclick = toggleKbd;
+  const showKbd = () => {
+    const up = document.activeElement === input;
+    kbd.innerHTML = up ? ICON.keyboardOff : ICON.keyboard;
+    kbd.setAttribute('aria-pressed', String(up));
+    kbd.setAttribute('aria-label', up ? '키보드 내리기' : '키보드 올리기');
+  };
+  input.addEventListener('focus', showKbd);
+  input.addEventListener('blur', showKbd);
+  // A tap on the screen brings up the keyboard. A long press (selecting text) or a scroll is no
+  // click, and a click that ends a selection or lands on a button is left alone.
+  document.getElementById('t-body').addEventListener('click', (e) => {
+    if (!detail.raw || e.target.closest('button, a')) return;
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return;
+    input.focus();
+  });
   keepFocusTap(document.getElementById('t-send'), () => document.getElementById('t-form').requestSubmit());
   document.getElementById('t-form').onsubmit = async (e) => {
     e.preventDefault();

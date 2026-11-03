@@ -924,3 +924,23 @@ button.tool:active { filter: brightness(0.95); }
 .shell-more:active { background: var(--surface-2); }
 /* Agent-kind logos (KIND_ICON) are filled marks, drawn a little smaller than the line icons. */
 .pane-ic svg.logo { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+
+/* Shell view in 키 직접 입력: the key row plus ⌨ and 한 줄 on its right; the command line is
+   only the keyboard's (hidden) target, so the screen gets its room. */
+.term-bar { display: flex; align-items: center; border-top: 1px solid var(--line); background: var(--bg); }
+.term-bar .term-keys { flex: 1; min-width: 0; border-top: 0; }
+.term-side { display: none; flex: none; gap: 8px; padding: 10px 12px 10px 0; }
+.term-side .key {
+  min-height: 44px; min-width: 48px; padding: 0 10px; border: 0; border-radius: 12px; display: grid; place-items: center;
+  background: var(--surface-2); color: var(--text); font-size: 13px; font-weight: 600;
+}
+.term-side .key:active { filter: brightness(0.9); }
+.term-side svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#t-kbd[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.term-bar + .composer { border-top: 0; padding-top: 2px; }
+.detail.raw .term-side { display: flex; }
+.detail.raw .term-bar { padding-bottom: var(--safe-bottom); }
+.detail.raw #t-form { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; opacity: 0; pointer-events: none; }
+/* The scrolling keys fade out before ⌨ instead of being cut against it. */
+.detail.raw .term-keys { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); padding-right: 28px; }
+.detail.raw .term-side { padding-left: 2px; }
