@@ -238,3 +238,11 @@ test('a name that wraps at the screen edge stays one name', () => {
   assert.equal(c.items[1].label, "Yes, and don't ask again for commands like this one in the folder C:\\Users\\kangw\\src\\some-long-proj ect-name-here");
   assert.equal(c.items[1].desc, undefined);
 });
+
+test('choicesSettled: a half-drawn prompt is not settled', () => {
+  const { choicesSettled } = require('../public/choices');
+  assert.equal(choicesSettled(null), false);
+  assert.equal(choicesSettled({ question: 'Bash command', items: [{ n: 1 }] }), false);
+  assert.equal(choicesSettled({ question: 'Do you want to proceed?', items: [] }), false);
+  assert.equal(choicesSettled({ question: 'Do you want to proceed?', items: [{ n: 1 }] }), true);
+});

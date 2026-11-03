@@ -14,7 +14,7 @@ const commands = require('./lib/commands');
 const names = require('./lib/names');
 const times = require('./lib/times');
 const notifyLib = require('./lib/notify');
-const { parseChoices } = require('./public/choices');
+const { parseChoices, choicesSettled } = require('./public/choices');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
 
@@ -63,8 +63,29 @@ const previous = new Map(); // host id -> Map(pane -> { status, completion }) fr
 const clients = new Set();
 let watchedPanes = '';
 // workingSince / doneAt per agent (lib/times): this host's own, and every host's as merged.
-let localTimes = new Map();
-let mergedTimes = new Map();
+const TIMES_FILE = path.join(DATA, 'times.json');
+let { local: localTimes, merged: mergedTimes } = times.load(readJsonFile(TIMES_FILE), ['local', 'merged'], Date.now(), 6 * 3600e3);
+let timesSaved = { body: '', at: 0 };
+function readJsonFile(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+// Written when a time changed (and hourly, so savedAt stays fresh), not on every refresh.
+function saveTimes() {
+  const body = JSON.stringify(times.dump({ local: localTimes, merged: mergedTimes }, 0).maps);
+  if (body === timesSaved.body && Date.now() - timesSaved.at < 3600e3) return;
+  timesSaved = { body, at: Date.now() };
+  try {
+    fs.mkdirSync(DATA, { recursive: true });
+    fs.writeFileSync(TIMES_FILE + '.tmp', JSON.stringify(times.dump({ local: localTimes, merged: mergedTimes }, Date.now())));
+    fs.renameSync(TIMES_FILE + '.tmp', TIMES_FILE);
+  } catch (err) {
+    console.error('times save failed:', err.message);
+  }
+}
 
 function shapeAgent(a, labels) {
   return {
@@ -149,6 +170,7 @@ function publish() {
   );
   // Peers on this version bring their own times; for an older peer the hub tracks them here.
   mergedTimes = times.track(mergedTimes, agents, Date.now(), (a) => `${a.host}|${a.pane}`);
+  saveTimes();
   const next = {
     host: HOSTNAME, // kept for older clients
     hostId: HOST_ID,
@@ -185,9 +207,11 @@ async function notify(kind, hostId, hostLabel, a) {
   if (notifyLib.muted(a, PUSH_MUTE)) return console.log(`${new Date().toISOString()} push ${kind} ${hostId} ${a.pane} muted`);
   let choices = null;
   if (kind === 'blocked') {
-    // The prompt is drawn a moment after the status changes.
-    await new Promise((r) => setTimeout(r, 400));
-    choices = await blockedChoices(hostId, a.pane).catch(() => null);
+    // The prompt is drawn a moment after the status changes; a half-drawn read is repeated.
+    for (let i = 0; i < 4 && !choicesSettled(choices); i++) {
+      await new Promise((r) => setTimeout(r, i ? 1000 : 400));
+      choices = (await blockedChoices(hostId, a.pane).catch(() => null)) || choices;
+    }
   }
   const payload = notifyLib.buildPayload(kind, { id: hostId, label: hostLabel, multi: peers.size > 0 }, a, { choices, lastReply: a.lastReply || '' });
   const r = await push.send(payload);

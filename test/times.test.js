@@ -31,3 +31,16 @@ test("a peer's own values pass through", () => {
   track(new Map(), agents, 1000, key);
   assert.deepEqual([agents[0].workingSince, agents[0].doneAt], [500, 100]);
 });
+
+test('dump and load survive a restart, and old files are dropped', () => {
+  const { dump, load } = require('../lib/times');
+  let s = step(new Map(), [['p1', 'idle']], 1000);
+  s = step(s.map, [['p1', 'working']], 2000);
+  const file = JSON.parse(JSON.stringify(dump({ local: s.map }, 2000)));
+  const back = load(file, ['local', 'merged'], 3000, 60e3);
+  assert.equal(back.merged.size, 0);
+  s = step(back.local, [['p1', 'working']], 4000);
+  assert.equal(s.agents[0].workingSince, 2000); // kept across the restart
+  assert.equal(load(file, ['local'], 2000 + 61e3, 60e3).local.size, 0);
+  assert.equal(load(null, ['local'], 0, 1).local.size, 0);
+});

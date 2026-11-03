@@ -997,18 +997,29 @@ const quickLocked = (k, a) => {
   const l = quickLocks.get(k);
   return Boolean(l && Date.now() < l.until && a && a.stateSeq === l.seq);
 };
+// A read that caught the prompt half drawn (choicesSettled) is repeated a few times.
+const QUESTION_RETRY_MS = 1200;
+const QUESTION_TRIES = 4;
 function ensureQuestion(a) {
   const k = rowKey(a.host, a.pane);
   const q = questions.get(k);
-  if (q && q.seq === a.stateSeq && (q.loading || q.choices !== undefined) && !(q.failed && Date.now() - q.at > 10000)) return;
+  if (q && q.seq === a.stateSeq) {
+    if (q.loading) return;
+    if (q.failed ? Date.now() - q.at <= 10000 : q.choices !== undefined && (choicesSettled(q.choices) || q.tries >= QUESTION_TRIES)) return;
+    if (!q.failed && Date.now() - q.at < QUESTION_RETRY_MS) return;
+  }
   const seq = a.stateSeq;
-  questions.set(k, { seq, loading: true });
+  const tries = (q && q.seq === seq && !q.failed ? q.tries || 0 : 0) + 1;
+  // Keep showing the earlier read while the next one is on its way.
+  questions.set(k, { ...(q && q.seq === seq ? q : {}), seq, loading: true });
   api(hp(`/agents/${encodeURIComponent(a.pane)}/screen?source=visible&lines=30`, a.host || localId()))
     .then((r) => {
       const cur = state.agents.find((x) => same(x, a.host || localId(), a.pane));
       // Read after the prompt changed: that screen is not this question's.
       if (!cur || cur.stateSeq !== seq) return questions.delete(k);
-      questions.set(k, { seq, choices: window.parseChoices ? parseChoices(String(r.text || '').replace(/\s+$/, '')) : null, at: Date.now() });
+      const choices = window.parseChoices ? parseChoices(String(r.text || '').replace(/\s+$/, '')) : null;
+      questions.set(k, { seq, choices, tries, at: Date.now() });
+      if (!choicesSettled(choices) && tries < QUESTION_TRIES) setTimeout(() => view.name === 'list' && render(), QUESTION_RETRY_MS + 50);
     })
     .catch(() => questions.set(k, { seq, choices: null, failed: true, at: Date.now() }))
     .finally(() => view.name === 'list' && render());

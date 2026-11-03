@@ -199,7 +199,13 @@
     return head.length > 24 ? `${head.slice(0, 23).trimEnd()}…` : head;
   }
 
-  const api = { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, TYPE_OWN };
+  // A prompt read while it was still being drawn has no options yet, or only its header
+  // ("Bash command") where the question goes; such a read is worth repeating.
+  function choicesSettled(ch) {
+    return Boolean(ch && ch.items.length && /[?？]/.test(ch.question));
+  }
+
+  const api = { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, TYPE_OWN };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel });
+  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled });
 })(typeof self !== 'undefined' ? self : this);
