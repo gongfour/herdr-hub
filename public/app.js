@@ -36,12 +36,15 @@ const ERROR_TEXT = {
   bad_dir_name: '폴더 이름이 올바르지 않습니다. / \\ : * ? " < > | 와 . 이나 .. 은 쓸 수 없고 100자까지입니다.',
   dir_exists: '같은 이름의 폴더가 이미 있습니다.',
   dir_forbidden: '그 위치에 폴더를 만들 권한이 없습니다.',
+  image_too_large: '사진이 너무 큽니다(10MB까지).',
+  body_too_large: '사진이 너무 큽니다(10MB까지).',
+  bad_image_type: 'JPEG·PNG·WebP 사진만 보낼 수 있습니다.',
 };
 const errText = (err) => ERROR_TEXT[err.code] || err.message;
 
 let state = { agents: [], terminals: [], workspaces: [], hosts: [], herdr: 'connecting' };
 let view = { name: 'list' };
-let detail = { host: null, pane: null, tab: 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1 };
+let detail = { host: null, pane: null, tab: 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [] };
 const hostCache = new Map(); // host id -> { kinds, recentCwds, platform, home } from that host's /api/host
 let pollTimer = null;
 let resolveReady;
@@ -255,6 +258,7 @@ const currentAgent = () => state.agents.find((a) => same(a, curHost(), detail.pa
 
 function route() {
   clearInterval(pollTimer);
+  setTimeout(() => fit({ type: 'route' }), 0);
   scr = null;
   let h = location.hash.replace(/^#/, '') || '/';
   let host = null;
@@ -266,8 +270,9 @@ function route() {
   if ((m = h.match(/^\/agent\/(.+)$/))) {
     const pane = decodeURIComponent(m[1]);
     const keepTab = detail.pane === pane && detail.host === host && detail.tab;
+    dropFiles();
     view = { name: 'agent', host };
-    detail = { host, pane, tab: keepTab ? detail.tab : 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1 };
+    detail = { host, pane, tab: keepTab ? detail.tab : 'chat', transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [] };
     renderDetail();
     loadDetail();
     pollTimer = setInterval(() => {
@@ -394,7 +399,10 @@ function renderDetail() {
       <div id="d-blocked"></div>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="d-body"></div>
+      <div class="attach-tray" id="d-tray" hidden></div>
       <form class="composer" id="d-form">
+        <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">📎</button>
+        <input type="file" id="d-file" accept="image/*" multiple hidden>
         <textarea id="d-input" rows="1" placeholder="에이전트에게 보내기" enterkeyhint="send"></textarea>
         <button type="button" class="stop" id="d-stop" aria-label="중단" hidden>${ICON.stop}</button>
         <button type="submit" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
@@ -416,20 +424,58 @@ function renderDetail() {
   input.onkeydown = (e) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) document.getElementById('d-form').requestSubmit();
   };
+  const fileInput = document.getElementById('d-file');
+  document.getElementById('d-attach').onclick = () => fileInput.click();
+  fileInput.onchange = () => {
+    addFiles([...fileInput.files]);
+    fileInput.value = ''; // the same photo can be picked again
+  };
+  document.getElementById('d-tray').onclick = (e) => {
+    const x = e.target.closest('[data-drop]');
+    if (x) removeFile(Number(x.dataset.drop));
+  };
+  document.getElementById('d-body').addEventListener('click', (e) => {
+    const pic = e.target.closest('.pic');
+    if (pic) openViewer(pic.dataset.src);
+  });
   document.getElementById('d-form').onsubmit = async (e) => {
     e.preventDefault();
     const text = input.value;
-    if (!text.trim()) return;
-    const sendBtn = document.getElementById('d-send');
-    sendBtn.disabled = true;
+    const files = detail.files;
+    if (detail.sending || (!text.trim() && !files.length)) return;
+    if (files.some((f) => !f.blob)) return toast('사진을 준비하는 중입니다. 잠시 뒤에 보내 주세요.');
+    const host = curHost();
+    const pane = detail.pane;
+    detail.sending = true;
+    updateComposer();
     try {
-      await api(hp(`/agents/${encodeURIComponent(detail.pane)}/prompt`), { method: 'POST', body: JSON.stringify({ text }) });
-      input.value = '';
-      input.style.height = 'auto';
+      // Photos go to the agent's own host first; the prompt then names each file on its own line.
+      for (const f of files) {
+        if (f.path) continue; // uploaded on an earlier try
+        try {
+          f.path = (await api(hp('/uploads', host), { method: 'POST', body: f.blob, headers: { 'Content-Type': f.blob.type } })).path;
+        } catch (err) {
+          throw Object.assign(err, { upload: true });
+        }
+      }
+      await api(hp(`/agents/${encodeURIComponent(pane)}/prompt`, host), { method: 'POST', body: JSON.stringify({ text: promptText(text, files.map((f) => f.path)) }) });
+      if (detail.pane === pane) {
+        input.value = '';
+        input.style.height = 'auto';
+        dropFiles();
+        renderTray();
+      }
       setTimeout(loadDetail, 600);
     } catch (err) {
-      toast(err.code === 'agent_blocked' ? '에이전트가 응답을 기다리는 중입니다. 위 버튼으로 먼저 답해 주세요.' : `보내지 못했습니다: ${err.message}`);
+      toast(
+        err.upload
+          ? `사진을 올리지 못했습니다: ${errText(err)}`
+          : err.code === 'agent_blocked'
+            ? '에이전트가 응답을 기다리는 중입니다. 위 버튼으로 먼저 답해 주세요.'
+            : `보내지 못했습니다: ${err.message}`
+      );
     } finally {
+      detail.sending = false;
       updateComposer();
     }
   };
@@ -450,7 +496,150 @@ function updateComposer() {
   if (!input) return;
   const working = a && a.status === 'working';
   stop.hidden = !working;
-  send.disabled = !a || !input.value.trim() || a.status === 'blocked';
+  const files = detail.files || [];
+  send.disabled = !a || (!input.value.trim() && !files.length) || a.status === 'blocked' || Boolean(detail.sending);
+  const attach = document.getElementById('d-attach');
+  if (attach) attach.disabled = Boolean(detail.sending) || files.length >= MAX_FILES;
+}
+
+// ------------------------------------------------------------ photo attach
+
+const MAX_FILES = 6;
+const MAX_SIDE = 2000; // px, long side
+const KEEP_BYTES = 8 * 1024 * 1024; // a PNG/WebP this small and within MAX_SIDE is sent as it is
+// An upload path on a line of its own, as promptText writes it (either host's separators).
+const UPLOAD_LINE = /^(?:.*[\\/])?paddock-uploads[\\/](\d{8}-\d{6}-[0-9a-f]{8}\.(?:jpg|png|webp))$/;
+// Claude Code (2.1.317) takes an image path in a prompt by itself: it attaches the file and
+// shows "[Image #N]" in its place. So the prompt is the text, then one path per line.
+function promptText(text, paths) {
+  if (!paths.length) return text;
+  return [text.replace(/\s+$/, ''), ...paths].filter(Boolean).join('\n');
+}
+
+// Split a sent prompt into what was typed and the attached upload names: from the transcript's
+// image sources, or from path lines Claude Code left as text.
+function userParts(m) {
+  const pics = [...(m.uploads || [])];
+  let text = String(m.text || '')
+    .split('\n')
+    .filter((line) => {
+      const x = UPLOAD_LINE.exec(line.trim());
+      if (x && !pics.includes(x[1])) pics.push(x[1]);
+      return !x;
+    })
+    .join('\n');
+  if (pics.length || m.images) text = text.replace(/\[Image #\d+\]\s?/g, '');
+  return { text: text.trim(), pics };
+}
+
+let fileSeq = 0;
+function addFiles(list) {
+  const room = MAX_FILES - detail.files.length;
+  if (list.length > room) toast(`사진은 한 번에 ${MAX_FILES}장까지 보낼 수 있습니다.`);
+  for (const file of list.slice(0, Math.max(0, room))) {
+    const f = { id: ++fileSeq, name: file.name, url: URL.createObjectURL(file), blob: null, path: null };
+    const files = detail.files;
+    files.push(f);
+    shrinkImage(file)
+      .then((blob) => {
+        f.blob = blob;
+        if (blob !== file) {
+          URL.revokeObjectURL(f.url);
+          f.url = URL.createObjectURL(blob);
+        }
+      })
+      .catch(() => {
+        const i = files.indexOf(f);
+        if (i >= 0) files.splice(i, 1);
+        URL.revokeObjectURL(f.url);
+        toast(`사진을 읽지 못했습니다${file.name ? `: ${file.name}` : ''}. 다른 형식(JPEG·PNG)으로 골라 주세요.`);
+      })
+      .finally(() => files === detail.files && renderTray());
+  }
+  renderTray();
+}
+
+function removeFile(id) {
+  const i = detail.files.findIndex((f) => f.id === id);
+  if (i < 0 || detail.sending) return;
+  URL.revokeObjectURL(detail.files[i].url);
+  detail.files.splice(i, 1);
+  renderTray();
+}
+
+function dropFiles() {
+  for (const f of detail.files || []) URL.revokeObjectURL(f.url);
+  detail.files = [];
+}
+
+function renderTray() {
+  const tray = document.getElementById('d-tray');
+  if (!tray) return;
+  tray.hidden = !detail.files.length;
+  tray.innerHTML = detail.files
+    .map((f) => `<div class="thumb${f.blob ? '' : ' busy'}"><img src="${esc(f.url)}" alt="${esc(f.name || '사진')}"><button type="button" class="x" data-drop="${f.id}" aria-label="사진 빼기">✕</button></div>`)
+    .join('');
+  updateComposer();
+}
+
+// Downscale to MAX_SIDE, JPEG 0.85, upright (EXIF orientation applied). The iOS picker
+// normally hands over a JPEG even for HEIC photos; anything that won't decode is refused.
+async function shrinkImage(file) {
+  let src;
+  let w;
+  let h;
+  let done = () => {};
+  try {
+    src = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    w = src.width;
+    h = src.height;
+    done = () => src.close();
+  } catch {
+    // Older Safari: an <img> decodes more formats and applies EXIF orientation itself.
+    src = await new Promise((resolve, reject) => {
+      const img = new Image();
+      const u = URL.createObjectURL(file);
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('decode'));
+      img.src = u;
+      done = () => URL.revokeObjectURL(u);
+    });
+    w = src.naturalWidth;
+    h = src.naturalHeight;
+  }
+  try {
+    if (!w || !h) throw new Error('decode');
+    if (['image/png', 'image/webp'].includes(file.type) && Math.max(w, h) <= MAX_SIDE && file.size <= KEEP_BYTES) return file;
+    const k = Math.min(1, MAX_SIDE / Math.max(w, h));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * k));
+    canvas.height = Math.max(1, Math.round(h * k));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; // JPEG has no transparency
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    if (!blob) throw new Error('encode');
+    return blob;
+  } finally {
+    done();
+  }
+}
+
+function openViewer(src) {
+  const el = document.createElement('div');
+  el.className = 'viewer';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', '사진');
+  el.innerHTML = `<img src="${esc(src)}" alt="첨부 사진"><button type="button" class="icon-btn x" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
+  const close = () => {
+    el.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => e.key === 'Escape' && close();
+  el.onclick = close;
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(el);
 }
 
 function renderDetailHeader() {
@@ -630,7 +819,18 @@ function renderDetailBody(reset) {
 
 function message(m) {
   if (m.role === 'note') return `<p class="note">${esc(m.text)}</p>`;
-  if (m.role === 'user') return `<div class="msg user">${esc(m.text)}</div>`;
+  if (m.role === 'user') {
+    const { text, pics } = userParts(m);
+    const imgs = pics.map((n) => {
+      const src = `/api${hp(`/uploads/${n}`)}`;
+      return `<button type="button" class="pic" data-src="${esc(src)}" aria-label="사진 크게 보기"><img src="${esc(src)}" alt="첨부 사진" loading="lazy"></button>`;
+    });
+    // Inline images with no upload behind them (pasted on the host): a chip each, never the bytes.
+    const chips = Array.from({ length: Math.max(0, (m.images || 0) - pics.length) }, () => '<span class="img-chip">이미지</span>');
+    const media = imgs.length || chips.length ? `<div class="pics">${imgs.join('')}${chips.join('')}</div>` : '';
+    // No whitespace between tags: the bubble keeps line breaks (pre-wrap).
+    return `<div class="msg user">${media}${text ? `<span>${esc(text)}</span>` : ''}</div>`;
+  }
   const tools = m.tools && m.tools.length
     ? `<div class="tools">${m.tools.map((t) => `<div class="tool"><b>${esc(t.name)}</b> ${esc(t.summary)}</div>`).join('')}</div>`
     : '';
@@ -895,18 +1095,172 @@ document.addEventListener('selectionchange', () => {
   if (scr && scr.pending != null && !selecting()) flushScreen();
 });
 
-// iOS keeps the layout viewport when the keyboard opens and only shrinks the visual one:
-// size the detail views to what is visible so the command line and the screen's bottom stay
-// in sight. Elsewhere (interactive-widget=resizes-content) dvh already does it.
-if (window.visualViewport) {
-  const vv = window.visualViewport;
-  const fit = () => {
-    const covered = document.documentElement.clientHeight - vv.height > 80;
-    if (covered) document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
-    else document.documentElement.style.removeProperty('--vvh');
-    if (scr && scr.follow) requestAnimationFrame(() => scr && scr.follow && (scr.body.scrollTop = scr.body.scrollHeight));
-  };
+// ------------------------------------------------------------ app shell and keyboard
+
+// The page never scrolls: #app is a fixed shell and only the regions inside it scroll.
+// iOS keeps the layout viewport when the keyboard opens, shrinks the visual one and scrolls
+// the page to show the field, which pushed the header off the top. So the shell follows the
+// visual viewport (--app-top/--app-h), any page scroll is undone, and a chat or screen that
+// was following the bottom stays there. Pinch-zoomed, the layout is left alone.
+const vv = window.visualViewport || null;
+const mainScroller = () => document.querySelector('#d-body, #t-body, #app > main, #app > form.panel');
+const editable = (el) =>
+  Boolean(el) && (el.tagName === 'TEXTAREA' || el.isContentEditable || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file', 'range', 'color'].includes(el.type)));
+
+function setVar(name, value) {
+  const st = document.documentElement.style;
+  if (st.getPropertyValue(name) === (value || '')) return false;
+  if (value) st.setProperty(name, value);
+  else st.removeProperty(name);
+  return true;
+}
+
+function fit(e) {
+  const de = document.documentElement;
+  if (window.scrollY || de.scrollTop || document.body.scrollTop) window.scrollTo(0, 0);
+  const sc = mainScroller();
+  // Measured before the shell changes size.
+  const pinned = Boolean(sc) && (scr && scr.body === sc ? scr.follow : atBottom(sc));
+  const zoomed = !vv || vv.scale > 1.01;
+  // Never taller than the layout viewport (some engines report a stale height at load).
+  const h = zoomed ? '' : `${Math.round(Math.min(vv.height, de.clientHeight))}px`;
+  const top = zoomed || vv.offsetTop < 0.5 ? '' : `${Math.round(vv.offsetTop)}px`;
+  const changed = setVar('--app-h', h) | setVar('--app-top', top);
+  de.classList.toggle('kb', !zoomed && de.clientHeight - vv.height > 120 && editable(document.activeElement));
+  if (changed && pinned) requestAnimationFrame(() => (sc.scrollTop = sc.scrollHeight));
+  viewportDiag(e && e.type ? e.type : 'timer');
+}
+
+if (vv) {
   vv.addEventListener('resize', fit);
+  vv.addEventListener('scroll', fit);
+}
+window.addEventListener('resize', fit);
+window.addEventListener('scroll', fit);
+window.addEventListener('orientationchange', (e) => {
+  fit(e);
+  setTimeout(fit, 400);
+});
+// The keyboard animates in and out; look again once it has settled.
+for (const type of ['focusin', 'focusout'])
+  document.addEventListener(type, (e) => {
+    fit(e);
+    setTimeout(fit, 350);
+  });
+
+// iOS rubber-bands the whole document on a drag that starts outside a scroller, and drags it
+// sideways from inside the screen box. Cancel a touch drag unless something under the finger
+// can scroll in that direction (the first move decides the axis); scrollers themselves have
+// overscroll-behavior: contain so their edges don't chain to the page. Pinch zoom stays.
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function canScroll(el, axis) {
+  for (; el && el.nodeType === 1 && el !== document.body; el = el.parentElement) {
+    if (el.matches('textarea, input, select, [contenteditable]')) return true; // caret and selection drags
+    const cs = getComputedStyle(el);
+    const ov = axis === 'x' ? cs.overflowX : cs.overflowY;
+    if ((ov === 'auto' || ov === 'scroll') && (axis === 'x' ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight) > 1) return true;
+  }
+  return false;
+}
+if (IOS) {
+  let touch = null;
+  document.addEventListener(
+    'touchstart',
+    (e) => {
+      const t = e.touches[0];
+      touch = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, target: e.target, allow: null } : null;
+    },
+    { passive: true }
+  );
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (!touch || e.touches.length !== 1 || (vv && vv.scale > 1.01)) return;
+      if (touch.allow == null) {
+        const t = e.touches[0];
+        const axis = Math.abs(t.clientX - touch.x) > Math.abs(t.clientY - touch.y) ? 'x' : 'y';
+        touch.allow = canScroll(touch.target, axis);
+      }
+      if (!touch.allow && e.cancelable) e.preventDefault();
+    },
+    { passive: false }
+  );
+}
+
+// ---- viewport diagnostics: snapshots to the hub's data/viewport.log (settings switch)
+
+const DIAG_KEY = 'paddock.vpdiag';
+let memDiag = true;
+function diagOn() {
+  try {
+    return localStorage.getItem(DIAG_KEY) !== '0'; // on unless switched off
+  } catch {
+    return memDiag;
+  }
+}
+function setDiag(on) {
+  memDiag = on;
+  try {
+    localStorage.setItem(DIAG_KEY, on ? '1' : '0');
+  } catch {
+    /* private mode: lasts until reload */
+  }
+}
+
+const DIAG_MS = 500; // at most two a second
+let diagLast = '';
+let diagAt = 0;
+let diagTimer = null;
+let diagReason = '';
+
+function viewportSnapshot(reason) {
+  const de = document.documentElement;
+  const r1 = (n) => (n == null ? null : Math.round(n * 10) / 10);
+  const rect = (el) => {
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { top: r1(r.top), bottom: r1(r.bottom), height: r1(r.height) };
+  };
+  const a = document.activeElement;
+  return {
+    reason,
+    route: location.hash || '#/',
+    innerHeight: window.innerHeight,
+    clientHeight: de.clientHeight,
+    vvHeight: vv && r1(vv.height),
+    offsetTop: vv && r1(vv.offsetTop),
+    pageTop: vv && r1(vv.pageTop),
+    scale: vv && r1(vv.scale),
+    scrollY: r1(window.scrollY),
+    scrollingTop: r1((document.scrollingElement || de).scrollTop),
+    appH: de.style.getPropertyValue('--app-h') || null,
+    appTop: de.style.getPropertyValue('--app-top') || null,
+    kb: de.classList.contains('kb'),
+    header: rect(document.querySelector('#app .bar')),
+    composer: rect(document.querySelector('#app .composer')),
+    scroller: rect(mainScroller()),
+    focused: a && a !== document.body ? `${a.tagName.toLowerCase()}${a.id ? `#${a.id}` : ''}` : null,
+    standalone: Boolean(navigator.standalone || window.matchMedia('(display-mode: standalone)').matches),
+    userAgent: navigator.userAgent,
+    ts: Date.now(),
+  };
+}
+
+// Throttled, and only when something but the reason and time changed. Always to the hub
+// itself (never a peer path): the log is the hub's.
+function viewportDiag(reason) {
+  if (!diagOn()) return;
+  diagReason = reason;
+  if (diagTimer) return;
+  diagTimer = setTimeout(() => {
+    diagTimer = null;
+    const snap = viewportSnapshot(diagReason);
+    const key = JSON.stringify({ ...snap, reason: 0, ts: 0 });
+    if (key === diagLast) return;
+    diagLast = key;
+    diagAt = Date.now();
+    fetch('/api/debug/viewport', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Paddock': '1' }, body: JSON.stringify(snap), keepalive: true }).catch(() => {});
+  }, Math.max(0, DIAG_MS - (Date.now() - diagAt)));
 }
 
 // ------------------------------------------------------------ workspace view
@@ -1253,6 +1607,11 @@ function renderSettings() {
         </div>
       </section>
       <section>
+        <h2>진단</h2>
+        <label class="switch"><span>화면 진단 보내기</span><input type="checkbox" id="s-diag" role="switch" ${diagOn() ? 'checked' : ''}></label>
+        <p>키보드를 열고 닫거나 화면이 움직일 때 화면 크기·위치를 허브의 <code>data/viewport.log</code> 에 남깁니다(1초에 두 번까지, 바뀔 때만). 확인이 끝나면 끄세요.</p>
+      </section>
+      <section>
         <h2>호스트</h2>
         ${(hosts().length ? hosts() : [{ id: localId(), label: state.host, online: true, herdr: state.herdr, local: true }])
           .map((x) => {
@@ -1263,6 +1622,14 @@ function renderSettings() {
           .join('')}
       </section>
     </main>`;
+  document.getElementById('s-diag').onchange = (e) => {
+    setDiag(e.target.checked);
+    if (e.target.checked) {
+      diagLast = '';
+      viewportDiag('settings');
+    }
+    toast(e.target.checked ? '화면 진단을 보냅니다' : '화면 진단을 껐습니다');
+  };
   const enable = document.getElementById('s-enable');
   if (enable) enable.onclick = enablePush;
   const test = document.getElementById('s-test');
