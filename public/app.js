@@ -2920,28 +2920,8 @@ function mountScreen(body, kind, tools, topHtml = '') {
     s.follow = true;
     flushScreen(true);
   };
-  if (tools) {
-    tools.hidden = false;
-    tools.innerHTML = `<span class="s-status"></span>
-      <button type="button" class="toggle" data-s="color" aria-pressed="${s.color}">색상</button>
-      <button type="button" class="toggle" data-s="wrap" aria-pressed="${s.wrap}">줄바꿈</button>`;
-    tools.querySelector('[data-s="color"]').onclick = (e) => {
-      s.color = !s.color;
-      saveColor(s.color);
-      e.currentTarget.setAttribute('aria-pressed', String(s.color));
-      // Redraw what's there at once (an ansi read strips to plain), then read again in the new format.
-      if (s.raw) setScreenText(s.raw.text, s.raw.format, true);
-      if (kind === 'agent') loadDetail();
-      else loadTerminal();
-    };
-    tools.querySelector('[data-s="wrap"]').onclick = (e) => {
-      s.wrap = !s.wrap;
-      saveWrap(kind, s.wrap);
-      e.currentTarget.setAttribute('aria-pressed', String(s.wrap));
-      s.pre.classList.toggle('wrap', s.wrap);
-      if (s.follow) body.scrollTop = body.scrollHeight;
-    };
-  }
+  // 색상 and 줄바꿈 live in 설정; the tools row only says what went wrong, when something did.
+  if (tools) tools.innerHTML = '<span class="s-status"></span>';
   screenStatus();
 }
 
@@ -2963,6 +2943,7 @@ function screenStatus() {
   if (!el) return;
   el.textContent = scr.error || scr.note || '';
   el.classList.toggle('err', Boolean(scr.error));
+  scr.tools.hidden = !scr.error; // a note alone is not worth a row
   if (scr.shown == null) scr.loading.textContent = scr.error ? '화면을 읽지 못했습니다' : '불러오는 중…';
 }
 
@@ -3626,6 +3607,13 @@ function renderSettings() {
         } 에이전트 입력 칸에만 해당하고, 셸 명령 줄은 늘 리턴으로 실행합니다.</p>
       </section>
       <section>
+        <h2>터미널 화면</h2>
+        <label class="switch"><span>색상</span><input type="checkbox" id="s-color" role="switch" ${getColor() ? 'checked' : ''}></label>
+        <label class="switch"><span>셸 줄바꿈</span><input type="checkbox" id="s-wrap-term" role="switch" ${getWrap('term') ? 'checked' : ''}></label>
+        <label class="switch"><span>에이전트 화면 줄바꿈</span><input type="checkbox" id="s-wrap-agent" role="switch" ${getWrap('agent') ? 'checked' : ''}></label>
+        <p>줄바꿈을 끄면 긴 줄이 한 줄로 남고 옆으로 밀어 봅니다. 표나 전체 화면 프로그램의 모양은 끈 쪽이 지켜집니다.</p>
+      </section>
+      <section>
         <h2>화면 모드</h2>
         <div class="seg" role="radiogroup" aria-label="화면 모드" id="s-theme">
           ${Object.entries(THEMES)
@@ -3668,6 +3656,9 @@ function renderSettings() {
     renderSettings();
     document.querySelector(`#s-enter [data-enter="${v}"]`).focus();
   });
+  document.getElementById('s-color').onchange = (e) => saveColor(e.target.checked);
+  document.getElementById('s-wrap-term').onchange = (e) => saveWrap('term', e.target.checked);
+  document.getElementById('s-wrap-agent').onchange = (e) => saveWrap('agent', e.target.checked);
   document.getElementById('s-diag').onchange = (e) => {
     setDiag(e.target.checked);
     if (e.target.checked) {
