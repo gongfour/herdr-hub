@@ -16,7 +16,7 @@ const notifyLib = require('./lib/notify');
 const { parseChoices, choicesSettled } = require('./public/choices');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
-const { send, readJson, readRaw, serveStatic } = require('./lib/http');
+const { send, readJson, readRaw, serveStatic, parseHosts, hostAllowed } = require('./lib/http');
 const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
 const { screenReader } = require('./lib/screen');
 
@@ -32,6 +32,15 @@ const PUSH_ON = process.env.HERDR_HUB_PUSH !== '0';
 // Folder or workspace name prefixes whose agents never notify (throwaway test workspaces).
 const PUSH_MUTE = notifyLib.parseMute(process.env.HERDR_HUB_PUSH_MUTE);
 const POLL_MS = 4000;
+// The names this Herdr Hub answers to, as the Host header carries them (tailscale serve passes
+// the browser's through: "desktop.example.ts.net", "server.example.ts.net:8443"). Unset: any
+// *.ts.net name. Loopback only with HERDR_HUB_ALLOW_LOCAL. Anything else is a page whose own
+// domain was pointed at 127.0.0.1 (DNS rebinding) and gets 403.
+const HOSTS = parseHosts(process.env.HERDR_HUB_HOSTS);
+const HOST_RULE = {
+  allowed: [...HOSTS, ...(ALLOW_LOCAL ? [`127.0.0.1:${PORT}`, `localhost:${PORT}`, `[::1]:${PORT}`] : [])],
+  suffixes: HOSTS.length ? [] : ['.ts.net'],
+};
 
 if (!HOST_ID_RULE.test(HOST_ID) || HOST_ID === 'all') {
   console.error(`HERDR_HUB_HOST_ID must match ${HOST_ID_RULE} and not be "all".`);
@@ -626,10 +635,11 @@ async function proxy(req, res, url) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://herdr-hub.local');
+  if (!hostAllowed(req.headers.host, HOST_RULE)) return send(res, 403, { error: 'bad_host' });
   if (!identity(req)) return send(res, 403, { error: 'forbidden' }, { 'Content-Type': 'text/plain; charset=utf-8' });
   try {
     if (url.pathname.startsWith('/api/')) await api(req, res, url);
-    else if (req.method === 'GET') serveStatic(PUBLIC, res, url.pathname);
+    else if (req.method === 'GET' || req.method === 'HEAD') serveStatic(PUBLIC, req, res, url);
     else send(res, 405, { error: 'method_not_allowed' });
   } catch (err) {
     const status = err.status || (err instanceof herdr.HerdrError ? 502 : 500);
@@ -645,6 +655,7 @@ setInterval(() => uploads.sweep(), 24 * 3600 * 1000).unref();
 server.listen(PORT, HOST, () => {
   console.log(`herdr-hub on http://${HOST}:${PORT} (herdr socket ${herdr.defaultSocketPath()})`);
   console.log(ALLOWED.length ? `allowed tailscale logins: ${ALLOWED.join(', ')}` : 'local access only');
+  console.log(`hosts: ${[...HOST_RULE.allowed, ...HOST_RULE.suffixes.map((x) => `*${x}`)].join(', ')}`);
   console.log(`host ${HOST_ID} (${HOSTNAME}); push ${push ? 'on' : 'off'}${PUSH_MUTE.length ? ` (muted: ${PUSH_MUTE.join(', ')})` : ''}; peers: ${[...peers.values()].map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);
 });
 
