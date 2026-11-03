@@ -51,7 +51,7 @@ desktop 의 Paddock 이 **허브**다. 허브는 다른 Paddock(**피어**)을 �
 ## 운영 — desktop (허브)
 
 - 위치: `C:\Users\kangw\src\paddock`, 로그는 `data\paddock.log`, VAPID 키·구독은 `data\`.
-- 시작: 로그온 때 예약 작업 `Paddock` 이 `run.cmd` 를 띄운다(127.0.0.1:8787). 호스트 id·피어 목록도 `run.cmd` 에 있다. `run.cmd` 는 CRLF 로 둔다(LF 면 cmd 가 `set` 줄을 빠뜨린다).
+- 시작: 로그온 때 예약 작업 `Paddock` 이 `conhost.exe --headless run.cmd` 로 창 없이 띄운다(127.0.0.1:8787). 콘솔 창으로 띄우면 그 창을 닫거나 Ctrl+C 가 눌리는 순간 서버가 꺼진다(종료 코드 0xC000013A). 호스트 id·피어 목록도 `run.cmd` 에 있다. `run.cmd` 는 CRLF 로 둔다(LF 면 cmd 가 `set` 줄을 빠뜨린다).
 - 공개: `tailscale serve --bg 8787` → `https://desktop.uaru-monster.ts.net` (tailnet 전용).
 - 배포: 맥에서 `./deploy.sh` (또는 `./deploy.sh desktop`).
 
