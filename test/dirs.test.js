@@ -7,7 +7,7 @@ const path = require('path');
 const dirs = require('../lib/dirs');
 
 test('cleanName accepts plain names', () => {
-  for (const n of ['paddock-try-1', '새 폴더', 'a.b', 'x'.repeat(100)]) assert.equal(dirs.cleanName(n), n);
+  for (const n of ['herdr-hub-try-1', '새 폴더', 'a.b', 'x'.repeat(100)]) assert.equal(dirs.cleanName(n), n);
 });
 
 test('cleanName rejects separators, dots, control and Windows-forbidden names', () => {
@@ -16,7 +16,7 @@ test('cleanName rejects separators, dots, control and Windows-forbidden names', 
 });
 
 test('list returns sorted visible subfolders; create refuses an existing name', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paddock-dirs-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-dirs-'));
   try {
     for (const n of ['beta', 'Alpha', '.git', 'node_modules', 'gamma10', 'gamma9']) fs.mkdirSync(path.join(root, n));
     fs.writeFileSync(path.join(root, 'file.txt'), '');

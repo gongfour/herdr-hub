@@ -1,13 +1,13 @@
 @echo off
-rem Started at logon by the "Paddock" scheduled task. Logs go to data\paddock.log.
+rem Started at logon by the "HerdrHub" scheduled task. Logs go to data\herdr-hub.log.
 cd /d "%~dp0"
 if not exist data mkdir data
-set PADDOCK_ALLOWED_LOGINS=kangwonjin.dev@gmail.com
-set PADDOCK_HOST_ID=desktop
-set PADDOCK_HOST_LABEL=desktop
-rem Hub: merge these peers into this Paddock (id=url, comma-separated).
-set PADDOCK_PEERS=server=https://server.uaru-monster.ts.net:8443
-set PADDOCK_VAPID_SUBJECT=https://desktop.uaru-monster.ts.net
+set HERDR_HUB_ALLOWED_LOGINS=kangwonjin.dev@gmail.com
+set HERDR_HUB_HOST_ID=desktop
+set HERDR_HUB_HOST_LABEL=desktop
+rem Hub: merge these peers into this Herdr Hub (id=url, comma-separated).
+set HERDR_HUB_PEERS=server=https://server.uaru-monster.ts.net:8443
+set HERDR_HUB_VAPID_SUBJECT=https://desktop.uaru-monster.ts.net
 rem The task runs without the interactive PATH; point at node directly.
 set NODE=C:\Users\kangw\AppData\Local\mise\installs\node\26.3.1\node.exe
-"%NODE%" server.js >> data\paddock.log 2>&1
+"%NODE%" server.js >> data\herdr-hub.log 2>&1

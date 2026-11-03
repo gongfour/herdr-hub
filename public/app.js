@@ -60,7 +60,7 @@ const basename = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || 
 
 // ------------------------------------------------------------ hosts
 
-// The host a view is about: from the route (#/h/<id>/…), else this Paddock's own host.
+// The host a view is about: from the route (#/h/<id>/…), else this Herdr Hub's own host.
 const localId = () => state.hostId || null;
 const curHost = () => view.host || localId();
 const hosts = () => state.hosts || [];
@@ -75,7 +75,17 @@ const link = (host, path) => `#/h/${encodeURIComponent(host || localId() || '')}
 const same = (x, host, id, key = 'pane') => x[key] === id && (x.host || localId()) === host;
 const hostChip = (x) => (multi() ? `<span class="host-chip">${esc(x.hostLabel || hostLabel(x.host))}</span>` : '');
 
-const FILTER_KEY = 'paddock.host';
+// Settings saved before the rename lived under paddock.*; move them across once.
+try {
+  for (const k of Object.keys(localStorage))
+    if (k.startsWith('paddock.')) {
+      const nk = 'herdr-hub.' + k.slice(8);
+      if (localStorage.getItem(nk) == null) localStorage.setItem(nk, localStorage.getItem(k));
+      localStorage.removeItem(k);
+    }
+} catch {}
+
+const FILTER_KEY = 'herdr-hub.host';
 function getFilter() {
   try {
     return localStorage.getItem(FILTER_KEY) || 'all';
@@ -106,7 +116,7 @@ async function hostInfo(id) {
 async function api(path, opts = {}) {
   const res = await fetch(`/api${path}`, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', 'X-Paddock': '1', ...(opts.headers || {}) },
+    headers: { 'Content-Type': 'application/json', 'X-Herdr-Hub': '1', ...(opts.headers || {}) },
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(body.message || body.error || res.statusText), { code: body.error });
@@ -263,7 +273,7 @@ function md(src) {
 // ------------------------------------------------------------ live state
 
 // EventSource retries a dropped connection by itself, but gives up for good on a non-200
-// answer such as the 502 tailscale serve returns while Paddock restarts. Reopen it then,
+// answer such as the 502 tailscale serve returns while Herdr Hub restarts. Reopen it then,
 // and whenever the app comes back to the foreground (iOS suspends home-screen apps).
 let stream = null;
 let retryTimer = null;
@@ -586,7 +596,7 @@ const MAX_FILES = 6;
 const MAX_SIDE = 2000; // px, long side
 const KEEP_BYTES = 8 * 1024 * 1024; // a PNG/WebP this small and within MAX_SIDE is sent as it is
 // An upload path on a line of its own, as promptText writes it (either host's separators).
-const UPLOAD_LINE = /^(?:.*[\\/])?paddock-uploads[\\/](\d{8}-\d{6}-[0-9a-f]{8}\.(?:jpg|png|webp))$/;
+const UPLOAD_LINE = /^(?:.*[\\/])?(?:herdr-hub|paddock)-uploads[\\/](\d{8}-\d{6}-[0-9a-f]{8}\.(?:jpg|png|webp))$/;
 // Claude Code (2.1.317) takes an image path in a prompt by itself: it attaches the file and
 // shows "[Image #N]" in its place. So the prompt is the text, then one path per line.
 function promptText(text, paths) {
@@ -1187,7 +1197,7 @@ async function terminalMenu() {
 // holds still while you've scrolled up to read, selected text, or have a finger on it.
 // Wrapping is a per-view choice: off for agents (TUI layouts keep their shape and scroll
 // sideways inside the box), on for terminals.
-const WRAP_KEY = { agent: 'paddock.wrap.agent', term: 'paddock.wrap.term' };
+const WRAP_KEY = { agent: 'herdr-hub.wrap.agent', term: 'herdr-hub.wrap.term' };
 function getWrap(kind) {
   try {
     const v = localStorage.getItem(WRAP_KEY[kind]);
@@ -1206,7 +1216,7 @@ function saveWrap(kind, on) {
 }
 
 // Colours (herdr's ansi read) are one choice for both views, on unless switched off.
-const COLOR_KEY = 'paddock.color';
+const COLOR_KEY = 'herdr-hub.color';
 function getColor() {
   try {
     return localStorage.getItem(COLOR_KEY) !== '0';
@@ -1460,7 +1470,7 @@ if (IOS) {
 
 // ---- viewport diagnostics: snapshots to the hub's data/viewport.log (settings switch)
 
-const DIAG_KEY = 'paddock.vpdiag';
+const DIAG_KEY = 'herdr-hub.vpdiag';
 let memDiag = true;
 function diagOn() {
   try {
@@ -1533,7 +1543,7 @@ function pasteDiag(e) {
     userAgent: navigator.userAgent,
     ts: Date.now(),
   };
-  fetch('/api/debug/viewport', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Paddock': '1' }, body: JSON.stringify(snap), keepalive: true }).catch(() => {});
+  fetch('/api/debug/viewport', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Herdr-Hub': '1' }, body: JSON.stringify(snap), keepalive: true }).catch(() => {});
 }
 
 // Throttled, and only when something but the reason and time changed. Always to the hub
@@ -1549,7 +1559,7 @@ function viewportDiag(reason) {
     if (key === diagLast) return;
     diagLast = key;
     diagAt = Date.now();
-    fetch('/api/debug/viewport', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Paddock': '1' }, body: JSON.stringify(snap), keepalive: true }).catch(() => {});
+    fetch('/api/debug/viewport', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Herdr-Hub': '1' }, body: JSON.stringify(snap), keepalive: true }).catch(() => {});
   }, Math.max(0, DIAG_MS - (Date.now() - diagAt)));
 }
 

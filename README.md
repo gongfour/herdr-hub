@@ -1,6 +1,6 @@
 # Herdr Hub
 
-화면에 보이는 이름은 Herdr Hub 이다. 저장소·폴더·예약 작업(`Paddock`)·LaunchAgent(`local.paddock`)·헤더(`X-Paddock`) 같은 내부 이름은 Paddock 그대로 둔다.
+예전 이름은 Paddock 이었다. 저장소·폴더(`herdr-hub`)·예약 작업(`HerdrHub`)·LaunchAgent(`local.herdr-hub`)·헤더(`X-Herdr-Hub`)·환경 변수(`HERDR_HUB_*`)까지 모두 바꿨다. 예전 `paddock-uploads` 사진과 브라우저 설정(`paddock.*`)은 처음 실행할 때 새 이름으로 옮긴다.
 
 herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도는 호스트에서 돌고, Tailscale 로만 접속한다.
 
@@ -32,18 +32,18 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
   - 📷 는 바로 카메라를 연다(`capture="environment"`).
   - 붙여넣기: 입력 칸에 이미지를 붙여 넣으면(iOS: 스크린숏 → 미리보기 누르기 → 복사(또는 복사 후 삭제) → 입력 칸 길게 눌러 붙여넣기) 같은 첨부로 들어간다(`paste` 의 `clipboardData.files`, 없으면 `items` 의 file 항목). 글은 그대로 붙는다. 이미지만 있을 때는 글자를 넣지 않는다.
   - 휴대폰에서 긴 변 2000px 까지 줄이고 JPEG 0.85 로 다시 만든다(EXIF 회전 반영, `createImageBitmap(…, {imageOrientation: 'from-image'})`, 안 되면 `<img>` 로). 2000px 안의 PNG·WebP(8MB 이하)는 그대로 보낸다. 읽을 수 없는 파일은 알림 한 줄로 거절한다.
-  - 보낼 때 사진마다 에이전트가 있는 호스트에 먼저 올리고(`POST /api/uploads`, 본문은 사진 그대로 `image/jpeg|png|webp`, `X-Paddock`, 10MB 까지, 피어는 허브가 이진 그대로 넘긴다), 프롬프트는 「글 + 줄마다 절대 경로 하나」로 보낸다. 서버는 `<임시 폴더>/paddock-uploads/<yyyymmdd-hhmmss>-<임의>.<확장자>` 에 저장하고 `{path, name}` 을 돌려준다(내용이 형식과 맞아야 한다). 시작할 때와 하루에 한 번 7일 지난 파일을 지운다. `GET /api/uploads/<name>` 은 그 폴더의 그 이름 꼴 파일만 준다.
+  - 보낼 때 사진마다 에이전트가 있는 호스트에 먼저 올리고(`POST /api/uploads`, 본문은 사진 그대로 `image/jpeg|png|webp`, `X-Herdr-Hub`, 10MB 까지, 피어는 허브가 이진 그대로 넘긴다), 프롬프트는 「글 + 줄마다 절대 경로 하나」로 보낸다. 서버는 `<임시 폴더>/herdr-hub-uploads/<yyyymmdd-hhmmss>-<임의>.<확장자>` 에 저장하고 `{path, name}` 을 돌려준다(내용이 형식과 맞아야 한다). 시작할 때와 하루에 한 번 7일 지난 파일을 지운다. `GET /api/uploads/<name>` 은 그 폴더의 그 이름 꼴 파일만 준다.
   - Claude Code 2.1.317 은 프롬프트 안의 이미지 경로를 스스로 첨부한다(경로 자리에 `[Image #N]`, 기록에는 이미지 블록과 `[Image: source: <경로>]` 메타 항목). 그래서 「읽어 달라」는 안내 줄은 붙이지 않는다(desktop·server 의 haiku 로 확인: 그림 속 글자를 읽었다).
   - 대화: 보낸 말풍선에 첨부 사진을 작은 그림으로 보여 주고, 누르면 전체 화면으로 연다. 기록의 메타 항목(또는 글에 남은 경로)에서 업로드 이름을 찾아 `/api/uploads/<name>` 으로 받는다. base64 는 휴대폰으로 보내지 않는다. 업로드가 아닌 이미지(호스트에서 붙여 넣은 것)는 「이미지」 칩으로만 보인다.
 - 화면 진단(임시): 설정 → 「화면 진단 보내기」(기본 켬, 이 기기에 기억). 켜 두면 `visualViewport` 크기·스크롤, 포커스 들어옴·나감, 방향 바뀜 때(1초에 두 번까지, 값이 바뀔 때만) 상태를 허브의 `POST /api/debug/viewport` 로 보낸다. 피어로는 넘기지 않는다. 허브가 `data/viewport.log` 에 한 줄에 JSON 하나로 쌓는다. 512KB 를 넘으면 `viewport.log.1` 로 돌리므로 둘 합쳐 1MB 쯤이다. 다른 것은 기록하지 않는다.
   - 붙여넣기마다 `reason: "paste"` 줄도 하나 남긴다: `types`, `items`(kind·type), `fileCount`, `files`(type·size). 내용은 남기지 않는다.
   - 항목: `reason`(이벤트), `route`, `innerHeight`, `clientHeight`, `vvHeight`, `offsetTop`, `pageTop`, `scale`, `scrollY`, `scrollingTop`, 틀에 준 `appH`·`appTop`, `kb`(키보드로 본 상태), `header`·`composer`·`scroller` 의 `{top,bottom,height}`, `focused`, `standalone`, `userAgent`, `ts`(휴대폰 시각), `at`(서버 시각).
-  - 읽기(맥에서): `ssh kangw@desktop 'Get-Content C:\Users\kangw\src\paddock\data\viewport.log -Tail 20'`. 키보드를 연 줄에서 `header.top` 이 `offsetTop` 과 같고 `composer.bottom` 이 `offsetTop + vvHeight` 와 같으면 맞다.
+  - 읽기(맥에서): `ssh kangw@desktop 'Get-Content C:\Users\kangw\src\herdr-hub\data\viewport.log -Tail 20'`. 키보드를 연 줄에서 `header.top` 이 `offsetTop` 과 같고 `composer.bottom` 이 `offsetTop + vvHeight` 와 같으면 맞다.
   - 끄기: 휴대폰에서 설정 → 「화면 진단 보내기」를 끈다. 기본값을 끄려면 `public/app.js` 의 `diagOn()` 을 바꾼다.
 
 ## 여러 호스트 (허브)
 
-desktop 의 Paddock 이 **허브**다. 허브는 다른 Paddock(**피어**)을 자기 화면에 합쳐 보여 주고, 피어 쪽 요청을 대신 전달한다. 휴대폰은 허브 하나(`https://desktop.uaru-monster.ts.net`)만 연다.
+desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)을 자기 화면에 합쳐 보여 주고, 피어 쪽 요청을 대신 전달한다. 휴대폰은 허브 하나(`https://desktop.uaru-monster.ts.net`)만 연다.
 
 | 호스트 | 역할 | 주소 | herdr |
 | --- | --- | --- | --- |
@@ -52,34 +52,34 @@ desktop 의 Paddock 이 **허브**다. 허브는 다른 Paddock(**피어**)을 �
 
 - 허브는 피어마다 `/api/stream`(SSE)을 구독한다. 끊기면 다시 붙고(1초부터 최대 30초 간격), 6초 안에 돌아오지 않으면 그 피어를 **오프라인**으로 표시하고 그 항목을 목록에서 뺀다. 연결은 됐는데 50초 동안 아무것도 안 오면(노트북이 잠든 경우) 끊은 것으로 본다.
 - 허브의 `/api/state`·`/api/stream` 은 모든 호스트를 합친 것이다. 에이전트·터미널·워크스페이스마다 `host`(id)·`hostLabel` 이 붙고, `hosts` 에 호스트별 `online`·`herdr`·`since` 가 들어 있다.
-- 호스트별 요청은 `/api/peers/<id>/<나머지>` 로 보내면 허브가 피어의 `/api/<나머지>` 로 넘긴다(`host`, `dirs`, `agents`, `panes`, `workspaces`, `uploads` 만). 본문은 이진 그대로 오간다(사진 업로드는 10MB, 나머지는 256KB 까지). `X-Paddock` 검사는 허브에서 먼저 하고 피어로도 넘긴다. 피어가 오프라인이면 `503 peer_offline`, 시간 초과는 `504`(조회 15초, 변경 60초).
-- 알림은 허브만 보낸다. 피어의 상태 변화(응답 필요, 완료)도 허브가 보고 보낸다. 피어는 `PADDOCK_PUSH=0` 이라 알림을 아예 보내지 않으므로 같은 알림이 두 번 오지 않는다. 피어가 잠든 사이에 생긴 변화도 다시 연결되면 알린다.
+- 호스트별 요청은 `/api/peers/<id>/<나머지>` 로 보내면 허브가 피어의 `/api/<나머지>` 로 넘긴다(`host`, `dirs`, `agents`, `panes`, `workspaces`, `uploads` 만). 본문은 이진 그대로 오간다(사진 업로드는 10MB, 나머지는 256KB 까지). `X-Herdr-Hub` 검사는 허브에서 먼저 하고 피어로도 넘긴다. 피어가 오프라인이면 `503 peer_offline`, 시간 초과는 `504`(조회 15초, 변경 60초).
+- 알림은 허브만 보낸다. 피어의 상태 변화(응답 필요, 완료)도 허브가 보고 보낸다. 피어는 `HERDR_HUB_PUSH=0` 이라 알림을 아예 보내지 않으므로 같은 알림이 두 번 오지 않는다. 피어가 잠든 사이에 생긴 변화도 다시 연결되면 알린다.
   - herdr 0.9.3 은 `completion_seq` 가 없어서, 그 호스트에서는 작업 중 → 완료 로 바뀔 때를 완료로 본다.
-- 인증: 피어도 `tailscale serve` 뒤에 있고 `Tailscale-User-Login` 을 `PADDOCK_ALLOWED_LOGINS` 와 맞춘다. desktop 노드는 사용자 소유(태그 없음)라 허브 → 피어 요청에도 `tailscale serve` 가 `kangwonjin.dev@gmail.com` 을 붙인다(직접 확인함; 요청에 위조한 값은 serve 가 덮어쓴다). 그래서 따로 비밀값을 두지 않았다. 피어를 태그 노드로 바꾸면 이 머리글이 사라지므로 그때는 공유 비밀을 넣어야 한다.
+- 인증: 피어도 `tailscale serve` 뒤에 있고 `Tailscale-User-Login` 을 `HERDR_HUB_ALLOWED_LOGINS` 와 맞춘다. desktop 노드는 사용자 소유(태그 없음)라 허브 → 피어 요청에도 `tailscale serve` 가 `kangwonjin.dev@gmail.com` 을 붙인다(직접 확인함; 요청에 위조한 값은 serve 가 덮어쓴다). 그래서 따로 비밀값을 두지 않았다. 피어를 태그 노드로 바꾸면 이 머리글이 사라지므로 그때는 공유 비밀을 넣어야 한다.
 - 화면: 목록 위의 호스트 선택(전체 / desktop / server, 이 기기에 기억), 호스트가 둘 이상이면 항목마다 호스트 표시, 오프라인 호스트 알림 줄. 주소는 `#/h/server/agent/w3:p1` 처럼 호스트를 포함한다. 예전 주소(`#/agent/…`)는 허브 자신의 호스트로 연다.
 
 ### 환경 변수
 
 | 이름 | 뜻 |
 | --- | --- |
-| `PADDOCK_ALLOWED_LOGINS` | 허용할 Tailscale 로그인(쉼표). 또는 `PADDOCK_ALLOW_LOCAL=1`(머리글 없는 로컬 접속 허용, 시험용) |
-| `PADDOCK_HOST_ID` | 짧은 호스트 id(`desktop`, `server`). 영문 소문자로 시작, `all` 은 못 쓴다 |
-| `PADDOCK_HOST_LABEL` | 화면에 보일 이름 |
-| `PADDOCK_PEERS` | 허브로 만든다: `id=url` 을 쉼표로. 예 `server=https://server.uaru-monster.ts.net:8443` |
-| `PADDOCK_PUSH` | `0` 이면 알림을 보내지 않는다(피어용) |
-| `PADDOCK_VAPID_SUBJECT`, `PADDOCK_DATA`, `PORT`, `HOST` | 전과 같음 |
+| `HERDR_HUB_ALLOWED_LOGINS` | 허용할 Tailscale 로그인(쉼표). 또는 `HERDR_HUB_ALLOW_LOCAL=1`(머리글 없는 로컬 접속 허용, 시험용) |
+| `HERDR_HUB_HOST_ID` | 짧은 호스트 id(`desktop`, `server`). 영문 소문자로 시작, `all` 은 못 쓴다 |
+| `HERDR_HUB_HOST_LABEL` | 화면에 보일 이름 |
+| `HERDR_HUB_PEERS` | 허브로 만든다: `id=url` 을 쉼표로. 예 `server=https://server.uaru-monster.ts.net:8443` |
+| `HERDR_HUB_PUSH` | `0` 이면 알림을 보내지 않는다(피어용) |
+| `HERDR_HUB_VAPID_SUBJECT`, `HERDR_HUB_DATA`, `PORT`, `HOST` | 전과 같음 |
 
 ## 운영 — desktop (허브)
 
-- 위치: `C:\Users\kangw\src\paddock`, 로그는 `data\paddock.log`, VAPID 키·구독은 `data\`.
-- 시작: 로그온 때 예약 작업 `Paddock` 이 `conhost.exe --headless run.cmd` 로 창 없이 띄운다(127.0.0.1:8787). 콘솔 창으로 띄우면 그 창을 닫거나 Ctrl+C 가 눌리는 순간 서버가 꺼진다(종료 코드 0xC000013A). 호스트 id·피어 목록도 `run.cmd` 에 있다. `run.cmd` 는 CRLF 로 둔다(LF 면 cmd 가 `set` 줄을 빠뜨린다).
+- 위치: `C:\Users\kangw\src\herdr-hub`, 로그는 `data\herdr-hub.log`, VAPID 키·구독은 `data\`.
+- 시작: 로그온 때 예약 작업 `HerdrHub` 가 `conhost.exe --headless run.cmd` 로 창 없이 띄운다(127.0.0.1:8787). 콘솔 창으로 띄우면 그 창을 닫거나 Ctrl+C 가 눌리는 순간 서버가 꺼진다(종료 코드 0xC000013A). 호스트 id·피어 목록도 `run.cmd` 에 있다. `run.cmd` 는 CRLF 로 둔다(LF 면 cmd 가 `set` 줄을 빠뜨린다).
 - 공개: `tailscale serve --bg 8787` → `https://desktop.uaru-monster.ts.net` (tailnet 전용).
 - 배포: 맥에서 `./deploy.sh` (또는 `./deploy.sh desktop`).
 
 ## 운영 — server (이 맥북, 피어)
 
-- 위치: `~/.local/share/paddock` (저장소 밖 배포본), 로그는 `~/.local/share/paddock/data/paddock.log`.
-- 시작: LaunchAgent `local.paddock` (`~/Library/LaunchAgents/local.paddock.plist`) 가 `mac/run.sh` 를 띄운다(127.0.0.1:8787, 로그인 때 시작, 죽으면 다시 띄움). 원본은 저장소의 `mac/`.
+- 위치: `~/.local/share/herdr-hub` (저장소 밖 배포본), 로그는 `~/.local/share/herdr-hub/data/herdr-hub.log`.
+- 시작: LaunchAgent `local.herdr-hub` (`~/Library/LaunchAgents/local.herdr-hub.plist`) 가 `mac/run.sh` 를 띄운다(127.0.0.1:8787, 로그인 때 시작, 죽으면 다시 띄움). 원본은 저장소의 `mac/`.
 - 공개: `tailscale serve --bg --https=8443 http://127.0.0.1:8787` → `https://server.uaru-monster.ts.net:8443`. 443 은 이미 다른 것(`/` → 127.0.0.1:18789)이 쓰고 있어서 건드리지 않았다.
 - 배포: `./deploy.sh server` (둘 다는 `./deploy.sh all`). 배포본을 rsync 하고 `npm ci` 후 LaunchAgent 를 다시 올리며, 8443 serve 가 없으면 만든다.
 - 노트북이 잠들면 허브에 server 가 오프라인으로 보이고, 깨면 저절로 돌아온다.
@@ -90,23 +90,23 @@ desktop:
 
 ```powershell
 tailscale serve --https=443 off
-Unregister-ScheduledTask Paddock -Confirm:$false
+Unregister-ScheduledTask HerdrHub -Confirm:$false
 ```
 
 맥(server) — 잠깐 멈추기 / 다시 켜기:
 
 ```sh
-launchctl bootout gui/$(id -u)/local.paddock
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.paddock.plist
+launchctl bootout gui/$(id -u)/local.herdr-hub
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.herdr-hub.plist
 ```
 
 맥에서 아주 없애기(다른 serve 설정은 그대로 둔다):
 
 ```sh
-launchctl bootout gui/$(id -u)/local.paddock
-rm ~/Library/LaunchAgents/local.paddock.plist
+launchctl bootout gui/$(id -u)/local.herdr-hub
+rm ~/Library/LaunchAgents/local.herdr-hub.plist
 tailscale serve --https=8443 off
-rm -rf ~/.local/share/paddock
+rm -rf ~/.local/share/herdr-hub
 ```
 
-그다음 desktop `run.cmd` 의 `PADDOCK_PEERS` 줄을 지우고 `./deploy.sh` 하면 허브가 혼자 도는 Paddock 으로 돌아간다(지우지 않아도 server 가 계속 오프라인으로 보일 뿐 동작에는 문제없다).
+그다음 desktop `run.cmd` 의 `HERDR_HUB_PEERS` 줄을 지우고 `./deploy.sh` 하면 허브가 혼자 도는 Herdr Hub 으로 돌아간다(지우지 않아도 server 가 계속 오프라인으로 보일 뿐 동작에는 문제없다).

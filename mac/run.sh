@@ -1,12 +1,12 @@
 #!/bin/sh
-# Started by the LaunchAgent local.paddock (see mac/local.paddock.plist). launchd sends
-# stdout/stderr to data/paddock.log. A peer of the desktop hub: no notifications here.
+# Started by the LaunchAgent local.herdr-hub (see mac/local.herdr-hub.plist). launchd sends
+# stdout/stderr to data/herdr-hub.log. A peer of the desktop hub: no notifications here.
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p data
-export PADDOCK_ALLOWED_LOGINS=kangwonjin.dev@gmail.com
-export PADDOCK_HOST_ID=server
-export PADDOCK_HOST_LABEL=server
-export PADDOCK_PUSH=0
+export HERDR_HUB_ALLOWED_LOGINS=kangwonjin.dev@gmail.com
+export HERDR_HUB_HOST_ID=server
+export HERDR_HUB_HOST_LABEL=server
+export HERDR_HUB_PUSH=0
 # launchd starts jobs without the login shell's PATH; point at node directly.
-NODE="${PADDOCK_NODE:-$HOME/.local/share/mise/installs/node/22.22.0/bin/node}"
+NODE="${HERDR_HUB_NODE:-$HOME/.local/share/mise/installs/node/22.22.0/bin/node}"
 exec "$NODE" server.js

@@ -60,7 +60,7 @@ const WINDOWS = `● done
 // Claude Code 2.1.317 on macOS (server, haiku): the Bash tool running, a Tip under the spinner.
 const MAC_TIP = ` ▐▛███▛█   Claude Code v2.1.317
 ▝▜██████▀  Haiku 5.5 · Claude Ultra
- ▝▝   ▝▝   ~/paddock-co-server
+ ▝▝   ▝▝   ~/herdr-hub-co-server
 
 ❯ Use the Bash tool to run the command: sleep 20 . When it
   finishes, run sleep 20 again as a second separate Bash

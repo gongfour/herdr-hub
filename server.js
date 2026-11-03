@@ -1,5 +1,5 @@
 'use strict';
-// Paddock: serves the web app and a small JSON API over the local herdr server.
+// Herdr Hub: serves the web app and a small JSON API over the local herdr server.
 // Listens on loopback only; `tailscale serve` provides HTTPS and identity.
 
 const http = require('http');
@@ -16,33 +16,33 @@ const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
 const PUBLIC = path.join(__dirname, 'public');
-const DATA = process.env.PADDOCK_DATA || path.join(__dirname, 'data');
-const ALLOWED = (process.env.PADDOCK_ALLOWED_LOGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
-const ALLOW_LOCAL = process.env.PADDOCK_ALLOW_LOCAL === '1';
-const HOSTNAME = process.env.PADDOCK_HOST_LABEL || os.hostname();
-const HOST_ID = process.env.PADDOCK_HOST_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^[^a-z]+/, '').slice(0, 32) || 'local';
-const PUSH_ON = process.env.PADDOCK_PUSH !== '0';
+const DATA = process.env.HERDR_HUB_DATA || path.join(__dirname, 'data');
+const ALLOWED = (process.env.HERDR_HUB_ALLOWED_LOGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const ALLOW_LOCAL = process.env.HERDR_HUB_ALLOW_LOCAL === '1';
+const HOSTNAME = process.env.HERDR_HUB_HOST_LABEL || os.hostname();
+const HOST_ID = process.env.HERDR_HUB_HOST_ID || os.hostname().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^[^a-z]+/, '').slice(0, 32) || 'local';
+const PUSH_ON = process.env.HERDR_HUB_PUSH !== '0';
 const POLL_MS = 4000;
 const VIEWPORT_LOG = path.join(DATA, 'viewport.log');
 const VIEWPORT_LOG_MAX = 512 * 1024; // and one older file: about 1 MB in all
 
 if (!HOST_ID_RULE.test(HOST_ID) || HOST_ID === 'all') {
-  console.error(`PADDOCK_HOST_ID must match ${HOST_ID_RULE} and not be "all".`);
+  console.error(`HERDR_HUB_HOST_ID must match ${HOST_ID_RULE} and not be "all".`);
   process.exit(2);
 }
 
 if (!ALLOWED.length && !ALLOW_LOCAL) {
-  console.error('Set PADDOCK_ALLOWED_LOGINS (Tailscale logins) or PADDOCK_ALLOW_LOCAL=1.');
+  console.error('Set HERDR_HUB_ALLOWED_LOGINS (Tailscale logins) or HERDR_HUB_ALLOW_LOCAL=1.');
   process.exit(2);
 }
 
-// Only the hub sends notifications (PADDOCK_PUSH=0 on peers), so none arrive twice.
-const push = PUSH_ON ? new Push(DATA, process.env.PADDOCK_VAPID_SUBJECT || 'https://paddock.invalid') : null;
+// Only the hub sends notifications (HERDR_HUB_PUSH=0 on peers), so none arrive twice.
+const push = PUSH_ON ? new Push(DATA, process.env.HERDR_HUB_VAPID_SUBJECT || 'https://herdr-hub.invalid') : null;
 
-// PADDOCK_PEERS makes this Paddock a hub over the listed peers.
-const peers = new Map(parsePeers(process.env.PADDOCK_PEERS).map((p) => [p.id, new Peer(p)]));
+// HERDR_HUB_PEERS makes this Herdr Hub a hub over the listed peers.
+const peers = new Map(parsePeers(process.env.HERDR_HUB_PEERS).map((p) => [p.id, new Peer(p)]));
 if (peers.has(HOST_ID)) {
-  console.error('PADDOCK_PEERS must not list this host itself.');
+  console.error('HERDR_HUB_PEERS must not list this host itself.');
   process.exit(2);
 }
 
@@ -385,7 +385,7 @@ async function api(req, res, url) {
   const method = req.method;
 
   // Mutations must carry a custom header: a cross-site form cannot set it.
-  if (method !== 'GET' && req.headers['x-paddock'] !== '1') return send(res, 403, { error: 'missing_header' });
+  if (method !== 'GET' && req.headers['x-herdr-hub'] !== '1') return send(res, 403, { error: 'missing_header' });
 
   if (method === 'GET' && parts[0] === 'state') return send(res, 200, state);
 
@@ -572,7 +572,7 @@ async function api(req, res, url) {
 }
 
 // /api/peers/<host>/<rest> -> <peer>/api/<rest>. Only per-host endpoints; the stream,
-// state and push stay with the hub. The X-Paddock check has already run above.
+// state and push stay with the hub. The X-Herdr-Hub check has already run above.
 const PROXIED = new Set(['host', 'dirs', 'agents', 'panes', 'workspaces', 'uploads']);
 
 async function proxy(req, res, url) {
@@ -583,7 +583,7 @@ async function proxy(req, res, url) {
   if (!peer.online) return send(res, 503, { error: 'peer_offline', message: `${peer.label} 오프라인` });
   // Photo uploads are raw image bytes; everything else is JSON. Bodies stay Buffers both ways.
   const body = req.method === 'GET' ? null : await readRaw(req, raw[3] === 'uploads' ? uploads.MAX_BYTES : undefined);
-  const headers = req.method === 'GET' ? {} : { 'Content-Type': req.headers['content-type'] || 'application/json', 'X-Paddock': '1' };
+  const headers = req.method === 'GET' ? {} : { 'Content-Type': req.headers['content-type'] || 'application/json', 'X-Herdr-Hub': '1' };
   let r;
   try {
     r = await peer.request(req.method, `/api/${raw.slice(3).join('/')}${url.search}`, { body, headers, timeoutMs: req.method === 'GET' ? 15000 : 60000 });
@@ -629,7 +629,7 @@ function readRaw(req, limit = 256 * 1024) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://paddock.local');
+  const url = new URL(req.url, 'http://herdr-hub.local');
   if (!identity(req)) return send(res, 403, { error: 'forbidden' }, { 'Content-Type': 'text/plain; charset=utf-8' });
   try {
     if (url.pathname.startsWith('/api/')) await api(req, res, url);
@@ -647,7 +647,7 @@ uploads.sweep();
 setInterval(() => uploads.sweep(), 24 * 3600 * 1000).unref();
 
 server.listen(PORT, HOST, () => {
-  console.log(`paddock on http://${HOST}:${PORT} (herdr socket ${herdr.defaultSocketPath()})`);
+  console.log(`herdr-hub on http://${HOST}:${PORT} (herdr socket ${herdr.defaultSocketPath()})`);
   console.log(ALLOWED.length ? `allowed tailscale logins: ${ALLOWED.join(', ')}` : 'local access only');
   console.log(`host ${HOST_ID} (${HOSTNAME}); push ${push ? 'on' : 'off'}; peers: ${[...peers.values()].map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);
 });

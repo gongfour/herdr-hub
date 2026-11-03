@@ -8,7 +8,7 @@ const uploads = require('../lib/uploads');
 
 const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
 const JPG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'paddock-up-test-'));
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-up-test-'));
 
 test('save keeps a matching image under a generated name', () => {
   const dir = tmp();
