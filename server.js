@@ -562,7 +562,7 @@ async function api(req, res, url) {
       return send(res, 200, { ok: true });
     }
     if (method === 'POST' && parts[1] === 'test') {
-      const r = await push.send({ title: 'Paddock', body: `${HOSTNAME} 알림 시험`, url: '/' });
+      const r = await push.send({ title: 'Herdr Hub', body: `${HOSTNAME} 알림 시험`, url: '/' });
       console.log(`${new Date().toISOString()} push test sent=${r.sent}`);
       return send(res, 200, r);
     }

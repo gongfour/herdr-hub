@@ -1,4 +1,6 @@
-# Paddock
+# Herdr Hub
+
+화면에 보이는 이름은 Herdr Hub 이다. 저장소·폴더·예약 작업(`Paddock`)·LaunchAgent(`local.paddock`)·헤더(`X-Paddock`) 같은 내부 이름은 Paddock 그대로 둔다.
 
 herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도는 호스트에서 돌고, Tailscale 로만 접속한다.
 

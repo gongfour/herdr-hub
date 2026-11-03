@@ -381,7 +381,7 @@ function render() {
   const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '실행 중인 에이전트가 없습니다.';
   $app.innerHTML = `
     <header class="bar">
-      <h1>Paddock<span class="sub">${esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f))}</span></h1>
+      <h1>Herdr Hub<span class="sub">${esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f))}</span></h1>
       <span class="conn ${down ? 'down' : ''}"><span class="dot"></span>${down ? (state.herdr === 'down' ? 'herdr 연결 끊김' : state.herdr === 'offline' ? '연결 끊김' : '연결 중') : '실시간'}</span>
       <a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스">${ICON.plus}</a>
       <a class="icon-btn" href="#/settings" aria-label="설정">${ICON.gear}</a>
@@ -392,7 +392,7 @@ function render() {
       ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"><span class="hdot"></span>${esc(x.label)}</button>`).join('')}
     </nav>` : ''}
     <main class="list">
-      ${trouble.map((x) => `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Paddock 이 꺼져 있습니다`}</p>`).join('')}
+      ${trouble.map((x) => `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`).join('')}
       ${groups.length ? groups.map(([title, list]) => `
         <section class="group">
           <h2>${esc(title)} · ${list.length}</h2>
@@ -1889,7 +1889,7 @@ function renderSettings() {
         <h2>알림</h2>
         <p>에이전트가 응답을 기다리거나 작업을 끝내면 알림을 받습니다.</p>
         ${!standalone ? '<p>iPhone에서는 먼저 Safari 공유 버튼 → <b>홈 화면에 추가</b>로 설치한 뒤, 설치된 앱에서 알림을 켜야 합니다.</p>' : ''}
-        ${off ? '<p>이 호스트는 알림을 보내지 않습니다. 알림은 허브(desktop) Paddock 에서 켜세요.</p>' : !supported ? '<p>이 브라우저는 웹 푸시를 지원하지 않습니다.</p>' : ''}
+        ${off ? '<p>이 호스트는 알림을 보내지 않습니다. 알림은 허브(desktop)에서 켜세요.</p>' : !supported ? '<p>이 브라우저는 웹 푸시를 지원하지 않습니다.</p>' : ''}
         <p>현재 권한: <b>${esc(perm)}</b></p>
         <div class="row">
           <button class="btn" id="s-enable" ${supported ? '' : 'disabled'}>알림 켜기</button>
