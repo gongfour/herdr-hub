@@ -53,7 +53,7 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
   - 키 줄 순서: Esc, Ctrl, Alt, Tab, ↑, ↓, ←, →, 그다음 Enter, Ctrl+C, Ctrl+R, PgUp, PgDn, `:`, `/`, Ctrl+X(옆으로 밀어서). 390px 휴대폰에서 Esc·Ctrl·Alt·Tab·↑ 가 밀지 않고 보인다.
   - Ctrl·Alt 는 붙는 키다: 한 번 누르면 다음 키 하나와 함께 가고(채워진 색), 0.4초 안에 두 번 누르면 다시 누를 때까지 고정된다(테두리·밑줄). Ctrl 다음 휴대폰 키보드의 d → `ctrl+d`, Ctrl+[ → Esc, Alt+. → `alt+.`, Ctrl/Alt+Backspace → `ctrl+w`(단어 지우기), Ctrl/Alt+←/→ → 단어 이동. 짝이 없는 키(Tab, 한글 글자, 붙여 넣은 글)는 그대로 간다. 글자를 조합하는 키보드(Gboard 의 영문)에서도 Ctrl·Alt 가 켜져 있으면 첫 글자를 바로 보낸다.
   - 실제 키보드: F1–F12·Insert, Alt/Ctrl+Backspace(`ctrl+w`), Alt+←/→·Alt+.(herdr 의 `alt+left`·`alt+right`·`alt+.` = xterm 의 ESC[1;3D·ESC[1;3C·ESC .), Ctrl+←/→, Ctrl+[(Esc 가 없는 키보드 덮개용). iPhone 키보드의 단어 지우기(`deleteWordBackward`)도 `ctrl+w`. Ctrl+V·Ctrl+Shift+V·⌘V 는 셸로 보내지 않고 브라우저의 붙여 넣기에 맡긴다(이 기기의 클립보드).
-  - Galaxy Tab 키보드 덮개의 Esc 는 웹 페이지에 오지 않는다(시스템이 먼저 받아 앱을 내린다, keyup 만 온다). 셸에서는 Ctrl+[ 나 키 줄의 Esc 를 쓴다.
+  - Galaxy Tab 키보드 덮개의 Esc 는 웹 페이지에 오지 않는다(시스템이 먼저 받아 앱을 내린다, keyup 만 온다). 셸에서는 Ctrl+[ 나 키 줄의 Esc 를 쓴다. Hub 어디서나 Ctrl+[ 는 Esc 와 같다(시트·메뉴 닫기, 입력 칸 나가기, 뒤로). One UI 5 처럼 Esc 를 바꿀 메뉴가 없으면 Key Mapper(+ Shizuku)로 Hub 에서만 Esc → Ctrl+[ 로 바꾸면 덮개의 Esc 가 그대로 Esc 가 된다.
   - 실제 키보드가 있을 듯하면(`(pointer: fine)`, 또는 이번에 입력 칸 밖에서·Ctrl/Alt/⌘·Esc·F 키로 누른 키가 있었으면) 셸을 열 때와 Alt+↑/↓ 로 옮길 때 입력 칸에 포커스를 준다. 휴대폰은 화면을 누를 때까지 키보드를 올리지 않는다. 포커스가 입력 칸 밖에 있을 때 누른 키도 셸로 보내고 입력 칸에 포커스를 준다(한 줄 입력이면 그 줄에 적는다). 머리글의 ‹·⋯ 와 링크·단추의 Enter·Space·Tab 은 그대로 둔다. 시트·메뉴가 열려 있으면 Esc 는 그것을 닫는다.
   - 위로 올려 읽다가 키를 누르거나(한 줄 입력은 실행하면) 다시 맨 아래 프롬프트를 따라간다.
   - 스크롤백: 따라가는 동안은 200줄(타자 중 300ms 마다 읽으니 작게: 색 있는 200줄이 60KB 쯤), 맨 위 600px 안으로 올리면 서버 최대인 400줄을 읽어 보던 줄 위에 붙인다(보던 자리는 그대로). 다시 맨 아래로 오면 200줄. 키 응답의 화면(`echo.lines`)도 같은 줄 수.

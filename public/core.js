@@ -285,6 +285,9 @@ async function api(path, opts = {}) {
 // everything underneath is inert. Sheets slide up, the backdrop fades (not with reduced motion).
 const layers = [];
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Esc, or Ctrl+[ (the terminal's Esc): a Galaxy Tab's keyboard cover gives its Esc to the system
+// (Back) before the page, so a key remapper can turn it into Ctrl+[.
+const isEsc = (e) => e.key === 'Escape' || (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === '[' || e.code === 'BracketLeft'));
 function syncInert() {
   $app.inert = layers.length > 0;
   layers.forEach((l, i) => (l.el.inert = i < layers.length - 1));

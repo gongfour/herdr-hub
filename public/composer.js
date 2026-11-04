@@ -198,7 +198,7 @@ function choosePalette(i) {
 // ↑↓ move, Enter/Tab insert, Esc closes until the text changes. True when the key was used.
 function paletteKey(e) {
   if (!pal || !pal.kind || e.isComposing || e.keyCode === 229) return false;
-  if (e.key === 'Escape') {
+  if (isEsc(e)) {
     e.preventDefault();
     hidePalette(document.getElementById('d-input').value);
     return true;

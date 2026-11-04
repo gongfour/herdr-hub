@@ -301,7 +301,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;
   if (termStrayKey(e)) return e.preventDefault();
-  if (e.key === 'Escape') {
+  if (isEsc(e)) {
     e.preventDefault();
     const top = topLayer();
     if (top) return closeLayer(top);
