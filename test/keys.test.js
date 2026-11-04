@@ -170,3 +170,15 @@ test('withMods: the key row\'s sticky Alt still sends Alt+J/K to the shell', () 
   assert.deepEqual(withMods({ text: 'j' }, { alt: true }), { key: 'alt+j' });
   assert.deepEqual(withMods({ text: 'k' }, { alt: true }), { key: 'alt+k' });
 });
+
+test('describeRaw: the keys still on their way, as the 보내는 중 chip shows them', () => {
+  const { describeRaw } = require('../public/keys');
+  assert.equal(describeRaw([]), '');
+  assert.equal(describeRaw([{ text: 'ls -la', keys: [] }, { text: '', keys: ['enter'] }]), 'ls -la⏎');
+  assert.equal(describeRaw([{ text: 'cd', keys: [] }, { text: '', keys: ['backspace', 'backspace'] }]), 'cd⌫⌫');
+  assert.equal(describeRaw([{ text: '', keys: ['ctrl+c', 'esc'] }]), 'Ctrl+C Esc');
+  assert.equal(describeRaw([{ text: 'git', keys: [] }, { text: '', keys: ['alt+.', 'pageup'] }]), 'git Alt+. PgUp');
+  const long = describeRaw([{ text: 'x'.repeat(50) + 'END', keys: [] }], 10);
+  assert.equal(long, `…${'x'.repeat(6)}END`);
+  assert.equal(Array.from(long).length, 10);
+});

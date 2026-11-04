@@ -3,18 +3,22 @@
 
 // ------------------------------------------------------------ terminal view
 
-// The key row: 한 줄 입력's keys, and 키 직접 입력's.
-const TERM_KEYS = [['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['tab', 'Tab'], ['esc', 'Esc']];
+// The key row: 한 줄 입력's keys, and 키 직접 입력's. [key, label, spoken name] (the name a screen
+// reader says: VoiceOver skips some signs or reads them its own way).
+// 한 줄 입력 keeps Esc, Tab and ↑ where 키 직접 입력 has them; Ctrl+C, which stops the running
+// program without asking, goes last, away from the thumb's first key.
+const TERM_KEYS = [['esc', 'Esc'], ['tab', 'Tab'], ['up', '↑', '위 화살표'], ['down', '↓', '아래 화살표'], ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C']];
 // 키 직접 입력 (raw), the shell view's default: every key goes to the pane as it is pressed,
 // so the shell's own completion, history and suggestions work, as do full-screen programs
 // (helix, vim, less). What the phone's keyboard lacks comes first, so a 390px row shows it
 // without scrolling: Esc, the sticky Ctrl and Alt, Tab and the arrows. A ":text" entry types
 // that text, "mod:" ones are the sticky modifiers; the rest are herdr key names.
 const RAW_TERM_KEYS = [
-  ['esc', 'Esc'], ['mod:ctrl', 'Ctrl'], ['mod:alt', 'Alt'], ['tab', 'Tab'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'],
-  ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C'], ['ctrl+r', 'Ctrl+R'], ['pageup', 'PgUp'], ['pagedown', 'PgDn'], [':text', ':'], ['/text', '/'], ['ctrl+x', 'Ctrl+X'],
+  ['esc', 'Esc'], ['mod:ctrl', 'Ctrl'], ['mod:alt', 'Alt'], ['tab', 'Tab'], ['up', '↑', '위 화살표'], ['down', '↓', '아래 화살표'], ['left', '←', '왼쪽 화살표'], ['right', '→', '오른쪽 화살표'],
+  ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C'], ['ctrl+r', 'Ctrl+R'], ['pageup', 'PgUp', 'Page Up'], ['pagedown', 'PgDn', 'Page Down'], [':text', ':', '쌍점'], ['/text', '/', '빗금'], ['ctrl+x', 'Ctrl+X'],
 ];
 const MOD_LABEL = { ctrl: 'Ctrl', alt: 'Alt' };
+const LOCK_ICON = '<svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 
 // Shell titles are often the executable's full path; the program name says enough. Never empty
 // (rowtext.js: the folder, then the pane id).
@@ -31,15 +35,17 @@ function renderTerminal() {
         <button class="icon-btn" id="t-more" aria-label="더 보기">${ICON.more}</button>
       </header>
       <div class="screen-tools" id="s-tools" hidden></div>
-      <div class="scroll" id="t-body"></div>
+      <div class="term-gone" id="t-gone" hidden></div>
+      <div class="scroll" id="t-body" role="region" aria-label="셸 화면"></div>
       <div class="term-bar">
+        <div class="raw-chip" id="t-sending" hidden></div>
         <div class="keys term-keys" id="t-keys"></div>
         <div class="term-side">
           <button type="button" class="key" id="t-kbd" aria-pressed="false" aria-label="키보드 올리기">${ICON.keyboard}</button>
         </div>
       </div>
       <form class="composer" id="t-form">
-        <input class="cmd" id="t-input" placeholder="명령 (Enter 로 실행)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
+        <input class="cmd" id="t-input" aria-label="셸 명령" placeholder="명령 (Enter 로 실행)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
         <button type="submit" class="send" id="t-send" aria-label="실행">${ICON.send}</button>
       </form>
     </div>`;
@@ -48,15 +54,20 @@ function renderTerminal() {
   const drawKeys = () => {
     const list = detail.raw ? RAW_TERM_KEYS : TERM_KEYS;
     keysBox.innerHTML = list
-      .map(([k, label]) =>
+      .map(([k, label, spoken]) =>
         k.startsWith('mod:')
           ? `<button type="button" class="key mod" data-key="${esc(k)}" aria-pressed="false">${esc(label)}</button>`
-          : `<button type="button" class="key" data-key="${esc(k)}" aria-label="${esc(label)} 키 보내기">${esc(label)}</button>`,
+          : `<button type="button" class="key" data-key="${esc(k)}" aria-label="${esc(spoken || label)} 키 보내기">${esc(label)}</button>`,
       )
       .join('');
     keysBox.scrollLeft = 0;
     drawMods();
+    keysFade();
   };
+  // The row fades at its right edge only while more keys wait past it.
+  const keysFade = () => keysBox.classList.toggle('more', keysBox.scrollWidth - keysBox.scrollLeft - keysBox.clientWidth > 2);
+  keysBox.addEventListener('scroll', keysFade, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(keysFade).observe(keysBox);
   drawKeys();
   // Raw mode: pressing a key button leaves the caret (and the iPhone keyboard) in the field,
   // so the next typed key still goes to the program, not to the button. On a touch screen
@@ -82,6 +93,7 @@ function renderTerminal() {
   const pressKey = async (b) => {
     const k = b.dataset.key;
     if (k.startsWith('mod:')) return tapMod(k.slice(4));
+    if (!currentTerminal()) return;
     if (detail.raw) return rawPress(k.endsWith('text') ? { text: k.slice(0, -4) } : { key: k });
     followTerm();
     if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [k], text: input.value })) {
@@ -97,12 +109,20 @@ function renderTerminal() {
     detail.mods = {};
     input.value = '';
     input.placeholder = on ? '누르는 키가 바로 갑니다' : '명령 (Enter 로 실행)';
+    input.setAttribute('aria-label', on ? '셸에 키 입력' : '셸 명령');
     input.setAttribute('enterkeyhint', on ? 'enter' : 'send');
     document.getElementById('t-send').hidden = on;
     detailRoot().querySelector('.detail').classList.toggle('raw', on);
     drawKeys();
   };
   setRaw(getShellInput() === 'raw');
+  detail.setRaw = (on) => {
+    if (on === detail.raw) return;
+    const typing = document.activeElement === input;
+    setRaw(on);
+    drawSending();
+    if (typing) input.focus({ preventScroll: true });
+  };
   const kbd = document.getElementById('t-kbd');
   const toggleKbd = () => (document.activeElement === input ? input.blur() : input.focus());
   keepFocusTap(kbd, toggleKbd);
@@ -126,7 +146,7 @@ function renderTerminal() {
   keepFocusTap(document.getElementById('t-send'), () => document.getElementById('t-form').requestSubmit());
   document.getElementById('t-form').onsubmit = async (e) => {
     e.preventDefault();
-    if (detail.raw) return;
+    if (detail.raw || !currentTerminal()) return;
     followTerm();
     if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: input.value })) {
       input.value = '';
@@ -186,7 +206,12 @@ function renderTerminal() {
   document.getElementById('t-more').onclick = () => paneMenu('term', currentTerminal()); // actions.js
   mountScreen(document.getElementById('t-body'), 'term', document.getElementById('s-tools'));
   document.getElementById('t-body').addEventListener('scroll', termScrolled);
+  document.getElementById('t-sending').onclick = () => {
+    rawFailed = null;
+    drawSending();
+  };
   renderTerminalHeader();
+  drawSending();
   // With a hardware keyboard (a tablet's cover, a laptop) typing goes to the shell at once,
   // here and after Alt+↑/↓; a phone's keyboard stays down until the screen is tapped.
   if (keyboardLikely()) input.focus({ preventScroll: true });
@@ -267,7 +292,9 @@ function drawMods() {
     const lock = Boolean(m && m.state === 'lock');
     b.setAttribute('aria-pressed', String(modOn(m)));
     b.classList.toggle('lock', lock);
-    b.setAttribute('aria-label', `${MOD_LABEL[name]} ${lock ? '고정됨 (누르면 풀림)' : modOn(m) ? '켜짐: 다음 키와 함께' : '(한 번 누르면 다음 키, 두 번이면 고정)'}`);
+    // Locked shows a padlock, so it reads apart from 한 번 (filled only) at a phone's distance.
+    b.innerHTML = `${esc(MOD_LABEL[name])}${lock ? LOCK_ICON : ''}`;
+    b.setAttribute('aria-label', lock ? `${MOD_LABEL[name]} 고정됨, 누르면 풀림` : modOn(m) ? `${MOD_LABEL[name]} 켜짐, 다음 키에 붙음` : `${MOD_LABEL[name]}, 한 번 누르면 다음 키에만, 두 번 누르면 고정`);
   }
 }
 // A raw-mode press with the sticky modifiers applied; a one-shot modifier is used up by it.
@@ -287,7 +314,9 @@ function rawPress(press) {
 // Typing brings the prompt back: a key or a command while scrolled up to read earlier output
 // follows the end of the screen again.
 function followTerm() {
-  if (!scr || scr.kind !== 'term' || scr.follow) return;
+  if (!scr || scr.kind !== 'term') return;
+  if (scr.pre.scrollLeft) scr.pre.scrollLeft = 0; // unwrapped and pushed sideways: back to the prompt
+  if (scr.follow) return;
   scr.follow = true;
   flushScreen(true);
   scr.body.scrollTop = scr.body.scrollHeight;
@@ -299,13 +328,54 @@ function renderTerminalHeader() {
   const t = currentTerminal();
   // The pane may have turned into an agent (started from here); follow it.
   if (!t && state.agents.some((a) => same(a, curHost(), detail.pane))) return (location.hash = link(curHost(), `/agent/${encodeURIComponent(detail.pane)}`));
+  const offline = !t && !online(curHost());
+  // Opened before the first state (the app just started): not known yet, so not 「닫힘」 either.
+  if (!t && !stateIn) {
+    title.innerHTML = '<span class="t">셸</span><span class="sub">불러오는 중…</span>';
+    return;
+  }
   title.innerHTML = t
-    ? `${esc(termTitle(t))}<span class="sub">${multi() ? `${esc(hostLabel(t.host))} · ` : ''}셸 · ${esc(t.workspaceLabel)} · ${esc(t.cwd)}</span>`
-    : !online(curHost())
-      ? `${esc(hostLabel(curHost()))} 오프라인<span class="sub">호스트가 돌아오면 다시 보입니다</span>`
-      : '셸 없음<span class="sub">이 셸이 닫혔습니다</span>';
+    ? `<span class="t">${esc(termTitle(t))}</span><span class="sub">${multi() ? `${esc(hostLabel(t.host))} · ` : ''}셸 · ${esc(t.workspaceLabel)} · ${esc(t.cwd)}</span>`
+    : offline
+      ? `<span class="t">${esc(hostLabel(curHost()))} 오프라인</span><span class="sub">호스트가 돌아오면 다시 보입니다</span>`
+      : '<span class="t">셸 없음</span><span class="sub">이 셸이 닫혔습니다</span>';
   const dot = document.getElementById('t-live');
   if (dot) dot.innerHTML = liveDot();
+  termGone(t ? null : offline ? 'offline' : 'closed');
+}
+
+let stateIn = false;
+ready.then(() => {
+  stateIn = true;
+  renderTerminalHeader();
+});
+
+// A shell that closed (or whose host went away): nothing to type into. The key row and the
+// command line go, and the body says so with the way out; a screen already read stays under a
+// band saying the same. It comes back by itself when the shell (its host) does.
+function termGone(kind) {
+  const d = detailRoot().querySelector('.detail');
+  const box = document.getElementById('t-gone');
+  if (!d || !box) return;
+  const was = d.dataset.gone || '';
+  if (was === (kind || '')) return;
+  d.dataset.gone = kind || '';
+  d.classList.toggle('closed', Boolean(kind));
+  d.classList.toggle('kept', Boolean(kind) && Boolean(scr && scr.shown != null));
+  for (const el of d.querySelectorAll('.term-bar button, #t-form input, #t-form button')) el.disabled = Boolean(kind);
+  if (!kind) {
+    box.hidden = true;
+    box.innerHTML = '';
+    if (was) loadTerminal();
+    return;
+  }
+  const input = document.getElementById('t-input');
+  if (input && document.activeElement === input) input.blur();
+  box.hidden = false;
+  box.innerHTML =
+    kind === 'offline'
+      ? `<p class="g-main">${esc(hostLabel(curHost()))}에 닿지 않습니다</p><p class="g-sub">호스트가 돌아오면 이 셸이 다시 보입니다</p>`
+      : `<p class="g-main">이 셸은 닫혔습니다</p><a class="btn secondary" href="${esc(homeHash())}">작업공간으로</a>`;
 }
 
 // Raw-mode keys in order: text runs merge, one request at a time, the screen read soon after.
@@ -316,9 +386,52 @@ let rawBusy = false;
 let rawLoadTimer = null;
 const termHere = (host, pane) => view.name === 'term' && detail.pane === pane && curHost() === host;
 function rawSend(press) {
+  if (!currentTerminal()) return;
+  rawFailed = null;
   followTerm();
   Keys.queueRaw(rawQ, { host: curHost(), pane: detail.pane }, press);
+  drawSending();
   pumpRaw();
+}
+
+// 「보내는 중」: herdr gives no cursor position, and a typed key shows only once its echo is
+// back. So the keys still on their way to the shell on screen sit in a chip above the key row
+// (after SENDING_MS, so a quick echo never flickers it), gone once they have arrived; past
+// 350 ms its dots move. Keys that failed stay in it, in the warning colour, until the next key
+// or a tap on it.
+const SENDING_MS = 150;
+let rawInFlight = null; // the item being sent
+let rawFailed = null; // { host, pane, text }: what did not get there
+let sendingTimer = null;
+function drawSending() {
+  const chip = document.getElementById('t-sending');
+  if (!chip) return;
+  const here = (x) => x && termHere(x.host, x.pane);
+  if (here(rawFailed)) {
+    clearTimeout(sendingTimer);
+    sendingTimer = null;
+    chip.className = 'raw-chip err';
+    chip.setAttribute('role', 'alert');
+    chip.innerHTML = `보내지 못한 키: <b>${esc(rawFailed.text)}</b> · ${esc(rawFailed.why)}`;
+    chip.hidden = false;
+    return;
+  }
+  const items = [rawInFlight, ...rawQ].filter(here);
+  if (!detail.raw || !items.length) {
+    clearTimeout(sendingTimer);
+    sendingTimer = null;
+    chip.hidden = true;
+    return;
+  }
+  chip.className = 'raw-chip';
+  chip.removeAttribute('role');
+  chip.innerHTML = `보내는 중: <b>${esc(Keys.describeRaw(items))}</b><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
+  if (chip.hidden && !sendingTimer)
+    sendingTimer = setTimeout(() => {
+      sendingTimer = null;
+      const c = document.getElementById('t-sending');
+      if (c && [rawInFlight, ...rawQ].some(here)) c.hidden = false;
+    }, SENDING_MS);
 }
 async function pumpRaw() {
   if (rawBusy) return;
@@ -331,6 +444,7 @@ async function pumpRaw() {
       // screen; a read follows a moment later for slower output.
       const echo = termHere(host, pane) && !rawQ.some((x) => x.host === host && x.pane === pane);
       const n = ++termReads;
+      rawInFlight = it;
       try {
         const r = await api(hp(`/panes/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ text: it.text, keys: it.keys, ...(echo ? { echo: { format: getColor() ? 'ansi' : 'text', lines: termLines() } } : {}) }) });
         if (!termHere(host, pane)) continue;
@@ -340,8 +454,15 @@ async function pumpRaw() {
         rawLoadTimer = setTimeout(loadTerminal, RAW_FOLLOW_MS);
       } catch (err) {
         // What was typed after a failed key would land out of order: drop the rest for that pane.
-        for (let i = rawQ.length - 1; i >= 0; i--) if (rawQ[i].host === host && rawQ[i].pane === pane) rawQ.splice(i, 1);
-        toastErr(`키를 보내지 못했습니다: ${errText(err)}`);
+        const lost = [it];
+        for (let i = rawQ.length - 1; i >= 0; i--) if (rawQ[i].host === host && rawQ[i].pane === pane) lost.splice(1, 0, ...rawQ.splice(i, 1));
+        // On this shell's screen the chip says what was lost; elsewhere only the notice can.
+        if (termHere(host, pane)) {
+          rawFailed = { host, pane, text: Keys.describeRaw(lost), why: errReason(err) };
+        } else toastErr(`키를 보내지 못했습니다: ${errText(err)}`);
+      } finally {
+        rawInFlight = null;
+        drawSending();
       }
     }
   } finally {
@@ -381,7 +502,7 @@ async function loadTerminal() {
   try {
     screen = await api(hp(`/panes/${encodeURIComponent(pane)}/screen?source=recent_unwrapped&lines=${deep ? TERM_LINES_DEEP : TERM_LINES}${colorQuery()}`));
   } catch (err) {
-    if (n === termReads && scr && scr.kind === 'term' && !['pane_not_found', 'peer_offline'].includes(err.code)) screenError(`불러오지 못했습니다: ${errText(err)}`);
+    if (n === termReads && scr && scr.kind === 'term' && !['pane_not_found', 'peer_offline'].includes(err.code)) screenError(errReason(err));
     return;
   }
   if (detail.pane === pane) drawTerminal(screen, n, deep);

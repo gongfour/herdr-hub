@@ -26,13 +26,25 @@ const selecting = () => {
 function mountScreen(body, kind, tools, topHtml = '') {
   body.classList.add('screen-mode');
   const top = topHtml ? `<div class="screen-top">${topHtml}</div>` : '';
-  body.innerHTML = `<p class="note">불러오는 중…</p>${top}<pre class="screen" hidden></pre>
-    <div class="pill-dock"><button type="button" class="new-out"${keyAttrs('jumpEnd', '맨 아래로')} hidden>↓ 새 출력</button></div>`;
+  body.innerHTML = `<div class="note screen-note"><p class="n-main">불러오는 중…</p><p class="n-sub" hidden></p><button type="button" class="btn secondary n-retry" hidden>다시 시도</button></div>${top}<pre class="screen ${kind}" hidden></pre>
+    <div class="pill-dock"><button type="button" class="new-out to-start" hidden>← 처음으로</button><button type="button" class="new-out"${keyAttrs('jumpEnd', '맨 아래로')} hidden>↓ 새 출력</button></div>`;
   const s = (scr = {
     kind, body, tools, wrap: getWrap(kind), color: getColor(), raw: null, shown: null, pending: null, follow: true, touching: false, error: null, note: '',
-    pre: body.querySelector('.screen'), pill: body.querySelector('.new-out'), loading: body.querySelector('.note'),
+    pre: body.querySelector('.screen'), pill: body.querySelector('.new-out:not(.to-start)'), start: body.querySelector('.to-start'), loading: body.querySelector('.screen-note'),
+    // 다시 시도: the read this box is fed by (shell.js, agent.js).
+    retry: () => (kind === 'term' ? loadTerminal() : loadDetail()),
   });
   s.pre.classList.toggle('wrap', s.wrap);
+  // Unwrapped lines pushed sideways leave the short ones (the prompt) off screen: 「← 처음으로」.
+  s.pre.addEventListener('scroll', () => scr === s && (s.start.hidden = s.wrap || s.pre.scrollLeft < 8), { passive: true });
+  s.start.onclick = () => {
+    s.pre.scrollLeft = 0;
+    s.start.hidden = true;
+  };
+  s.loading.querySelector('.n-retry').onclick = () => {
+    s.loading.querySelector('.n-main').textContent = '다시 읽는 중…';
+    s.retry();
+  };
   body.onscroll = () => {
     if (scr !== s) return;
     s.follow = atBottom(body);
@@ -63,19 +75,58 @@ function unmountScreen() {
   scr = null;
 }
 
+// A read failed. Nothing drawn yet: one note in the middle of the box (화면을 읽지 못했습니다, the
+// reason, 다시 시도) and no row above. A screen already there: the row above says so, whole
+// (two lines at most), and what the app does about it: the next poll reads again by itself.
 function screenStatus() {
-  const el = scr && scr.tools && scr.tools.querySelector('.s-status');
-  if (!el) return;
-  el.textContent = scr.error || scr.note || '';
-  el.classList.toggle('err', Boolean(scr.error));
-  scr.tools.hidden = !scr.error; // a note alone is not worth a row
-  if (scr.shown == null) scr.loading.textContent = scr.error ? '화면을 읽지 못했습니다' : '불러오는 중…';
+  if (!scr) return;
+  const first = scr.shown == null;
+  const el = scr.tools && scr.tools.querySelector('.s-status');
+  if (el) {
+    el.textContent = scr.error ? `화면을 새로 읽지 못했습니다: ${scr.error}. 자동으로 다시 시도합니다.` : scr.note || '';
+    el.classList.toggle('err', Boolean(scr.error));
+    scr.tools.hidden = !scr.error || first; // a note alone is not worth a row
+  }
+  if (first) {
+    const n = scr.loading;
+    n.classList.toggle('err', Boolean(scr.error));
+    n.querySelector('.n-main').textContent = scr.error ? '화면을 읽지 못했습니다' : '불러오는 중…';
+    n.querySelector('.n-sub').textContent = scr.error || '';
+    n.querySelector('.n-sub').hidden = n.querySelector('.n-retry').hidden = !scr.error;
+  }
 }
 
-function screenError(msg) {
-  if (!scr || scr.error === msg) return;
-  scr.error = msg;
+// reason: a short why (errReason), or a whole sentence from an older caller (made short too).
+function screenError(reason) {
+  if (!scr) return;
+  const r = shortReason(String(reason).replace(/^불러오지 못했습니다:\s*/, ''));
+  if (scr.error === r && scr.shown != null) return;
+  scr.error = r;
   screenStatus();
+}
+
+// A failure in a few words, for a line that says itself what happens next: 「호스트 오류(502)」,
+// 「연결이 끊겼습니다」, never 「다시 시도해 주세요」.
+const shortReason = (text) =>
+  String(text)
+    .replace(/\s*(잠시 뒤에 )?다시 시도해 주세요\.?$/, '')
+    .replace(/(입니다)?\.$/, '');
+const errReason = (err) => shortReason(errText(err));
+
+// 설정 or the shell's ⋯ changed 줄바꿈 or 색상 (core.js PREF_EFFECTS): the box open now follows.
+function applyScreenPrefs() {
+  const s = scr;
+  if (!s) return;
+  s.wrap = getWrap(s.kind);
+  s.pre.classList.toggle('wrap', s.wrap);
+  if (s.wrap) s.start.hidden = true;
+  const color = getColor();
+  if (color === s.color) return;
+  s.color = color;
+  // Colour off: the coloured read drawn plain at once. On: a plain read has no colours to show,
+  // so read again.
+  if (s.raw && (!color || s.raw.format === 'ansi')) setScreenText(s.raw.text, s.raw.format, true);
+  if (color) s.retry();
 }
 
 // format "ansi": herdr's coloured read, drawn as spans (ansi.js); "text" or missing: plain.

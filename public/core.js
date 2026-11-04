@@ -248,6 +248,14 @@ const PREF_EFFECTS = {
     applyTheme(t);
     redrawScreen();
   },
+  // The screen box open now (shell view, agent screen) follows 줄바꿈 and 색상 at once.
+  'wrap.term': () => applyScreenPrefs(),
+  'wrap.agent': () => applyScreenPrefs(),
+  color: () => applyScreenPrefs(),
+  // The shell view open now switches between 키 직접 입력 and 한 줄 입력 in place.
+  shellInput(v) {
+    if (view.name === 'term' && detail.setRaw) detail.setRaw(v === 'raw');
+  },
 };
 function setPref(key, v) {
   Prefs.set(key, v);

@@ -48,6 +48,7 @@
     scrollDown: { group: '대화·터미널 화면', label: '아래로 스크롤 (누르고 있으면 계속)' },
     answer: { group: '대화·터미널 화면', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)', fixed: true, noShell: true },
     stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', twice: true, noShell: true },
+    wrap: { group: '대화·터미널 화면', label: '줄바꿈 켜기·끄기: 셸 화면, 에이전트의 터미널 화면 (VS Code 의 Alt+Z)' },
     terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기', noShell: true },
     closeView: { group: '대화·터미널 화면', label: '연 에이전트·셸(또는 워크스페이스) 닫기: 확인 창에서 리턴으로 닫고 Esc 로 그만둔다' },
     mode: { group: '대화·터미널 화면', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)', noShell: true },
@@ -121,6 +122,10 @@
     // key (rawKeyName), so the shell view too.
     b('nextBlocked', 'Alt+Shift+ArrowDown', { field: true, shell: true }),
     b('prevBlocked', 'Alt+Shift+ArrowUp', { field: true, shell: true }),
+    // Alt+Z as VS Code's word wrap; in the shell view Alt+Z is the shell's, so Ctrl+Alt+Z there
+    // (no shell key: keys.js sends no Ctrl+Alt chord to the shell).
+    b('wrap', 'Alt+z', { field: true }),
+    b('wrap', 'Ctrl+Alt+z', { field: true, shell: true }),
     // Alt+T is the shell's (swap words); the agent view has no shell, and it closes its own sheet.
     b('terminal', 'Alt+t', { field: true, layer: true }),
     // Alt+W: Ctrl+W is the browser's (close the tab or the app window). Alt+W is the shell's

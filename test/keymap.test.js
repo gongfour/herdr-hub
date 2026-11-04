@@ -546,3 +546,14 @@ test('the key row\'s sticky Alt still sends alt+b: a typed b is no key, and with
   assert.deepEqual(withMods({ text: 'b' }, { alt: true }), { key: 'alt+b' });
   assert.deepEqual(withMods({ text: 'p' }, { alt: true }), { key: 'alt+p' });
 });
+
+test('wrap: Alt+Z as VS Code, in a field too; in the shell view Ctrl+Alt+Z, Alt+Z stays the shell\'s', () => {
+  assert.equal(act('Alt+z', {}), 'wrap');
+  assert.equal(act('Alt+z', { field: true }), 'wrap');
+  assert.equal(act('Alt+z', {}, { key: 'Ω', code: 'KeyZ' }), 'wrap'); // a Mac's Option+Z
+  assert.equal(act('Alt+z', { shell: true, field: true }), null);
+  assert.equal(KM0.shellKey(ev('Alt+z'), { shell: true, field: true }), 'alt+z');
+  for (const ctx of [{}, { field: true }, { shell: true, field: true }]) assert.equal(act('Ctrl+Alt+z', ctx), 'wrap');
+  assert.equal(rawKeyName(ev('Ctrl+Alt+z')), null);
+  assert.equal(act('Alt+z', { layer: true }), null);
+});

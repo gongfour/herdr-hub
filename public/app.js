@@ -640,6 +640,14 @@ const KEY_ACTIONS = {
   },
   jumpEnd: () => jumpLatest(true),
   jumpTop: () => jumpTop(),
+  // The screen box on show: the shell view's, or the agent's terminal screen (sheet or body).
+  wrap() {
+    if (!scr) return false;
+    const key = scr.kind === 'term' ? 'wrap.term' : 'wrap.agent';
+    setPref(key, !Prefs.get(key));
+    toast(Prefs.get(key) ? '줄바꿈을 켰습니다' : '줄바꿈을 껐습니다');
+    return true;
+  },
   prevMine: () => navStep(-1),
   nextMine: () => navStep(1),
   scrollUp: (b, e) => scrollStep(-1, e.repeat),

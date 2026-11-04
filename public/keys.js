@@ -115,6 +115,28 @@
     return q;
   }
 
+  // The raw-mode keys still on their way (queueRaw items), as one short line for the shell view's
+  // 「보내는 중」 chip: typed text as it is, the keys a terminal draws as a sign (⏎ ⌫ ⇥ ↑) as that
+  // sign, any other key by name between spaces (Ctrl+C, Esc, PgUp). Longer than max: its end,
+  // after an ellipsis (the end is what was just typed).
+  const KEY_SIGNS = { enter: '⏎', backspace: '⌫', tab: '⇥', up: '↑', down: '↓', left: '←', right: '→' };
+  const KEY_WORDS = { esc: 'Esc', pageup: 'PgUp', pagedown: 'PgDn', delete: 'Del', insert: 'Ins', home: 'Home', end: 'End' };
+  const keyWord = (k) =>
+    k
+      .split('+')
+      .map((p) => KEY_SIGNS[p] || KEY_WORDS[p] || (p.length === 1 ? p.toUpperCase() : p[0].toUpperCase() + p.slice(1)))
+      .join('+');
+  function describeRaw(items, max = 40) {
+    let s = '';
+    for (const it of items || []) {
+      s += it.text || '';
+      for (const k of it.keys || []) s += KEY_SIGNS[k] || ` ${keyWord(k)} `;
+    }
+    s = s.replace(/ {2,}/g, ' ').trim();
+    const chars = Array.from(s);
+    return chars.length > max ? `…${chars.slice(chars.length - max + 1).join('')}` : s;
+  }
+
   // ↑/↓ in the agent composer: the messages sent before (sent, oldest first), as in a shell.
   // at is the one shown (an index into sent) or null. ↑ acts on an empty field, or on a recalled
   // message left as it was; anything typed or changed keeps the arrows for the caret. ↓ past the
@@ -129,7 +151,7 @@
     return at + 1 < sent.length ? { at: at + 1, text: sent[at + 1] } : { at: null, text: '' };
   }
 
-  const api = { enterAction, rawKeyName, shellMeaning, withMods, tapMod, queueRaw, recall };
+  const api = { enterAction, rawKeyName, shellMeaning, withMods, tapMod, queueRaw, describeRaw, recall };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keys = api;
 })(typeof self !== 'undefined' ? self : this);

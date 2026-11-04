@@ -120,6 +120,16 @@ async function paneMenu(kind, x, { fromRow = false } = {}) {
         ['right', '오른쪽으로 나누기'],
         ['tab', '새 셸 열기', false, '새 탭에'],
         '-',
+        // How this view shows and takes input (설정 → 입력·화면 has the same), at hand while a
+        // table needs 줄바꿈 off or a long Korean command wants the line.
+        ...(here
+          ? [
+              Prefs.get('wrap.term') ? ['wrap', '줄바꿈 끄기', false, '긴 줄을 접지 않고 옆으로 밀어 봅니다', 'wrap'] : ['wrap', '줄바꿈 켜기', false, '긴 줄을 화면 폭에 접습니다', 'wrap'],
+              getShellInput() === 'raw' ? ['input', '한 줄 입력으로 쓰기', false, '명령을 다 쓰고 리턴으로 실행합니다'] : ['input', '키 직접 입력으로 쓰기', false, '누르는 키가 바로 셸로 갑니다'],
+              getColor() ? ['color', '색상 끄기', false, '한 가지 색으로 봅니다'] : ['color', '색상 켜기'],
+              '-',
+            ]
+          : []),
         ['rename', '이름 바꾸기'],
         ['ws', '워크스페이스 보기'],
         ['close', '셸 닫기', true, '', here ? 'closeView' : null],
@@ -144,6 +154,9 @@ async function paneAction(kind, x, k, { here = false } = {}) {
     const key = await menu('키 보내기', AGENT_KEYS.map(([kk, l]) => [kk, l]), { sub: x.name || x.title });
     if (key && (await sendKeys([key], host, x.pane))) toast(`${AGENT_KEYS.find((y) => y[0] === key)[1]} 키를 보냈습니다`);
   }
+  if (k === 'wrap') setPref('wrap.term', !Prefs.get('wrap.term'));
+  if (k === 'input') setPref('shellInput', getShellInput() === 'raw' ? 'line' : 'raw');
+  if (k === 'color') setPref('color', !getColor());
   if (k === 'copy') copyText(lastReply(), '마지막 답을 복사했습니다');
   if (k === 'rename') renamePane(x, agent);
   if (k === 'close') closePane(x.host, x.pane, agent ? x.name || x.title : termTitle(x), agent);
