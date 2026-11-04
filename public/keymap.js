@@ -14,7 +14,14 @@
 //          taken there: the tests hold every shell binding to that.
 //   layer  also while a sheet or menu is open (the action decides what it means there).
 //   split  only in the two-column layout.
-// ACTIONS give each action its words for the sheet, in the group it is listed under.
+// ACTIONS give each action its words for the sheet, in the group it is listed under; fixed: its
+// keys are what it means (1–9 pick that choice), so they can't be changed; twice: pressed twice.
+//
+// Changing keys (the 단축키 sheet's 바꾸기): a device keeps overrides, { action: [key, …] }, the
+// whole list for each action it changed (core.js, localStorage). setOverrides lays them over the
+// table; a key moved to another action leaves the one it had. A changed key's places come from
+// its action's defaults, cut down so it never takes a typed character (no Ctrl/Alt/⌘: not in a
+// field) or a key the shell needs (keys.js rawKeyName: not in the shell view).
 (function (root) {
   const ACTIONS = {
     back: { group: '어디서나', label: '시트·메뉴 닫기, 입력 칸에서 나가기, 뒤로' },
@@ -33,8 +40,8 @@
     nextMine: { group: '대화·터미널 화면', label: '내가 보낸 다음 메시지로 (마지막 다음은 맨 아래, 입력 칸으로)' },
     scrollUp: { group: '대화·터미널 화면', label: '위로 스크롤 (누르고 있으면 계속)' },
     scrollDown: { group: '대화·터미널 화면', label: '아래로 스크롤 (누르고 있으면 계속)' },
-    answer: { group: '대화·터미널 화면', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)' },
-    stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', hint: 'Alt+. ×2' },
+    answer: { group: '대화·터미널 화면', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)', fixed: true },
+    stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', twice: true },
     terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기' },
     prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
@@ -141,15 +148,165 @@
   // The binding a keydown means here, or null. ctx: { field, shell, layer, split }.
   function match(e, ctx = {}) {
     if (!e || e.isComposing || e.keyCode === 229) return null;
-    for (const x of BINDINGS) {
+    for (const x of active) {
       if ((ctx.field && !x.field) || (ctx.shell && !x.shell) || (ctx.layer && !x.layer) || (x.split && !ctx.split)) continue;
       if (matches(e, x.key)) return x;
     }
     return null;
   }
 
+  // ---- changed keys
+
+  const rawKeyName = (e) => {
+    const K = typeof module === 'object' && module.exports ? require('./keys.js') : root.Keys;
+    return K ? K.rawKeyName(e) : null;
+  };
+  const eventOf = (key) => {
+    const k = parse(key);
+    return { key: k.name, code: '', keyCode: 0, ctrlKey: k.ctrl, altKey: k.alt, metaKey: k.meta, shiftKey: k.shift };
+  };
+  const norm = (key) => JSON.stringify(parse(key));
+  const MOD_KEYS = new Set(['Control', 'Alt', 'AltGraph', 'Shift', 'Meta', 'OS', 'CapsLock', 'Fn', 'FnLock', 'Hyper', 'Super', 'Symbol']);
+
+  // The key string a keydown would be bound as, or null (a modifier alone, an IME at work). A
+  // letter, a digit with a modifier, or a symbol with one is read by e.code, so a Korean layout
+  // or a Mac's Option characters record the key itself. Shift is dropped for a symbol, which says it.
+  function keyOf(e) {
+    if (!e || e.isComposing || e.keyCode === 229 || MOD_KEYS.has(e.key)) return null;
+    const mod = e.ctrlKey || e.altKey || e.metaKey;
+    const code = e.code || '';
+    const letter = /^Key([A-Z])$/.exec(code);
+    const digit = /^Digit(\d)$/.exec(code);
+    const sym = Object.keys(CODES).find((c) => CODES[c] === code);
+    let name = null;
+    if (letter && (mod || !/^[a-z]$/i.test(e.key || ''))) name = letter[1].toLowerCase();
+    else if (/^[a-z]$/i.test(e.key || '')) name = e.key.toLowerCase();
+    else if (digit && mod) name = digit[1];
+    else if (sym && mod) name = sym;
+    else if (typeof e.key === 'string' && e.key && !['Unidentified', 'Process', 'Dead'].includes(e.key)) name = e.key;
+    if (!name) return null;
+    return [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.metaKey && 'Meta', e.shiftKey && !isSymbol(name) && 'Shift', name].filter(Boolean).join('+');
+  }
+
+  // Keys the browser or the system keeps (the page never sees them, or it would close a tab).
+  const RESERVED = ['Ctrl+w', 'Ctrl+Shift+w', 'Ctrl+t', 'Ctrl+Shift+t', 'Ctrl+Tab', 'Ctrl+Shift+Tab', 'Ctrl+q', 'Meta+w', 'Meta+q', 'Meta+t', 'Alt+F4'].map(norm);
+  // Why key can't be given to action, or ''. overrides: the device's changes so far.
+  function refuse(action, key) {
+    if (!key) return '이 키는 받을 수 없습니다';
+    const k = parse(key);
+    const mod = k.ctrl || k.alt || k.meta;
+    if (RESERVED.includes(norm(key))) return `${label(key)} 는 브라우저가 먼저 가져갑니다`;
+    if (k.name === '+') return '+ 는 쓸 수 없습니다';
+    if (!mod && ['Enter', 'Tab', ' ', 'Backspace', 'Delete'].includes(k.name)) return `${label(key)} 만으로는 쓸 수 없습니다: 단추 누르기·이동·지우기에 씁니다`;
+    if (k.name === 'Escape' && action !== 'back') return 'Esc 는 뒤로·닫기에만 씁니다';
+    const fixed = BINDINGS.find((x) => ACTIONS[x.action].fixed && norm(x.key) === norm(key));
+    if (fixed) return `${label(key)} 는 「${ACTIONS[fixed.action].label}」에 씁니다`;
+    if (ACTIONS[action] && ACTIONS[action].fixed) return '이 동작의 키는 바꿀 수 없습니다';
+    return '';
+  }
+
+  // A changed key's binding: the action's places, cut down (the comment at the top).
+  function bindingFor(action, key) {
+    const own = BINDINGS.filter((x) => x.action === action);
+    const k = parse(key);
+    const typed = !(k.ctrl || k.alt || k.meta);
+    const any = (f) => own.some((x) => x[f]);
+    return {
+      action,
+      key,
+      field: any('field') && !typed,
+      shell: any('shell') && !typed && rawKeyName(eventOf(key)) == null,
+      layer: any('layer'),
+      split: own.length > 0 && own.every((x) => x.split),
+      custom: true,
+    };
+  }
+
+  // The keys an action has under overrides (its defaults when it has none of its own).
+  function keysFor(action, overrides = current) {
+    return overrides && Array.isArray(overrides[action]) ? overrides[action] : BINDINGS.filter((x) => x.action === action).map((x) => x.key);
+  }
+
+  // A key string this page could have recorded: modifiers, then one character or a key's name.
+  const NAMED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete', 'Backspace', 'Enter', 'Tab', 'Escape', 'ContextMenu']);
+  function realKey(key) {
+    if (typeof key !== 'string' || !key) return false;
+    const parts = key.split('+');
+    const name = parts.pop();
+    if (!parts.every((m) => MODS.includes(m)) || new Set(parts).size !== parts.length) return false;
+    return [...name].length === 1 || NAMED.has(name) || /^F([1-9]|1\d|2[0-4])$/.test(name);
+  }
+
+  // overrides with only what can stand: known, changeable actions; keys that are allowed and
+  // not given twice (the first action keeps one); 뒤로 always with Esc.
+  function clean(overrides) {
+    const out = {};
+    const taken = new Map();
+    for (const [action, keys] of Object.entries(overrides || {})) {
+      if (!ACTIONS[action] || ACTIONS[action].fixed || !Array.isArray(keys)) continue;
+      out[action] = [];
+      for (const key of keys) {
+        if (!realKey(key) || refuse(action, key) || taken.has(norm(key))) continue;
+        taken.set(norm(key), action);
+        out[action].push(key);
+      }
+    }
+    if (out.back && !out.back.some((k) => norm(k) === norm('Escape'))) out.back.unshift('Escape');
+    return out;
+  }
+
+  let current = {};
+  let active = BINDINGS;
+  // The table this page goes by: the defaults with overrides laid over them. A default key that
+  // an override gave to another action leaves its own. Returns the overrides as kept.
+  function setOverrides(overrides) {
+    current = clean(overrides);
+    const given = new Set(Object.values(current).flat().map(norm));
+    active = [
+      ...BINDINGS.filter((x) => !(x.action in current) && !given.has(norm(x.key))),
+      ...Object.entries(current).flatMap(([action, keys]) => keys.map((key) => bindingFor(action, key))),
+    ];
+    return current;
+  }
+
+  // key given to action: new overrides, and the action it was taken from (or null). Throws the
+  // reason when it can't be.
+  function assign(overrides, action, key) {
+    const why = refuse(action, key);
+    if (why) throw new Error(why);
+    const was = active.find((x) => norm(x.key) === norm(key));
+    if (was && was.action === action) return { overrides, from: null };
+    const out = { ...overrides };
+    if (was) out[was.action] = keysFor(was.action, overrides).filter((k) => norm(k) !== norm(key));
+    out[action] = [...keysFor(action, overrides), key];
+    return { overrides: out, from: was ? was.action : null };
+  }
+  // key taken off action (뒤로 keeps Esc).
+  function unassign(overrides, action, key) {
+    if (action === 'back' && norm(key) === norm('Escape')) throw new Error('Esc 는 뺄 수 없습니다: 뒤로·닫기의 기본 키입니다');
+    return { ...overrides, [action]: keysFor(action, overrides).filter((k) => norm(k) !== norm(key)) };
+  }
+  // action back to its defaults.
+  function reset(overrides, action) {
+    const out = { ...overrides };
+    delete out[action];
+    return out;
+  }
+
+  // The 바꾸기 rows: each action, its keys now, and whether this device changed them.
+  function actionRows() {
+    return Object.entries(ACTIONS).map(([action, a]) => ({
+      action,
+      group: a.group,
+      label: a.label,
+      fixed: Boolean(a.fixed),
+      changed: action in current,
+      keys: active.filter((x) => x.action === action).map((x) => x.key),
+    }));
+  }
+
   // How a key reads in the sheet: Ctrl+↓, ⌘+↓, Esc.
-  const NAMES = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Esc', Enter: '리턴' };
+  const NAMES = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Esc', Enter: '리턴', ' ': 'Space' };
   function label(key) {
     if (!key) return '';
     const k = parse(key);
@@ -161,8 +318,9 @@
   // hint, else its first key.
   function hint(action) {
     const a = ACTIONS[action];
-    const x = BINDINGS.find((y) => y.action === action);
-    return (a && a.hint) || (x ? label(x.key) : '');
+    const x = active.find((y) => y.action === action);
+    if (!x) return '';
+    return a && a.twice ? `${label(x.key)} ×2` : label(x.key);
   }
 
   // The sheet's rows: [{ group, rows: [{ keys: ['Ctrl+↓', …], label }] }], groups in order.
@@ -175,7 +333,7 @@
       if (row) row.keys.push(...keys.filter((k) => !row.keys.includes(k)));
       else rows.push({ label, keys: [...keys] });
     };
-    for (const x of BINDINGS) add(ACTIONS[x.action].group, ACTIONS[x.action].label, [label(x.key)]);
+    for (const x of active) add(ACTIONS[x.action].group, ACTIONS[x.action].label, [label(x.key)]);
     for (const x of LOCAL) add(x.group, x.label, x.key ? [label(x.key)] : []);
     // 1 … 9 read as one key: 1–9.
     for (const rows of groups.values())
@@ -183,7 +341,7 @@
     return [...groups].map(([group, rows]) => ({ group, rows }));
   }
 
-  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups };
+  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, setOverrides, assign, unassign, reset, keysFor, actionRows };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keymap = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -99,7 +99,46 @@ const settingsShown = () => view.name === 'settings';
 // A button's shortcut: its title says it ("중단 (Alt+. ×2)"), and data-keyhint is the badge shown
 // while Ctrl or Alt is held (app.js, style.css). keymap.js gives the keys, or hint for a key
 // its own field handles. Nothing when the action has no key.
-const keyAttrs = (action, label, hint = action ? Keymap.hint(action) : '') => (hint ? ` title="${esc(label)} (${esc(hint)})" data-keyhint="${esc(hint)}"` : '');
+const keyAttrs = (action, label, hint) => {
+  const h = hint ?? (action ? Keymap.hint(action) : '');
+  // An action's own hint follows changed keys (refreshKeyHints); a given one stays.
+  const act = action && hint == null ? ` data-keyact="${esc(action)}" data-keylabel="${esc(label)}"` : '';
+  return (h ? ` title="${esc(label)} (${esc(h)})" data-keyhint="${esc(h)}"` : '') + act;
+};
+// After keys change: the buttons on screen say the new ones.
+function refreshKeyHints() {
+  for (const el of document.querySelectorAll('[data-keyact]')) {
+    const h = Keymap.hint(el.dataset.keyact);
+    if (h) {
+      el.dataset.keyhint = h;
+      el.title = `${el.dataset.keylabel} (${h})`;
+    } else {
+      delete el.dataset.keyhint;
+      el.removeAttribute('title');
+    }
+  }
+}
+
+// This device's changed keys (keymap.js setOverrides), laid over the table before anything is
+// drawn. Kept as they stand after keymap.js has dropped what can't.
+const KEYS_KEY = 'herdr-hub.keys';
+let keyOverrides = (() => {
+  try {
+    return Keymap.setOverrides(JSON.parse(localStorage.getItem(KEYS_KEY)) || {});
+  } catch {
+    return Keymap.setOverrides({});
+  }
+})();
+function saveKeys(over) {
+  keyOverrides = Keymap.setOverrides(over);
+  try {
+    if (Object.keys(keyOverrides).length) localStorage.setItem(KEYS_KEY, JSON.stringify(keyOverrides));
+    else localStorage.removeItem(KEYS_KEY);
+  } catch {
+    /* this page only */
+  }
+  refreshKeyHints();
+}
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const basename = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p || '';
 
@@ -431,27 +470,117 @@ function menu(title, items, { sub = '' } = {}) {
 }
 
 // The 단축키 sheet (?, 설정 → 단축키 보기): keymap.js's table, so it always says what the keys do.
+// 바꾸기 turns it into the editor: each action's keys with × to take one off, + 키 to record one
+// (the next key pressed; Esc cancels), 기본값 for an action this device changed, and 모두 기본값.
 function openKeySheet() {
   if (layers.some((l) => l.el.classList.contains('keys-back'))) return;
   const el = document.createElement('div');
   el.className = 'sheet-back keys-back';
+  const ks = { edit: false, rec: null }; // rec: the action whose key is being recorded
   const kbd = (k) => `<kbd>${esc(k)}</kbd>`;
-  el.innerHTML = `<div class="sheet keysheet" role="dialog" aria-modal="true" aria-label="단축키">
-      <h2>단축키<span class="sub">실제 키보드에서. 키보드를 한글로 둬도 됩니다.</span></h2>
-      ${Keymap.sheetGroups()
-        .map(
-          (g) => `<section><h3>${esc(g.group)}</h3><dl>${g.rows
-            .map((r) => `<div class="krow"><dt>${r.keys.map(kbd).join(' ')}</dt><dd>${esc(r.label)}</dd></div>`)
-            .join('')}</dl></section>`,
-        )
-        .join('')}
-      <button type="button" class="btn secondary wide" data-close>닫기</button>
-    </div>`;
-  let layer = null;
-  el.onclick = (e) => {
-    if (e.target === el || e.target.closest('[data-close]')) closeLayer(layer);
+  const viewHtml = () =>
+    Keymap.sheetGroups()
+      .map((g) => `<section><h3>${esc(g.group)}</h3><dl>${g.rows.map((r) => `<div class="krow"><dt>${r.keys.map(kbd).join(' ')}</dt><dd>${esc(r.label)}</dd></div>`).join('')}</dl></section>`)
+      .join('');
+  const editHtml = () => {
+    const groups = new Map();
+    for (const r of Keymap.actionRows()) {
+      if (!groups.has(r.group)) groups.set(r.group, []);
+      groups.get(r.group).push(r);
+    }
+    return [...groups]
+      .map(
+        ([group, rows]) => `<section><h3>${esc(group)}</h3><dl>${rows
+          .map((r) => {
+            const keys = r.fixed
+              ? r.keys.length ? kbd(r.keys.length > 2 ? `${r.keys[0]}–${r.keys[r.keys.length - 1]}` : r.keys.map(Keymap.label).join(' ')) : ''
+              : r.keys
+                  .map((k) => {
+                    const keep = r.action === 'back' && k === 'Escape'; // 뒤로 always has Esc
+                    return `<span class="kchip">${kbd(Keymap.label(k))}${keep ? '' : `<button type="button" class="kx" data-rm="${esc(k)}" aria-label="${esc(Keymap.label(k))} 빼기">×</button>`}</span>`;
+                  })
+                  .join('');
+            const rec = ks.rec === r.action;
+            const tools = r.fixed
+              ? '<span class="kfixed">바꿀 수 없음</span>'
+              : `${rec ? '<span class="krec" role="status">누를 키를 누르세요 · Esc 취소</span>' : `<button type="button" class="kadd" data-add>+ 키</button>`}${r.changed ? '<button type="button" class="kreset" data-reset>기본값</button>' : ''}`;
+            return `<div class="krow${r.changed ? ' changed' : ''}${rec ? ' recording' : ''}" data-action="${esc(r.action)}"><dt>${keys || '<span class="knone">없음</span>'}${tools}</dt><dd>${esc(r.label)}</dd></div>`;
+          })
+          .join('')}</dl></section>`,
+      )
+      .join('');
   };
-  layer = openLayer(el, { focus: '[data-close]' });
+  const draw = () => {
+    const changed = Object.keys(keyOverrides).length > 0;
+    el.innerHTML = `<div class="sheet keysheet${ks.edit ? ' editing' : ''}" role="dialog" aria-modal="true" aria-label="단축키">
+        <div class="khead"><h2>단축키<span class="sub">${ks.edit ? '이 기기에만 저장합니다. 셸 화면에서는 셸이 쓰는 키를 가져오지 않습니다.' : '실제 키보드에서. 키보드를 한글로 둬도 됩니다.'}</span></h2>
+          <button type="button" class="toggle" data-edit aria-pressed="${ks.edit}">${ks.edit ? '완료' : '바꾸기'}</button></div>
+        ${ks.edit ? editHtml() : viewHtml()}
+        ${ks.edit && changed ? '<button type="button" class="btn secondary wide" data-reset-all>모두 기본값으로</button>' : ''}
+        <button type="button" class="btn secondary wide" data-close>닫기</button>
+      </div>`;
+  };
+  const save = (over, note) => {
+    saveKeys(over);
+    if (note) toast(note);
+  };
+  // The next key while recording is the new one; nothing else on the page sees it.
+  const onKey = (e) => {
+    if (!ks.rec || e.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (isEsc(e) && !(e.ctrlKey && ks.rec === 'back')) return stopRec();
+    const key = Keymap.keyOf(e);
+    if (!key) return; // a modifier on its own: wait for the rest
+    const action = ks.rec;
+    try {
+      const r = Keymap.assign(keyOverrides, action, key);
+      save(r.overrides, r.from ? `${Keymap.label(key)}: 「${Keymap.ACTIONS[r.from].label}」에서 옮겼습니다` : '');
+    } catch (err) {
+      toastErr(err.message);
+    }
+    stopRec();
+  };
+  const stopRec = () => {
+    ks.rec = null;
+    draw();
+  };
+  window.addEventListener('keydown', onKey, true);
+  el.onclick = (e) => {
+    const t = e.target;
+    if (t === el || t.closest('[data-close]')) return closeLayer(layer);
+    if (t.closest('[data-edit]')) {
+      ks.edit = !ks.edit;
+      ks.rec = null;
+      return draw();
+    }
+    if (t.closest('[data-reset-all]')) {
+      save({}, '모든 단축키를 기본값으로 되돌렸습니다');
+      return draw();
+    }
+    const row = t.closest('[data-action]');
+    if (!row) return;
+    const action = row.dataset.action;
+    if (t.closest('[data-add]')) {
+      ks.rec = action;
+      return draw();
+    }
+    if (t.closest('[data-reset]')) {
+      save(Keymap.reset(keyOverrides, action));
+      return draw();
+    }
+    const rm = t.closest('[data-rm]');
+    if (rm) {
+      try {
+        save(Keymap.unassign(keyOverrides, action, rm.dataset.rm));
+      } catch (err) {
+        toastErr(err.message);
+      }
+      draw();
+    }
+  };
+  draw();
+  const layer = openLayer(el, { focus: '[data-close]', onClose: () => window.removeEventListener('keydown', onKey, true) });
 }
 
 // Toasts stack above the composer (newest at the bottom, three at most); the same text again

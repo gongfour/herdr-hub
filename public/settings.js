@@ -59,7 +59,7 @@ function settingsHtml() {
       ${groups}
       <section class="pgroup" id="s-kbd" aria-labelledby="g-kbd">
         <h2 id="g-kbd">키보드</h2>
-        <div class="pcard"><button type="button" class="pref-link" id="s-keys"><span>단축키 보기</span><span class="pl-end"><kbd>?</kbd><span aria-hidden="true">›</span></span></button></div>
+        <div class="pcard"><button type="button" class="pref-link" id="s-keys"><span>단축키 보기·바꾸기</span><span class="pl-end"><kbd></kbd><span aria-hidden="true">›</span></span></button></div>
       </section>
       <section class="pgroup" aria-labelledby="g-conn">
         <h2 id="g-conn">연결 · 정보</h2>
@@ -90,6 +90,9 @@ function renderSettings({ focus = false } = {}) {
   if (close) close.setAttribute('href', settingsBack());
   syncPrefs(main);
   main.querySelector('#s-kbd').hidden = touchOnly();
+  const helpKey = Keymap.hint('help');
+  main.querySelector('#s-keys kbd').textContent = helpKey;
+  main.querySelector('#s-keys kbd').hidden = !helpKey;
   renderPushBlock();
   renderConn();
   if (!split) mountTabBar('settings');

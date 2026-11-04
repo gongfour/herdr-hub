@@ -272,3 +272,99 @@ test('빠른 이동: Ctrl+J/K move the selection there (its field, by e.code too
   const keys = qs.rows.flatMap((r) => r.keys);
   for (const k of ['리턴', 'Ctrl+J', 'Ctrl+K']) assert.ok(keys.includes(k), k);
 });
+
+// ---- changed keys (setOverrides and friends); each test leaves the defaults back.
+const KM = require('../public/keymap.js');
+const withKeys = (over, fn) => {
+  try {
+    KM.setOverrides(over);
+    fn();
+  } finally {
+    KM.setOverrides({});
+  }
+};
+
+test('keyOf: the key a keydown is bound as, by the physical key where the character is not it', () => {
+  assert.equal(KM.keyOf({ key: 'ㅏ', code: 'KeyK', ctrlKey: true }), 'Ctrl+k'); // Korean layout
+  assert.equal(KM.keyOf({ key: '˚', code: 'KeyK', altKey: true }), 'Alt+k'); // a Mac's Option+K
+  assert.equal(KM.keyOf({ key: 'K', code: 'KeyK', ctrlKey: true, shiftKey: true }), 'Ctrl+Shift+k');
+  assert.equal(KM.keyOf({ key: 'ArrowDown', code: 'ArrowDown', altKey: true }), 'Alt+ArrowDown');
+  assert.equal(KM.keyOf({ key: '≥', code: 'Period', altKey: true }), 'Alt+.');
+  assert.equal(KM.keyOf({ key: '?', code: 'Slash', shiftKey: true }), '?'); // the symbol says Shift
+  assert.equal(KM.keyOf({ key: 'g', code: 'KeyG' }), 'g');
+  assert.equal(KM.keyOf({ key: 'Control', code: 'ControlLeft', ctrlKey: true }), null); // a modifier alone
+  assert.equal(KM.keyOf({ key: 'Process', code: 'KeyA', keyCode: 229 }), null); // the IME's
+});
+
+test('refuse: browser keys, Esc off 뒤로, bare Enter/Tab/Space, 1–9, and the fixed action', () => {
+  assert.match(KM.refuse('jumpEnd', 'Ctrl+w'), /브라우저/);
+  assert.match(KM.refuse('jumpEnd', 'Ctrl+Tab'), /브라우저/);
+  assert.match(KM.refuse('jumpEnd', 'Escape'), /Esc/);
+  assert.equal(KM.refuse('back', 'Escape'), '');
+  assert.match(KM.refuse('jumpEnd', 'Enter'), /만으로는/);
+  assert.equal(KM.refuse('jumpEnd', 'Ctrl+Enter'), '');
+  assert.match(KM.refuse('jumpEnd', '3'), /선택지/);
+  assert.match(KM.refuse('answer', 'Ctrl+g'), /바꿀 수 없습니다/);
+  assert.equal(KM.refuse('jumpEnd', 'Ctrl+g'), '');
+});
+
+test('setOverrides: an action\'s own keys replace its defaults; a moved key leaves the other', () => {
+  withKeys({ jumpEnd: ['Ctrl+g'] }, () => {
+    assert.equal(act('Ctrl+g', {}), 'jumpEnd');
+    assert.equal(act('Ctrl+g', { field: true, layer: true }), 'jumpEnd'); // jumpEnd's places
+    assert.equal(act('Ctrl+End', {}), null); // its defaults are gone
+    assert.equal(KM.hint('jumpEnd'), 'Ctrl+G');
+  });
+  withKeys({ jumpEnd: ['Ctrl+k'] }, () => {
+    assert.equal(act('Ctrl+k', {}), 'jumpEnd');
+    assert.equal(act('Ctrl+j', {}), 'scrollDown'); // the other default stays
+    assert.ok(!KM.actionRows().find((r) => r.action === 'scrollUp').keys.includes('Ctrl+k'));
+  });
+  assert.equal(act('Ctrl+End', {}), 'jumpEnd'); // back to the defaults
+});
+
+test('a changed key never takes a typed character or a shell key', () => {
+  withKeys({ jumpEnd: ['g'], prevMine: ['Ctrl+e'], help: ['Alt+F1'] }, () => {
+    assert.equal(act('g', {}), 'jumpEnd');
+    assert.equal(act('g', { field: true }), null); // typed into the composer
+    assert.equal(act('g', { shell: true }), null);
+    assert.equal(act('Ctrl+e', { field: true }), 'prevMine');
+    assert.equal(act('Ctrl+e', { shell: true }), null); // ctrl+e is the shell's (rawKeyName)
+  });
+  // The rule the table holds itself to holds for changed keys too.
+  withKeys({ jumpEnd: ['Ctrl+a', 'Alt+ArrowDown'], scrollUp: ['Alt+b'] }, () => {
+    for (const r of KM.actionRows()) for (const key of r.keys) {
+      const b = KM.match(ev(key), { shell: true, field: true, layer: true, split: true });
+      if (b && b.custom && b.action !== 'back') assert.equal(rawKeyName(ev(key)), null, key);
+    }
+  });
+});
+
+test('setOverrides keeps only what can stand: no unknown action, no refused key, a key once, 뒤로 with Esc', () => {
+  const kept = KM.setOverrides({ nope: ['Ctrl+g'], answer: ['Ctrl+g'], jumpEnd: ['Ctrl+w', 'Ctrl+g'], jumpTop: ['Ctrl+g'], back: ['Ctrl+q2'] });
+  try {
+    assert.deepEqual(Object.keys(kept).sort(), ['back', 'jumpEnd', 'jumpTop']);
+    assert.deepEqual(kept.jumpEnd, ['Ctrl+g']);
+    assert.deepEqual(kept.jumpTop, []); // Ctrl+g went to jumpEnd first
+    assert.deepEqual(kept.back, ['Escape']);
+  } finally {
+    KM.setOverrides({});
+  }
+});
+
+test('assign / unassign / reset', () => {
+  let r = KM.assign({}, 'jumpEnd', 'Ctrl+g');
+  assert.equal(r.from, null);
+  assert.deepEqual(r.overrides.jumpEnd, ['Ctrl+Shift+ArrowDown', 'Ctrl+End', 'Meta+ArrowDown', 'End', 'Ctrl+g']);
+  r = KM.assign({}, 'jumpEnd', 'Ctrl+k'); // scrollUp's
+  assert.equal(r.from, 'scrollUp');
+  assert.deepEqual(r.overrides.scrollUp, []);
+  assert.throws(() => KM.assign({}, 'jumpEnd', 'Ctrl+w'), /브라우저/);
+  assert.throws(() => KM.unassign({}, 'back', 'Escape'), /Esc/);
+  assert.deepEqual(KM.unassign({}, 'back', 'Ctrl+['), { back: ['Escape'] });
+  assert.deepEqual(KM.reset({ jumpEnd: [], back: ['Escape'] }, 'jumpEnd'), { back: ['Escape'] });
+});
+
+test('stop says ×2 whatever its key', () => {
+  withKeys({ stop: ['Ctrl+Shift+x'] }, () => assert.equal(KM.hint('stop'), 'Ctrl+Shift+X ×2'));
+});

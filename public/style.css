@@ -573,6 +573,22 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .keysheet dd { margin: 0; font-size: 14px; }
 .keysheet kbd { font: 12px/1 var(--mono); padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); white-space: nowrap; }
 @media (max-width: 520px) { .keysheet .krow { grid-template-columns: 1fr; } }
+/* 바꾸기 (core.js openKeySheet): the keys of each action, to take off (×) or add (+ 키). */
+.keysheet .khead { display: flex; align-items: flex-start; gap: 12px; }
+.keysheet .khead h2 { flex: 1; }
+.keysheet .khead .toggle { min-height: 40px; }
+.keysheet.editing .krow { align-items: center; }
+.keysheet.editing dt { align-items: center; }
+.keysheet .kchip { display: inline-flex; align-items: center; gap: 2px; }
+.keysheet .kx { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; min-width: 28px; min-height: 32px; cursor: pointer; border-radius: 6px; }
+.keysheet .kx:hover { color: var(--blocked); background: var(--surface-2); }
+.keysheet :is(.kadd, .kreset) { border: 1px dashed var(--line); background: none; color: var(--accent); font-size: 12px; min-height: 32px; padding: 0 8px; border-radius: 8px; cursor: pointer; }
+.keysheet .kreset { border-style: solid; color: var(--muted); }
+.keysheet .krec { font-size: 12px; color: var(--accent); font-weight: 600; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.keysheet .krow.recording { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.keysheet .krow.changed dd::after { content: ' · 바꿈'; color: var(--accent); font-size: 12px; }
+.keysheet :is(.kfixed, .knone) { font-size: 12px; color: var(--muted); }
+
 /* 빠른 이동 (switcher.js): a palette at the top, clear of the phone's keyboard. */
 .qs-back { align-items: flex-start; padding: calc(10px + var(--safe-top)) 10px 10px; }
 .qs {

@@ -173,7 +173,7 @@ function toggleSwitcher() {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       openSwitched(qs.items[qs.sel]);
-    } else if (Keymap.matches(e, 'Ctrl+p') || Keymap.matches(e, 'Alt+p')) {
+    } else if (Keymap.keysFor('switcher').some((k) => Keymap.matches(e, k))) {
       // In the shell view the keymap leaves Ctrl+P alone; here it closes, never prints.
       e.preventDefault();
       closeLayer(qs.layer);
