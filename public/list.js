@@ -237,14 +237,12 @@ function listModel() {
 let listScroll = 0; // the list's scroll position, kept while a detail view is open
 
 function render() {
+  if (tabSwipeBusy()) return void (tabSwipe.pending = true); // the pages under a host swipe
   if (swipe.g && Date.now() - swipe.g.t0 < 10000) return void (swipe.pending = true); // after the finger lifts
   showTab('spaces');
   const root = listRoot();
   const down = state.herdr !== 'up';
   const f = filter();
-  const { list } = listModel();
-  // Peers in view that are offline or whose herdr is down.
-  const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
   const hostLine = esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f));
   const top = `
     <header class="bar">
@@ -257,11 +255,7 @@ function render() {
       <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
       ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"${apiMismatch(x) ? ` title="${esc(apiMismatch(x))} — 배포가 필요합니다"` : ''}><span class="hdot"></span>${esc(x.label)}${apiMismatch(x) ? '<span class="api-warn" aria-label="API 버전 다름">!</span>' : ''}</button>`).join('')}
     </nav>` : ''}`;
-  const head = [
-    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>옆으로 밀면 호스트(전체·기기)가 넘어가고, 줄을 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
-    ...trouble.map((x) => [`off|${x.id}`, `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`]),
-  ];
-  const parts = [...head, ...spacesParts(list, down, f)];
+  const parts = homeParts(f);
   let main = root.querySelector(':scope > main.home');
   const fresh = !main;
   if (fresh) {
@@ -287,6 +281,20 @@ function render() {
   });
   markSelected();
   tickList();
+}
+
+// The list's keyed parts for host f: the hint and the offline notes, then the cards (also the
+// neighbour host's list that a host swipe brings in beside it, tabswipe.js).
+function homeParts(f = filter()) {
+  const down = state.herdr !== 'up';
+  const { list } = listModel();
+  // Peers in view that are offline or whose herdr is down.
+  const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
+  return [
+    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>옆으로 밀면 호스트(전체·기기)가 넘어가고, 줄을 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
+    ...trouble.map((x) => [`off|${x.id}`, `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`]),
+    ...spacesParts(list, down, f),
+  ];
 }
 
 // Alt+←/→ (split.js hostKey): the host segment one step along. Phone: on the list view only.

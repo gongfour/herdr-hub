@@ -1,58 +1,125 @@
 'use strict';
 // A sideways swipe on the 작업공간 list moves to the next host (전체 → desktop → server …), as
 // Alt+←/→ and the host segment do (list.js stepHostFilter). 설정 is the tab bar's.
-// The list follows the finger; past TAB_SWIPE_MIN px (or a quick flick) the host changes the
-// moment the finger lifts, and the list slides in from the side the finger went. The header
-// (with the host segment) stays put. Phone, and the split layout's sidebar.
+// The hosts' lists lie side by side: the list follows the finger and the neighbour host's list
+// (drawn off to the side when the finger first reveals it) comes in with it, while the host
+// segment's pill slides toward that host. Past TAB_SWIPE_MIN px (or a quick flick) the pages
+// carry on from the finger's speed until the neighbour is in place (motion.js spring), and the
+// host changes; else they settle back. With no host beyond, the list gives less the further it
+// is pulled (rubber band). The header stays put. Phone, and the split layout's sidebar.
 // Not from the left screen edge, not on anything that scrolls sideways itself (key rows, wide
 // tables, the host segment when it overflows) or a text field, and never in a detail view.
 
 const TAB_SWIPE_MIN = 70; // px
 const TAB_SWIPE_FLICK = 0.5; // px/ms
-const tabSwipe = { g: null };
+// g: the finger on the list; anim: the pages finishing after it lifted. While either is on,
+// list renders wait (pending) so the pages under the finger stay the ones it moves.
+const tabSwipe = { g: null, anim: null, pending: false, lastNbMs: null };
 
 const hostOrder = () => ['all', ...hosts().map((h) => h.id)];
 function tabPageShown() {
   return multi() && (split || listShown());
 }
-// What moves with the finger: the list itself, under the header.
-const tabSwipeParts = () => [...listRoot().querySelectorAll(':scope > main.home')];
-const TAB_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
-function tabSwipeStyle(parts, dx, fade, ms, ease = TAB_EASE) {
-  for (const el of parts) {
-    el.style.transition = ms ? `transform ${ms}ms ${ease}, opacity ${ms}ms ${ease}` : 'none';
-    el.style.transform = dx ? `translate3d(${dx}px, 0, 0)` : '';
-    el.style.opacity = fade < 1 ? String(fade) : '';
-  }
-}
-function tabSwipeClear(parts) {
-  for (const el of parts) el.style.transition = el.style.transform = el.style.opacity = el.style.willChange = '';
-}
-const TAB_IN_MS = 200;
-// Commit: the next host now, then one short slide of the list in after the finger.
-function tabSwipeGo(dir) {
-  const w = listRoot().clientWidth || innerWidth;
-  tabSwipeClear(tabSwipeParts());
-  if (!stepHostFilter(dir) || reduced()) return;
-  const parts = tabSwipeParts();
-  tabSwipeStyle(parts, dir * Math.min(w * 0.3, 120), 0.4, 0);
-  void listRoot().offsetWidth;
-  tabSwipeStyle(parts, 0, 1, TAB_IN_MS);
-  setTimeout(() => tabSwipeClear(parts), TAB_IN_MS + 40);
-}
+const tabMain = () => listRoot().querySelector(':scope > main.home');
+const tabSwipeBusy = () => Boolean(tabSwipe.anim || (tabSwipe.g && tabSwipe.g.axis === 'x' && Date.now() - tabSwipe.g.t0 < 10000));
 function currentTabIndex() {
   return hostOrder().indexOf(filter());
+}
+
+// The list of the host one step along (dir ±1), drawn once beside the list (list.js homeParts,
+// for that host): a plain copy to look at, the real list takes over when the host changes.
+function tabNeighbour(g, dir) {
+  if (dir in g.nb) return g.nb[dir];
+  const f = hostOrder()[g.i + dir];
+  if (!f) return (g.nb[dir] = null);
+  const t0 = performance.now();
+  const el = document.createElement('div');
+  el.className = 'list home nb';
+  el.setAttribute('aria-hidden', 'true');
+  el.inert = true;
+  el.innerHTML = withFilter(f, () => homeParts(f).map(([, html]) => html).join(''));
+  fillTimes(el);
+  const b = g.box;
+  el.style.cssText = `left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px;transform:translate3d(${g.x + dir * g.w}px,0,0)`;
+  listRoot().appendChild(el);
+  tabSwipe.lastNbMs = performance.now() - t0;
+  return (g.nb[dir] = el);
+}
+
+// The host segment's pill, lifted out so it can slide between two hosts with the pages.
+function tabPill(g) {
+  const nav = listRoot().querySelector(':scope > .seg.hosts');
+  const btns = nav ? [...nav.querySelectorAll('button[data-host]')] : [];
+  const cur = btns[g.i];
+  if (!cur) return null;
+  const r = (b) => b && { left: b.offsetLeft, width: b.offsetWidth };
+  const el = document.createElement('span');
+  el.className = 'seg-ind';
+  el.style.cssText = `top:${cur.offsetTop}px;height:${cur.offsetHeight}px;width:${cur.offsetWidth}px;transform:translate3d(${cur.offsetLeft}px,0,0)`;
+  nav.prepend(el);
+  nav.classList.add('tracking');
+  return { nav, el, from: r(cur), to: { 1: r(btns[g.i + 1]), '-1': r(btns[g.i - 1]) } };
+}
+
+// One frame: the list at x, its neighbours a page to either side, the pill part of the way.
+function tabFrame(g, x) {
+  g.x = x;
+  g.main.style.transform = `translate3d(${x}px,0,0)`;
+  for (const d of [1, -1]) if (g.nb[d]) g.nb[d].style.transform = `translate3d(${x + d * g.w}px,0,0)`;
+  if (g.pill) {
+    const { from, to } = g.pill;
+    const t = to[x < 0 ? 1 : -1];
+    const p = t ? Math.min(1, Math.abs(x) / g.w) : 0;
+    const left = t ? from.left + (t.left - from.left) * p : from.left;
+    const width = t ? from.width + (t.width - from.width) * p : from.width;
+    g.pill.el.style.transform = `translate3d(${left}px,0,0) scaleX(${width / from.width})`;
+  }
+}
+
+// Everything back as it was: no neighbours, no pill, no inline styles on the list.
+function tabSwipeDone(g, { flush = true } = {}) {
+  if (g.stop) g.stop();
+  if (tabSwipe.anim === g) tabSwipe.anim = null;
+  g.main.style.transform = g.main.style.willChange = '';
+  for (const d of [1, -1]) if (g.nb[d]) g.nb[d].remove();
+  g.nb = {};
+  if (g.pill) {
+    g.pill.el.remove();
+    g.pill.nav.classList.remove('tracking');
+    g.pill = null;
+  }
+  if (flush && tabSwipe.pending) {
+    tabSwipe.pending = false;
+    if (listShown()) render();
+  }
+}
+// The neighbour is in place: the real list becomes that host's, at the neighbour's scroll, in
+// the same task, so no frame shows anything in between.
+function tabSwipeCommit(g, dir) {
+  const top = g.nb[dir] ? g.nb[dir].scrollTop : 0;
+  tabSwipeDone(g, { flush: false });
+  tabSwipe.pending = false;
+  stepHostFilter(dir);
+  const main = tabMain();
+  if (main) main.scrollTop = top;
+}
+// A route change (app.js) mid-finish: drop it, as it was.
+function tabSwipeRelease() {
+  const g = tabSwipe.anim || (tabSwipe.g && tabSwipe.g.axis === 'x' ? tabSwipe.g : null);
+  tabSwipe.g = null;
+  if (g) tabSwipeDone(g, { flush: false });
+  tabSwipe.pending = false;
 }
 
 document.addEventListener(
   'touchstart',
   (e) => {
     tabSwipe.g = null;
-    if (e.touches.length !== 1 || !tabPageShown() || document.querySelector('.sheet-back')) return;
+    if (e.touches.length !== 1 || tabSwipe.anim || !tabPageShown() || document.querySelector('.sheet-back')) return;
     const t = e.touches[0];
     const root = listRoot();
     if (!root.contains(e.target) || e.target.closest('.tabbar') || t.clientX < 20) return;
-    tabSwipe.g = { x: t.clientX, y: t.clientY, target: e.target, axis: null, dx: 0, lastX: t.clientX, lastT: Date.now(), v: 0, raf: 0 };
+    tabSwipe.g = { x0: t.clientX, y0: t.clientY, t0: Date.now(), target: e.target, axis: null, dx: 0, x: 0, samples: [], raf: 0, nb: {} };
   },
   { passive: true }
 );
@@ -62,41 +129,50 @@ document.addEventListener(
     const g = tabSwipe.g;
     if (!g || e.touches.length !== 1) return;
     const t = e.touches[0];
-    const dx = t.clientX - g.x;
-    const dy = t.clientY - g.y;
+    const dx = t.clientX - g.x0;
+    const dy = t.clientY - g.y0;
     if (!g.axis) {
       if (Math.hypot(dx, dy) < 10) return;
       g.axis = Math.abs(dx) > Math.abs(dy) * 1.2 && !canScroll(g.target, 'x') ? 'x' : 'y';
       if (g.axis === 'x') {
+        g.main = tabMain();
         g.i = currentTabIndex();
-        g.parts = tabSwipeParts();
-        for (const el of g.parts) el.style.willChange = 'transform';
+        if (!g.main || g.i < 0) return void (g.axis = 'y');
+        // Layout read once, before anything is written.
+        g.box = { left: g.main.offsetLeft, top: g.main.offsetTop, width: g.main.offsetWidth, height: g.main.offsetHeight };
+        g.w = g.box.width || innerWidth;
+        g.main.style.willChange = 'transform';
+        g.pill = tabPill(g);
       }
     }
     if (g.axis !== 'x') return;
     if (e.cancelable) e.preventDefault();
-    // No host past either end: the list only gives a little.
-    const edge = (dx > 0 && g.i <= 0) || (dx < 0 && g.i >= hostOrder().length - 1);
-    g.dx = edge ? dx / 4 : dx;
-    const now = Date.now();
-    if (now > g.lastT) g.v = (t.clientX - g.lastX) / (now - g.lastT);
-    g.lastX = t.clientX;
-    g.lastT = now;
-    // One style write per frame, 1:1 with the finger.
-    if (!g.raf) g.raf = requestAnimationFrame(() => ((g.raf = 0), tabSwipe.g === g && tabSwipeStyle(g.parts, g.dx, 1, 0)));
+    g.dx = dx;
+    const dir = dx < 0 ? 1 : -1;
+    // The neighbour the finger reveals; none past either end: the rubber band.
+    const nb = dx && tabNeighbour(g, dir);
+    g.pos = nb ? Math.max(-g.w, Math.min(g.w, dx)) : Motion.rubber(dx, g.w);
+    g.samples.push({ t: e.timeStamp, x: t.clientX });
+    if (g.samples.length > 12) g.samples.shift();
+    // One style write per frame, with the finger.
+    if (!g.raf) g.raf = requestAnimationFrame(() => ((g.raf = 0), tabSwipe.g === g && tabFrame(g, g.pos)));
   },
   { passive: false }
 );
-function tabSwipeEnd() {
+function tabSwipeEnd(e) {
   const g = tabSwipe.g;
   tabSwipe.g = null;
   if (!g || g.axis !== 'x') return;
   cancelAnimationFrame(g.raf);
-  const dir = g.dx <= -TAB_SWIPE_MIN || g.v <= -TAB_SWIPE_FLICK ? 1 : g.dx >= TAB_SWIPE_MIN || g.v >= TAB_SWIPE_FLICK ? -1 : 0;
-  if (dir && g.i >= 0 && hostOrder()[g.i + dir]) return tabSwipeGo(dir);
-  // Not far enough: back into place.
-  tabSwipeStyle(g.parts, 0, 1, reduced() ? 0 : 240);
-  setTimeout(() => tabSwipeClear(g.parts), 280);
+  const v = Motion.velocity(g.samples, e && e.timeStamp);
+  const want = g.dx <= -TAB_SWIPE_MIN || v <= -TAB_SWIPE_FLICK ? 1 : g.dx >= TAB_SWIPE_MIN || v >= TAB_SWIPE_FLICK ? -1 : 0;
+  const dir = want && tabNeighbour(g, want) ? want : 0;
+  tabSwipe.anim = g;
+  const from = g.pos != null ? g.pos : g.x;
+  if (reduced()) return dir ? tabSwipeCommit(g, dir) : tabSwipeDone(g);
+  const frame = (x) => tabFrame(g, x);
+  if (dir) g.stop = Motion.run(from, v, -dir * g.w, Motion.stiffness(v, Motion.W_GO), frame, () => tabSwipeCommit(g, dir), Motion.GO_EPS);
+  else g.stop = Motion.run(from, v, 0, Motion.stiffness(v, Motion.W_BACK), frame, () => tabSwipeDone(g));
 }
 document.addEventListener('touchend', tabSwipeEnd);
 document.addEventListener('touchcancel', tabSwipeEnd);

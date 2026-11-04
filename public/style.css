@@ -144,12 +144,12 @@ button:disabled { cursor: default; }
   padding-left: var(--safe-left); padding-right: var(--safe-right);
 }
 /* The same column rules for #app on the phone and for each column of the split layout. */
-:is(#app, .col) > .bar, :is(#app, .col) > nav { flex: none; }
-:is(#app, .col) > main, :is(#app, .col) > form.panel {
+:is(#app, .col, .peek-page) > .bar, :is(#app, .col, .peek-page) > nav { flex: none; }
+:is(#app, .col, .peek-page) > main, :is(#app, .col, .peek-page) > form.panel {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
 }
-:is(#app, .col) > .panel { padding-bottom: calc(16px + var(--safe-bottom)); }
+:is(#app, .col, .peek-page) > .panel { padding-bottom: calc(16px + var(--safe-bottom)); }
 
 /* ---- top bar */
 .bar {
@@ -638,7 +638,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .term-keys .key { flex: 1; min-width: 0; padding: 0 4px; }
 
 /* ---- hosts */
-.seg.hosts { margin: 10px 16px 0; }
+.seg.hosts { margin: 10px 16px 0; position: relative; }
 .seg.hosts button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; }
 .hdot { width: 7px; height: 7px; border-radius: 50%; background: var(--done); flex: none; }
 .seg.hosts button.off { color: var(--muted); }
@@ -985,7 +985,7 @@ button.tool:active { filter: brightness(0.95); }
 .term-keys + .composer, .term-keys + * + .composer { border-top: 0; padding-top: 2px; }
 
 /* ---- bottom tab bar: 작업공간 / 설정 (iOS style: icon over a short label) */
-:is(#app, .col) > .tabbar { flex: none; }
+:is(#app, .col, .peek-page) > .tabbar { flex: none; }
 .tabbar {
   display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; /* one equal column per tab */
   padding: 0 8px var(--safe-bottom);
@@ -1007,8 +1007,8 @@ button.tool:active { filter: brightness(0.95); }
   background: var(--blocked); color: var(--bg); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
 }
 /* The tab bar already keeps clear of the home indicator. */
-:is(#app, .col) > main.home { padding-bottom: 20px; }
-:is(#app, .col) > main.panel:has(+ .tabbar) { padding-bottom: 20px; }
+:is(#app, .col, .peek-page) > main.home { padding-bottom: 20px; }
+:is(#app, .col, .peek-page) > main.panel:has(+ .tabbar) { padding-bottom: 20px; }
 
 .tab:focus-visible { outline-offset: -3px; }
 
@@ -1210,3 +1210,32 @@ button.tool:active { filter: brightness(0.95); }
 .ws-page .pcard > .pref-link + .pref-link { border-top: 1px solid var(--line); } /* .pref-link's border: 0 would drop the card's rule */
 .ws-none { margin: 0; padding: 14px; font-size: 14px; color: var(--muted); }
 .ws-close-note { font-size: 12px; }
+/* ---- sideways gestures (backswipe.js, tabswipe.js): only transform and opacity change per frame.
+   Back swipe: the moving page is opaque (its header is see-through) and casts a shadow on the
+   page behind; the page behind is the kept 작업공간 page (phone) or the empty right pane. */
+.bs-front { background: var(--bg); }
+.peek { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.peek-page {
+  position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg);
+  padding-left: var(--safe-left); padding-right: var(--safe-right); will-change: transform;
+}
+.peek-dim { position: absolute; inset: 0; z-index: 10; background: var(--peek-dim); will-change: opacity; }
+.peek-shade {
+  position: absolute; top: 0; bottom: 0; left: -18px; width: 18px; z-index: 10; will-change: transform, opacity;
+  background: linear-gradient(to left, var(--peek-shade), transparent);
+}
+:root { --peek-dim: rgb(0 0 0 / 0.1); --peek-shade: rgb(0 0 0 / 0.13); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --peek-dim: rgb(0 0 0 / 0.32); --peek-shade: rgb(0 0 0 / 0.4); } }
+:root[data-theme="dark"] { --peek-dim: rgb(0 0 0 / 0.32); --peek-shade: rgb(0 0 0 / 0.4); }
+@media (min-width: 760px) {
+  /* The phone column is narrower than a detail's: the list behind sits where it will be. */
+  #app > .peek > .peek-page { left: 50%; right: auto; width: min(720px, 100%); margin-left: calc(min(720px, 100%) / -2); padding-left: 0; padding-right: 0; }
+}
+/* Host swipe: the neighbour host's list beside the list, and the segment's pill between them. */
+.list.home.nb { position: absolute; overflow: hidden; pointer-events: none; will-change: transform; }
+.seg-ind {
+  position: absolute; left: 0; box-sizing: border-box; border-radius: 8px; pointer-events: none; transform-origin: 0 50%; will-change: transform;
+  background: var(--seg-on); border: 1px solid var(--seg-on-line); box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+}
+.seg.hosts.tracking button { position: relative; z-index: 1; }
+.seg.hosts.tracking button[aria-pressed="true"] { background: transparent; border-color: transparent; box-shadow: none; }

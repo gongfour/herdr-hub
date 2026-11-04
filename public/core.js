@@ -197,7 +197,18 @@ function setFilter(v) {
 }
 let memFilter = getFilter();
 // A remembered host that no longer exists falls back to everything.
-const filter = () => (memFilter !== 'all' && multi() && hostOf(memFilter) ? memFilter : 'all');
+const filter = () => peekFilter || (memFilter !== 'all' && multi() && hostOf(memFilter) ? memFilter : 'all');
+// fn() as if host f were chosen (tabswipe.js draws the neighbour host's list with it).
+let peekFilter = null;
+function withFilter(f, fn) {
+  const was = peekFilter;
+  peekFilter = f;
+  try {
+    return fn();
+  } finally {
+    peekFilter = was;
+  }
+}
 const shown = (x) => filter() === 'all' || (x.host || localId()) === filter();
 
 // The settings themselves are prefs.js's table (Prefs.get / Prefs.set). These names read them.

@@ -180,6 +180,8 @@ document.addEventListener('visibilitychange', () => document.visibilityState ===
 window.addEventListener('pageshow', (e) => e.persisted && backToFront());
 
 function onState() {
+  // A page under a sideways swipe, or finishing one, isn't redrawn: it catches up after.
+  if (backSwipeBusy()) return void (backSwipe.pending = true);
   forgetGone(); // kept chats of agents that are gone (agent.js)
   if (switcherOpen()) renderSwitcher();
   if (split) {
@@ -299,6 +301,10 @@ function noteVisit(hash) {
 // relayout: the same route drawn again for the other layout (the screen crossed the split
 // width); an open agent keeps what it had loaded and its terminal sheet.
 function route(e, { relayout = false } = {}) {
+  // A sideways gesture's pages go back as they were first (backswipe.js, tabswipe.js): the list
+  // a back swipe showed behind its page is list.js's again, for the list drawn below.
+  backSwipeRelease(relayout);
+  tabSwipeRelease();
   if (!history.state || !('prev' in history.state)) history.replaceState({ ...(history.state || {}), prev: lastHash }, '');
   lastHash = location.hash || '#/';
   if (!relayout) noteVisit(lastHash);
@@ -430,6 +436,14 @@ function refocusInput(el) {
 function renderEmpty() {
   const root = detailRoot();
   if (!root) return;
+  const html = emptyDetailHtml();
+  const cur = root.firstElementChild;
+  if (cur && cur.classList.contains('empty-detail') && cur._html === html) return;
+  root.innerHTML = html;
+  root.firstElementChild._html = html;
+}
+// Also what a back swipe shows behind the page it closes (backswipe.js).
+function emptyDetailHtml() {
   const off = sideOff();
   // The keys as this device has them (keymap.js), only those it has.
   const k = (action, words) => {
@@ -443,10 +457,7 @@ function renderEmpty() {
       ${off ? '<button type="button" class="btn secondary ed-open" aria-controls="list-pane">작업공간 목록 열기</button>' : ''}
       ${keys.length ? `<p class="ed-keys">${keys.join(' · ')}</p>` : ''}
     </div>`;
-  const cur = root.firstElementChild;
-  if (cur && cur.classList.contains('empty-detail') && cur._html === html) return;
-  root.innerHTML = html;
-  root.firstElementChild._html = html;
+  return html;
 }
 
 // The row of what is open on the right, marked in the list (aria-current) so it stands out.
