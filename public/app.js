@@ -547,7 +547,7 @@ const KEY_ACTIONS = {
   nextBlocked: () => stepBlocked(1), // list.js
   prevBlocked: () => stepBlocked(-1),
   terminal: () => toggleScreenSheet(), // agent.js
-  // The agent or workspace open, after the same 닫기 sheet as its menu (actions.js): Enter
+  // The agent, shell or workspace open, after the same 닫기 sheet as its menu (actions.js): Enter
   // closes, Esc keeps it. A close that can't be undone is never one key.
   closeView() {
     const host = curHost();
@@ -555,6 +555,11 @@ const KEY_ACTIONS = {
       const a = currentAgent();
       if (!a) return false;
       closePane(host, a.pane, a.name || a.title, true);
+      return true;
+    }
+    if (view.name === 'term') {
+      const t = (state.terminals || []).find((x) => same(x, host, view.pane));
+      closePane(host, view.pane, t ? termTitle(t) : view.pane, false);
       return true;
     }
     if (view.name === 'ws') {

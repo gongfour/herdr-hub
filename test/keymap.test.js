@@ -416,3 +416,9 @@ test('Alt+W: close what is open (a sheet asks first), a field too; never in the 
   assert.equal(act('Alt+w', { layer: true }), null);
   assert.match(KM.refuse('closeView', 'Ctrl+w'), /브라우저/);
 });
+
+test('Ctrl+Alt+W: the same close, the shell view included (no shell key)', () => {
+  for (const ctx of [{}, { field: true }, { shell: true }, { shell: true, field: true }]) assert.equal(act('Ctrl+Alt+w', ctx), 'closeView');
+  assert.equal(rawKeyName(ev('Ctrl+Alt+w')), null);
+  assert.equal(act('Ctrl+Alt+w', { layer: true }), null);
+});
