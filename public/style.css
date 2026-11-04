@@ -1124,3 +1124,20 @@ button.tool:active { filter: brightness(0.95); }
   .mode-chip .full { display: none; }
   .mode-chip .short { display: inline; }
 }
+
+/* Ctrl or Alt held (app.js): each button with a shortcut shows its keys in a badge. A small
+   button gets it just outside, as a tooltip: below in a header, above at the composer,
+   beside on the rail. A wide one (the activity line, the pills, the host row) inside its corner. */
+.show-keys [data-keyhint] { position: relative; }
+.show-keys [data-keyhint]::after {
+  content: attr(data-keyhint); position: absolute; z-index: 40; pointer-events: none;
+  top: calc(100% + 4px); right: 0; /* lined up with the button's right edge, so one at the
+  screen's right edge isn't cut off */
+  font: 600 11px/1 var(--mono); padding: 3px 5px; border-radius: 6px; white-space: nowrap;
+  background: var(--text); color: var(--bg); box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+}
+.show-keys .composer [data-keyhint]::after { top: auto; bottom: calc(100% + 4px); }
+/* 중단 sits just left of 보내기: its badge goes to its left, so the two don't overlap. */
+.show-keys .composer .stop[data-keyhint]::after { bottom: auto; top: 50%; right: calc(100% + 6px); transform: translateY(-50%); }
+.show-keys .rail-btn[data-keyhint]::after { top: 50%; right: auto; left: calc(100% + 6px); transform: translateY(-50%); }
+.show-keys :is(.activity, .new-out, .seg.hosts)[data-keyhint]::after { top: 2px; right: 2px; }

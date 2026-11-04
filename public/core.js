@@ -96,6 +96,10 @@ const settingsShown = () => view.name === 'settings';
 
 // ------------------------------------------------------------ utilities
 
+// A button's shortcut: its title says it ("중단 (Alt+. ×2)"), and data-keyhint is the badge shown
+// while Ctrl or Alt is held (app.js, style.css). keymap.js gives the keys, or hint for a key
+// its own field handles. Nothing when the action has no key.
+const keyAttrs = (action, label, hint = action ? Keymap.hint(action) : '') => (hint ? ` title="${esc(label)} (${esc(hint)})" data-keyhint="${esc(hint)}"` : '');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const basename = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p || '';
 

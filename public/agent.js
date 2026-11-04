@@ -15,7 +15,7 @@ function renderDetail() {
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기">${ICON.more}</button>
       </header>
-      <button type="button" class="activity" id="d-activity" aria-label="터미널 화면 보기" hidden></button>
+      <button type="button" class="activity" id="d-activity" aria-label="터미널 화면 보기"${keyAttrs('terminal', '터미널 화면 보기')} hidden></button>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="d-body"></div>
       <div id="d-blocked"></div>
@@ -27,8 +27,8 @@ function renderDetail() {
         <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">${ICON.photo}</button>
         <button type="button" class="attach" id="d-camera" aria-label="카메라로 찍기">${ICON.camera}</button>
         <div id="d-input" class="input" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="메시지" data-placeholder="메시지 보내기" enterkeyhint="${getEnter() === 'send' ? 'send' : 'enter'}" autocapitalize="sentences"></div>
-        <button type="button" class="stop" id="d-stop" aria-label="중단" hidden>${ICON.stop}</button>
-        <button type="button" class="send" id="d-send" aria-label="보내기" disabled>${ICON.send}</button>
+        <button type="button" class="stop" id="d-stop" aria-label="중단"${keyAttrs('stop', '중단')} hidden>${ICON.stop}</button>
+        <button type="button" class="send" id="d-send" aria-label="보내기"${keyAttrs(null, '보내기', Keymap.label('Ctrl+Enter'))} disabled>${ICON.send}</button>
       </div>
     </div>`;
   document.getElementById('d-activity').onclick = openScreenSheet;
@@ -593,7 +593,7 @@ function renderDetailBody(reset) {
   } else {
     if (body._html !== 'chat' || !body.querySelector('.msgs')) {
       body.innerHTML = '<p class="note trunc" hidden>최근 대화만 표시합니다</p><div class="msgs"></div>' +
-        '<div class="pill-dock"><button type="button" class="new-out jump" hidden>↓ 최신 대화</button></div>';
+        `<div class="pill-dock"><button type="button" class="new-out jump"${keyAttrs('jumpEnd', '맨 아래로')} hidden>↓ 최신 대화</button></div>`;
       body._html = 'chat';
       body._seen = null;
       body.querySelector('.jump').onclick = () => jumpLatest(keyboardLikely()); // a phone's keyboard stays down
@@ -900,7 +900,7 @@ function openScreenSheet() {
   el.innerHTML = `<div class="sheet term-sheet" role="dialog" aria-modal="true" aria-label="터미널 화면">
       <div class="term-sheet-head">
         <h2>터미널 화면<span class="sub">${esc(a.name || a.title)}</span></h2>
-        <button type="button" class="icon-btn" data-close aria-label="닫기">${ICON.x}</button>
+        <button type="button" class="icon-btn" data-close aria-label="닫기"${keyAttrs('terminal', '닫기')}>${ICON.x}</button>
       </div>
       <div class="screen-tools"></div>
       <div class="scroll" id="ss-body"></div>
@@ -917,6 +917,21 @@ function openScreenSheet() {
   el.querySelector('.screen-top .linkish').onclick = closeScreenSheet;
   bindKeyRow(el.querySelector('.sheet-keys'));
   loadDetail();
+}
+
+// Alt+T: the terminal sheet over the chat, opened or closed. Not for an agent whose body is
+// already its screen, nor over another sheet or menu.
+function toggleScreenSheet() {
+  if (view.name !== 'agent') return false;
+  const top = topLayer();
+  if (detail.sheet) {
+    if (top && top.el !== detail.sheet) return false;
+    closeScreenSheet();
+    return true;
+  }
+  if (top || screenBody()) return false;
+  openScreenSheet();
+  return Boolean(detail.sheet);
 }
 
 function closeScreenSheet() {

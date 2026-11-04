@@ -49,7 +49,7 @@ function settingsHtml() {
   return `
     <header class="bar">
       <h1 tabindex="-1">설정</h1>
-      ${split ? `<a class="icon-btn close-detail" href="#/" data-back aria-label="닫기" title="닫기 (Esc)">${ICON.x}</a>` : ''}
+      ${split ? `<a class="icon-btn close-detail" href="${settingsBack()}" data-back aria-label="닫기"${keyAttrs('back', '닫기')}>${ICON.x}</a>` : ''}
     </header>
     <main class="panel settings">
       <section class="pgroup" aria-labelledby="g-push">

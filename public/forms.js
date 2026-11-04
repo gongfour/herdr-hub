@@ -120,7 +120,7 @@ async function browseDirs(host) {
   el.innerHTML = `<div class="sheet browser" role="dialog" aria-modal="true" aria-label="폴더 찾아보기">
       <div class="browser-head">
         <h2>폴더 찾아보기${multi() ? `<span class="sub">${esc(hostLabel(host))}</span>` : ''}</h2>
-        <button type="button" class="icon-btn" data-close aria-label="닫기">${ICON.x}</button>
+        <button type="button" class="icon-btn" data-close aria-label="닫기"${keyAttrs('back', '닫기')}>${ICON.x}</button>
       </div>
       <div class="chips places">${(info.places || []).map((p) => `<button type="button" class="chip" data-go="${esc(p.path)}" title="${esc(p.path)}">${esc(p.name)}</button>`).join('')}</div>
       <nav class="crumbs" aria-label="현재 위치"></nav>

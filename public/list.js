@@ -58,8 +58,8 @@ const homeHash = () => '#/';
 // 뒤로 in a detail header. Split, the list is already beside it: a detail that leads back to
 // the list gets ✕ (닫기) at the end of the header instead, and closing it goes to the list route.
 function backLink(href, label = '목록') {
-  if (split && href === homeHash()) return `<a class="icon-btn close-detail" href="${href}" data-back aria-label="닫기" title="닫기 (Esc)">${ICON.x}</a>`;
-  return `<a class="icon-btn" href="${href}" data-back aria-label="${label}">${ICON.back}</a>`;
+  if (split && href === homeHash()) return `<a class="icon-btn close-detail" href="${href}" data-back aria-label="닫기"${keyAttrs('back', '닫기')}>${ICON.x}</a>`;
+  return `<a class="icon-btn" href="${href}" data-back aria-label="${label}"${keyAttrs('back', '뒤로')}>${ICON.back}</a>`;
 }
 
 function tabBar(active) {
@@ -156,7 +156,7 @@ function renderRail() {
   const btn = (key, icon, label, extra = '') => {
     const on = key === 'spaces' ? open : view.name === 'settings';
     const what = key === 'spaces' ? `${label} 사이드바 ${open ? '접기' : '열기'}` : `${label} ${on ? '닫기' : '열기'}`;
-    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}" title="${label}">${icon}${extra}</button>`;
+    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}"${key === 'spaces' ? keyAttrs('toggleSide', label) : ` title="${label}"`}>${icon}${extra}</button>`;
   };
   const html = `${btn('spaces', ICON.grid, '작업공간', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : dot ? '<span class="rail-dot" role="img" aria-label="새 결과"></span>' : '')}
     <span class="rail-gap"></span>
@@ -250,10 +250,10 @@ function render() {
     <header class="bar">
       <h1>작업공간<span class="sub">${hostLine}</span></h1>
       <span class="conn ${down ? 'down' : ''}"><span class="dot"></span>${down ? (state.herdr === 'down' ? 'herdr 연결 끊김' : state.herdr === 'offline' ? '연결 끊김' : '연결 중') : '실시간'}</span>
-      <a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스">${ICON.plus}</a>
+      <a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스"${keyAttrs('newWorkspace', '새 워크스페이스')}>${ICON.plus}</a>
     </header>
     ${multi() ? `
-    <nav class="seg hosts" role="group" aria-label="호스트">
+    <nav class="seg hosts" role="group" aria-label="호스트"${keyAttrs(null, '호스트 바꾸기', 'Alt+←→')}>
       <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
       ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"><span class="hdot"></span>${esc(x.label)}</button>`).join('')}
     </nav>` : ''}`;
@@ -303,6 +303,22 @@ function stepHostFilter(dir) {
   }
   render();
   if (split && !isDetail()) renderEmpty(); // its 답 필요 count follows the filter
+  return true;
+}
+
+// Alt+Shift+↓/↑: the next (previous) agent waiting for an answer, in the list's order, round
+// from either end; from anything else, the first (last). A toast when none is waiting.
+function stepBlocked(dir) {
+  const waiting = listModel().list.flatMap((s) => s.agents.filter((a) => a.status === 'blocked'));
+  if (!waiting.length) {
+    toast('답이 필요한 에이전트가 없습니다');
+    return true;
+  }
+  const i = view.name === 'agent' ? waiting.findIndex((a) => same(a, curHost(), detail.pane)) : -1;
+  const a = i < 0 ? waiting[dir > 0 ? 0 : waiting.length - 1] : waiting[(i + (dir > 0 ? 1 : waiting.length - 1)) % waiting.length];
+  if (i >= 0 && waiting.length === 1) return toast('답이 필요한 에이전트는 이것 하나입니다'), true;
+  stepFocus = true; // the caret into its composer, as Alt+↑/↓
+  location.hash = link(a.host, `/agent/${encodeURIComponent(a.pane)}`);
   return true;
 }
 

@@ -2,7 +2,7 @@
 // The shortcut table (public/keymap.js): what each key means where, and that no two clash.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { ACTIONS, BINDINGS, LOCAL, parse, match, label, sheetGroups } = require('../public/keymap.js');
+const { ACTIONS, BINDINGS, LOCAL, parse, match, label, hint, sheetGroups } = require('../public/keymap.js');
 const { rawKeyName } = require('../public/keys.js');
 
 // A keydown from a key string: 'Ctrl+ArrowDown' -> { key: 'ArrowDown', ctrlKey: true, … }.
@@ -230,4 +230,34 @@ test('Ctrl+, opens and closes 설정: on the page and in a field, not in the she
   assert.equal(act(',', {}), null); // a typed comma
   assert.equal(act('Meta+,', {}), null); // the browser's own
   assert.equal(act('Alt+,', {}), null);
+});
+
+test('answer-needed agents: Alt+Shift+↓/↑ anywhere but under a sheet, the shell and a field included', () => {
+  for (const ctx of [{}, { field: true }, { shell: true }, { split: true }]) {
+    assert.equal(act('Alt+Shift+ArrowDown', ctx), 'nextBlocked');
+    assert.equal(act('Alt+Shift+ArrowUp', ctx), 'prevBlocked');
+  }
+  assert.equal(act('Alt+Shift+ArrowDown', { layer: true }), null);
+  assert.equal(act('Alt+ArrowDown', { split: true }), 'nextRow'); // Shift makes the difference
+});
+
+test('Alt+T: the terminal sheet, also from the composer and to close the sheet; the shell keeps it', () => {
+  for (const ctx of [{}, { field: true }, { layer: true }]) assert.equal(act('Alt+t', ctx), 'terminal');
+  assert.equal(act('Alt+t', {}, { key: '†', code: 'KeyT' }), 'terminal'); // a Mac's Option+T
+  assert.equal(act('Alt+t', { shell: true }), null); // the shell's swap-words
+});
+
+test('Alt+`: the last agent or shell, the shell view and a field included; by code for a dead key', () => {
+  for (const ctx of [{}, { field: true }, { shell: true }]) assert.equal(act('Alt+`', ctx), 'lastView');
+  assert.equal(act('Alt+`', {}, { key: 'Dead', code: 'Backquote' }), 'lastView');
+  assert.equal(act('`', {}), null);
+  assert.equal(act('Alt+`', { layer: true }), null);
+});
+
+test('hint: an action\'s own hint, else its first key, else nothing', () => {
+  assert.equal(hint('stop'), 'Alt+. ×2');
+  assert.equal(hint('terminal'), 'Alt+T');
+  assert.equal(hint('toggleSide'), 'Ctrl+B');
+  assert.equal(hint('jumpEnd'), 'Ctrl+Shift+↓');
+  assert.equal(hint('nothing'), '');
 });

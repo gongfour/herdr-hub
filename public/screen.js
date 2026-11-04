@@ -27,7 +27,7 @@ function mountScreen(body, kind, tools, topHtml = '') {
   body.classList.add('screen-mode');
   const top = topHtml ? `<div class="screen-top">${topHtml}</div>` : '';
   body.innerHTML = `<p class="note">불러오는 중…</p>${top}<pre class="screen" hidden></pre>
-    <div class="pill-dock"><button type="button" class="new-out" hidden>↓ 새 출력</button></div>`;
+    <div class="pill-dock"><button type="button" class="new-out"${keyAttrs('jumpEnd', '맨 아래로')} hidden>↓ 새 출력</button></div>`;
   const s = (scr = {
     kind, body, tools, wrap: getWrap(kind), color: getColor(), raw: null, shown: null, pending: null, follow: true, touching: false, error: null, note: '',
     pre: body.querySelector('.screen'), pill: body.querySelector('.new-out'), loading: body.querySelector('.note'),

@@ -166,11 +166,23 @@ function stashDraft() {
   else drafts.delete(key);
 }
 
+// The agent or shell open now and the one before it, for Alt+` (lastView): only those two kinds,
+// so a trip through 설정 or a form in between doesn't count.
+const visits = { cur: null, prev: null };
+function noteVisit(hash) {
+  const r = Route.parse(hash.replace(/^#/, '') || '/');
+  if (r.name !== 'agent' && r.name !== 'term') return;
+  const h = hash.replace(/\/(screen|chat)$/, '');
+  if (visits.cur && normHash(visits.cur) !== normHash(h)) visits.prev = visits.cur;
+  visits.cur = h;
+}
+
 // relayout: the same route drawn again for the other layout (the screen crossed the split
 // width); an open agent keeps what it had loaded and its terminal sheet.
 function route(e, { relayout = false } = {}) {
   if (!history.state || !('prev' in history.state)) history.replaceState({ ...(history.state || {}), prev: lastHash }, '');
   lastHash = location.hash || '#/';
+  if (!relayout) noteVisit(lastHash);
   if (!relayout) stashDraft(); // relayout() kept it before the old composer went away
   const was = relayout ? { view, detail, sheet: Boolean(detail.sheet) } : null;
   clearInterval(pollTimer);
@@ -395,6 +407,16 @@ const KEY_ACTIONS = {
   prevRow: () => stepList(-1),
   nextRow: () => stepList(1),
   switcher: () => toggleSwitcher(), // switcher.js
+  nextBlocked: () => stepBlocked(1), // list.js
+  prevBlocked: () => stepBlocked(-1),
+  terminal: () => toggleScreenSheet(), // agent.js
+  // The agent or shell open before this one (route keeps the two).
+  lastView() {
+    if (!visits.prev) return false;
+    stepFocus = true; // the caret into its field, as Alt+↑/↓
+    location.hash = visits.prev;
+    return true;
+  },
   answer: (b) => answerKey(Number(b.key)), // answer.js
   toggleSide: () => (setSideOff(!sideOff()), true), // as the rail's 작업공간
   stop: () => stopKey(), // agent.js
@@ -414,6 +436,28 @@ const KEY_ACTIONS = {
     return true;
   },
 };
+// Ctrl or Alt held alone for a moment: each button with a shortcut shows its keys (data-keyhint,
+// style.css), as iPadOS does for ⌘. Any other key, letting go, or leaving the page hides them.
+let hintTimer = 0;
+function hideKeyHints() {
+  clearTimeout(hintTimer);
+  document.documentElement.classList.remove('show-keys');
+}
+document.addEventListener(
+  'keydown',
+  (e) => {
+    if (e.key === 'Control' || e.key === 'Alt') {
+      if (!e.repeat) {
+        clearTimeout(hintTimer);
+        hintTimer = setTimeout(() => document.documentElement.classList.add('show-keys'), 500);
+      }
+    } else if (e.key !== 'Shift') hideKeyHints();
+  },
+  true,
+);
+document.addEventListener('keyup', (e) => (e.key === 'Control' || e.key === 'Alt') && hideKeyHints(), true);
+window.addEventListener('blur', hideKeyHints);
+
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;
   if (termStrayKey(e)) return e.preventDefault();

@@ -24,6 +24,9 @@
     newAgent: { group: '어디서나', label: '새 에이전트: 지금 연 것의 작업공간에 (목록이면 새 워크스페이스)' },
     newWorkspace: { group: '어디서나', label: '새 워크스페이스' },
     switcher: { group: '어디서나', label: '빠른 이동: 에이전트·셸을 이름·작업공간·호스트로 찾아 열기 (셸 화면에서는 Alt+P)' },
+    lastView: { group: '어디서나', label: '직전에 보던 에이전트·셸로 (다시 누르면 돌아온다)' },
+    nextBlocked: { group: '어디서나', label: '다음 답 필요 에이전트 열기 (목록 순서로 돌아가며)' },
+    prevBlocked: { group: '어디서나', label: '이전 답 필요 에이전트 열기' },
     jumpEnd: { group: '대화·터미널 화면', label: '맨 아래로, 그리고 입력 칸으로' },
     jumpTop: { group: '대화·터미널 화면', label: '맨 위로' },
     prevMine: { group: '대화·터미널 화면', label: '내가 보낸 이전 메시지로 (터미널 화면은 한 화면 위로)' },
@@ -31,7 +34,8 @@
     scrollUp: { group: '대화·터미널 화면', label: '위로 스크롤 (누르고 있으면 계속)' },
     scrollDown: { group: '대화·터미널 화면', label: '아래로 스크롤 (누르고 있으면 계속)' },
     answer: { group: '대화·터미널 화면', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)' },
-    stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)' },
+    stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', hint: 'Alt+. ×2' },
+    terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기' },
     prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
     prevRow: { group: '목록', label: '두 칸: 목록의 이전 에이전트·셸 열기' },
@@ -89,6 +93,15 @@
     b('newAgent', 'Alt+n', { field: true }),
     b('newWorkspace', 'Ctrl+Shift+n', { field: true }),
     b('newWorkspace', 'Alt+Shift+n', { field: true }),
+    // Alt+Shift+↑/↓: Alt+↑/↓ (the next row) narrowed to the agents waiting for an answer. No shell
+    // key (rawKeyName), so the shell view too.
+    b('nextBlocked', 'Alt+Shift+ArrowDown', { field: true, shell: true }),
+    b('prevBlocked', 'Alt+Shift+ArrowUp', { field: true, shell: true }),
+    // Alt+T is the shell's (swap words); the agent view has no shell, and it closes its own sheet.
+    b('terminal', 'Alt+t', { field: true, layer: true }),
+    // Alt+` as an app switcher's last app; the backquote key by code too (a Mac's Option+` is a
+    // dead key). No shell key either.
+    b('lastView', 'Alt+`', { field: true, shell: true }),
   ];
 
   // Keys handled in their own field, listed in the sheet but not dispatched from here.
@@ -110,7 +123,7 @@
   }
   const isLetter = (s) => /^[a-z]$/i.test(s);
   const isSymbol = (s) => s.length === 1 && !isLetter(s) && !/^\d$/.test(s);
-  const CODES = { '[': 'BracketLeft', ']': 'BracketRight', '/': 'Slash', '.': 'Period', ',': 'Comma' };
+  const CODES = { '[': 'BracketLeft', ']': 'BracketRight', '/': 'Slash', '.': 'Period', ',': 'Comma', '`': 'Backquote' };
 
   function matches(e, key) {
     const k = parse(key);
@@ -142,6 +155,14 @@
     return [k.ctrl && 'Ctrl', k.alt && 'Alt', k.meta && '⌘', k.shift && 'Shift', name].filter(Boolean).join('+');
   }
 
+  // The keys a button shows (its title, and the badge while Ctrl or Alt is held): an action's own
+  // hint, else its first key.
+  function hint(action) {
+    const a = ACTIONS[action];
+    const x = BINDINGS.find((y) => y.action === action);
+    return (a && a.hint) || (x ? label(x.key) : '');
+  }
+
   // The sheet's rows: [{ group, rows: [{ keys: ['Ctrl+↓', …], label }] }], groups in order.
   function sheetGroups() {
     const groups = new Map();
@@ -160,7 +181,7 @@
     return [...groups].map(([group, rows]) => ({ group, rows }));
   }
 
-  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, sheetGroups };
+  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keymap = api;
 })(typeof self !== 'undefined' ? self : this);
