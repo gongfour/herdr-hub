@@ -183,6 +183,8 @@ function route(e, { relayout = false } = {}) {
   // The route as data (route.js); the views below keep the shapes they always had.
   const r = Route.parse(h);
   const host = r.host;
+  // The phone shows a detail in place of the tab: keep the tab's page for 뒤로.
+  if (!split && !['list', 'settings'].includes(r.name)) parkTab();
   if (r.name === 'agent') {
     // An agent always shows its chat. …/screen (the old 화면 tab) opens the terminal sheet over it.
     const pane = r.pane;
@@ -250,6 +252,7 @@ function relayout() {
   const refocus = f && ['d-input', 't-input'].includes(f.id) ? f.id : null;
   stashDraft();
   split = want;
+  dropTabPages();
   colTab = split ? (view.name === 'settings' ? 'settings' : 'spaces') : null;
   document.documentElement.classList.toggle('split', split);
   $app.innerHTML = split ? '<div class="col" id="list-pane"></div><div class="col" id="detail-pane"></div>' : '';

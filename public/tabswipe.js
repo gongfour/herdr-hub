@@ -1,7 +1,9 @@
 'use strict';
 // A sideways swipe on 작업공간 or 설정 moves to the other tab, as on Android.
-// The page follows the finger; past TAB_SWIPE_MIN px (or a quick flick) it changes tab
-// through the tab bar's own link, so split view (the list column only) behaves like a tap there.
+// The page follows the finger; past TAB_SWIPE_MIN px (or a quick flick) it changes tab the
+// moment the finger lifts, the way the tab bar's own link would (split with a detail open: the
+// list column only), and the new tab slides in from the side the finger went. Each tab's page is
+// kept (list.js showTab), so the switch itself is cheap.
 // Not from the left screen edge, not on anything that scrolls sideways itself (key rows, wide
 // tables, the host segment when it overflows) or a text field, and never in a detail view.
 
@@ -26,28 +28,24 @@ function tabSwipeStyle(parts, dx, fade, ms, ease = TAB_EASE) {
 function tabSwipeClear(parts) {
   for (const el of parts) el.style.transition = el.style.transform = el.style.opacity = el.style.willChange = '';
 }
-// Commit: the old tab slides out the way the finger went, the new one slides in after it.
-function tabSwipeGo(dir, next, link, from) {
+const TAB_IN_MS = 200;
+// Commit: change tab now, then one short slide of the new tab in after the finger.
+function tabSwipeGo(dir, next, link) {
   const w = listRoot().clientWidth || innerWidth;
   const out = tabSwipeParts();
-  if (reduced()) return void (tabSwipeClear(out), link.click());
-  tabSwipeStyle(out, from - dir * w * 0.25, 0, 110, 'ease-in'); // on from where the finger let go
-  setTimeout(() => {
-    link.click();
-    let tries = 0;
-    // The new tab renders on hashchange (or at once in split view); catch it before its first paint.
-    const wait = () => {
-      const cur = listRoot().querySelector('.tabbar a.tab[aria-current="page"]');
-      if ((!cur || cur.getAttribute('href') !== next) && ++tries < 20) return void requestAnimationFrame(wait);
-      const parts = tabSwipeParts();
-      tabSwipeStyle(parts, dir * w * 0.25, 0, 0);
-      void listRoot().offsetWidth;
-      tabSwipeStyle(parts, 0, 1, 220);
-      setTimeout(() => tabSwipeClear(parts), 260);
-      tabSwipeClear(out.filter((el) => !parts.includes(el)));
-    };
-    requestAnimationFrame(wait);
-  }, 110);
+  tabSwipeClear(out); // the old page is kept as it was, back in place
+  if (split && isDetail()) link.click(); // app.js: the list column only, drawn at once
+  else {
+    // The link's own navigation, but drawn now rather than on hashchange a task later.
+    history.pushState(null, '', next);
+    route();
+  }
+  if (reduced()) return;
+  const parts = tabSwipeParts();
+  tabSwipeStyle(parts, dir * Math.min(w * 0.3, 120), 0.4, 0);
+  void listRoot().offsetWidth;
+  tabSwipeStyle(parts, 0, 1, TAB_IN_MS);
+  setTimeout(() => tabSwipeClear(parts), TAB_IN_MS + 40);
 }
 function currentTabIndex() {
   const cur = listRoot().querySelector('.tabbar a.tab[aria-current="page"]');
@@ -105,7 +103,7 @@ function tabSwipeEnd() {
   const dir = g.dx <= -TAB_SWIPE_MIN || g.v <= -TAB_SWIPE_FLICK ? 1 : g.dx >= TAB_SWIPE_MIN || g.v >= TAB_SWIPE_FLICK ? -1 : 0;
   const next = TAB_ORDER[g.i + dir];
   const link = dir && g.i >= 0 && next && listRoot().querySelector(`.tabbar a.tab[href="${next}"]`);
-  if (link) return tabSwipeGo(dir, next, link, g.dx);
+  if (link) return tabSwipeGo(dir, next, link);
   // Not far enough: back into place.
   tabSwipeStyle(g.parts, 0, 1, reduced() ? 0 : 240);
   setTimeout(() => tabSwipeClear(g.parts), 280);

@@ -7,7 +7,10 @@ let pushInfo = null; // /api/push/key; { disabled: true } on a peer that leaves 
 // This device's push subscription: undefined until looked up, null when there is none (or the
 // hub doesn't know it), else the PushSubscription.
 let devSub;
+let subAt = 0; // when devSub was last looked up: 설정 shows it at once and looks again after a minute
+const SUB_STALE_MS = 60000;
 async function lookupSub() {
+  subAt = Date.now();
   try {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return (devSub = null);
     const reg = await navigator.serviceWorker.getRegistration();
@@ -39,18 +42,18 @@ function renderSettings() {
         if (settingsShown() && r.disabled) renderSettings();
       })
       .catch(() => {});
-  if (devSub === undefined && supported)
+  if (supported && (devSub === undefined || Date.now() - subAt > SUB_STALE_MS))
     lookupSub().then(() => settingsShown() && renderSettings());
   const perm = 'Notification' in window ? Notification.permission : 'unsupported';
   const [permWord, permTodo] = PERM_TEXT[perm] || [perm, ''];
   const denied = perm === 'denied';
   const subscribed = Boolean(devSub);
   const devLine = !supported || denied ? '' : devSub === undefined ? '이 기기 알림을 확인하는 중…' : subscribed ? '이 기기는 알림을 받습니다.' : '이 기기는 알림이 꺼져 있습니다.';
-  listRoot().innerHTML = `
+  const html = `
     <header class="bar">
       <h1>설정</h1>
     </header>
-    <main class="panel">
+    <main class="panel settings">
       <section>
         <h2>알림</h2>
         <p>에이전트가 답을 기다리거나 작업을 끝내면 알림을 받습니다.</p>
@@ -118,7 +121,24 @@ function renderSettings() {
           })
           .join('')}
       </section>
-    </main>${tabBar('settings')}`;
+    </main>`;
+  // The kept page when it is the same; else built again where it was scrolled to.
+  showTab('settings');
+  const root = listRoot();
+  const old = root.querySelector(':scope > main.settings');
+  if (!old || old._html !== html) {
+    const top = old ? old.scrollTop : 0;
+    for (const el of [...root.children]) if (!el.classList.contains('tabbar')) el.remove();
+    root.insertAdjacentHTML('afterbegin', html);
+    const main = root.querySelector(':scope > main.settings');
+    main._html = html;
+    if (top) main.scrollTop = top;
+    bindSettings();
+  }
+  mountTabBar('settings');
+}
+
+function bindSettings() {
   const radios = (id, attr, set) => {
     document.getElementById(id).onclick = (e) => {
       const b = e.target.closest(`[data-${attr}]`);

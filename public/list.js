@@ -71,6 +71,35 @@ function tabBar(active) {
     ${tab('settings', '#/settings', ICON.gear, '설정')}
   </nav>`;
 }
+// Each tab's page is kept once drawn: switching puts the other tab's tree back as it was (its
+// scroll included) and its render patches only what changed. The page on screen sits in the
+// list root; the other waits here, detached, and misses state updates until it is shown again.
+const tabPages = { spaces: null, settings: null }; // [[element, scrollTop], …]
+const tabOf = (root) => (root.querySelector(':scope > main.home') ? 'spaces' : root.querySelector(':scope > main.settings') ? 'settings' : null);
+// Take the tab page shown in root out, to come back to later. Returns its tab, or null.
+function parkTab(root = listRoot()) {
+  const cur = root && tabOf(root);
+  if (!cur) return null;
+  tabPages[cur] = [...root.children].filter((el) => !el.classList.contains('tabbar')).map((el) => [el, el.scrollTop]);
+  for (const [el] of tabPages[cur]) el.remove();
+  return cur;
+}
+// Make tab t the page in the list root: its kept page, or nothing but the tab bar for the
+// caller to fill. Whatever else was there (the phone's last detail view) goes.
+function showTab(t) {
+  const root = listRoot();
+  if (tabOf(root) === t) return;
+  if (!parkTab(root)) for (const el of [...root.children]) if (!el.classList.contains('tabbar')) el.remove();
+  const kept = tabPages[t];
+  tabPages[t] = null;
+  if (!kept) return;
+  const bar = root.querySelector(':scope > .tabbar');
+  for (const [el] of kept) root.insertBefore(el, bar);
+  for (const [el, top] of kept) if (top) el.scrollTop = top;
+}
+// The layout changed (relayout): kept pages were drawn for the other one.
+const dropTabPages = () => (tabPages.spaces = tabPages.settings = null);
+
 function mountTabBar(active) {
   const root = listRoot();
   const html = tabBar(active);
@@ -158,6 +187,7 @@ let listScroll = 0; // the list's scroll position, kept while a detail view is o
 function render() {
   if (swipe.g && Date.now() - swipe.g.t0 < 10000) return void (swipe.pending = true); // after the finger lifts
   if (split && colTab === 'settings') return; // the list column shows 설정
+  showTab('spaces');
   const root = listRoot();
   const down = state.herdr !== 'up';
   const f = filter();
