@@ -686,6 +686,18 @@ function scrollStep(dir) {
   return true;
 }
 
+// Ctrl+Shift+↑: the conversation (or the screen box in view) to its top. The focus stays. In
+// the shell the top of a full box reads the longer scrollback (shell.js), as scrolling there does.
+function jumpTop() {
+  const top = topLayer();
+  const chat = document.getElementById('d-body');
+  const box = scr && (!top || top.el.contains(scr.body)) ? scr.body : !top && chat && chat._html === 'chat' ? chat : null;
+  if (!box) return false;
+  box._goal = null;
+  box.scrollTop = 0;
+  return true;
+}
+
 function jumpLatest(focus) {
   const top = topLayer();
   if (scr && (!top || top.el.contains(scr.body))) {

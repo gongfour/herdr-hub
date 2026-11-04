@@ -380,6 +380,7 @@ const KEY_ACTIONS = {
     return true;
   },
   jumpEnd: () => jumpLatest(true),
+  jumpTop: () => jumpTop(),
   prevMine: () => navStep(-1),
   nextMine: () => navStep(1),
   scrollUp: () => scrollStep(-1),
