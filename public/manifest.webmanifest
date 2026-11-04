@@ -4,7 +4,7 @@
   "description": "herdr 에이전트를 휴대폰에서 확인하고 응답합니다",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#f6f5f1",
   "theme_color": "#2f6f4f",
   "icons": [

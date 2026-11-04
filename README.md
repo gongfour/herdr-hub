@@ -4,6 +4,8 @@
 
 herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도는 호스트에서 돌고, Tailscale 로만 접속한다.
 
+설치하면 전체 화면(`display: fullscreen`)으로 열린다: Android 는 위 상태바와 아래 내비게이션 바·작업 표시줄을 숨기고, 화면 가장자리를 쓸면 잠깐 나온다(iOS 는 이 값을 standalone 으로 받는다). 이미 설치한 앱은 Chrome 이 매니페스트 변경을 늦게 반영하므로, 바로 바꾸려면 지우고 다시 설치한다. 알림 안내의 「설치된 앱인가」는 standalone·fullscreen 둘 다 본다.
+
 - 서버: `server.js` — herdr API 소켓(Windows 는 named pipe)에 직접 붙는다. SSH·셸을 거치지 않는다.
 - 화면: `public/` — 빌드 없는 바닐라 JS. 목록, 에이전트 보기(대화 + 작업 줄 + 터미널 화면 시트), 응답 키, 보내기, 중단(Esc), 웹 푸시 알림.
   - 파일: 번들러 없이 `index.html` 이 `<script defer>` 로 차례대로 읽고, 모두 한 전역 범위를 나눠 쓴다. 먼저 순수 함수 파일(`choices` `ansi` `activity` `mode` `inbox` `split` `keys` `route` `markdown`, 시험은 `npm test`), 그다음 `core.js`(상태·api()·설정값·시트·메뉴·알림 줄), 화면별 파일 `list` `rows` `answer` `chat` `composer` `agent` `actions` `shell` `screen` `workspace` `forms` `settings` `viewport`, 맨 끝에 `app.js`(실시간 연결·주소·두 칸 배치·시작). 맨 위 코드는 리스너 등록과 정의만 하고, 그리는 일은 `app.js` 에서 시작한다. 새 파일은 `index.html` 에 같은 `?v=` 로 넣는다.

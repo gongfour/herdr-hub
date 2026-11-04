@@ -32,7 +32,7 @@ const PERM_TEXT = {
 };
 
 function renderSettings() {
-  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
   const off = pushInfo && pushInfo.disabled;
   const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !off;
   if (!pushInfo)
