@@ -293,25 +293,22 @@ document.addEventListener('click', (e) => {
   e.preventDefault();
   goBack(a.getAttribute('href'));
 });
-// Keyboard: Escape closes the top sheet or menu, else leaves a field, else goes back;
+// Keyboard: Escape closes the top sheet or menu, else leaves a field, else goes back. It is
+// always taken: Android turns an Escape the page leaves alone into Back, which closes the app
+// when there is nothing behind (a keyboard cover's Esc minimised the Hub).
 // "/" puts the caret in the composer (or the shell's command line). In the shell view a key
 // with the focus on the page goes to the shell instead (termStrayKey).
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;
   if (termStrayKey(e)) return e.preventDefault();
   if (e.key === 'Escape') {
+    e.preventDefault();
     const top = topLayer();
-    if (top) {
-      e.preventDefault();
-      return closeLayer(top);
-    }
+    if (top) return closeLayer(top);
     if (swipe.open) return closeRow();
     if (editable(document.activeElement)) return document.activeElement.blur();
     const back = view.name !== 'list' && $app.querySelector('a[data-back]');
-    if (back) {
-      e.preventDefault();
-      goBack(back.getAttribute('href'));
-    }
+    if (back) goBack(back.getAttribute('href'));
     return;
   }
   if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !topLayer() && !editable(document.activeElement)) {
