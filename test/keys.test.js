@@ -50,6 +50,7 @@ test('rawKeyName: F-keys, word keys, Ctrl+[ and the meta keys', () => {
   assert.equal(rawKeyName(key('ArrowLeft', { ctrlKey: true })), 'ctrl+left');
   assert.equal(rawKeyName(key('ArrowRight', { ctrlKey: true })), 'ctrl+right');
   assert.equal(rawKeyName(key('[', { ctrlKey: true, code: 'BracketLeft' })), 'esc');
+  assert.equal(rawKeyName(key('ScrollLock')), 'esc'); // a remapped cover Esc
   assert.equal(rawKeyName(key('.', { altKey: true, code: 'Period' })), 'alt+.');
   // A Mac keyboard's Option types a symbol: the physical key says which letter it was.
   assert.equal(rawKeyName(key('∫', { altKey: true, code: 'KeyB' })), 'alt+b');

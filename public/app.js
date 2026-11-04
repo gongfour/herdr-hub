@@ -593,40 +593,11 @@ document.addEventListener('keyup', (e) => (e.key === 'Control' || e.key === 'Alt
 window.addEventListener('blur', hideKeyHints);
 
 document.addEventListener('keydown', (e) => {
-  if (isEsc(e)) escDownAt = e.timeStamp;
   if (e.defaultPrevented || e.isComposing) return;
   if (termStrayKey(e)) return e.preventDefault();
   const b = Keymap.match(e, { field: editable(document.activeElement), shell: view.name === 'term', layer: Boolean(topLayer()), split });
   if (b && KEY_ACTIONS[b.action](b, e)) e.preventDefault();
 });
-// Ctrl+[ that came through Android's IME: in a text field the keyboard cover's keys can reach
-// the page only as the IME's keyCode 229 (no Ctrl to see) plus the '[' it typed, and just the
-// keyup says Ctrl+[ (a key remapper turning the cover's Esc into Ctrl+[ hits this in the quick
-// switcher's field). Then take back that '[' and do what Esc does. Not in the shell view: its
-// field has already sent the '[' on to the shell.
-let escDownAt = -1e9;
-let bracketTyped = null; // { at, el }: the last '[' typed into a field
-document.addEventListener('beforeinput', (e) => e.data === '[' && (bracketTyped = { at: e.timeStamp, el: e.target }), true);
-document.addEventListener('keyup', (e) => {
-  // Ctrl+[ only: the cover's own Esc also sends a lone keyup, after the system has acted on it.
-  if (!isEsc(e) || e.key === 'Escape' || e.timeStamp - escDownAt < 1000 || view.name === 'term') return;
-  const el = document.activeElement;
-  if (bracketTyped && bracketTyped.el === el && e.timeStamp - bracketTyped.at < 1000) untypeBracket(el);
-  bracketTyped = null;
-  KEY_ACTIONS.back();
-});
-// Remove the '[' just before the caret (an <input>/<textarea>, or the composer).
-function untypeBracket(el) {
-  if (el.isContentEditable) {
-    const r = getSelection().rangeCount && getSelection().getRangeAt(0);
-    if (r && r.collapsed && r.startContainer.nodeType === 3 && r.startContainer.data[r.startOffset - 1] === '[') document.execCommand('delete');
-  } else if (typeof el.value === 'string' && el.selectionStart && el.value[el.selectionStart - 1] === '[') {
-    const i = el.selectionStart;
-    el.value = el.value.slice(0, i - 1) + el.value.slice(i);
-    el.setSelectionRange(i - 1, i - 1);
-  } else return;
-  el.dispatchEvent(new Event('input', { bubbles: true }));
-}
 // The rail, as VS Code's activity bar: 작업공간 folds and unfolds the sidebar; ⚙ opens 설정 on
 // the right (as VS Code opens its settings in the editor), and closes it when it is open.
 document.addEventListener('click', (e) => {

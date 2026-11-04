@@ -24,7 +24,7 @@
   // covers without one. Alt + ↑/↓ is left to the split layout (open the previous or next row),
   // and so is Alt + K/J (the same keys, vim's way); Alt + P to the Hub's 빠른 이동 (Ctrl+P, the
   // switcher elsewhere, is the shell's here). The key row's sticky Alt still sends all of them.
-  const RAW_NAMES = { Enter: 'enter', Escape: 'esc', Tab: 'tab', Backspace: 'backspace', Delete: 'delete', ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', PageUp: 'pageup', PageDown: 'pagedown', Home: 'home', End: 'end', Insert: 'insert' };
+  const RAW_NAMES = { Enter: 'enter', Escape: 'esc', ScrollLock: 'esc', Tab: 'tab', Backspace: 'backspace', Delete: 'delete', ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', PageUp: 'pageup', PageDown: 'pagedown', Home: 'home', End: 'end', Insert: 'insert' };
   // The letter or punctuation of a chord: e.key, or e.code where Alt types a symbol instead
   // (Option+B is "∫" on a Mac keyboard).
   function chordChar(e) {

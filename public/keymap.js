@@ -57,6 +57,9 @@
     // In the shell's 키 직접 입력 the field takes both first and sends them to the shell.
     b('back', 'Escape', { field: true, shell: true, layer: true }),
     b('back', 'Ctrl+[', { field: true, shell: true, layer: true }),
+    // Scroll Lock: a key with no text and no system meaning, for a key remapper to turn the
+    // cover's Esc into (Key Mapper sends no Ctrl with a key it injects, and its own Esc is taken).
+    b('back', 'ScrollLock', { field: true, shell: true, layer: true }),
     // Ctrl+? (Ctrl+Shift+/ on the key): the 단축키 page from anywhere, a field and the shell view
     // too (no shell key); a bare ? is typed. Not Ctrl+/ (no Shift).
     b('help', 'Ctrl+?', { field: true, shell: true }),
@@ -232,7 +235,7 @@
   }
 
   // A key string this page could have recorded: modifiers, then one character or a key's name.
-  const NAMED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete', 'Backspace', 'Enter', 'Tab', 'Escape', 'ContextMenu']);
+  const NAMED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete', 'Backspace', 'Enter', 'Tab', 'Escape', 'ScrollLock', 'ContextMenu']);
   function realKey(key) {
     if (typeof key !== 'string' || !key) return false;
     const parts = key.split('+');

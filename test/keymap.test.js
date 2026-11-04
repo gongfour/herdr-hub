@@ -34,6 +34,10 @@ test('the shell view takes no key the shell needs (rawKeyName), Esc and Ctrl+[ a
   for (const x of BINDINGS.filter((y) => y.shell && y.action !== 'back')) assert.equal(rawKeyName(ev(x.key)), null, x.key);
 });
 
+test('Scroll Lock goes back too (a remapped cover Esc: no text, no Ctrl needed), everywhere', () => {
+  for (const ctx of [{}, { field: true }, { shell: true }, { layer: true }]) assert.equal(act('ScrollLock', ctx), 'back');
+});
+
 test('Esc and Ctrl+[ go back everywhere, a sheet and the shell included', () => {
   for (const ctx of [{}, { field: true }, { shell: true }, { layer: true }]) {
     assert.equal(act('Escape', ctx), 'back');
@@ -364,7 +368,7 @@ test('assign / unassign / reset', () => {
   assert.deepEqual(r.overrides.scrollUp, []);
   assert.throws(() => KM.assign({}, 'jumpEnd', 'Ctrl+w'), /브라우저/);
   assert.throws(() => KM.unassign({}, 'back', 'Escape'), /Esc/);
-  assert.deepEqual(KM.unassign({}, 'back', 'Ctrl+['), { back: ['Escape'] });
+  assert.deepEqual(KM.unassign({}, 'back', 'Ctrl+['), { back: ['Escape', 'ScrollLock'] });
   assert.deepEqual(KM.reset({ jumpEnd: [], back: ['Escape'] }, 'jumpEnd'), { back: ['Escape'] });
 });
 
