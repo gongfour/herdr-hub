@@ -182,6 +182,16 @@ function flushScreen(force) {
   s.pill.hidden = s.pending == null || s.follow;
 }
 
+// Earlier lines came in above what is being read (the shell's longer scrollback): draw them now
+// and keep the same lines in view.
+function prependScreenText(raw, format) {
+  if (!scr) return;
+  const b = scr.body;
+  const fromBottom = b.scrollHeight - b.scrollTop;
+  setScreenText(raw, format, true);
+  b.scrollTop = b.scrollHeight - fromBottom;
+}
+
 // The guarded colours depend on the theme: redraw when it flips.
 function redrawScreen() {
   if (scr && scr.raw && scr.pending == null) setScreenText(scr.raw.text, scr.raw.format, true);

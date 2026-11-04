@@ -7,12 +7,14 @@
 const TERM_KEYS = [['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['tab', 'Tab'], ['esc', 'Esc']];
 // 키 직접 입력 (raw), the shell view's default: every key goes to the pane as it is pressed,
 // so the shell's own completion, history and suggestions work, as do full-screen programs
-// (helix, vim, less). Shell keys come first. A ":text" entry types that text; the rest are
-// herdr key names.
+// (helix, vim, less). What the phone's keyboard lacks comes first, so a 390px row shows it
+// without scrolling: Esc, the sticky Ctrl and Alt, Tab and the arrows. A ":text" entry types
+// that text, "mod:" ones are the sticky modifiers; the rest are herdr key names.
 const RAW_TERM_KEYS = [
-  ['ctrl+c', 'Ctrl+C'], ['tab', 'Tab'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['ctrl+r', 'Ctrl+R'],
-  ['esc', 'Esc'], [':text', ':'], ['/text', '/'], ['pageup', 'PgUp'], ['pagedown', 'PgDn'], ['ctrl+x', 'Ctrl+X'], ['enter', 'Enter'],
+  ['esc', 'Esc'], ['mod:ctrl', 'Ctrl'], ['mod:alt', 'Alt'], ['tab', 'Tab'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'],
+  ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C'], ['ctrl+r', 'Ctrl+R'], ['pageup', 'PgUp'], ['pagedown', 'PgDn'], [':text', ':'], ['/text', '/'], ['ctrl+x', 'Ctrl+X'],
 ];
+const MOD_LABEL = { ctrl: 'Ctrl', alt: 'Alt' };
 
 // Shell titles are often the executable's full path; the program name says enough.
 const termTitle = (t) => t.label || (/[\\/]/.test(t.title) ? basename(t.title) : t.title);
@@ -44,8 +46,15 @@ function renderTerminal() {
   const keysBox = document.getElementById('t-keys');
   const drawKeys = () => {
     const list = detail.raw ? RAW_TERM_KEYS : TERM_KEYS;
-    keysBox.innerHTML = list.map(([k, label]) => `<button type="button" class="key" data-key="${esc(k)}" aria-label="${esc(label)} 키 보내기">${esc(label)}</button>`).join('');
+    keysBox.innerHTML = list
+      .map(([k, label]) =>
+        k.startsWith('mod:')
+          ? `<button type="button" class="key mod" data-key="${esc(k)}" aria-pressed="false">${esc(label)}</button>`
+          : `<button type="button" class="key" data-key="${esc(k)}" aria-label="${esc(label)} 키 보내기">${esc(label)}</button>`,
+      )
+      .join('');
     keysBox.scrollLeft = 0;
+    drawMods();
   };
   drawKeys();
   // Raw mode: pressing a key button leaves the caret (and the iPhone keyboard) in the field,
@@ -71,7 +80,9 @@ function renderTerminal() {
   };
   const pressKey = async (b) => {
     const k = b.dataset.key;
-    if (detail.raw) return rawSend(k.endsWith('text') ? { text: k.slice(0, -4) } : { key: k });
+    if (k.startsWith('mod:')) return tapMod(k.slice(4));
+    if (detail.raw) return rawPress(k.endsWith('text') ? { text: k.slice(0, -4) } : { key: k });
+    followTerm();
     if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [k], text: input.value })) {
       input.value = '';
       setTimeout(loadTerminal, 300);
@@ -82,6 +93,7 @@ function renderTerminal() {
   // on. 한 줄 입력 shows the line, run with Enter.
   const setRaw = (on) => {
     detail.raw = on;
+    detail.mods = {};
     input.value = '';
     input.placeholder = on ? '누르는 키가 바로 갑니다' : '명령 (Enter 로 실행)';
     input.setAttribute('enterkeyhint', on ? 'enter' : 'send');
@@ -114,28 +126,51 @@ function renderTerminal() {
   document.getElementById('t-form').onsubmit = async (e) => {
     e.preventDefault();
     if (detail.raw) return;
+    followTerm();
     if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: input.value })) {
       input.value = '';
       setTimeout(loadTerminal, 400);
     }
   };
   // Raw mode: typed characters go as text, editing keys as keys; the field stays empty.
-  // A Korean (IME) syllable goes once it is composed.
+  // A Korean (IME) syllable goes once it is composed. Everything passes the sticky Ctrl/Alt
+  // (rawPress). A word deleted at once (Alt+Backspace, the keyboard's word delete) is Ctrl+W.
   input.addEventListener('beforeinput', (e) => {
     if (!detail.raw || e.isComposing || e.inputType === 'insertCompositionText') return;
     e.preventDefault();
     const t = e.inputType;
     if (t === 'insertText' || t === 'insertReplacementText' || t === 'insertFromPaste') {
       const text = (e.data != null ? e.data : e.dataTransfer ? e.dataTransfer.getData('text/plain') : '') || '';
+      if (composedEcho(text)) return;
       const clean = text.replace(/[\x00-\x1f\x7f]+/g, ' ');
-      if (clean) rawSend({ text: clean });
-    } else if (t === 'insertLineBreak' || t === 'insertParagraph') rawSend({ key: 'enter' });
-    else if (t.startsWith('deleteContentBackward') || t === 'deleteWordBackward') rawSend({ key: 'backspace' });
-    else if (t === 'deleteContentForward') rawSend({ key: 'delete' });
+      if (clean) rawPress({ text: clean });
+    } else if (t === 'insertLineBreak' || t === 'insertParagraph') rawPress({ key: 'enter' });
+    else if (t === 'deleteWordBackward') rawPress({ key: 'ctrl+w' });
+    else if (t.startsWith('deleteContentBackward')) rawPress({ key: 'backspace' });
+    else if (t === 'deleteContentForward') rawPress({ key: 'delete' });
+  });
+  // A keyboard that composes Latin letters too (Gboard holds a word until space) would keep
+  // Ctrl + d back until the word ends: with Ctrl or Alt on, the first composed letter goes at
+  // once as the chord and the field is emptied. The keyboard then commits that letter (as the
+  // composition's end, or as typed text): that echo is dropped.
+  let composedChord = null; // { text, at }
+  const composedEcho = (text) => {
+    const c = composedChord;
+    composedChord = null;
+    return Boolean(c && c.text === text && Date.now() - c.at < 1500);
+  };
+  input.addEventListener('input', (e) => {
+    if (!detail.raw || !e.isComposing || !modsOn()) return;
+    const v = input.value;
+    if (Keys.withMods({ text: v }, modsHeld()).key) {
+      input.value = '';
+      rawPress({ text: v });
+      composedChord = { text: v, at: Date.now() };
+    }
   });
   input.addEventListener('compositionend', (e) => {
     if (!detail.raw) return;
-    if (e.data) rawSend({ text: e.data });
+    if (e.data && !composedEcho(e.data)) rawPress({ text: e.data });
     setTimeout(() => (input.value = ''), 0);
   });
   input.addEventListener('keydown', (e) => {
@@ -143,11 +178,104 @@ function renderTerminal() {
     const k = Keys.rawKeyName(e);
     if (!k) return;
     e.preventDefault();
-    rawSend({ key: k });
+    rawPress({ key: k });
   });
   document.getElementById('t-more').onclick = terminalMenu;
   mountScreen(document.getElementById('t-body'), 'term', document.getElementById('s-tools'));
+  document.getElementById('t-body').addEventListener('scroll', termScrolled);
   renderTerminalHeader();
+  // With a hardware keyboard (a tablet's cover, a laptop) typing goes to the shell at once,
+  // here and after Alt+↑/↓; a phone's keyboard stays down until the screen is tapped.
+  if (keyboardLikely()) input.focus({ preventScroll: true });
+}
+
+// ---- hardware keyboard
+
+// A key pressed with nothing to type into, or a chord or Esc, came from a real keyboard (a
+// soft keyboard only types into a field and has none of these).
+let hardKeys = false;
+const keyboardLikely = () => hardKeys || matchMedia('(pointer: fine)').matches;
+document.addEventListener(
+  'keydown',
+  (e) => {
+    if (hardKeys || e.keyCode === 229 || e.key === 'Unidentified' || e.isComposing) return;
+    if (!editable(e.target) || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || /^F\d/.test(e.key)) hardKeys = true;
+  },
+  true,
+);
+
+// The shell view, a key pressed while the focus is on the page (before the screen was tapped,
+// or after ⌨ put the keyboard away): it goes to the shell, and its field takes the focus for
+// the next ones. Esc, [ ] and / here are the shell's, never 뒤로 or the list; the way out is
+// ‹ (✕), or Alt+↑/↓ in the split layout. The header's own controls keep their keys.
+// Returns true when the key was taken.
+function termStrayKey(e) {
+  if (view.name !== 'term' || e.isComposing || e.keyCode === 229 || topLayer()) return false;
+  const input = document.getElementById('t-input');
+  const a = document.activeElement;
+  if (!input || a === input) return false;
+  // The page: nothing, the screen, the key row, or (split) a row of the list that was tapped to
+  // open this shell. A link or button keeps Enter, Space and Tab; the header keeps every key.
+  const control = a && a.closest && a.closest('a, button');
+  const onPage = !a || a === document.body || a === document.documentElement || (!editable(a) && !a.closest('.bar') && (detailRoot().contains(a) || (split && listRoot().contains(a))));
+  if (!onPage || (control && ['Enter', ' ', 'Tab'].includes(e.key)) || (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) return false;
+  if (detail.raw) {
+    const k = Keys.rawKeyName(e);
+    const text = !k && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 ? e.key : null;
+    if (!k && text == null) return false;
+    input.focus({ preventScroll: true });
+    rawPress(k ? { key: k } : { text });
+    return true;
+  }
+  // 한 줄 입력: a typed character starts the line; Esc only puts the caret there.
+  if (e.ctrlKey || e.metaKey || e.altKey || (e.key !== 'Escape' && e.key.length !== 1)) return false;
+  input.focus({ preventScroll: true });
+  if (e.key.length === 1) input.value += e.key;
+  return true;
+}
+
+// ---- sticky Ctrl and Alt (the key row)
+
+// detail.mods: { ctrl, alt }, each { state: 'off' | 'once' | 'lock', at } (keys.js tapMod). A
+// tap holds the modifier for the next key, a double tap until it is tapped again.
+const modOn = (m) => Boolean(m && m.state !== 'off');
+const modsHeld = () => ({ ctrl: modOn((detail.mods || {}).ctrl), alt: modOn((detail.mods || {}).alt) });
+const modsOn = () => detail.raw && (modsHeld().ctrl || modsHeld().alt);
+function tapMod(name) {
+  detail.mods = { ...(detail.mods || {}), [name]: Keys.tapMod((detail.mods || {})[name], Date.now()) };
+  drawMods();
+}
+function drawMods() {
+  for (const b of document.querySelectorAll('#t-keys .key.mod')) {
+    const name = b.dataset.key.slice(4);
+    const m = (detail.mods || {})[name];
+    const lock = Boolean(m && m.state === 'lock');
+    b.setAttribute('aria-pressed', String(modOn(m)));
+    b.classList.toggle('lock', lock);
+    b.setAttribute('aria-label', `${MOD_LABEL[name]} ${lock ? '고정됨 (누르면 풀림)' : modOn(m) ? '켜짐: 다음 키와 함께' : '(한 번 누르면 다음 키, 두 번이면 고정)'}`);
+  }
+}
+// A raw-mode press with the sticky modifiers applied; a one-shot modifier is used up by it.
+function rawPress(press) {
+  const out = Keys.withMods(press, modsHeld());
+  const m = detail.mods || {};
+  let used = false;
+  for (const name of ['ctrl', 'alt'])
+    if (m[name] && m[name].state === 'once') {
+      m[name] = { state: 'off', at: 0 };
+      used = true;
+    }
+  if (used) drawMods();
+  rawSend(out);
+}
+
+// Typing brings the prompt back: a key or a command while scrolled up to read earlier output
+// follows the end of the screen again.
+function followTerm() {
+  if (!scr || scr.kind !== 'term' || scr.follow) return;
+  scr.follow = true;
+  flushScreen(true);
+  scr.body.scrollTop = scr.body.scrollHeight;
 }
 
 function renderTerminalHeader() {
@@ -173,6 +301,7 @@ let rawBusy = false;
 let rawLoadTimer = null;
 const termHere = (host, pane) => view.name === 'term' && detail.pane === pane && curHost() === host;
 function rawSend(press) {
+  followTerm();
   Keys.queueRaw(rawQ, { host: curHost(), pane: detail.pane }, press);
   pumpRaw();
 }
@@ -188,7 +317,7 @@ async function pumpRaw() {
       const echo = termHere(host, pane) && !rawQ.some((x) => x.host === host && x.pane === pane);
       const n = ++termReads;
       try {
-        const r = await api(hp(`/panes/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ text: it.text, keys: it.keys, ...(echo ? { echo: { format: getColor() ? 'ansi' : 'text' } } : {}) }) });
+        const r = await api(hp(`/panes/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ text: it.text, keys: it.keys, ...(echo ? { echo: { format: getColor() ? 'ansi' : 'text', lines: termLines() } } : {}) }) });
         if (!termHere(host, pane)) continue;
         detail.keyAt = Date.now();
         if (r && r.screen) drawTerminal(r.screen, n);
@@ -211,6 +340,13 @@ async function pumpRaw() {
 // longer), every 300 ms while keys are being typed, then every second in 키 직접 입력 and every
 // 2.5 s in 한 줄 입력.
 const RAW_FOLLOW_MS = 250;
+// Scrollback: 200 lines while the box follows the prompt (a read every 300 ms while typing
+// stays small: a colourful 200 is about 60 KB), the server's most (400) once the box is
+// scrolled near its top; back to 200 when it follows again.
+const TERM_LINES = 200;
+const TERM_LINES_DEEP = 400;
+const DEEP_PX = 600; // this near the top asks for the longer scrollback
+const termLines = () => (detail.deep ? TERM_LINES_DEEP : TERM_LINES);
 const TERM_TICK_MS = 300;
 const TYPING_MS = 3000;
 function pollTerminal() {
@@ -223,23 +359,38 @@ let termReads = 0; // reads overlap when keys come fast; only the newest may dra
 async function loadTerminal() {
   if (!currentTerminal() || document.visibilityState !== 'visible') return;
   const pane = detail.pane;
+  const deep = Boolean(detail.deep);
   const n = ++termReads;
   detail.loadAt = Date.now();
   let screen;
   try {
-    screen = await api(hp(`/panes/${encodeURIComponent(pane)}/screen?source=recent_unwrapped&lines=200${colorQuery()}`));
+    screen = await api(hp(`/panes/${encodeURIComponent(pane)}/screen?source=recent_unwrapped&lines=${deep ? TERM_LINES_DEEP : TERM_LINES}${colorQuery()}`));
   } catch (err) {
     if (n === termReads && scr && scr.kind === 'term' && !['pane_not_found', 'peer_offline'].includes(err.code)) screenError(`불러오지 못했습니다: ${errText(err)}`);
     return;
   }
-  if (detail.pane === pane) drawTerminal(screen, n);
+  if (detail.pane === pane) drawTerminal(screen, n, deep);
 }
-function drawTerminal(screen, n) {
+function drawTerminal(screen, n, deep) {
   if (n < (detail.drawn || 0)) return; // an older read finished after a newer one
   detail.drawn = n;
   detail.screen = screen;
   if (!scr || scr.kind !== 'term') return;
+  // The first longer read while scrolled up: its earlier lines go on above what is being read.
+  if (deep && detail.deep && !detail.deepShown && !scr.follow) {
+    detail.deepShown = true;
+    return prependScreenText(screen.text, screen.format);
+  }
   setScreenText(screen.text, screen.format);
+}
+// Scrolled near the top of a full box: read the longer scrollback; following again: the short one.
+function termScrolled() {
+  if (!scr || scr.kind !== 'term') return;
+  if (scr.follow) detail.deep = detail.deepShown = false;
+  else if (!detail.deep && scr.body.scrollTop < DEEP_PX && detail.screen && detail.screen.text.split('\n').length >= TERM_LINES - 1) {
+    detail.deep = true;
+    loadTerminal();
+  }
 }
 
 async function terminalMenu() {

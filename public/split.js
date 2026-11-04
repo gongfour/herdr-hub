@@ -20,14 +20,15 @@
     return list[i + (dir > 0 ? 1 : -1)] || null;
   }
 
-  // 'next', 'prev' or null for a keydown. Alt+↓/↑ works anywhere, the composer included;
-  // ] and [ only where they would not be typed. Nothing while a sheet is open or the shell's
-  // input has the focus: every key there belongs to the shell.
+  // 'next', 'prev' or null for a keydown. Alt+↓/↑ works anywhere, the composer and the shell
+  // included (the shell gets no Alt+↑/↓: it is the way out of a shell that has every other
+  // key); ] and [ only where they would not be typed, and never in the shell view, where they
+  // are typed. Nothing while a sheet is open.
   function listKey(e, { editable = false, shell = false, layer = false } = {}) {
-    if (!e || e.isComposing || e.keyCode === 229 || layer || shell) return null;
+    if (!e || e.isComposing || e.keyCode === 229 || layer) return null;
     if (e.ctrlKey || e.metaKey) return null;
     if (e.altKey && !e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) return e.key === 'ArrowDown' ? 'next' : 'prev';
-    if (!e.altKey && !editable && (e.key === ']' || e.key === '[')) return e.key === ']' ? 'next' : 'prev';
+    if (!e.altKey && !editable && !shell && (e.key === ']' || e.key === '[')) return e.key === ']' ? 'next' : 'prev';
     return null;
   }
 

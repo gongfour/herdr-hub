@@ -440,10 +440,12 @@ async function api(req, res, url) {
         if (!textOnly) await sendPaneKeys(pane, keys);
         // 키 직접 입력 asks for the screen back ({ echo: { format } }): the echo arrives with the
         // reply instead of a second request (two hops when the pane is on a peer). Typing
-        // changes no pane state, so the refresh below is skipped.
+        // changes no pane state, so the refresh below is skipped. lines: as many as the
+        // page reads (200 for a page from before it said, 400 at most).
         if (parts[2] === 'keys' && body.echo && typeof body.echo === 'object') {
           await new Promise((r) => setTimeout(r, 40));
-          const screen = await readScreen('pane.read', { pane_id: pane }, 'recent_unwrapped', 200, body.echo.format);
+          const lines = Math.min(Math.floor(Number(body.echo.lines)) || 200, 400);
+          const screen = await readScreen('pane.read', { pane_id: pane }, 'recent_unwrapped', lines, body.echo.format);
           return send(res, 200, { ok: true, screen });
         }
       } else if (parts[2] === 'rename') {

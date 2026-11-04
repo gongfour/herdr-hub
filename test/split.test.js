@@ -41,10 +41,10 @@ test('listKey: Alt+arrows anywhere, brackets outside fields', () => {
   assert.equal(listKey(k(']', { ctrlKey: true })), null);
 });
 
-test('listKey: never while a sheet is open, the shell has the keys, or an IME composes', () => {
+test('listKey: never while a sheet is open or an IME composes; in the shell only Alt+↑/↓', () => {
   const down = { key: 'ArrowDown', altKey: true };
   assert.equal(listKey(down, { layer: true }), null);
-  assert.equal(listKey(down, { shell: true }), null);
+  assert.equal(listKey(down, { shell: true }), 'next');
   assert.equal(listKey({ key: ']' }, { shell: true }), null);
   assert.equal(listKey({ ...down, isComposing: true }), null);
   assert.equal(listKey({ ...down, keyCode: 229 }), null);

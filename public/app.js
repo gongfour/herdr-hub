@@ -294,9 +294,11 @@ document.addEventListener('click', (e) => {
   goBack(a.getAttribute('href'));
 });
 // Keyboard: Escape closes the top sheet or menu, else leaves a field, else goes back;
-// "/" puts the caret in the composer (or the shell's command line).
+// "/" puts the caret in the composer (or the shell's command line). In the shell view a key
+// with the focus on the page goes to the shell instead (termStrayKey).
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;
+  if (termStrayKey(e)) return e.preventDefault();
   if (e.key === 'Escape') {
     const top = topLayer();
     if (top) {
@@ -322,10 +324,10 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   // Split: Alt+↑/↓ or [ ] open the previous or next row of the list on the right (split.js
-  // says which keys count; never while the shell's input has the focus).
+  // says which keys count; in the shell view only Alt+↑/↓).
   if (split) {
     const a = document.activeElement;
-    const dir = Split.listKey(e, { editable: editable(a), shell: Boolean(a && a.id === 't-input'), layer: Boolean(topLayer()) });
+    const dir = Split.listKey(e, { editable: editable(a), shell: view.name === 'term', layer: Boolean(topLayer()) });
     if (dir && stepList(dir === 'next' ? 1 : -1)) e.preventDefault();
   }
 });
