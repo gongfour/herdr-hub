@@ -810,14 +810,23 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .badge.blocked.up { font-weight: 600; }
 
 .mode-chip {
-  flex: none; min-height: 44px; margin: -6px 0; padding: 0 12px; border-radius: 999px; border: 1px solid var(--field-line);
-  background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  /* A 44px tap target that looks like the status badge beside it (same height and type): the
+     pill is drawn behind the label. An outline, never a status colour: it is a setting. */
+  position: relative; isolation: isolate; flex: none; min-height: 44px; margin: -6px 0; padding: 0 9px; border: 0;
+  background: none; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
 }
-.mode-chip[data-mode="auto"], .mode-chip[data-mode="bypass"], .mode-chip[data-mode="accept"] { color: var(--working); border-color: color-mix(in srgb, var(--working) 45%, var(--line)); background: var(--working-bg); }
+.mode-chip::before {
+  content: ''; position: absolute; z-index: -1; inset: calc(50% - 11.5px) 0; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface);
+}
+.mode-chip[data-mode="auto"], .mode-chip[data-mode="accept"] { color: var(--text); }
 .mode-chip[data-mode="plan"] { color: var(--ansi-4); }
+/* No permission prompts at all: a caution, in the 답 필요 orange but only as an outline. */
+.mode-chip[data-mode="bypass"] { color: var(--blocked); }
+.mode-chip[data-mode="bypass"]::before { border-color: color-mix(in srgb, var(--blocked) 50%, var(--line)); }
 .mode-chip:disabled { opacity: 0.5; }
 .mode-chip .short { display: none; }
-.mode-chip:active:not(:disabled) { filter: brightness(0.94); }
+.mode-chip:active:not(:disabled)::before { filter: brightness(0.94); }
 
 .attn-item + .attn-item { border-top: 1px solid color-mix(in srgb, var(--blocked) 16%, transparent); }
 .attn-item .attn-row + .attn-row { border-top: 0; }
@@ -1019,7 +1028,7 @@ button.tool:active { filter: brightness(0.95); }
   .bar h1 .sub-st { display: inline; }
   .bar h1 .sub-st .el { font-size: inherit; color: inherit; }
   #d-badge .badge, #d-badge > .el { display: none; }
-  .mode-chip { padding: 0 10px; min-width: 44px; }
+  .mode-chip { padding: 0 9px; min-width: 44px; }
   .mode-chip .full { display: none; }
   .mode-chip .short { display: inline; }
 }
