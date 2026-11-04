@@ -57,7 +57,9 @@
     // In the shell's 키 직접 입력 the field takes both first and sends them to the shell.
     b('back', 'Escape', { field: true, shell: true, layer: true }),
     b('back', 'Ctrl+[', { field: true, shell: true, layer: true }),
-    b('help', '?'),
+    // Ctrl+? (Ctrl+Shift+/ on the key): the 단축키 page from anywhere, a field and the shell view
+    // too (no shell key); a bare ? is typed. Not Ctrl+/ (no Shift).
+    b('help', 'Ctrl+?', { field: true, shell: true }),
     b('focusInput', '/'),
     // Ctrl+Shift+↑/↓: Ctrl+↑/↓ (by your messages) all the way. Easy on a keyboard cover, where
     // End is Fn+→ and ⌘ may belong to the system.
@@ -132,7 +134,8 @@
   }
   const isLetter = (s) => /^[a-z]$/i.test(s);
   const isSymbol = (s) => s.length === 1 && !isLetter(s) && !/^\d$/.test(s);
-  const CODES = { '[': 'BracketLeft', ']': 'BracketRight', '/': 'Slash', '.': 'Period', ',': 'Comma', '`': 'Backquote' };
+  const CODES = { '[': 'BracketLeft', ']': 'BracketRight', '/': 'Slash', '?': 'Slash', '.': 'Period', ',': 'Comma', '`': 'Backquote' };
+  const SHIFTED = new Set(['?']); // a symbol typed with Shift: by code only with Shift held
 
   function matches(e, key) {
     const k = parse(key);
@@ -142,7 +145,7 @@
     if (e.key === k.name) return true;
     // Ctrl+[ on a layout where e.key is something else (Alt+. is ≥ on a Mac); never a bare symbol by code, which
     // would turn a typed character into a shortcut on another layout.
-    return Boolean(CODES[k.name] && (k.ctrl || k.alt || k.meta) && e.code === CODES[k.name]);
+    return Boolean(CODES[k.name] && (k.ctrl || k.alt || k.meta) && e.code === CODES[k.name] && (!SHIFTED.has(k.name) || e.shiftKey));
   }
 
   // The binding a keydown means here, or null. ctx: { field, shell, layer, split }.
@@ -177,12 +180,13 @@
     const code = e.code || '';
     const letter = /^Key([A-Z])$/.exec(code);
     const digit = /^Digit(\d)$/.exec(code);
-    const sym = Object.keys(CODES).find((c) => CODES[c] === code);
+    const sym = Object.keys(CODES).find((c) => CODES[c] === code && !SHIFTED.has(c));
     let name = null;
     if (letter && (mod || !/^[a-z]$/i.test(e.key || ''))) name = letter[1].toLowerCase();
     else if (/^[a-z]$/i.test(e.key || '')) name = e.key.toLowerCase();
     else if (digit && mod) name = digit[1];
-    else if (sym && mod) name = sym;
+    // The symbol the key gives with Shift where that is ours (Ctrl+Shift+/ is Ctrl+?), else its own.
+    else if (sym && mod) name = e.shiftKey ? Object.keys(CODES).find((c) => CODES[c] === code && SHIFTED.has(c)) || sym : sym;
     else if (typeof e.key === 'string' && e.key && !['Unidentified', 'Process', 'Dead'].includes(e.key)) name = e.key;
     if (!name) return null;
     return [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.metaKey && 'Meta', e.shiftKey && !isSymbol(name) && 'Shift', name].filter(Boolean).join('+');

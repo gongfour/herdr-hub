@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { ACTIONS, BINDINGS, LOCAL, parse, match, label, hint, sheetGroups } = require('../public/keymap.js');
+const KM0 = require('../public/keymap.js');
 const { rawKeyName } = require('../public/keys.js');
 
 // A keydown from a key string: 'Ctrl+ArrowDown' -> { key: 'ArrowDown', ctrlKey: true, … }.
@@ -102,13 +103,15 @@ test('rows (split only): Alt+↑/↓ anywhere, the shell included; [ ] only on t
   assert.equal(act(']', sp, { code: 'BracketRight', key: 'ㅔ' }), null); // a bare symbol never by code
 });
 
-test('/ and ? only on the page, not in the shell or under a sheet', () => {
+test('/ only on the page; Ctrl+? (Ctrl+Shift+/) the 단축키 page anywhere but under a sheet', () => {
   assert.equal(act('/', {}), 'focusInput');
-  assert.equal(act('?', {}, { shiftKey: true }), 'help');
-  for (const ctx of [{ field: true }, { shell: true }, { layer: true }]) {
-    assert.equal(act('/', ctx), null);
-    assert.equal(act('?', ctx, { shiftKey: true }), null);
-  }
+  for (const ctx of [{ field: true }, { shell: true }, { layer: true }]) assert.equal(act('/', ctx), null);
+  for (const ctx of [{}, { field: true }, { shell: true }, { split: true }]) assert.equal(act('Ctrl+?', ctx, { shiftKey: true, code: 'Slash' }), 'help');
+  assert.equal(act('Ctrl+?', { layer: true }, { shiftKey: true }), null);
+  assert.equal(act('?', {}, { shiftKey: true }), null); // a typed ?
+  assert.equal(act('Ctrl+/', {}, { code: 'Slash' }), null); // no Shift: not it
+  assert.equal(act('Ctrl+?', {}, { key: '/', code: 'Slash', shiftKey: true }), 'help'); // a layout giving / with Shift held
+  assert.equal(KM0.label('Ctrl+?'), 'Ctrl+?');
 });
 
 test('switcher: Ctrl+P on the page, in a field and under a sheet, never in the shell; Alt+P everywhere', () => {
@@ -372,7 +375,8 @@ test('stop says ×2 whatever its key', () => {
 test('whereText: where an action\'s keys work, the odd one named', () => {
   assert.equal(KM.whereText('jumpEnd'), '입력 칸에서도 (End 빼고) · 셸 화면에서도 (End 빼고) · 시트 위에서도');
   assert.equal(KM.whereText('nextRow'), '입력 칸에서도 · 셸 화면에서도 · 두 칸에서만');
-  assert.equal(KM.whereText('help'), '');
+  assert.equal(KM.whereText('help'), '입력 칸에서도 · 셸 화면에서도');
+  assert.equal(KM.whereText('focusInput'), ''); // only on the page
   withKeys({ help: [] }, () => assert.equal(KM.whereText('help'), ''));
 });
 
@@ -380,4 +384,9 @@ test('the quick switcher\'s Ctrl+J/K are the scroll keys: changed with them', ()
   const row = (re) => KM.LOCAL.find((x) => re.test(x.label));
   assert.deepEqual(KM.localKeys(row(/다음 것 고르기/)), ['Ctrl+j']);
   withKeys({ scrollDown: ['Alt+j'] }, () => assert.deepEqual(KM.localKeys(row(/다음 것 고르기/)), ['Alt+j']));
+});
+
+test('keyOf records Ctrl+Shift+/ as Ctrl+?, Ctrl+/ as itself', () => {
+  assert.equal(KM.keyOf({ key: '?', code: 'Slash', ctrlKey: true, shiftKey: true }), 'Ctrl+?');
+  assert.equal(KM.keyOf({ key: '/', code: 'Slash', ctrlKey: true }), 'Ctrl+/');
 });
