@@ -21,7 +21,7 @@
   --field-line: #8f8b83;
   /* The chosen segment of a segmented control: lighter than its track in both themes. */
   --seg-on: #ffffff;
-  --seg-on-line: #d6d2c8;
+  --seg-on-line: #b3ad9f;
   /* Terminal colours 0-15 in the screen box, tuned to read on --surface. */
   --ansi-0: #1d1c19; --ansi-1: #b42318; --ansi-2: #1f7a3a; --ansi-3: #8a6a00;
   --ansi-4: #1f5fbf; --ansi-5: #9b2fae; --ansi-6: #0f7c86; --ansi-7: #6d6a62;
@@ -60,7 +60,7 @@
   --d-idle-bg: #2a2926;
   --d-field-line: #76736c;
   --d-seg-on: #42413c;
-  --d-seg-on-line: #5a5853;
+  --d-seg-on-line: #7a7871;
   --d-ansi-0: #8a877f;
   --d-ansi-1: #ff6b5e;
   --d-ansi-2: #7fd08a;
@@ -195,6 +195,10 @@ button:disabled { cursor: default; }
 .badge.working { color: var(--working); background: var(--working-bg); }
 .badge.idle, .badge.unknown { color: var(--idle); background: var(--idle-bg); }
 .empty { color: var(--muted); text-align: center; padding: 48px 16px; }
+.empty p { margin: 0 0 4px; }
+.empty .empty-t { color: var(--text); font-weight: 600; font-size: 16px; }
+.empty .btn { margin-top: 16px; }
+.empty .go-conn { margin-top: 8px; }
 
 /* ---- list: one card per workspace, panes inside; blocked agents also in a strip on top */
 .list.home { gap: 12px; }
@@ -202,12 +206,15 @@ button:disabled { cursor: default; }
    minimum height, so it would be squeezed (rows cut in half) once the list overflows. */
 .ws, .list.home > * { flex: none; }
 .ws { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.ws-front { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 9px 8px 9px 14px; }
+/* The head's height is the link's own: a tap anywhere on it opens the workspace. */
+.ws-front { display: flex; align-items: center; gap: 6px; min-height: 50px; padding: 0 8px 0 14px; }
 /* The workspace's name opens the workspace view (its own link: the ⋯ beside it is a button). */
-.ws-main { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; color: inherit; text-decoration: none; border-radius: 8px; }
+.ws-main { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; min-height: 50px; padding: 6px 0; color: inherit; text-decoration: none; border-radius: 8px; }
 .ws-main:active { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .ws-label { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-cwd { font: 12px/1.4 var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.ws-meta { display: flex; align-items: center; min-width: 0; margin-top: 2px; }
+.ws-meta .host-chip { flex: none; }
+.ws-cwd { min-width: 0; font: 12px/1.4 var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws .ws-more { margin: -6px 0; color: var(--muted); }
 .ws-panes { border-top: 1px solid var(--line); }
 .ws-panes > .sw + .sw { border-top: 1px solid var(--line); }
@@ -222,12 +229,16 @@ button:disabled { cursor: default; }
 .pane-row.agent .pane-ic { background: var(--done-bg); color: var(--accent); }
 .pane-row.term .pane-ic { background: var(--surface-2); color: var(--muted); font: 700 11px/1 var(--mono); letter-spacing: -0.04em; }
 .pane-main { flex: 1; min-width: 0; }
-.pane-title { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* An agent's title: the row's width, up to two lines; name and time under it (.pane-meta). */
+.pane-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-weight: 600; line-height: 1.35; overflow: hidden; overflow-wrap: anywhere; }
+.pane-row.term .pane-title { display: block; white-space: nowrap; text-overflow: ellipsis; }
 /* A finish not opened yet, like an unread message: a dot in the row's left gutter, a bolder name. */
 .unread-dot { position: absolute; left: 8px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: var(--accent); }
 .pane-row.unread .pane-title { font-weight: 700; }
 .pane-row.term .pane-title { font: 14px var(--mono); }
-.pane-meta { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-meta { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.pane-meta .sep { white-space: pre; }
+.pane-meta .el { font-size: inherit; }
 .pane-kind { flex: none; font-size: 12px; color: var(--muted); }
 .pane-row .el { flex: none; font-size: 12px; color: var(--working); font-variant-numeric: tabular-nums; }
 
@@ -235,14 +246,7 @@ button:disabled { cursor: default; }
    on rows, so a long press can open the action menu instead. */
 .sw { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .sw { position: relative; overflow: hidden; touch-action: pan-y; }
-.sw-front { position: relative; z-index: 1; background: var(--surface); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.sw.drag > .sw-front { transition: none; }
-.sw-acts { position: absolute; top: 0; right: 0; bottom: 0; display: flex; visibility: hidden; }
-.sw.live > .sw-acts { visibility: visible; }
-.sw-act { width: 76px; border: 0; padding: 0; font-size: 15px; font-weight: 600; cursor: pointer; background: var(--idle); color: var(--bg); }
-.sw-act.danger { background: var(--blocked); }
-.sw-act:active { filter: brightness(0.92); }
-@media (prefers-reduced-motion: reduce) { .sw-front { transition: none; } }
+.sw-front { position: relative; z-index: 1; background: var(--surface); }
 
 /* ---- detail */
 /* What a working agent is doing, read off its screen; a tap opens the terminal sheet. */
@@ -662,16 +666,24 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .term-keys .key { flex: 1; min-width: 0; padding: 0 4px; }
 
 /* ---- hosts */
-.seg.hosts { margin: 10px 16px 0; position: relative; }
-.seg.hosts button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; }
+/* Hosts that don't fit scroll sideways (list.js showChosenHost keeps the chosen one in view);
+   a long name ends in …, never breaks between letters. */
+.seg.hosts { margin: 10px 16px 0; position: relative; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.seg.hosts::-webkit-scrollbar { display: none; }
+.seg.hosts button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; max-width: 40vw; white-space: nowrap; }
+.seg.hosts .hl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .hdot { width: 7px; height: 7px; border-radius: 50%; background: var(--done); flex: none; }
 .seg.hosts button.off { color: var(--muted); }
-.seg.hosts button.off .hdot { background: var(--blocked); }
+/* Offline: a hollow ring, not only another colour. */
+.seg.hosts button.off .hdot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--blocked); }
 .host-chip {
   display: inline-block; font-size: 12px; font-weight: 600; line-height: 1.5; padding: 0 6px; margin-right: 6px; border-radius: 6px;
   background: var(--surface-2); color: var(--text); border: 1px solid var(--line); vertical-align: 1px;
 }
-.offline { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--blocked-bg); color: var(--text); font-size: 14px; }
+.offline { margin: 0; padding: 10px 12px 2px; border-radius: 12px; background: var(--blocked-bg); color: var(--text); font-size: 14px; }
+.offline p { margin: 0; }
+.go-conn { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-weight: 600; text-decoration: none; }
+.go-conn span { margin-left: 3px; }
 .offline b { color: var(--blocked); }
 
 /* ---- folder choice (new workspace) */
@@ -682,6 +694,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .picked.on { background: var(--done-bg); color: var(--text); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
 .picked .k { font-size: 12px; font-weight: 600; }
 .picked.on .k { color: var(--done); }
+.picked.missing { border: 1px solid var(--blocked); background: var(--blocked-bg); }
+.picked.missing .k { color: var(--blocked); }
+.panel .form-note { font-size: 13px; margin: 0 0 8px; }
 .picked b { font-size: 16px; }
 .picked .p { font: 12px/1.35 var(--mono); color: var(--muted); }
 .dir-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
@@ -941,7 +956,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .choice.primary:hover:not(:disabled) { filter: brightness(1.06); }
   .send:hover:not(:disabled), .stop:hover { filter: brightness(1.08); }
   .activity:not(:disabled):hover { filter: brightness(0.97); }
-  .sw-act:hover { filter: brightness(1.08); }
 }
 
 /* ---- wide screens: a centred column (720px; chat and terminal up to 960px) with room at the
@@ -1048,7 +1062,7 @@ button.tool:active { filter: brightness(0.95); }
 }
 .tab {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  min-height: 50px; padding: 5px 0 4px; color: var(--muted); text-decoration: none; font-size: 11px; font-weight: 600;
+  min-height: 50px; padding: 5px 0 4px; color: var(--muted); text-decoration: none; font-size: 12px; font-weight: 600;
   -webkit-touch-callout: none; user-select: none;
 }
 .tab svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }

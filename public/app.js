@@ -409,8 +409,7 @@ function route(e, { relayout = false } = {}) {
   hist.hold = relayout;
   closeScreenSheet();
   hist.hold = false;
-  if (split) closeRow(); // the list stays on screen: don't leave a row slid open
-  swipe.open = swipe.g = null;
+  swipe.g = null;
   setTimeout(() => fit({ type: 'route' }), 0);
   scr = null;
   let h = location.hash.replace(/^#/, '') || '/';
@@ -616,13 +615,12 @@ document.addEventListener('click', (e) => {
 // returns true when it acted (the key is then taken). In the shell view a key with the focus on
 // the page goes to the shell first (termStrayKey).
 const KEY_ACTIONS = {
-  // Esc: the top sheet or menu, else an open row, else out of a field, else back. Always taken:
+  // Esc: the top sheet or menu, else out of a field, else back. Always taken:
   // Android turns an Escape the page leaves alone into Back, which closes the app when there is
   // nothing behind (a keyboard cover's Esc minimised the Hub).
   back() {
     const top = topLayer();
     if (top) closeLayer(top);
-    else if (swipe.open) closeRow();
     else if (editable(document.activeElement)) document.activeElement.blur();
     else {
       const back = view.name !== 'list' && $app.querySelector('a[data-back]');

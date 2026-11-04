@@ -22,7 +22,7 @@ async function renderForm() {
       ${isNew ? `
       <section>
         ${multi() ? `
-        <h2>호스트</h2>
+        <h2><label for="f-host">호스트</label></h2>
         <select class="field" id="f-host">${hosts().map((x) => `<option value="${esc(x.id)}" ${x.id === host ? 'selected' : ''} ${x.online ? '' : 'disabled'}>${esc(x.label)}${x.online ? '' : ' (오프라인)'}</option>`).join('')}</select>` : ''}
         <h2>폴더</h2>
         <div class="picked" id="f-picked" aria-live="polite"></div>
@@ -30,22 +30,22 @@ async function renderForm() {
         <button type="button" class="btn secondary wide" id="f-browse">폴더 찾아보기</button>
         <details class="manual" id="f-manual">
           <summary>경로 직접 입력</summary>
-          <input class="field" id="f-cwd" list="f-cwds" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <input class="field" id="f-cwd" list="f-cwds" aria-label="폴더 경로" autocomplete="off" autocapitalize="off" spellcheck="false">
           <datalist id="f-cwds"></datalist>
         </details>
-        <h2>이름 (선택)</h2>
-        <input class="field" id="f-label" placeholder="폴더 이름" autocomplete="off">
+        <h2><label for="f-label">워크스페이스 이름 (선택)</label></h2>
+        <input class="field" id="f-label" placeholder="비우면 폴더 이름" autocomplete="off">
         <label class="check"><input type="checkbox" id="f-with" checked> 에이전트도 바로 시작</label>
       </section>` : ''}
       <section id="f-agent">
-        <h2>에이전트</h2>
+        <h2><label for="f-kind">에이전트</label></h2>
+        ${isNew ? '<p class="form-note">새 폴더에서 Claude 를 처음 띄우면 폴더 신뢰 질문이 나옵니다. 에이전트 화면에 나오는 버튼으로 답하세요.</p>' : ''}
         <select class="field" id="f-kind"></select>
-        <h2>인자 (선택)</h2>
-        <input class="field" id="f-args" placeholder="--model haiku" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <h2>이름 (선택)</h2>
+        <h2><label for="f-args">인자 (선택)</label></h2>
+        <input class="field" id="f-args" placeholder="예: --model haiku" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <h2><label for="f-name">에이전트 이름 (선택)</label></h2>
         <input class="field" id="f-name" placeholder="비우면 폴더·워크스페이스 이름" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="f-name-hint">
         <p class="hint" id="f-name-hint" aria-live="polite"></p>
-        ${isNew ? '<p>새 폴더에서 Claude 를 처음 띄우면 폴더 신뢰 질문이 나옵니다. 에이전트 화면에 나오는 버튼으로 답하세요.</p>' : ''}
       </section>
       <div class="row end"><button type="submit" class="btn" id="f-submit" disabled>${isNew ? '만들기' : '시작'}</button></div>
     </form>`;
@@ -85,9 +85,24 @@ function showPicked() {
   const box = document.getElementById('f-picked');
   if (!box) return;
   box.classList.toggle('on', Boolean(p));
-  box.innerHTML = p ? `<span class="k">선택됨</span><b>${esc(basename(p))}</b><span class="p">${esc(p)}</span>` : '<span class="k">아래에서 폴더를 고르세요</span>';
-  document.getElementById('f-label').placeholder = p ? basename(p) : '폴더 이름';
+  // 만들기 pressed without one (folderMissing): the box says what to do, in red, until one is chosen.
+  if (p) box.classList.remove('missing');
+  const ask = box.classList.contains('missing') ? '폴더를 고르세요 — 최근 폴더를 누르거나 「폴더 찾아보기」로 고릅니다' : '아래에서 폴더를 고르세요';
+  box.innerHTML = p ? `<span class="k">선택됨</span><b>${esc(basename(p))}</b><span class="p">${esc(p)}</span>` : `<span class="k">${ask}</span>`;
+  document.getElementById('f-label').placeholder = `비우면 ${p ? basename(p) : '폴더 이름'}`;
   document.querySelectorAll('#f-recent .dir-row').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cwd === p)));
+}
+
+// 만들기 without a folder: the folder box says so in red and the first way to choose one gets
+// the focus, in view (the box is far above the button on a phone).
+function folderMissing() {
+  const box = document.getElementById('f-picked');
+  if (!box) return;
+  box.classList.add('missing');
+  showPicked();
+  box.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' });
+  const first = document.querySelector('#f-recent .dir-row') || document.getElementById('f-browse');
+  if (first) first.focus({ preventScroll: true });
 }
 
 function renderRecent(list, all = false) {
@@ -233,6 +248,8 @@ async function fillForm(host) {
     if (browseAt.host !== host) browseAt = { host, path: null };
     cwd.placeholder = info.platform === 'win32' ? 'C:\\Users\\…\\project' : `${info.home || '/home/…'}/project`;
     document.getElementById('f-cwds').innerHTML = info.recentCwds.map((c) => `<option value="${esc(c)}">`).join('');
+    // One recent folder: that is very likely the one, chosen already (still changeable).
+    if (!cwd.value && info.recentCwds.length === 1) cwd.value = info.recentCwds[0];
     renderRecent(info.recentCwds);
   }
   btn.disabled = false;
@@ -254,7 +271,7 @@ async function submitForm(e) {
   if (view.mode === 'new') {
     if (!val('f-cwd')) {
       btn.disabled = false;
-      return toast('폴더를 먼저 고르세요.');
+      return folderMissing();
     }
     const withAgent = document.getElementById('f-with').checked;
     r = await act(hp('/workspaces', host), { cwd: val('f-cwd'), label: val('f-label'), agent: withAgent ? agent : null });

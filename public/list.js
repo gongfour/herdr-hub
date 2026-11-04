@@ -29,7 +29,7 @@ function agoKo(t) {
   if (sec < 45) return '방금';
   if (sec < 3600) return `${Math.max(1, Math.round(sec / 60))}분 전`;
   if (sec < 86400) return `${Math.floor(sec / 3600)}시간 전`;
-  return new Date(t).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+  return new Date(t).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }); // 11월 4일, not 11. 4.
 }
 // "작업 중 · 12분" / "완료 · 3분 전" next to the badge; nothing when the hub doesn't know.
 function timeTag(a) {
@@ -236,9 +236,36 @@ function listModel() {
 
 let listScroll = 0; // the list's scroll position, kept while a detail view is open
 
-// The words under 작업공간 for host filter f: every host, or the one shown (tabswipe.js draws the
-// next one's during a swipe).
-const hostLineFor = (f) => (f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f));
+// The words under 작업공간: the host's name when there is one host. With more, the host segment
+// right under it says which, so the header doesn't say it twice.
+const hostLine = () => (multi() ? '' : state.host || '');
+
+// The host segment: one button per host, scrolling sideways when they don't fit (style.css
+// .seg.hosts). Offline is a hollow dot, and said in words to a screen reader (rowtext.js).
+function hostSeg(f) {
+  if (!multi()) return '';
+  const btn = (x) => {
+    const warn = apiMismatch(x);
+    return `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}" aria-label="${esc(RowText.hostAria(x, warn))}"${warn ? ` title="${esc(warn)} — 배포가 필요합니다"` : ''}><span class="hdot" aria-hidden="true"></span><span class="hl">${esc(x.label)}</span>${warn ? '<span class="api-warn" aria-hidden="true">!</span>' : ''}</button>`;
+  };
+  return `
+    <nav class="seg hosts" role="group" aria-label="호스트"${keyAttrs(null, '호스트 바꾸기', 'Alt+←→')}>
+      <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
+      ${hosts().map(btn).join('')}
+    </nav>`;
+}
+// The chosen host's button in view (after a tap, a swipe or Alt+←/→), the segment otherwise
+// where it was left.
+function showChosenHost(nav, left = 0) {
+  if (!nav) return;
+  nav.scrollLeft = left;
+  if (nav.scrollWidth <= nav.clientWidth) return;
+  const b = nav.querySelector('button[aria-pressed="true"]');
+  if (!b) return;
+  const pad = 12;
+  if (b.offsetLeft - pad < nav.scrollLeft) nav.scrollLeft = b.offsetLeft - pad;
+  else if (b.offsetLeft + b.offsetWidth + pad > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = b.offsetLeft + b.offsetWidth + pad - nav.clientWidth;
+}
 
 function render() {
   if (tabSwipeBusy()) return void (tabSwipe.pending = true); // the pages under a host swipe
@@ -247,21 +274,17 @@ function render() {
   const root = listRoot();
   const down = state.herdr !== 'up';
   const f = filter();
-  const hostLine = esc(hostLineFor(f));
+  const sub = esc(hostLine());
   const top = `
     <header class="bar">
-      <h1>작업공간<span class="sub">${hostLine}</span></h1>
+      <h1>작업공간${sub ? `<span class="sub">${sub}</span>` : ''}</h1>
       <span class="conn ${down ? 'down' : ''}"><span class="dot"></span>${down ? (state.herdr === 'down' ? 'herdr 연결 끊김' : state.herdr === 'offline' ? '연결 끊김' : '연결 중') : '실시간'}</span>
       <a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스"${keyAttrs('newWorkspace', '새 워크스페이스')}>${ICON.plus}</a>
-    </header>
-    ${multi() ? `
-    <nav class="seg hosts" role="group" aria-label="호스트"${keyAttrs(null, '호스트 바꾸기', 'Alt+←→')}>
-      <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
-      ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"${apiMismatch(x) ? ` title="${esc(apiMismatch(x))} — 배포가 필요합니다"` : ''}><span class="hdot"></span>${esc(x.label)}${apiMismatch(x) ? '<span class="api-warn" aria-label="API 버전 다름">!</span>' : ''}</button>`).join('')}
-    </nav>` : ''}`;
+    </header>${hostSeg(f)}`;
   const parts = homeParts(f);
   let main = root.querySelector(':scope > main.home');
   const fresh = !main;
+  const segLeft = root.querySelector(':scope > .seg.hosts')?.scrollLeft || 0;
   if (fresh) {
     root.innerHTML = `${top}<main class="list home"></main>`;
     main = root.querySelector(':scope > main.home');
@@ -272,6 +295,7 @@ function render() {
     main.insertAdjacentHTML('beforebegin', top);
   }
   main._top = top;
+  showChosenHost(root.querySelector(':scope > .seg.hosts'), segLeft);
   patchList(main, parts);
   mountTabBar('spaces');
   // Back from an agent: where the list was left.
@@ -296,8 +320,8 @@ function homeParts(f = filter()) {
   // Peers in view that are offline or whose herdr is down.
   const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
   return [
-    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>옆으로 밀면 호스트(전체·기기)가 넘어가고, 줄을 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
-    ...trouble.map((x) => [`off|${x.id}`, `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`]),
+    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>${RowText.hintText(multi())}</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
+    ...trouble.map((x) => [`off|${x.id}`, `<div class="offline" role="status"><p><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김 — 그 기기에서 herdr 가 실행 중인지 확인하세요' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>${connLink('연결 상태 보기')}</div>`]),
     ...spacesParts(list, down, f),
   ];
 }
@@ -335,22 +359,41 @@ function stepBlocked(dir) {
   return true;
 }
 
+// 설정 → 연결: the hosts and their herdr, scrolled to (renderSettings takes settingsAt).
+let settingsAt = null;
+const connLink = (label) => `<a class="go-conn" href="#/settings" data-settings-at="g-conn">${esc(label)}<span aria-hidden="true"> ›</span></a>`;
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-settings-at]');
+  if (a) settingsAt = a.dataset.settingsAt;
+});
+
+// No cards: what to do next. A peer that is offline or whose herdr is down has its note above
+// (homeParts) and nothing more here.
 function spacesParts(list, down, f) {
-  const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '열린 워크스페이스가 없습니다.';
-  return [...list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s)]), ...(!list.length && empty ? [['empty', `<p class="empty">${empty}</p>`]] : [])];
+  if (list.length) return list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s)]);
+  const peer = f !== 'all' && f !== localId() ? hostOf(f) : null;
+  if (peer && (!peer.online || peer.herdr !== 'up')) return [];
+  if (down && (f === localId() || (f === 'all' && !multi()))) {
+    const where = hostLabel(localId()) || state.host || '이 기기';
+    return [['empty', `<div class="empty" role="status"><p class="empty-t">${esc(where)} 의 herdr 에 연결하지 못했습니다</p><p>그 기기에서 herdr 가 실행 중인지 확인하세요.</p>${connLink('연결 상태 보기')}</div>`]];
+  }
+  const href = f === 'all' ? '#/new' : link(f, '/new');
+  return [['empty', `<div class="empty"><p class="empty-t">워크스페이스가 없습니다</p><p>폴더를 고르면 에이전트까지 바로 시작합니다.</p><a class="btn" href="${href}"${keyAttrs('newWorkspace', '새 워크스페이스')}>새 워크스페이스</a></div>`]];
 }
 
-// One-time hint about the hidden row gestures: shown on the first visit to the list (and for
-// the rest of that page's life) until its ✕ is pressed.
-const HINT_KEY = 'herdr-hub.hint.hostswipe'; // new key: the hint changed, show it once more
+// Hint about the hidden row gestures: shown for the first few starts of the app (each for the
+// rest of that page's life) until its ✕ is pressed (rowtext.js hintDue). The key holds the
+// count, or 'x'; the old code's '1' counts as one.
+const HINT_KEY = 'herdr-hub.hint.hostswipe';
 let hintNow = null;
 function swipeHintShown() {
   if (hintNow == null) {
     // Swipe and long press are touch gestures; a mouse has right-click and the ⋯ buttons.
     if (!matchMedia('(pointer: coarse)').matches) return (hintNow = false);
     try {
-      hintNow = !localStorage.getItem(HINT_KEY);
-      localStorage.setItem(HINT_KEY, '1');
+      const was = localStorage.getItem(HINT_KEY);
+      hintNow = RowText.hintDue(was);
+      if (hintNow) localStorage.setItem(HINT_KEY, RowText.hintNext(was));
     } catch {
       hintNow = false;
     }
@@ -360,6 +403,11 @@ function swipeHintShown() {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.hint-x')) return;
   hintNow = false;
+  try {
+    localStorage.setItem(HINT_KEY, 'x');
+  } catch {
+    /* this page only */
+  }
   if (listShown()) render();
 });
 
@@ -383,7 +431,6 @@ function patchList(box, parts) {
   next.forEach((el, i) => {
     if (box.children[i] !== el) box.insertBefore(el, box.children[i] || null);
   });
-  if (swipe.open && !swipe.open.isConnected) swipe.open = null;
 }
 
 // Times on the list and the workspace page, filled in here so the cards' HTML stays the same.
@@ -400,18 +447,20 @@ function tickList() {
 }
 
 const rowData = (kind, host, id) => `data-kind="${kind}" data-host="${esc(host || '')}" data-id="${esc(id)}"`;
-const SWIPE_ACTS = ''; // rows no longer slide open (the sideways swipe changes tab); menus have 이름 / 닫기
-const agentTitle = (a) => (a.name ? `${a.name} · ${a.title}` : a.title);
 
+// A card's head: its name, then one line with the host (전체) and the folder, the folder only when
+// its name isn't the workspace's (rowtext.js shortPath), cut to its last two folders.
 function wsSection({ w, agents, terms }) {
   const first = [...agents, ...terms].sort(paneOrder)[0];
   const rows = [...agents.map(agentRow), ...terms.map(termRow)].join('');
+  const chip = filter() === 'all' ? hostChip(w) : '';
+  const path = first ? RowText.shortPath(first.cwd, w.label) : '';
   return `<section class="ws">
-    <div class="sw ws-head" ${rowData('ws', w.host, w.workspace_id)}>${SWIPE_ACTS}
+    <div class="sw ws-head" ${rowData('ws', w.host, w.workspace_id)}>
       <div class="sw-front ws-front">
         <a class="ws-main" href="${link(w.host, `/ws/${encodeURIComponent(w.workspace_id)}`)}">
-          <div class="ws-label">${filter() === 'all' ? hostChip(w) : ''}${esc(w.label)}</div>
-          ${first && first.cwd ? `<div class="ws-cwd">${esc(first.cwd)}</div>` : ''}
+          <div class="ws-label">${esc(w.label)}</div>
+          ${chip || path ? `<div class="ws-meta">${chip}${path ? `<span class="ws-cwd" title="${esc(first.cwd)}">${esc(path)}</span>` : ''}</div>` : ''}
         </a>
         <button type="button" class="icon-btn ws-more" aria-haspopup="dialog" aria-label="${esc(w.label)} 워크스페이스 메뉴">${ICON.more}</button>
       </div>
@@ -422,21 +471,23 @@ function wsSection({ w, agents, terms }) {
 
 // A blocked agent says so with its badge; it is answered by opening it (the chat's blocked box).
 // A finish not opened yet: a dot before the icon and a bolder name, like an unread message.
+// The title (what the conversation is about) has the row's width, up to two lines; the agent's
+// name and how long it has worked (or when it finished) go on a small line under it.
 function agentRow(a) {
   const unread = isUnread(a);
   const badge = `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
-  return `<div class="sw" ${rowData('agent', a.host, a.pane)}>${SWIPE_ACTS}
+  const meta = [a.name && a.title ? `<span>${esc(a.name)}</span>` : '', timeTag(a)].filter(Boolean).join('<span class="sep"> · </span>');
+  return `<div class="sw" ${rowData('agent', a.host, a.pane)}>
     <a class="sw-front pane-row agent${unread ? ' unread' : ''}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
       ${unread ? '<span class="unread-dot" role="img" aria-label="새 결과"></span>' : ''}<span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
-      <span class="pane-main"><span class="pane-title">${esc(agentTitle(a))}</span></span>
-      ${timeTag(a)}
+      <span class="pane-main"><span class="pane-title">${esc(a.title || a.name || a.agent || a.pane)}</span>${meta ? `<span class="pane-meta">${meta}</span>` : ''}</span>
       ${badge}
     </a>
   </div>`;
 }
 
 function termRow(t) {
-  return `<div class="sw" ${rowData('term', t.host, t.pane)}>${SWIPE_ACTS}
+  return `<div class="sw" ${rowData('term', t.host, t.pane)}>
     <a class="sw-front pane-row term" href="${link(t.host, `/term/${encodeURIComponent(t.pane)}`)}">
       <span class="pane-ic" aria-hidden="true">${ICON.term}</span>
       <span class="pane-main"><span class="pane-title">${esc(termTitle(t))}</span></span>

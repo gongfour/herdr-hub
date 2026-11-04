@@ -108,6 +108,12 @@ function renderSettings({ focus = false } = {}) {
   renderConn();
   loadHostAdmin();
   renderVersionInfo();
+  // Come from a link to one part (list.js connLink: 설정 → 연결): that part at the top.
+  if (settingsAt) {
+    const h = main.querySelector(`#${settingsAt}`);
+    settingsAt = null;
+    if (h) requestAnimationFrame(() => h.scrollIntoView({ block: 'start' }));
+  }
   if (!split) mountTabBar('settings');
   if (focus) main.focus({ preventScroll: true });
 }

@@ -1,54 +1,23 @@
 'use strict';
 // Row actions in the lists: long-press or right-click a row for its menu. A sideways swipe
-// belongs to the page (tabswipe.js: the next host), so rows no longer slide open; the
-// slide code below stays only to shut a row that is somehow open.
+// belongs to the page (tabswipe.js: the next host), so it only cancels the long press here.
 
 // ---- row actions: long-press or right-click for a menu
 
-// The first move decides the axis: vertical scrolls the list, horizontal is the page swipe
-// (and cancels the long press).
-const SWIPE_EDGE = 20; // px from the left screen edge
+// The first move decides: vertical scrolls the list, horizontal is the page swipe; either
+// cancels the long press.
 const SWIPE_SLOP = 8; // px before the axis is decided
 const LONG_MS = 500;
-const swipe = { open: null, g: null, mute: 0, pending: false };
-
-function slideTo(el, x, animate) {
-  const front = el.querySelector(':scope > .sw-front');
-  el.classList.toggle('drag', !animate);
-  el.classList.add('live');
-  front.style.transform = x ? `translateX(${x}px)` : '';
-  if (x || !animate) return;
-  // Hide the buttons once the row has slid shut (at once without a transition).
-  const hide = () => el !== swipe.open && !front.style.transform && el.classList.remove('live');
-  if (reduced()) return hide();
-  front.addEventListener('transitionend', hide, { once: true });
-  setTimeout(hide, 400);
-}
-const actsWidth = (el) => el.querySelector(':scope > .sw-acts').offsetWidth;
-function openRow(el) {
-  if (swipe.open && swipe.open !== el) closeRow();
-  swipe.open = el;
-  slideTo(el, -actsWidth(el), true);
-}
-function closeRow() {
-  const el = swipe.open;
-  swipe.open = null;
-  if (el) slideTo(el, 0, true);
-}
+// g: the finger on a row; mute: until then a click is the end of a long press, not a tap;
+// pending: a render that waited for the finger (list.js).
+const swipe = { g: null, mute: 0, pending: false };
 
 function bindList(main) {
   main.addEventListener('touchstart', rowTouchStart, { passive: true });
   main.addEventListener('touchmove', rowTouchMove, { passive: false });
   main.addEventListener('touchend', rowTouchEnd);
   main.addEventListener('touchcancel', rowTouchEnd);
-  main.addEventListener(
-    'scroll',
-    () => {
-      listScroll = main.scrollTop;
-      if (!(swipe.g && swipe.g.axis === 'x')) closeRow();
-    },
-    { passive: true }
-  );
+  main.addEventListener('scroll', () => (listScroll = main.scrollTop), { passive: true });
   main.addEventListener('click', rowClick, true);
   // Right-click (and a long press where the browser makes one of it) opens the same menu.
   main.addEventListener('contextmenu', (e) => {
@@ -56,34 +25,18 @@ function bindList(main) {
     if (!row) return;
     e.preventDefault();
     if ((swipe.g && swipe.g.long) || Date.now() < swipe.mute) return;
-    closeRow();
     rowMenu(row);
   });
 }
-
-// A press outside the list (header, host filter) closes an open row too.
-document.addEventListener('pointerdown', (e) => {
-  if (swipe.open && !e.target.closest('main.home')) closeRow();
-});
 
 function rowTouchStart(e) {
   clearTimeout(swipe.g && swipe.g.timer);
   if (e.touches.length !== 1) return void (swipe.g = null);
   const t = e.touches[0];
-  const onActs = e.target.closest('.sw-acts');
-  const sw = onActs ? null : e.target.closest('.sw');
-  const row = onActs ? null : e.target.closest('[data-kind]');
-  const g = { x: t.clientX, y: t.clientY, t0: Date.now(), sw, row, axis: null, base: 0, dx: 0, eat: false, long: false, timer: null, lastX: t.clientX, lastT: Date.now(), v: 0 };
-  if (swipe.open && !(onActs && swipe.open.contains(onActs))) {
-    // While a row is open, a tap only closes it; dragging the open row itself moves it.
-    g.eat = true;
-    if (sw === swipe.open) g.base = -actsWidth(sw);
-    else closeRow();
-  }
-  g.edge = t.clientX < SWIPE_EDGE;
+  const row = e.target.closest('[data-kind]');
+  const g = { x: t.clientX, y: t.clientY, t0: Date.now(), axis: null, long: false, timer: null };
   if (row) g.timer = setTimeout(() => {
     g.long = true;
-    closeRow();
     rowMenu(row);
   }, LONG_MS);
   swipe.g = g;
@@ -92,28 +45,15 @@ function rowTouchStart(e) {
 function rowTouchMove(e) {
   const g = swipe.g;
   if (!g || e.touches.length !== 1) return;
-  const t = e.touches[0];
-  const dx = t.clientX - g.x;
-  const dy = t.clientY - g.y;
   if (!g.axis) {
+    const t = e.touches[0];
+    const dx = t.clientX - g.x;
+    const dy = t.clientY - g.y;
     if (Math.hypot(dx, dy) < SWIPE_SLOP) return;
     clearTimeout(g.timer);
-    g.axis = Math.abs(dx) > Math.abs(dy) ? 'none' : 'y'; // sideways: tabswipe.js
-    if (g.axis === 'x' && swipe.open && swipe.open !== g.sw) closeRow();
-    if (g.axis === 'y' && swipe.open) closeRow();
+    g.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'; // sideways: tabswipe.js
   }
-  if (g.axis === 'y') return;
-  if (e.cancelable) e.preventDefault(); // sideways: never the page
-  if (g.axis !== 'x') return;
-  const w = actsWidth(g.sw);
-  let x = Math.min(0, g.base + dx);
-  if (x < -w) x = -w + (x + w) / 3; // past the buttons: resist, and never run one
-  g.dx = x;
-  const now = Date.now();
-  if (now > g.lastT) g.v = (t.clientX - g.lastX) / (now - g.lastT);
-  g.lastX = t.clientX;
-  g.lastT = now;
-  slideTo(g.sw, x, false);
+  if (g.axis === 'x' && e.cancelable) e.preventDefault(); // sideways: never the page
 }
 
 function rowTouchEnd(e) {
@@ -121,23 +61,10 @@ function rowTouchEnd(e) {
   swipe.g = null;
   if (!g) return;
   clearTimeout(g.timer);
-  const eatClick = () => {
+  if (g.long || g.axis === 'x') {
+    // Not a tap: the menu is open, or the page moved under the finger.
     swipe.mute = Date.now() + 450;
     if (e.cancelable) e.preventDefault();
-  };
-  if (g.axis === 'x') {
-    const w = actsWidth(g.sw);
-    const open = g.v < -0.3 ? true : g.v > 0.3 ? false : g.dx < -w / 2;
-    if (open) openRow(g.sw);
-    else {
-      if (swipe.open === g.sw) swipe.open = null;
-      slideTo(g.sw, 0, true);
-    }
-    eatClick();
-  } else if (g.long || g.axis === 'none') eatClick();
-  else if (g.eat && !g.axis) {
-    closeRow();
-    eatClick();
   }
   if (swipe.pending) {
     swipe.pending = false;
@@ -152,25 +79,10 @@ function rowClick(e) {
     return;
   }
   const more = e.target.closest('.ws-more');
-  if (more) {
-    // The card's ⋯ opens the same menu as a long press, not another page.
-    e.preventDefault();
-    closeRow();
-    rowMenu(more.closest('[data-kind]'));
-    return;
-  }
-  const act = e.target.closest('.sw-act');
-  if (act) {
-    e.preventDefault();
-    const row = act.closest('.sw');
-    closeRow();
-    rowAction(row, act.dataset.act);
-  } else if (swipe.open) {
-    // A mouse click elsewhere: close only.
-    e.preventDefault();
-    e.stopPropagation();
-    closeRow();
-  }
+  if (!more) return;
+  // The card's ⋯ opens the same menu as a long press, not another page.
+  e.preventDefault();
+  rowMenu(more.closest('[data-kind]'));
 }
 
 function rowTarget(el) {
@@ -187,12 +99,4 @@ async function rowMenu(el) {
   if (!x) return;
   if (kind === 'ws') wsMenu(x, { fromRow: true }); // actions.js: the same menus as the views' ⋯
   else paneMenu(kind, x, { fromRow: true });
-}
-
-// A row's action by name (the slide-open buttons, while any are left).
-function rowAction(el, k) {
-  const x = rowTarget(el);
-  if (!x) return toast('이미 닫혔습니다');
-  if (el.dataset.kind === 'ws') wsAction(x, k);
-  else paneAction(el.dataset.kind, x, k);
 }

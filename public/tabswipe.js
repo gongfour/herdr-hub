@@ -3,8 +3,7 @@
 // Alt+←/→ and the host segment do (list.js stepHostFilter). 설정 is the tab bar's.
 // The hosts' lists lie side by side: the list follows the finger and the neighbour host's list
 // (drawn off to the side when the finger first reveals it) comes in with it, while the host
-// segment's pill slides toward that host, its label's colour going with it, and the line under
-// 작업공간 fades into that host's. Past TAB_SWIPE_MIN px (or a quick flick) the pages
+// segment's pill slides toward that host, its label's colour going with it. Past TAB_SWIPE_MIN px (or a quick flick) the pages
 // carry on from the finger's speed until the neighbour is in place (motion.js spring), and the
 // host changes; else they settle back. With no host beyond, the list gives less the further it
 // is pulled (rubber band). The header stays put. Phone, and the split layout's sidebar.
@@ -66,21 +65,6 @@ function tabPill(g) {
   return { nav, el, btns, from: r(cur), to: { 1: r(btns[g.i + 1]), '-1': r(btns[g.i - 1]) } };
 }
 
-// The line under 작업공간 (the host shown), with the next host's over it: one fades as the other
-// comes, as far as the pages have gone, so it too has changed already when the host does.
-function tabSub(g) {
-  const sub = listRoot().querySelector(':scope > header.bar h1 > .sub');
-  if (!sub) return null;
-  const h1 = sub.parentElement;
-  h1.style.position = 'relative'; // first, so the offsets below are from the heading
-  const next = document.createElement('span');
-  next.className = 'sub sub-next';
-  next.setAttribute('aria-hidden', 'true');
-  next.style.cssText = `position:absolute;left:${sub.offsetLeft}px;top:${sub.offsetTop}px;width:${sub.offsetWidth}px;opacity:0`;
-  h1.appendChild(next);
-  return { sub, h1, next, dir: 0 };
-}
-
 // One frame: the list at x, its neighbours a page to either side, the pill part of the way.
 function tabFrame(g, x) {
   g.x = x;
@@ -108,17 +92,6 @@ function tabFrame(g, x) {
       dst.classList.toggle('ind-on', p >= 0.5);
     }
   }
-  if (g.sub) {
-    const dir = x < 0 ? 1 : -1;
-    const f = hostOrder()[g.i + dir];
-    const p = f ? Math.min(1, Math.abs(x) / g.w) : 0;
-    if (g.sub.dir !== dir) {
-      g.sub.dir = dir;
-      g.sub.next.textContent = f ? hostLineFor(f) : '';
-    }
-    g.sub.sub.style.opacity = String(1 - p);
-    g.sub.next.style.opacity = String(p);
-  }
 }
 
 // Everything back as it was: no neighbours, no pill, no inline styles on the list.
@@ -133,11 +106,6 @@ function tabSwipeDone(g, { flush = true } = {}) {
     for (const b of g.pill.btns) b.style.removeProperty('--on'), b.classList.remove('ind-on');
     g.pill.nav.classList.remove('tracking');
     g.pill = null;
-  }
-  if (g.sub) {
-    g.sub.next.remove();
-    g.sub.sub.style.opacity = g.sub.h1.style.position = '';
-    g.sub = null;
   }
   if (flush && tabSwipe.pending) {
     tabSwipe.pending = false;
@@ -195,7 +163,6 @@ document.addEventListener(
         g.w = g.box.width || innerWidth;
         g.main.style.willChange = 'transform';
         g.pill = tabPill(g);
-        g.sub = tabSub(g);
       }
     }
     if (g.axis !== 'x') return;

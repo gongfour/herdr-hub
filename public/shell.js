@@ -16,8 +16,9 @@ const RAW_TERM_KEYS = [
 ];
 const MOD_LABEL = { ctrl: 'Ctrl', alt: 'Alt' };
 
-// Shell titles are often the executable's full path; the program name says enough.
-const termTitle = (t) => t.label || (/[\\/]/.test(t.title) ? basename(t.title) : t.title);
+// Shell titles are often the executable's full path; the program name says enough. Never empty
+// (rowtext.js: the folder, then the pane id).
+const termTitle = (t) => RowText.termName(t);
 const currentTerminal = () => (state.terminals || []).find((t) => same(t, curHost(), detail.pane));
 
 function renderTerminal() {
