@@ -2,7 +2,7 @@
 // The app's routes, from the part of the address after #. Every route may carry its host
 // (#/h/<id>/…); without one it means the hub's own host (host: null).
 //   /agent/<pane>[/screen|/chat]  /term/<pane>  /ws/<id>  /new  /start/(ws|pane)/<id>
-//   /settings  and anything else (the old /spaces and 홈 / included): the 작업공간 list.
+//   /settings  /keys (단축키)  and anything else (the old /spaces and 홈 / included): the 작업공간 list.
 // Pure: loaded as a plain script in the page (window.Route), required by the tests.
 (function (root) {
   function parse(path) {
@@ -20,6 +20,7 @@
     if (h === '/new') return { name: 'form', host, mode: 'new' };
     if ((m = h.match(/^\/start\/(ws|pane)\/(.+)$/))) return { name: 'form', host, mode: m[1], target: decodeURIComponent(m[2]) };
     if (h === '/settings') return { name: 'settings', host };
+    if (h === '/keys') return { name: 'keys', host };
     return { name: 'list', host };
   }
 

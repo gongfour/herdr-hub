@@ -585,31 +585,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .sheet h2 { font-size: 17px; margin: 0; }
 .sheet h2 > .sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
 .actions + .actions { margin-top: 2px; }
-/* 단축키 (settings.js openKeySheet): keys left, what they do right; stacked on a phone. */
-.keysheet { max-width: 640px; }
-.keysheet h3 { font-size: 13px; color: var(--muted); font-weight: 600; margin: 6px 0 4px; }
-.keysheet dl { margin: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.keysheet .krow { display: grid; grid-template-columns: minmax(0, 15em) 1fr; gap: 4px 12px; padding: 9px 12px; border-top: 1px solid var(--line); align-items: baseline; }
-.keysheet .krow:first-child { border-top: 0; }
-.keysheet dt { display: flex; flex-wrap: wrap; gap: 4px; }
-.keysheet dd { margin: 0; font-size: 14px; }
-.keysheet kbd { font: 12px/1 var(--mono); padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); white-space: nowrap; }
-@media (max-width: 520px) { .keysheet .krow { grid-template-columns: 1fr; } }
-/* 바꾸기 (core.js openKeySheet): the keys of each action, to take off (×) or add (+ 키). */
-.keysheet .khead { display: flex; align-items: flex-start; gap: 12px; }
-.keysheet .khead h2 { flex: 1; }
-.keysheet .khead .toggle { min-height: 40px; }
-.keysheet.editing .krow { align-items: center; }
-.keysheet.editing dt { align-items: center; }
-.keysheet .kchip { display: inline-flex; align-items: center; gap: 2px; }
-.keysheet .kx { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; min-width: 28px; min-height: 32px; cursor: pointer; border-radius: 6px; }
-.keysheet .kx:hover { color: var(--blocked); background: var(--surface-2); }
-.keysheet :is(.kadd, .kreset) { border: 1px dashed var(--line); background: none; color: var(--accent); font-size: 12px; min-height: 32px; padding: 0 8px; border-radius: 8px; cursor: pointer; }
-.keysheet .kreset { border-style: solid; color: var(--muted); }
-.keysheet .krec { font-size: 12px; color: var(--accent); font-weight: 600; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.keysheet .krow.recording { background: color-mix(in srgb, var(--accent) 6%, transparent); }
-.keysheet .krow.changed dd::after { content: ' · 바꿈'; color: var(--accent); font-size: 12px; }
-.keysheet :is(.kfixed, .knone) { font-size: 12px; color: var(--muted); }
 
 /* 빠른 이동 (switcher.js): a palette at the top, clear of the phone's keyboard. */
 .qs-back { align-items: flex-start; padding: calc(10px + var(--safe-top)) 10px 10px; }
@@ -1185,3 +1160,30 @@ button.tool:active { filter: brightness(0.95); }
 .show-keys .composer .stop[data-keyhint]::after { bottom: auto; top: 50%; right: calc(100% + 6px); transform: translateY(-50%); }
 .show-keys .rail-btn[data-keyhint]::after { top: 50%; right: auto; left: calc(100% + 6px); transform: translateY(-50%); }
 .show-keys :is(.activity, .new-out, .seg.hosts)[data-keyhint]::after { top: 2px; right: 2px; }
+
+/* 단축키 page (keyspage.js), in 설정's cards: the action and where it works on the left, its keys
+   (× to take off, + 키 to add) on the right; stacked when narrow. */
+.keys-page .k-search { display: flex; gap: 8px; align-items: center; position: sticky; top: -16px; z-index: 2; padding: 8px 0; background: var(--bg); }
+.keys-page .k-search input { flex: 1; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 15px; }
+.keys-page .k-search input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; }
+.keys-page .k-search .toggle { flex: none; min-height: 44px; white-space: nowrap; }
+#k-list { display: flex; flex-direction: column; gap: 18px; } /* 설정's gap, one level down */
+.keys-page .k-note { margin: 0 4px; }
+.k-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; padding: 10px 14px; min-height: 52px; }
+.k-row.recording { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.k-what { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.k-name { font-size: 15px; }
+.k-where { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.k-mark { font-size: 11px; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 2px 6px; border-radius: 999px; }
+.k-keys { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
+.k-keys kbd { font: 12px/1 var(--mono); padding: 5px 7px; border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); white-space: nowrap; }
+.kchip { display: inline-flex; align-items: center; }
+.kchip .kx { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; min-width: 26px; min-height: 32px; cursor: pointer; border-radius: 6px; }
+.kchip .kx:hover { color: var(--blocked); background: var(--surface-2); }
+.k-add, .k-reset { min-height: 32px; padding: 0 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+.k-add { border: 1px dashed var(--line); background: none; color: var(--accent); }
+.k-reset { border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.k-recnote { font-size: 12px; font-weight: 600; color: var(--accent); padding: 7px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.k-fixed, .k-none { font-size: 12px; color: var(--muted); }
+.k-empty { color: var(--muted); text-align: center; margin: 24px 0; }
+@media (max-width: 560px) { .k-row { grid-template-columns: 1fr; } .k-keys { justify-content: flex-start; } }

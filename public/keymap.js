@@ -293,6 +293,28 @@
     return out;
   }
 
+  // Where an action's keys work, in words for the 단축키 page: 「입력 칸에서도 (End 빼고)」,
+  // 「셸 화면에서도」, 「두 칸에서만」, 「시트 위에서도」. Empty when only on the page.
+  function whereText(action) {
+    const own = active.filter((x) => x.action === action);
+    if (!own.length) return '';
+    const some = (f) => own.filter((x) => x[f]);
+    const but = (f) => {
+      const yes = some(f);
+      if (!yes.length) return null;
+      const no = own.filter((x) => !x[f]).map((x) => label(x.key));
+      return no.length ? ` (${no.join('·')} 빼고)` : '';
+    };
+    const out = [];
+    const field = but('field');
+    if (field != null) out.push(`입력 칸에서도${field}`);
+    const shell = but('shell');
+    if (shell != null) out.push(`셸 화면에서도${shell}`);
+    if (own.every((x) => x.split)) out.push('두 칸에서만');
+    if (own.every((x) => x.layer)) out.push('시트 위에서도');
+    return out.join(' · ');
+  }
+
   // The 바꾸기 rows: each action, its keys now, and whether this device changed them.
   function actionRows() {
     return Object.entries(ACTIONS).map(([action, a]) => ({
@@ -341,7 +363,7 @@
     return [...groups].map(([group, rows]) => ({ group, rows }));
   }
 
-  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, setOverrides, assign, unassign, reset, keysFor, actionRows };
+  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, setOverrides, assign, unassign, reset, keysFor, actionRows, whereText };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keymap = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -368,3 +368,10 @@ test('assign / unassign / reset', () => {
 test('stop says ×2 whatever its key', () => {
   withKeys({ stop: ['Ctrl+Shift+x'] }, () => assert.equal(KM.hint('stop'), 'Ctrl+Shift+X ×2'));
 });
+
+test('whereText: where an action\'s keys work, the odd one named', () => {
+  assert.equal(KM.whereText('jumpEnd'), '입력 칸에서도 (End 빼고) · 셸 화면에서도 (End 빼고) · 시트 위에서도');
+  assert.equal(KM.whereText('nextRow'), '입력 칸에서도 · 셸 화면에서도 · 두 칸에서만');
+  assert.equal(KM.whereText('help'), '');
+  withKeys({ help: [] }, () => assert.equal(KM.whereText('help'), ''));
+});

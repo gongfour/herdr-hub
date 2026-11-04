@@ -10,6 +10,7 @@ test('lists: 작업공간 by default (the old /spaces too), 설정', () => {
   assert.deepEqual(parse('/spaces'), { name: 'list', host: null });
   assert.deepEqual(parse('/nonsense'), { name: 'list', host: null });
   assert.deepEqual(parse('/settings'), { name: 'settings', host: null });
+  assert.deepEqual(parse('/keys'), { name: 'keys', host: null });
 });
 
 test('an agent, with its host and the old /screen and /chat tails', () => {

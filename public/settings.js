@@ -150,7 +150,10 @@ function bindSettings(main) {
     pick(next);
     next.focus();
   });
-  main.querySelector('#s-keys').onclick = openKeySheet;
+  main.querySelector('#s-keys').onclick = () => {
+    history.pushState(null, '', '#/keys');
+    route();
+  };
   main.querySelector('#s-clear').onclick = clearDeviceData;
   main.querySelector('#s-reload').onclick = () => reloadToNew(); // app.js
   main.querySelector('#s-push').onclick = (e) => {

@@ -379,6 +379,10 @@ function route(e, { relayout = false } = {}) {
   } else if (r.name === 'settings') {
     view = { name: 'settings' };
     renderSettings({ focus: true }); // into the page (split: on the right, the list stays)
+  } else if (r.name === 'keys') {
+    view = { name: 'keys' };
+    kp.rec = null;
+    renderKeys({ focus: true }); // keyspage.js: split on the right, the phone a page of its own
   } else {
     view = { name: 'list' };
     render();
@@ -515,7 +519,7 @@ const KEY_ACTIONS = {
     }
     return true;
   },
-  help: () => (openKeySheet(), true),
+  help: () => (toggleKeys(), true), // keyspage.js
   settings: () => (toggleSettings(), true),
   // The caret in the composer (or the shell's command line), at the end of what is there.
   focusInput() {
