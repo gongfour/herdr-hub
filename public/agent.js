@@ -685,16 +685,26 @@ function navStep(dir) {
   return true;
 }
 
-// Ctrl+K / Ctrl+J: the conversation (or the screen box in view) a quarter of its height up or
-// down, gliding; held, the key repeats. A press while the last glide is still going adds to
-// where that one was headed (a new glide from where it has got to would cover less each time,
-// and a held key would crawl). The focus stays. False with nothing to scroll.
-const GLIDE_MS = 450;
-function scrollStep(dir) {
+// The box Ctrl+K/J and Ctrl+Shift+↑ move: the screen box in view (the terminal sheet, a
+// screen-only agent, the shell), else the conversation; nothing under another sheet.
+function scrollBox() {
   const top = topLayer();
   const chat = document.getElementById('d-body');
-  const box = scr && (!top || top.el.contains(scr.body)) ? scr.body : !top && chat && chat._html === 'chat' ? chat : null;
+  return scr && (!top || top.el.contains(scr.body)) ? scr.body : !top && chat && chat._html === 'chat' ? chat : null;
+}
+
+// Ctrl+K / Ctrl+J. A press: a quarter of the view up or down, gliding; a press while that glide
+// is still going adds to where it was headed. Held (the key repeating): no glide per repeat,
+// which would restart thirty times a second and judder, but one steady scroll, every frame,
+// until the key or Ctrl comes up (keyup below). The focus stays. False with nothing to scroll.
+const GLIDE_MS = 450;
+const HOLD_SPEED = 1.5; // views a second while held
+let hold = null; // { box, dir, raf, last }
+function scrollStep(dir, repeat) {
+  const box = scrollBox();
   if (!box) return false;
+  if (repeat && !reduced()) return startHold(box, dir), true;
+  stopHold();
   const now = Date.now();
   const from = box._goal != null && now - box._goalAt < GLIDE_MS ? box._goal : box.scrollTop;
   const max = box.scrollHeight - box.clientHeight;
@@ -703,14 +713,40 @@ function scrollStep(dir) {
   box.scrollTo({ top: box._goal, behavior: reduced() ? 'auto' : 'smooth' });
   return true;
 }
+function startHold(box, dir) {
+  if (hold && hold.box === box && hold.dir === dir) return;
+  stopHold();
+  box._goal = null;
+  box.scrollTo({ top: box.scrollTop, behavior: 'instant' }); // stops a glide still going
+  const h = (hold = { box, dir, pos: box.scrollTop, last: performance.now(), raf: 0 });
+  const tick = (t) => {
+    if (hold !== h || !box.isConnected) return;
+    const dt = Math.min(50, t - h.last); // a dropped frame doesn't jump
+    h.last = t;
+    const max = box.scrollHeight - box.clientHeight;
+    // Kept unrounded here: scrollTop rounds, and a slow frame's step would be lost to it.
+    h.pos = Math.max(0, Math.min(max, h.pos + (h.dir * box.clientHeight * HOLD_SPEED * dt) / 1000));
+    box.scrollTop = h.pos;
+    h.raf = requestAnimationFrame(tick);
+  };
+  h.raf = requestAnimationFrame(tick);
+}
+function stopHold() {
+  if (hold) cancelAnimationFrame(hold.raf);
+  hold = null;
+}
+// Not a shortcut (keymap.js has those): only the end of a held Ctrl+K/J.
+document.addEventListener('keyup', (e) => {
+  if (hold && (e.key === 'Control' || /^Key[JK]$/.test(e.code || '') || /^[jk]$/i.test(e.key))) stopHold();
+});
+window.addEventListener('blur', stopHold);
 
 // Ctrl+Shift+↑: the conversation (or the screen box in view) to its top. The focus stays. In
 // the shell the top of a full box reads the longer scrollback (shell.js), as scrolling there does.
 function jumpTop() {
-  const top = topLayer();
-  const chat = document.getElementById('d-body');
-  const box = scr && (!top || top.el.contains(scr.body)) ? scr.body : !top && chat && chat._html === 'chat' ? chat : null;
+  const box = scrollBox();
   if (!box) return false;
+  stopHold();
   box._goal = null;
   box.scrollTop = 0;
   return true;

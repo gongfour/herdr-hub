@@ -386,8 +386,8 @@ const KEY_ACTIONS = {
   jumpTop: () => jumpTop(),
   prevMine: () => navStep(-1),
   nextMine: () => navStep(1),
-  scrollUp: () => scrollStep(-1),
-  scrollDown: () => scrollStep(1),
+  scrollUp: (b, e) => scrollStep(-1, e.repeat),
+  scrollDown: (b, e) => scrollStep(1, e.repeat),
   prevHost: () => stepHostFilter(-1),
   nextHost: () => stepHostFilter(1),
   // Alt+↑/↓: the caret goes into the next one's field.
@@ -417,7 +417,7 @@ document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;
   if (termStrayKey(e)) return e.preventDefault();
   const b = Keymap.match(e, { field: editable(document.activeElement), shell: view.name === 'term', layer: Boolean(topLayer()), split });
-  if (b && KEY_ACTIONS[b.action](b)) e.preventDefault();
+  if (b && KEY_ACTIONS[b.action](b, e)) e.preventDefault();
 });
 // The rail, as VS Code's activity bar: 작업공간 folds and unfolds the sidebar; ⚙ opens 설정 on
 // the right (as VS Code opens its settings in the editor), and closes it when it is open.
