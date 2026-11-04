@@ -2,7 +2,8 @@
 // What a keydown means in the composer and in the shell's 키 직접 입력 (public/keys.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { enterAction, rawKeyName } = require('../public/keys.js');
+const { enterAction, rawKeyName, withMods, tapMod } = require('../public/keys.js');
+const { validKeys, PANE_KEYS } = require('../lib/validate.js');
 
 const key = (k, mods = {}) => ({ key: k, keyCode: 0, isComposing: false, ...mods });
 
@@ -22,7 +23,7 @@ test('enterAction: never while an IME is composing, nothing for other keys', () 
 });
 
 test('rawKeyName: editing and navigation keys by herdr name', () => {
-  const names = { Enter: 'enter', Escape: 'esc', Tab: 'tab', Backspace: 'backspace', Delete: 'delete', ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', PageUp: 'pageup', PageDown: 'pagedown', Home: 'home', End: 'end' };
+  const names = { Enter: 'enter', Escape: 'esc', Tab: 'tab', Backspace: 'backspace', Delete: 'delete', ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', PageUp: 'pageup', PageDown: 'pagedown', Home: 'home', End: 'end', Insert: 'insert' };
   for (const [k, name] of Object.entries(names)) assert.equal(rawKeyName(key(k)), name, k);
   assert.equal(rawKeyName(key('Tab', { shiftKey: true })), 'shift+tab');
 });
@@ -35,6 +36,67 @@ test('rawKeyName: Ctrl and Alt letter chords; typed text and ⌘ shortcuts are n
   assert.equal(rawKeyName(key('1', { ctrlKey: true })), null);
   assert.equal(rawKeyName(key('c', { metaKey: true })), null);
   assert.equal(rawKeyName(key('Enter', { ctrlKey: true })), null);
+});
+
+test('rawKeyName: F-keys, word keys, Ctrl+[ and the meta keys', () => {
+  for (let i = 1; i <= 12; i++) assert.equal(rawKeyName(key(`F${i}`)), `f${i}`);
+  assert.equal(rawKeyName(key('Backspace', { altKey: true })), 'ctrl+w');
+  assert.equal(rawKeyName(key('Backspace', { ctrlKey: true })), 'ctrl+w');
+  assert.equal(rawKeyName(key('ArrowLeft', { altKey: true })), 'alt+left');
+  assert.equal(rawKeyName(key('ArrowRight', { altKey: true })), 'alt+right');
+  assert.equal(rawKeyName(key('ArrowLeft', { ctrlKey: true })), 'ctrl+left');
+  assert.equal(rawKeyName(key('ArrowRight', { ctrlKey: true })), 'ctrl+right');
+  assert.equal(rawKeyName(key('[', { ctrlKey: true, code: 'BracketLeft' })), 'esc');
+  assert.equal(rawKeyName(key('.', { altKey: true, code: 'Period' })), 'alt+.');
+  // A Mac keyboard's Option types a symbol: the physical key says which letter it was.
+  assert.equal(rawKeyName(key('∫', { altKey: true, code: 'KeyB' })), 'alt+b');
+  assert.equal(rawKeyName(key('≥', { altKey: true, code: 'Period' })), 'alt+.');
+});
+
+test('rawKeyName: paste chords and Alt+↑/↓ are not sent', () => {
+  assert.equal(rawKeyName(key('v', { ctrlKey: true, code: 'KeyV' })), null);
+  assert.equal(rawKeyName(key('V', { ctrlKey: true, shiftKey: true, code: 'KeyV' })), null);
+  assert.equal(rawKeyName(key('v', { metaKey: true, code: 'KeyV' })), null);
+  assert.equal(rawKeyName(key('ArrowUp', { altKey: true })), null);
+  assert.equal(rawKeyName(key('ArrowDown', { altKey: true })), null);
+  assert.equal(rawKeyName(key('a', { ctrlKey: true, altKey: true, code: 'KeyA' })), null); // AltGr
+});
+
+test('withMods: the sticky Ctrl and Alt turn the next key into a chord', () => {
+  const ctrl = { ctrl: true };
+  const alt = { alt: true };
+  assert.deepEqual(withMods({ text: 'd' }, ctrl), { key: 'ctrl+d' });
+  assert.deepEqual(withMods({ text: 'D' }, ctrl), { key: 'ctrl+d' }); // the keyboard's auto-capital
+  assert.deepEqual(withMods({ text: '[' }, ctrl), { key: 'esc' });
+  assert.deepEqual(withMods({ text: 'b' }, alt), { key: 'alt+b' });
+  assert.deepEqual(withMods({ text: '.' }, alt), { key: 'alt+.' });
+  assert.deepEqual(withMods({ key: 'backspace' }, ctrl), { key: 'ctrl+w' });
+  assert.deepEqual(withMods({ key: 'backspace' }, alt), { key: 'ctrl+w' });
+  assert.deepEqual(withMods({ key: 'left' }, alt), { key: 'alt+left' });
+  assert.deepEqual(withMods({ key: 'right' }, ctrl), { key: 'ctrl+right' });
+  // No chord for these: the press goes as it is.
+  assert.deepEqual(withMods({ key: 'tab' }, ctrl), { key: 'tab' });
+  assert.deepEqual(withMods({ key: 'ctrl+c' }, alt), { key: 'ctrl+c' });
+  assert.deepEqual(withMods({ text: '한' }, ctrl), { text: '한' });
+  assert.deepEqual(withMods({ text: 'ls' }, ctrl), { text: 'ls' });
+  assert.deepEqual(withMods({ text: '.' }, ctrl), { text: '.' });
+  assert.deepEqual(withMods({ text: 'd' }, {}), { text: 'd' });
+  assert.deepEqual(withMods({ text: 'd' }, { ctrl: true, alt: true }), { key: 'ctrl+d' });
+});
+
+test('tapMod: once, locked on a double tap, off again', () => {
+  let m = tapMod(null, 1000);
+  assert.equal(m.state, 'once');
+  assert.equal(tapMod(m, 1300).state, 'lock');
+  assert.equal(tapMod(m, 2000).state, 'off');
+  assert.equal(tapMod(tapMod(m, 1300), 5000).state, 'off');
+});
+
+test('every key the shell view can send passes the server check', () => {
+  const sent = ['f1', 'f12', 'insert', 'ctrl+w', 'alt+left', 'alt+right', 'ctrl+left', 'ctrl+right', 'alt+.', 'esc', 'ctrl+d', 'alt+b', 'shift+tab', 'pageup'];
+  for (const k of sent) assert.equal(validKeys([k], PANE_KEYS), true, k);
+  assert.equal(validKeys(['alt+up'], PANE_KEYS), false);
+  assert.equal(validKeys(['ctrl+.'], PANE_KEYS), false);
 });
 
 test('queueRaw: presses merge per pane and never cross to another one', () => {
