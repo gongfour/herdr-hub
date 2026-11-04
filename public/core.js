@@ -1,7 +1,7 @@
 'use strict';
 // Shared by every view: icons, error texts, the page state (state, view, detail) and the
-// split layout's roots, host helpers, the saved preferences (host filter, 화면 모드, 셸 입력,
-// 리턴 키), api(), and the layers: sheets, menus and toasts.
+// split layout's roots, host helpers, the host filter and the names for the settings (prefs.js),
+// api(), and the layers: sheets, menus, the 단축키 sheet and toasts.
 
 const $app = document.getElementById('app');
 const STATUS_LABEL = { blocked: '답 필요', done: '완료', working: '작업 중', idle: '대기', unknown: '알 수 없음' };
@@ -156,21 +156,11 @@ let memFilter = getFilter();
 const filter = () => (memFilter !== 'all' && multi() && hostOf(memFilter) ? memFilter : 'all');
 const shown = (x) => filter() === 'all' || (x.host || localId()) === filter();
 
+// The settings themselves are prefs.js's table (Prefs.get / Prefs.set). These names read them.
 // 화면 모드: system (no data-theme), light or dark on <html>. index.html applies the saved one
 // before first paint; this keeps it, the status bar colour and color-scheme in step.
-const THEME_KEY = 'herdr-hub.theme';
-const THEMES = { system: '시스템', light: '밝게', dark: '어둡게' };
 const THEME_BAR = { light: '#f6f5f1', dark: '#161614' };
-let memTheme = null;
-function getTheme() {
-  if (memTheme) return memTheme;
-  try {
-    const t = localStorage.getItem(THEME_KEY);
-    return t === 'light' || t === 'dark' ? t : 'system';
-  } catch {
-    return 'system';
-  }
-}
+const getTheme = () => Prefs.get('theme');
 const darkNow = () => {
   const t = getTheme();
   return t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -185,57 +175,23 @@ function applyTheme(t) {
     m.content = THEME_BAR[t === 'system' ? scheme : t];
   }
 }
-function setTheme(t) {
-  memTheme = t;
-  try {
-    if (t === 'system') localStorage.removeItem(THEME_KEY);
-    else localStorage.setItem(THEME_KEY, t);
-  } catch {
-    /* private mode: the choice lasts until reload */
-  }
-  applyTheme(t);
-  redrawScreen();
-}
 applyTheme(getTheme());
-
-// 셸 입력 in the shell view: 'raw' (default; keys go to the shell as they are pressed, tap the
-// screen to type) or 'line' (a command line, run with Enter).
-const SHELL_INPUT_KEY = 'herdr-hub.shellInput';
-function getShellInput() {
-  try {
-    return localStorage.getItem(SHELL_INPUT_KEY) === 'line' ? 'line' : 'raw';
-  } catch {
-    return 'raw';
-  }
-}
-function setShellInput(v) {
-  try {
-    localStorage.setItem(SHELL_INPUT_KEY, v);
-  } catch {
-    /* private mode: this page only */
-  }
+// 셸 입력 in the shell view: 'raw' (keys go to the shell as they are pressed) or 'line'.
+const getShellInput = () => Prefs.get('shellInput');
+// 리턴 키 for the agent composer: 'newline' (send with ↑ or ⌘/Ctrl+Enter) or 'send'.
+const getEnter = () => Prefs.get('enter');
+// What a change does at once, beyond being stored; the rest is read when next needed.
+const PREF_EFFECTS = {
+  theme(t) {
+    applyTheme(t);
+    redrawScreen();
+  },
+};
+function setPref(key, v) {
+  Prefs.set(key, v);
+  if (PREF_EFFECTS[key]) PREF_EFFECTS[key](v);
 }
 
-// 리턴 키 for the agent composer: newline (default; send with the ↑ button or ⌘/Ctrl+Enter) or
-// send (Shift+Enter for a newline on a hardware keyboard). The shell line always runs on Enter.
-const ENTER_KEY = 'herdr-hub.enter';
-let memEnter = null;
-function getEnter() {
-  if (memEnter) return memEnter;
-  try {
-    return localStorage.getItem(ENTER_KEY) === 'send' ? 'send' : 'newline';
-  } catch {
-    return 'newline';
-  }
-}
-function setEnter(v) {
-  memEnter = v;
-  try {
-    localStorage.setItem(ENTER_KEY, v);
-  } catch {
-    /* private mode: the choice lasts until reload */
-  }
-}
 // iOS takes the focus off the text field when a button is tapped: the keyboard drops, the
 // layout jumps under the finger and the tap's click is lost, so 보내기 only closed the keyboard.
 // A tap on such a button acts on touchend instead, leaving the focus (and keyboard) in place.
@@ -414,6 +370,30 @@ function menu(title, items, { sub = '' } = {}) {
     el.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => done(b.dataset.k)));
     layer = openLayer(el, { onClose: (v) => resolve(v || null), focus: '.action' });
   });
+}
+
+// The 단축키 sheet (?, 설정 → 단축키 보기): keymap.js's table, so it always says what the keys do.
+function openKeySheet() {
+  if (layers.some((l) => l.el.classList.contains('keys-back'))) return;
+  const el = document.createElement('div');
+  el.className = 'sheet-back keys-back';
+  const kbd = (k) => `<kbd>${esc(k)}</kbd>`;
+  el.innerHTML = `<div class="sheet keysheet" role="dialog" aria-modal="true" aria-label="단축키">
+      <h2>단축키<span class="sub">실제 키보드에서. 키보드를 한글로 둬도 됩니다.</span></h2>
+      ${Keymap.sheetGroups()
+        .map(
+          (g) => `<section><h3>${esc(g.group)}</h3><dl>${g.rows
+            .map((r) => `<div class="krow"><dt>${r.keys.map(kbd).join(' ')}</dt><dd>${esc(r.label)}</dd></div>`)
+            .join('')}</dl></section>`,
+        )
+        .join('')}
+      <button type="button" class="btn secondary wide" data-close>닫기</button>
+    </div>`;
+  let layer = null;
+  el.onclick = (e) => {
+    if (e.target === el || e.target.closest('[data-close]')) closeLayer(layer);
+  };
+  layer = openLayer(el, { focus: '[data-close]' });
 }
 
 // Toasts stack above the composer (newest at the bottom, three at most); the same text again

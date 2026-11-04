@@ -8,40 +8,9 @@
 // holds still while you've scrolled up to read, selected text, or have a finger on it.
 // Wrapping is a per-view choice: off for agents (TUI layouts keep their shape and scroll
 // sideways inside the box), on for terminals.
-const WRAP_KEY = { agent: 'herdr-hub.wrap.agent', term: 'herdr-hub.wrap.term' };
-function getWrap(kind) {
-  try {
-    const v = localStorage.getItem(WRAP_KEY[kind]);
-    if (v === '1' || v === '0') return v === '1';
-  } catch {
-    /* private mode: default */
-  }
-  return kind === 'term';
-}
-function saveWrap(kind, on) {
-  try {
-    localStorage.setItem(WRAP_KEY[kind], on ? '1' : '0');
-  } catch {
-    /* private mode: the choice lasts until reload */
-  }
-}
-
-// Colours (herdr's ansi read) are one choice for both views, on unless switched off.
-const COLOR_KEY = 'herdr-hub.color';
-function getColor() {
-  try {
-    return localStorage.getItem(COLOR_KEY) !== '0';
-  } catch {
-    return true;
-  }
-}
-function saveColor(on) {
-  try {
-    localStorage.setItem(COLOR_KEY, on ? '1' : '0');
-  } catch {
-    /* private mode: the choice lasts until reload */
-  }
-}
+// Both are settings (prefs.js): wrap.term / wrap.agent and color, the same colours for both views.
+const getWrap = (kind) => Prefs.get(kind === 'term' ? 'wrap.term' : 'wrap.agent');
+const getColor = () => Prefs.get('color');
 const colorQuery = () => (getColor() ? '&format=ansi' : '');
 
 const FOLLOW_SLACK = 40; // px from the bottom that still counts as "at the bottom"
