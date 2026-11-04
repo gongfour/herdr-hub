@@ -56,7 +56,11 @@ test('rawKeyName: F-keys, word keys, Ctrl+[ and the meta keys', () => {
   assert.equal(rawKeyName(key('≥', { altKey: true, code: 'Period' })), 'alt+.');
 });
 
-test('rawKeyName: paste chords and Alt+↑/↓ are not sent', () => {
+test('rawKeyName: paste chords, Alt+↑/↓ and Alt+P (the Hub\'s 빠른 이동) are not sent', () => {
+  assert.equal(rawKeyName(key('p', { altKey: true, code: 'KeyP' })), null);
+  assert.equal(rawKeyName(key('π', { altKey: true, code: 'KeyP' })), null); // a Mac's Option+P
+  assert.equal(rawKeyName(key('p', { ctrlKey: true, code: 'KeyP' })), 'ctrl+p'); // the shell's
+  assert.equal(rawKeyName(key('b', { ctrlKey: true, code: 'KeyB' })), 'ctrl+b');
   assert.equal(rawKeyName(key('v', { ctrlKey: true, code: 'KeyV' })), null);
   assert.equal(rawKeyName(key('V', { ctrlKey: true, shiftKey: true, code: 'KeyV' })), null);
   assert.equal(rawKeyName(key('v', { metaKey: true, code: 'KeyV' })), null);

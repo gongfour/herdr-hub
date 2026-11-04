@@ -69,14 +69,15 @@ async function answerChoice(host, a, item) {
 // refusals are tinted as a warning.
 const primaryChoice = (items) => items.find((x) => !x.negative && /^yes\b/i.test(x.label)) || null;
 
-// One choice button: name (bold) over its description (muted), when the menu has one.
+// One choice button: name (bold) over its description (muted), when the menu has one. In the
+// agent view each shows its number, the key that picks it (1–9, keymap.js), numbered menu or not.
 // press: pressedOn() for this agent (every button waits; the pressed one says so).
 function choiceButton(choices, x, { press, primary, compact = false }) {
   const ok = choiceKeys(choices, x.n);
   const sent = Boolean(press) && press.n === x.n;
   const kind = x.negative ? ' negative' : x === primary ? ' primary' : '';
   return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}" data-n="${x.n}"${press || !ok ? ' disabled' : ''}>
-    ${choices.numbered ? `<span class="num">${x.n}</span>` : ''}<span class="label"><span class="name">${esc(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? `<span class="state">${press.until === Infinity ? '보내는 중' : '보냄'}</span>` : ''}</button>`;
+    ${choices.numbered || (!compact && x.n <= 9) ? `<span class="num"${choices.numbered ? '' : ' title="숫자 키로 고르기"'}>${x.n}</span>` : ''}<span class="label"><span class="name">${esc(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? `<span class="state">${press.until === Infinity ? '보내는 중' : '보냄'}</span>` : ''}</button>`;
 }
 
 // Re-drawn only when what it shows changed: a poll must not swallow a tap or a selection.
@@ -119,16 +120,7 @@ function renderBlocked() {
   box.innerHTML = html;
   if (choices) {
     box.querySelectorAll('.choice').forEach((b) => {
-      b.onclick = async () => {
-        const cur = currentAgent();
-        const host = curHost();
-        const item = choices.items.find((x) => x.n === Number(b.dataset.n));
-        // The buttons belong to the prompt read for this stateSeq (app.js clears it on a change).
-        if (!cur || cur.status !== 'blocked' || !item || !choiceKeys(choices, item.n)) return;
-        const ok = await answerChoice(host, cur, item);
-        // choices.js: an option that asks for your own words, typed into the composer next.
-        if (ok && TYPE_OWN.test(item.label) && view.name === 'agent' && detail.pane === cur.pane && curHost() === host) startAnswer();
-      };
+      b.onclick = () => pickChoice(choices, Number(b.dataset.n));
     });
     box.querySelectorAll('.toggle').forEach((b) => {
       b.onclick = () => {
@@ -141,6 +133,28 @@ function renderBlocked() {
   // The choices sit at the bottom of the prompt; show them, not the preamble.
   const pre = box.querySelector('pre:not(.context)');
   if (pre) pre.scrollTop = pre.scrollHeight;
+}
+
+// Choice n of the open agent's prompt, from its button or its number key (app.js answerKey).
+async function pickChoice(choices, n) {
+  const cur = currentAgent();
+  const host = curHost();
+  const item = choices.items.find((x) => x.n === n);
+  // The buttons belong to the prompt read for this stateSeq (app.js clears it on a change).
+  if (!cur || cur.status !== 'blocked' || !item || !choiceKeys(choices, item.n)) return;
+  const ok = await answerChoice(host, cur, item);
+  // choices.js: an option that asks for your own words, typed into the composer next.
+  if (ok && TYPE_OWN.test(item.label) && view.name === 'agent' && detail.pane === cur.pane && curHost() === host) startAnswer();
+}
+
+// 1–9 on the page (keymap.js): the choice with that number, as a tap on its button. Taken only
+// while the open agent shows that choice; a second key while the first answer is on its way waits.
+function answerKey(n) {
+  const a = view.name === 'agent' ? currentAgent() : null;
+  const choices = a && a.status === 'blocked' && detail.blockedText ? parseChoices(detail.blockedText) : null;
+  if (!choices || !choices.items.some((x) => x.n === n)) return false;
+  if (!pressedOn(curHost(), a)) pickChoice(choices, n);
+  return true;
 }
 
 // After a "Type something" choice the question waits for words: the composer sends them there.

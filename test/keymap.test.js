@@ -111,6 +111,65 @@ test('/ and ? only on the page, not in the shell or under a sheet', () => {
   }
 });
 
+test('switcher: Ctrl+P on the page, in a field and under a sheet, never in the shell; Alt+P everywhere', () => {
+  for (const ctx of [{}, { field: true }, { layer: true }, { split: true }]) {
+    assert.equal(act('Ctrl+p', ctx), 'switcher');
+    assert.equal(act('Alt+p', ctx), 'switcher');
+  }
+  assert.equal(act('Ctrl+p', { shell: true }), null); // the shell's previous line
+  assert.equal(act('Alt+p', { shell: true }), 'switcher');
+  assert.equal(act('Alt+p', { shell: true, field: true }), 'switcher');
+  assert.equal(act('Ctrl+p', {}, { key: 'ㅔ', code: 'KeyP' }), 'switcher'); // keyboard set to Korean
+  assert.equal(act('Alt+p', {}, { key: 'π', code: 'KeyP' }), 'switcher'); // a Mac's Option+P
+  assert.equal(act('Ctrl+Shift+p', {}, { key: 'P' }), null);
+  assert.equal(act('p', {}), null);
+});
+
+test('answer: 1–9 only on the page, never in a field, the shell or under a sheet', () => {
+  for (const n of '123456789') assert.equal(act(n, {}), 'answer');
+  assert.equal(act('1', { split: true }), 'answer');
+  assert.equal(act('0', {}), null);
+  for (const ctx of [{ field: true }, { shell: true }, { layer: true }]) assert.equal(act('1', ctx), null);
+  assert.equal(act('Ctrl+1', {}), null);
+  assert.equal(act('Alt+1', {}), null);
+  assert.equal(act('1', {}, { isComposing: true }), null);
+});
+
+test('toggleSide: Ctrl+B in the split layout, from the composer too; not in the shell, not on the phone', () => {
+  assert.equal(act('Ctrl+b', { split: true }), 'toggleSide');
+  assert.equal(act('Ctrl+b', { split: true, field: true }), 'toggleSide');
+  assert.equal(act('Ctrl+b', { split: true }, { key: 'ㅠ', code: 'KeyB' }), 'toggleSide');
+  assert.equal(act('Ctrl+b', { split: true, shell: true }), null); // the shell's back-a-character
+  assert.equal(act('Ctrl+b', {}), null);
+  assert.equal(act('Ctrl+b', { split: true, layer: true }), null);
+});
+
+test('stop: Alt+. on the page and in a field; never in the shell (its last-argument key)', () => {
+  assert.equal(act('Alt+.', {}), 'stop');
+  assert.equal(act('Alt+.', { field: true }), 'stop');
+  assert.equal(act('Alt+.', {}, { key: '≥', code: 'Period' }), 'stop'); // a Mac's Option+.
+  assert.equal(act('Alt+.', { shell: true }), null);
+  assert.equal(act('Alt+.', { layer: true }), null);
+  assert.equal(act('.', {}), null);
+  assert.equal(act('.', {}, { code: 'Period' }), null);
+  assert.equal(act('Ctrl+.', {}), null);
+});
+
+test('new agent / workspace: Ctrl or Alt + N (Shift for a workspace), never in the shell or under a sheet', () => {
+  for (const ctx of [{}, { field: true }, { split: true }]) {
+    assert.equal(act('Ctrl+n', ctx), 'newAgent');
+    assert.equal(act('Alt+n', ctx), 'newAgent');
+    assert.equal(act('Ctrl+Shift+n', ctx, { key: 'N' }), 'newWorkspace');
+    assert.equal(act('Alt+Shift+n', ctx, { key: 'N' }), 'newWorkspace');
+  }
+  assert.equal(act('Ctrl+n', {}, { key: 'ㅜ', code: 'KeyN' }), 'newAgent'); // keyboard set to Korean
+  assert.equal(act('Alt+Shift+n', {}, { key: '˜', code: 'KeyN' }), 'newWorkspace'); // a Mac's Option
+  for (const ctx of [{ shell: true }, { layer: true }])
+    for (const k of ['Ctrl+n', 'Alt+n', 'Ctrl+Shift+n', 'Alt+Shift+n']) assert.equal(act(k, ctx), null, k);
+  assert.equal(act('n', {}), null);
+  assert.equal(act('Ctrl+Alt+n', {}), null);
+});
+
 test('label reads as on the keycap; the sheet lists every action once with all its keys', () => {
   assert.equal(label('Ctrl+ArrowDown'), 'Ctrl+↓');
   assert.equal(label('Meta+ArrowDown'), '⌘+↓');
@@ -121,4 +180,7 @@ test('label reads as on the keycap; the sheet lists every action once with all i
   for (const a of Object.values(ACTIONS)) assert.equal(rows.filter((r) => r.label === a.label).length, 1, a.label);
   const jump = rows.find((r) => r.label === ACTIONS.jumpEnd.label);
   assert.deepEqual(jump.keys, ['Ctrl+Shift+↓', 'Ctrl+End', '⌘+↓', 'End']);
+  assert.deepEqual(rows.find((r) => r.label === ACTIONS.answer.label).keys, ['1–9']);
+  assert.deepEqual(rows.find((r) => r.label === ACTIONS.switcher.label).keys, ['Ctrl+P', 'Alt+P']);
+  assert.deepEqual(rows.find((r) => r.label === ACTIONS.newWorkspace.label).keys, ['Ctrl+Shift+N', 'Alt+Shift+N']);
 });

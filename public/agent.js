@@ -187,6 +187,24 @@ async function confirmStop() {
   sendKeys(['esc']);
 }
 
+// Alt+. twice within STOP_MS (keymap.js): what 중단 does once its sheet says yes. The first press
+// only says so; taken only while the open agent works.
+const STOP_MS = 2000;
+let stopArm = null; // { key, at }: the first press, for this agent
+function stopKey() {
+  const a = view.name === 'agent' ? currentAgent() : null;
+  if (!a || a.status !== 'working') return false;
+  const key = rowKey(curHost(), a.pane);
+  if (stopArm && stopArm.key === key && Date.now() - stopArm.at <= STOP_MS) {
+    stopArm = null;
+    sendKeys(['esc']);
+  } else {
+    stopArm = { key, at: Date.now() };
+    toast('한 번 더 누르면 중단합니다', { ms: STOP_MS });
+  }
+  return true;
+}
+
 function setPlaceholder() {
   const input = document.getElementById('d-input');
   if (input) input.dataset.placeholder = detail.answerMode ? '답을 적어 보내세요' : '메시지 보내기';

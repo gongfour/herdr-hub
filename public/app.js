@@ -62,6 +62,7 @@ setInterval(() => document.visibilityState === 'visible' && revive('watchdog'), 
 
 function onState() {
   forgetGone(); // kept chats of agents that are gone (agent.js)
+  if (switcherOpen()) renderSwitcher();
   if (split) {
     render();
     if (!isDetail()) return renderEmpty();
@@ -192,6 +193,8 @@ function route(e, { relayout = false } = {}) {
   const host = r.host;
   // The phone shows a detail in place of the tab: keep the tab's page for 뒤로.
   if (!split && !['list', 'settings'].includes(r.name)) parkTab();
+  // 빠른 이동 lists these first (switcher.js).
+  if ((r.name === 'agent' || r.name === 'term') && (host || localId())) noteRecent(link(host || localId(), `/${r.name}/${encodeURIComponent(r.pane)}`));
   if (r.name === 'agent') {
     // An agent always shows its chat. …/screen (the old 화면 tab) opens the terminal sheet over it.
     const pane = r.pane;
@@ -286,7 +289,7 @@ function renderEmpty() {
       <h2>${off ? '목록을 열어 에이전트를 고르세요' : '왼쪽에서 에이전트를 고르세요'}</h2>
       ${off ? '<button type="button" class="btn secondary ed-open" aria-controls="list-pane">작업공간 목록 열기</button>' : ''}
       ${first ? `<a class="ed-attn" href="${link(first.host, `/agent/${encodeURIComponent(first.pane)}`)}">답 필요 ${blocked.length} · ${esc(first.name || first.title)} 열기</a>` : ''}
-      <p class="ed-keys"><kbd>Alt</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> 또는 <kbd>[</kbd> <kbd>]</kbd> 로 목록을 옮겨 다니고, <kbd>Esc</kbd> 로 닫습니다.</p>
+      <p class="ed-keys"><kbd>Ctrl</kbd> + <kbd>P</kbd> 로 찾아 열고, <kbd>Alt</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> 로 목록을 옮겨 다니고, <kbd>Ctrl</kbd> + <kbd>B</kbd> 로 사이드바를 접습니다.</p>
     </div>`;
   const cur = root.firstElementChild;
   if (cur && cur.classList.contains('empty-detail') && cur._html === html) return;
@@ -390,6 +393,25 @@ const KEY_ACTIONS = {
   // Alt+↑/↓: the caret goes into the next one's field.
   prevRow: () => stepList(-1),
   nextRow: () => stepList(1),
+  switcher: () => toggleSwitcher(), // switcher.js
+  answer: (b) => answerKey(Number(b.key)), // answer.js
+  toggleSide: () => (setSideOff(!sideOff()), true), // as the rail's 작업공간
+  stop: () => stopKey(), // agent.js
+  // 에이전트 시작 in the workspace of what is open (a new tab there); else a new workspace.
+  newAgent() {
+    const host = curHost();
+    const of = (list, pane) => (list || []).find((x) => same(x, host, pane));
+    const ws = view.name === 'ws' ? view.id : view.name === 'agent' ? (of(state.agents, detail.pane) || {}).workspace : view.name === 'term' ? (of(state.terminals, view.pane) || {}).workspace : null;
+    if (!ws) return KEY_ACTIONS.newWorkspace();
+    location.hash = link(host, `/start/ws/${encodeURIComponent(ws)}`);
+    return true;
+  },
+  // As the list's +: on the host the list is filtered to, if any.
+  newWorkspace() {
+    const f = filter();
+    location.hash = f === 'all' ? '#/new' : link(f, '/new');
+    return true;
+  },
 };
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;
