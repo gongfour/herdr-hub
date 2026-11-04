@@ -1,7 +1,7 @@
 'use strict';
 // Wide screens (a landscape tablet, a laptop): the list on the left, the open agent, shell or
 // workspace on the right. These are the layout's decisions that need no page: when to split,
-// which row a keyboard shortcut moves to, and which keys are shortcuts at all.
+// and which row a keyboard shortcut moves to (the keys themselves are keymap.js).
 // Pure: loaded as a plain script in the page (window.Split), required by the tests.
 (function (root) {
   // CSS px. A landscape Galaxy Tab S7+ (about 1400, or 1138 at a larger display size) and a
@@ -20,26 +20,8 @@
     return list[i + (dir > 0 ? 1 : -1)] || null;
   }
 
-  // 'next', 'prev' or null for a keydown. Alt+↓/↑ works anywhere, the composer and the shell
-  // included (the shell gets no Alt+↑/↓: it is the way out of a shell that has every other
-  // key); ] and [ only where they would not be typed, and never in the shell view, where they
-  // are typed. Nothing while a sheet is open.
-  function listKey(e, { editable = false, shell = false, layer = false } = {}) {
-    if (!e || e.isComposing || e.keyCode === 229 || layer) return null;
-    if (e.ctrlKey || e.metaKey) return null;
-    if (e.altKey && !e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) return e.key === 'ArrowDown' ? 'next' : 'prev';
-    if (!e.altKey && !editable && !shell && (e.key === ']' || e.key === '[')) return e.key === ']' ? 'next' : 'prev';
-    return null;
-  }
-
-  // The host segment (전체 / each machine): Alt+→ the next, Alt+← the one before, round from
-  // either end. 1, -1 or null for a keydown. Anywhere but the shell view, whose Alt+←/→ are the
-  // shell's word keys (keys.js rawKeyName); nothing while a sheet is open.
-  function hostKey(e, { shell = false, layer = false } = {}) {
-    if (!e || e.isComposing || e.keyCode === 229 || layer || shell) return null;
-    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return null;
-    return e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : null;
-  }
+  // The host segment (전체 / each machine) one step along, round from either end (Alt+←/→,
+  // keymap.js). Nothing with one choice.
   function stepHost(ids, current, dir) {
     const list = [...new Set((ids || []).filter(Boolean))];
     if (list.length < 2) return null;
@@ -47,7 +29,7 @@
     return list[(i + (dir > 0 ? 1 : list.length - 1)) % list.length];
   }
 
-  const api = { SPLIT_MIN, isSplit, stepRow, listKey, hostKey, stepHost };
+  const api = { SPLIT_MIN, isSplit, stepRow, stepHost };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Split = api;
 })(typeof self !== 'undefined' ? self : this);

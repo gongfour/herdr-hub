@@ -2,7 +2,7 @@
 // What a keydown means in the composer and in the shell's 키 직접 입력 (public/keys.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { enterAction, rawKeyName, withMods, tapMod, recall, jumpKey, navKey } = require('../public/keys.js');
+const { enterAction, rawKeyName, withMods, tapMod, recall } = require('../public/keys.js');
 const { validKeys, PANE_KEYS } = require('../lib/validate.js');
 
 const key = (k, mods = {}) => ({ key: k, keyCode: 0, isComposing: false, ...mods });
@@ -141,39 +141,4 @@ test('recall: typed or changed text, ↓ on an empty field and an empty history 
   assert.equal(recall(sent, 1, 'two!', -1), null);
   assert.equal(recall(sent, null, '', 1), null);
   assert.equal(recall([], null, '', -1), null);
-});
-
-test('jumpKey: Ctrl+↓, Ctrl+End and ⌘+↓ anywhere, End alone only outside a field', () => {
-  assert.equal(jumpKey(key('ArrowDown', { ctrlKey: true })), true);
-  assert.equal(jumpKey(key('ArrowDown', { ctrlKey: true }), { editable: true }), true);
-  assert.equal(jumpKey(key('ArrowDown', { ctrlKey: true, metaKey: true })), false);
-  assert.equal(rawKeyName(key('ArrowDown', { ctrlKey: true })), null); // not the shell's
-  assert.equal(jumpKey(key('End', { ctrlKey: true })), true);
-  assert.equal(jumpKey(key('End', { ctrlKey: true }), { editable: true }), true);
-  assert.equal(jumpKey(key('ArrowDown', { metaKey: true }), { editable: true }), true);
-  assert.equal(jumpKey(key('End')), true);
-  assert.equal(jumpKey(key('End'), { editable: true }), false); // the caret's end of line
-  assert.equal(jumpKey(key('ArrowDown')), false);
-  assert.equal(jumpKey(key('ArrowDown', { altKey: true })), false); // the split layout's next row
-  assert.equal(jumpKey(key('End', { shiftKey: true })), false); // selects to the end
-  assert.equal(jumpKey(key('End', { ctrlKey: true, isComposing: true })), false);
-  // Neither chord is a key the shell's 키 직접 입력 sends, so the field leaves them to the page.
-  assert.equal(rawKeyName(key('End', { ctrlKey: true })), null);
-  assert.equal(rawKeyName(key('ArrowDown', { metaKey: true })), null);
-});
-
-test('navKey: Ctrl+↑ / Ctrl+K back by your messages, Ctrl+J on; J and K stay the shell\'s', () => {
-  assert.equal(navKey(key('ArrowUp', { ctrlKey: true })), 'prev');
-  assert.equal(navKey(key('k', { ctrlKey: true })), 'prev');
-  assert.equal(navKey(key('j', { ctrlKey: true })), 'next');
-  assert.equal(navKey(key('ㅏ', { ctrlKey: true, code: 'KeyK' })), 'prev'); // a Korean layout
-  assert.equal(navKey(key('ㅓ', { ctrlKey: true, code: 'KeyJ' })), 'next');
-  assert.equal(navKey(key('ArrowUp', { ctrlKey: true }), { shell: true }), 'prev');
-  assert.equal(navKey(key('k', { ctrlKey: true }), { shell: true }), null);
-  assert.equal(navKey(key('j', { ctrlKey: true }), { shell: true }), null);
-  assert.equal(navKey(key('k')), null);
-  assert.equal(navKey(key('ArrowUp')), null); // the composer's recall
-  assert.equal(navKey(key('ArrowUp', { ctrlKey: true, altKey: true })), null);
-  assert.equal(navKey(key('k', { ctrlKey: true, shiftKey: true })), null);
-  assert.equal(rawKeyName(key('ArrowUp', { ctrlKey: true })), null); // not the shell's
 });

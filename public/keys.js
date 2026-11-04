@@ -109,29 +109,7 @@
     return at + 1 < sent.length ? { at: at + 1, text: sent[at + 1] } : { at: null, text: '' };
   }
 
-  // The key that jumps a conversation or a screen to its latest line: Ctrl+↓, Ctrl+End or ⌘+↓
-  // anywhere (the composer and the shell's field too: none is a key the shell gets, see
-  // rawKeyName), End alone only where it would not move a caret. Never while an IME is composing.
-  function jumpKey(e, { editable = false } = {}) {
-    if (!e || e.isComposing || e.keyCode === 229 || e.altKey || e.shiftKey) return false;
-    if (e.key === 'End') return e.ctrlKey ? !e.metaKey : !e.metaKey && !editable;
-    return Boolean(e.key === 'ArrowDown' && (e.ctrlKey || e.metaKey) && !(e.ctrlKey && e.metaKey));
-  }
-
-  // Stepping through a conversation by the messages you sent: 'prev' for Ctrl+↑ or Ctrl+K, 'next'
-  // for Ctrl+J, else null. Ctrl+K and Ctrl+J are the shell's (kill to the end of the line, a
-  // newline), so not in the shell view; Ctrl+↑ is no key the shell gets (rawKeyName). The
-  // letters by e.code too, for a keyboard set to Korean (e.key is then a jamo).
-  function navKey(e, { shell = false } = {}) {
-    if (!e || e.isComposing || e.keyCode === 229 || !e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return null;
-    if (e.key === 'ArrowUp') return 'prev';
-    if (shell) return null;
-    const c = typeof e.key === 'string' && e.key.length === 1 && /[a-z]/i.test(e.key) ? e.key.toLowerCase() : (/^Key([A-Z])$/.exec(e.code || '') || [])[1];
-    const k = c && c.toLowerCase();
-    return k === 'k' ? 'prev' : k === 'j' ? 'next' : null;
-  }
-
-  const api = { enterAction, rawKeyName, withMods, tapMod, queueRaw, recall, jumpKey, navKey };
+  const api = { enterAction, rawKeyName, withMods, tapMod, queueRaw, recall };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keys = api;
 })(typeof self !== 'undefined' ? self : this);

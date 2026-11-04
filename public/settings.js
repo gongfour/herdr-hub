@@ -103,6 +103,11 @@ function renderSettings() {
         <p>줄바꿈을 끄면 긴 줄이 한 줄로 남고 옆으로 밀어 봅니다. 표나 전체 화면 프로그램의 모양은 끈 쪽이 지켜집니다.</p>
       </section>
       <section>
+        <h2>단축키</h2>
+        <button type="button" class="btn secondary" id="s-keys">단축키 보기</button>
+        <p>실제 키보드에서는 입력 칸 밖에서 ? 로도 엽니다.</p>
+      </section>
+      <section>
         <h2>화면 모드</h2>
         <div class="seg" role="radiogroup" aria-label="화면 모드" id="s-theme">
           ${Object.entries(THEMES)
@@ -138,7 +143,32 @@ function renderSettings() {
   mountTabBar('settings');
 }
 
+// The 단축키 sheet: keymap.js's table, so it always says what the keys do.
+function openKeySheet() {
+  if (layers.some((l) => l.el.classList.contains('keys-back'))) return;
+  const el = document.createElement('div');
+  el.className = 'sheet-back keys-back';
+  const kbd = (k) => `<kbd>${esc(k)}</kbd>`;
+  el.innerHTML = `<div class="sheet keysheet" role="dialog" aria-modal="true" aria-label="단축키">
+      <h2>단축키<span class="sub">실제 키보드에서. 키보드를 한글로 둬도 됩니다.</span></h2>
+      ${Keymap.sheetGroups()
+        .map(
+          (g) => `<section><h3>${esc(g.group)}</h3><dl>${g.rows
+            .map((r) => `<div class="krow"><dt>${r.keys.map(kbd).join(' ')}</dt><dd>${esc(r.label)}</dd></div>`)
+            .join('')}</dl></section>`,
+        )
+        .join('')}
+      <button type="button" class="btn secondary wide" data-close>닫기</button>
+    </div>`;
+  let layer = null;
+  el.onclick = (e) => {
+    if (e.target === el || e.target.closest('[data-close]')) closeLayer(layer);
+  };
+  layer = openLayer(el, { focus: '[data-close]' });
+}
+
 function bindSettings() {
+  document.getElementById('s-keys').onclick = openKeySheet;
   const radios = (id, attr, set) => {
     document.getElementById(id).onclick = (e) => {
       const b = e.target.closest(`[data-${attr}]`);

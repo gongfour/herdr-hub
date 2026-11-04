@@ -2,7 +2,7 @@
 // The wide-screen layout's pure decisions (public/split.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { SPLIT_MIN, isSplit, stepRow, listKey, hostKey, stepHost } = require('../public/split.js');
+const { SPLIT_MIN, isSplit, stepRow, stepHost } = require('../public/split.js');
 
 test('isSplit: landscape tablets and laptops split, portrait tablets and phones do not', () => {
   assert.equal(SPLIT_MIN, 1000);
@@ -25,43 +25,6 @@ test('stepRow: nothing open starts at the top (down) or the bottom (up)', () => 
   assert.equal(stepRow(['#a', '#b'], '#gone', 1), '#a');
   assert.equal(stepRow([], '#a', 1), null);
   assert.equal(stepRow(null, null, 1), null);
-});
-
-test('listKey: Alt+arrows anywhere, brackets outside fields', () => {
-  const k = (key, mods = {}) => ({ key, ...mods });
-  assert.equal(listKey(k('ArrowDown', { altKey: true })), 'next');
-  assert.equal(listKey(k('ArrowUp', { altKey: true })), 'prev');
-  assert.equal(listKey(k('ArrowDown', { altKey: true }), { editable: true }), 'next');
-  assert.equal(listKey(k(']')), 'next');
-  assert.equal(listKey(k('[')), 'prev');
-  assert.equal(listKey(k(']'), { editable: true }), null); // typed into the composer
-  assert.equal(listKey(k('ArrowDown')), null);
-  assert.equal(listKey(k('ArrowDown', { altKey: true, shiftKey: true })), null);
-  assert.equal(listKey(k('ArrowDown', { altKey: true, metaKey: true })), null);
-  assert.equal(listKey(k(']', { ctrlKey: true })), null);
-});
-
-test('listKey: never while a sheet is open or an IME composes; in the shell only Alt+↑/↓', () => {
-  const down = { key: 'ArrowDown', altKey: true };
-  assert.equal(listKey(down, { layer: true }), null);
-  assert.equal(listKey(down, { shell: true }), 'next');
-  assert.equal(listKey({ key: ']' }, { shell: true }), null);
-  assert.equal(listKey({ ...down, isComposing: true }), null);
-  assert.equal(listKey({ ...down, keyCode: 229 }), null);
-  assert.equal(listKey(null), null);
-});
-
-test('hostKey: Alt+←/→ anywhere but the shell view, never with other modifiers or a sheet open', () => {
-  const k = (key, mods = {}) => ({ key, keyCode: 0, isComposing: false, altKey: true, ...mods });
-  assert.equal(hostKey(k('ArrowRight')), 1);
-  assert.equal(hostKey(k('ArrowLeft')), -1);
-  assert.equal(hostKey(k('ArrowDown')), null); // the split layout's next row
-  assert.equal(hostKey(k('ArrowRight', { altKey: false })), null);
-  assert.equal(hostKey(k('ArrowRight', { ctrlKey: true })), null);
-  assert.equal(hostKey(k('ArrowRight', { shiftKey: true })), null);
-  assert.equal(hostKey(k('ArrowRight'), { shell: true }), null); // the shell's word keys
-  assert.equal(hostKey(k('ArrowRight'), { layer: true }), null);
-  assert.equal(hostKey(k('ArrowRight', { isComposing: true })), null);
 });
 
 test('stepHost: round the segment from either end; nothing with one choice', () => {

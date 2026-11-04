@@ -370,49 +370,47 @@ document.addEventListener('click', (e) => {
   e.preventDefault();
   goBack(a.getAttribute('href'));
 });
-// Keyboard: Escape closes the top sheet or menu, else leaves a field, else goes back. It is
-// always taken: Android turns an Escape the page leaves alone into Back, which closes the app
-// when there is nothing behind (a keyboard cover's Esc minimised the Hub).
-// "/" puts the caret in the composer (or the shell's command line). In the shell view a key
-// with the focus on the page goes to the shell instead (termStrayKey).
+// Keyboard: every shortcut is a binding in keymap.js; these are what its actions do. A handler
+// returns true when it acted (the key is then taken). In the shell view a key with the focus on
+// the page goes to the shell first (termStrayKey).
+const KEY_ACTIONS = {
+  // Esc: the top sheet or menu, else an open row, else out of a field, else back. Always taken:
+  // Android turns an Escape the page leaves alone into Back, which closes the app when there is
+  // nothing behind (a keyboard cover's Esc minimised the Hub).
+  back() {
+    const top = topLayer();
+    if (top) closeLayer(top);
+    else if (swipe.open) closeRow();
+    else if (editable(document.activeElement)) document.activeElement.blur();
+    else {
+      const back = view.name !== 'list' && $app.querySelector('a[data-back]');
+      if (back) goBack(back.getAttribute('href'));
+    }
+    return true;
+  },
+  help: () => (openKeySheet(), true),
+  // The caret in the composer (or the shell's command line), at the end of what is there.
+  focusInput() {
+    const f = document.getElementById('d-input') || document.getElementById('t-input');
+    if (!f || f.disabled) return false;
+    f.focus();
+    if (f.isContentEditable) caretToEnd(f);
+    return true;
+  },
+  jumpEnd: () => jumpLatest(true),
+  prevMine: () => navStep(-1),
+  nextMine: () => navStep(1),
+  prevHost: () => stepHostFilter(-1),
+  nextHost: () => stepHostFilter(1),
+  // Alt+↑/↓ puts the caret in the next one's field; [ ] leave the focus on the page.
+  prevRow: (b) => stepList(-1, b.key.startsWith('Alt+')),
+  nextRow: (b) => stepList(1, b.key.startsWith('Alt+')),
+};
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;
   if (termStrayKey(e)) return e.preventDefault();
-  if (isEsc(e)) {
-    e.preventDefault();
-    const top = topLayer();
-    if (top) return closeLayer(top);
-    if (swipe.open) return closeRow();
-    if (editable(document.activeElement)) return document.activeElement.blur();
-    const back = view.name !== 'list' && $app.querySelector('a[data-back]');
-    if (back) goBack(back.getAttribute('href'));
-    return;
-  }
-  if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !topLayer() && !editable(document.activeElement)) {
-    const f = document.getElementById('d-input') || document.getElementById('t-input');
-    if (!f || f.disabled) return;
-    e.preventDefault();
-    f.focus();
-    // At the end of what is there.
-    if (f.isContentEditable) caretToEnd(f);
-    return;
-  }
-  // Ctrl+↓, Ctrl+End, ⌘+↓, or End outside a field: the conversation or screen to its latest
-  // line, and the caret to its field.
-  if (Keys.jumpKey(e, { editable: editable(document.activeElement) }) && jumpLatest(true)) return e.preventDefault();
-  // Ctrl+↑ / Ctrl+K and Ctrl+J: back and on by the messages you sent (a page in a screen box).
-  const nav = Keys.navKey(e, { shell: view.name === 'term' });
-  if (nav && navStep(nav === 'next' ? 1 : -1)) return e.preventDefault();
-  // Alt+←/→: the previous or next host in the list's segment (전체 / each machine).
-  const hostDir = Split.hostKey(e, { shell: view.name === 'term', layer: Boolean(topLayer()) });
-  if (hostDir && stepHostFilter(hostDir)) return e.preventDefault();
-  // Split: Alt+↑/↓ or [ ] open the previous or next row of the list on the right (split.js
-  // says which keys count; in the shell view only Alt+↑/↓).
-  if (split) {
-    const a = document.activeElement;
-    const dir = Split.listKey(e, { editable: editable(a), shell: view.name === 'term', layer: Boolean(topLayer()) });
-    if (dir && stepList(dir === 'next' ? 1 : -1, e.altKey)) e.preventDefault();
-  }
+  const b = Keymap.match(e, { field: editable(document.activeElement), shell: view.name === 'term', layer: Boolean(topLayer()), split });
+  if (b && KEY_ACTIONS[b.action](b)) e.preventDefault();
 });
 // Split: the list column shows tab t. With a detail open only the column changes and the
 // detail stays; with nothing open it is that tab's route (as the phone's tab bar link).
