@@ -99,6 +99,8 @@
     ...'123456789'.split('').map((n) => b('answer', n)),
     // Ctrl+B is the shell's (back a character), Alt+. its last argument.
     b('toggleSide', 'Ctrl+b', { field: true, split: true }),
+    // Alt+B in the shell view too (its back-a-word is also Alt+←); Ctrl+B there stays the shell's.
+    b('toggleSide', 'Alt+b', { field: true, shell: true, split: true }),
     b('stop', 'Alt+.', { field: true }),
     // Ctrl+N is the shell's (next line) and Alt+N readline's; Chrome may keep Ctrl+N (and
     // Ctrl+Shift+N) for a new window, so each has an Alt twin.
@@ -127,7 +129,7 @@
     { group: '메시지 칸', key: '/', label: '맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)' },
     { group: '메시지 칸', key: '', label: '대화 화면에서 입력 칸 밖에서 친 글자도 메시지 칸으로 간다 (단축키·선택지 숫자·Space 는 빼고)' },
     { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
-    { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc. Alt+←/→·Alt+H/L·Alt+.·Alt+N 과 Ctrl+K·J·P·N·B 는 셸로 간다 (빠른 이동은 Alt+P)' },
+    { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc. Alt+←/→·Alt+H/L·Alt+.·Alt+N 과 Ctrl+K·J·P·N·B 는 셸로 간다 (빠른 이동은 Alt+P, 사이드바는 Alt+B, 셸의 한 단어 뒤로는 Alt+←)' },
     { group: '빠른 이동', key: 'Enter', label: '고른 것 열기. Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
     { group: '빠른 이동', key: 'Ctrl+j', follows: 'scrollDown', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞; 아래로 스크롤의 키)' },
     { group: '빠른 이동', key: 'Ctrl+k', follows: 'scrollUp', label: '이전 것 고르기 (↑ 와 같다; 위로 스크롤의 키)' },

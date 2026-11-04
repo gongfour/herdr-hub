@@ -149,6 +149,10 @@ test('toggleSide: Ctrl+B in the split layout, from the composer too; not in the 
   assert.equal(act('Ctrl+b', { split: true, shell: true }), null); // the shell's back-a-character
   assert.equal(act('Ctrl+b', {}), null);
   assert.equal(act('Ctrl+b', { split: true, layer: true }), null);
+  // Alt+B: the same, the shell view included; Option+B on a Mac and a Korean layout by e.code
+  for (const ctx of [{ split: true }, { split: true, field: true }, { split: true, shell: true }]) assert.equal(act('Alt+b', ctx), 'toggleSide');
+  assert.equal(act('Alt+b', { split: true, shell: true }, { key: '∫', code: 'KeyB' }), 'toggleSide');
+  assert.equal(act('Alt+b', {}), null);
 });
 
 test('stop: Alt+. on the page and in a field; never in the shell (its last-argument key)', () => {

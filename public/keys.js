@@ -47,7 +47,7 @@
       if (c === '[') return 'esc';
       return c === '.' ? null : `ctrl+${c}`;
     }
-    if (e.altKey) return c === '[' || c === 'p' || c === 'j' || c === 'k' ? null : `alt+${c}`;
+    if (e.altKey) return c === '[' || c === 'p' || c === 'j' || c === 'k' || c === 'b' ? null : `alt+${c}`;
     return null;
   }
 

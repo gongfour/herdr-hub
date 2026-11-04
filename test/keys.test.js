@@ -34,7 +34,7 @@ test('rawKeyName: editing and navigation keys by herdr name', () => {
 test('rawKeyName: Ctrl and Alt letter chords; typed text and ⌘ shortcuts are not keys', () => {
   assert.equal(rawKeyName(key('c', { ctrlKey: true })), 'ctrl+c');
   assert.equal(rawKeyName(key('R', { ctrlKey: true, shiftKey: true })), 'ctrl+r');
-  assert.equal(rawKeyName(key('b', { altKey: true })), 'alt+b');
+  assert.equal(rawKeyName(key('f', { altKey: true })), 'alt+f');
   assert.equal(rawKeyName(key('a')), null);
   assert.equal(rawKeyName(key('1', { ctrlKey: true })), null);
   assert.equal(rawKeyName(key('c', { metaKey: true })), null);
@@ -53,12 +53,13 @@ test('rawKeyName: F-keys, word keys, Ctrl+[ and the meta keys', () => {
   assert.equal(rawKeyName(key('ScrollLock')), 'esc'); // a remapped cover Esc
   assert.equal(rawKeyName(key('.', { altKey: true, code: 'Period' })), 'alt+.');
   // A Mac keyboard's Option types a symbol: the physical key says which letter it was.
-  assert.equal(rawKeyName(key('∫', { altKey: true, code: 'KeyB' })), 'alt+b');
+  assert.equal(rawKeyName(key('ƒ', { altKey: true, code: 'KeyF' })), 'alt+f');
   assert.equal(rawKeyName(key('≥', { altKey: true, code: 'Period' })), 'alt+.');
 });
 
 test('rawKeyName: paste chords, Alt+↑/↓ and Alt+P (the Hub\'s 빠른 이동) are not sent', () => {
   assert.equal(rawKeyName(key('p', { altKey: true, code: 'KeyP' })), null);
+  assert.equal(rawKeyName(key('b', { altKey: true, code: 'KeyB' })), null); // the sidebar's (Alt+← is the shell's back-a-word)
   assert.equal(rawKeyName(key('π', { altKey: true, code: 'KeyP' })), null); // a Mac's Option+P
   assert.equal(rawKeyName(key('p', { ctrlKey: true, code: 'KeyP' })), 'ctrl+p'); // the shell's
   // Alt+K/J are Alt+↑/↓'s twins (the Hub's rows); Alt+H/L stay the shell's, as Alt+←/→.
