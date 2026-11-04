@@ -7,6 +7,20 @@ set -e
 cd "$(dirname "$0")"
 target="${1:-desktop}"
 
+# The build name the hosts show (lib/build.js): package.json's major.minor and the commit count,
+# the commit and its time, and whether the tree has uncommitted changes. Shipped as build.json
+# (git-ignored; the hosts have no .git), removed again afterwards.
+stamp_build() {
+  base=$(node -p 'require("./package.json").version.split(".").slice(0, 2).join(".")')
+  dirty=false
+  [ -z "$(git status --porcelain)" ] || dirty=true
+  printf '{ "version": "%s.%s", "commit": "%s", "sha": "%s", "time": "%s", "dirty": %s }\n' \
+    "$base" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)" "$(git rev-parse HEAD)" "$(git log -1 --format=%cI)" "$dirty" > build.json
+  echo "build $(cat build.json)"
+}
+stamp_build
+trap 'rm -f build.json' EXIT
+
 deploy_desktop() {
   # cmd reads a batch file by offset: a run.cmd left running would go on in the new file once its
   # node is stopped and start node again with the old settings. It goes first.

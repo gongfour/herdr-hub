@@ -23,7 +23,7 @@ function connect() {
   es.addEventListener('ping', () => (lastHeard = Date.now()));
   es.addEventListener('version', (e) => {
     try {
-      checkVersion(JSON.parse(e.data).v);
+      checkVersion(JSON.parse(e.data));
     } catch {}
   });
   es.addEventListener('state', (e) => {
@@ -68,14 +68,15 @@ setInterval(() => document.visibilityState === 'visible' && revive('watchdog'), 
 // ------------------------------------------------------------ new version
 
 // An installed app is resumed from memory for days, so after a deploy it still runs the old
-// code. The server says which version it serves (the first message of every stream, and
-// /api/version when the app comes back to the foreground); when that is newer, the page loads
-// again by itself if that loses nothing (Update.safeToReload), else a banner offers 새로고침.
-const myVersion = appVersion(); // settings.js: this page's ?v=
-let serverVersion = '';
+// code. The server says which build it serves (the first message of every stream, and
+// /api/version when the app comes back to the foreground); when that is another build than the
+// one this page came with, the page loads again by itself if that loses nothing
+// (Update.safeToReload), else a banner offers 새로고침.
+const myBuild = pageBuild(); // settings.js: the build this page was served with
+let serverBuild = null;
 let returnedAt = 0; // when the app last came back to the foreground
-const RELOAD_KEY = 'herdr-hub.reloadedFor'; // { v, t }: this tab's last try (sessionStorage)
-const DISMISS_KEY = 'herdr-hub.updateDismissed'; // the version whose banner was closed
+const RELOAD_KEY = 'herdr-hub.reloadedFor'; // { v: build id, t }: this tab's last try (sessionStorage)
+const DISMISS_KEY = 'herdr-hub.updateDismissed'; // the build id whose banner was closed
 const session = {
   get(k) {
     try {
@@ -102,38 +103,40 @@ function reloadState() {
     answering: Boolean(detail.answerMode),
   };
 }
-function checkVersion(v) {
-  if (!v || v === serverVersion) {
-    if (v && Update.newer(myVersion, v)) offerUpdate();
+const hasNew = () => Update.differs(myBuild, serverBuild);
+function checkVersion(b) {
+  if (!b || !b.id) return;
+  if (serverBuild && b.id === serverBuild.id) {
+    if (hasNew()) offerUpdate();
     return;
   }
-  serverVersion = String(v);
+  serverBuild = b;
   if (view.name === 'settings') renderVersionInfo();
-  if (!Update.newer(myVersion, serverVersion)) return hideUpdateBanner();
+  if (!hasNew()) return hideUpdateBanner();
   offerUpdate();
 }
 // Reload when that is safe and this version wasn't just tried; else the banner.
 function offerUpdate() {
-  if (Update.safeToReload(reloadState()) && Update.mayTry(session.get(RELOAD_KEY), serverVersion, Date.now())) return void reloadToNew({ auto: true });
+  if (Update.safeToReload(reloadState()) && Update.mayTry(session.get(RELOAD_KEY), serverBuild.id, Date.now())) return void reloadToNew({ auto: true });
   showUpdateBanner();
 }
 async function checkServerVersion() {
   try {
     const r = await fetch('/api/version', { cache: 'no-store' });
-    if (r.ok) checkVersion((await r.json()).v);
+    if (r.ok) checkVersion(await r.json());
   } catch {}
 }
 // Load the new page, keeping the route (the hash) and the draft. index.html is no-cache with an
 // ETag, so a reload asks the server again anyway; fetching it first with cache:'reload' also
 // writes the new copy into the HTTP cache (in case a resumed page's reload would take the cached
-// one), and tells whether the server really serves the new version: when it doesn't, an automatic
+// one), and tells whether the server really serves another build: when it doesn't, an automatic
 // reload stays put (a reload into the same old page would go round).
 async function reloadToNew({ auto = false } = {}) {
-  session.set(RELOAD_KEY, { v: serverVersion || myVersion, t: Date.now() });
+  session.set(RELOAD_KEY, { v: (serverBuild || myBuild || {}).id || '', t: Date.now() });
   try {
     const r = await fetch('/', { cache: 'reload', credentials: 'same-origin' });
-    const got = Update.versionOf(await r.text());
-    if (auto && !Update.newer(myVersion, got)) return showUpdateBanner();
+    const got = Update.buildOf(await r.text());
+    if (auto && !Update.differs(myBuild, got)) return showUpdateBanner();
   } catch {
     if (auto) return showUpdateBanner();
   }
@@ -143,7 +146,7 @@ async function reloadToNew({ auto = false } = {}) {
 }
 let updateBanner = null;
 function showUpdateBanner() {
-  if (!Update.newer(myVersion, serverVersion) || session.get(DISMISS_KEY) === serverVersion) return;
+  if (!hasNew() || session.get(DISMISS_KEY) === serverBuild.id) return;
   if (!updateBanner) {
     updateBanner = document.createElement('div');
     updateBanner.className = 'update-bar';
@@ -153,13 +156,13 @@ function showUpdateBanner() {
       <button type="button" class="ub-x" aria-label="닫기" title="닫기">${ICON.x}</button>`;
     updateBanner.querySelector('.ub-go').onclick = () => reloadToNew();
     updateBanner.querySelector('.ub-x').onclick = () => {
-      session.set(DISMISS_KEY, serverVersion);
+      session.set(DISMISS_KEY, serverBuild.id);
       hideUpdateBanner();
     };
     document.body.appendChild(updateBanner);
     new ResizeObserver(() => updateBanner && document.documentElement.style.setProperty('--update-h', `${updateBanner.offsetHeight}px`)).observe(updateBanner);
   }
-  updateBanner.querySelector('.ub-t').textContent = `새 버전이 있습니다 (v${serverVersion})`;
+  updateBanner.querySelector('.ub-t').textContent = `새 버전이 있습니다 · ${Update.shortLabel(serverBuild)}`;
   document.documentElement.classList.add('has-update');
 }
 function hideUpdateBanner() {

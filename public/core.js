@@ -149,6 +149,8 @@ const localId = () => state.hostId || null;
 const curHost = () => view.host || localId();
 const hosts = () => state.hosts || [];
 const multi = () => hosts().length > 1;
+// A peer on another API version than the hub: the note for its line (update.js), or ''.
+const apiMismatch = (x) => Update.apiNote(x, hosts().find((h) => h.local));
 const hostOf = (id) => hosts().find((h) => h.id === id);
 const hostLabel = (id) => (hostOf(id) || {}).label || id || '';
 const online = (id) => !hostOf(id) || hostOf(id).online;

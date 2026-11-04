@@ -1,6 +1,6 @@
 {
   "name": "herdr-hub",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Phone-friendly web app for herdr agents, served from the herdr host over Tailscale",
   "type": "commonjs",

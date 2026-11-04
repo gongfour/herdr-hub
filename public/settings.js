@@ -12,11 +12,10 @@ function settingsBack() {
   return p && !['/', '/settings'].includes(normHash(p)) ? p : '#/';
 }
 
-// This page's asset version (index.html's ?v=), to tell whether a device has the new app.
-const appVersion = () => {
-  const s = document.querySelector('script[src*="/app.js"]');
-  const m = s && /[?&]v=(\d+)/.exec(s.getAttribute('src'));
-  return m ? m[1] : '';
+// The build this page was served with (the server writes it into index.html), or null.
+const pageBuild = () => {
+  const m = document.querySelector('meta[name="herdr-hub-build"]');
+  return m ? Update.parseBuild(m.content) : null;
 };
 // A phone or a tablet without its keyboard: no 단축키 to show. Split always has room for it.
 const touchOnly = () => !split && matchMedia('(hover: none) and (pointer: coarse)').matches;
@@ -64,7 +63,7 @@ function settingsHtml() {
         <h2 id="g-conn">연결 · 정보</h2>
         <div class="pcard">
           <ul class="conn-list" id="s-conn"></ul>
-          <div class="pref-ver"><p class="pref-info" id="s-ver"></p><button type="button" class="btn secondary" id="s-reload">새로고침</button></div>
+          <div class="pref-ver"><button type="button" class="pref-info ver-line" id="s-ver"></button><button type="button" class="btn secondary" id="s-reload">새로고침</button></div>
           <p class="pref-info">${esc(location.host)}<br>설정은 모두 이 기기에만 저장됩니다.</p>
           <button type="button" class="pref-link danger-text" id="s-clear"><span>이 기기 저장 데이터 지우기</span><span class="pl-end" aria-hidden="true">›</span></button>
         </div>
@@ -156,6 +155,7 @@ function bindSettings(main) {
   };
   main.querySelector('#s-clear').onclick = clearDeviceData;
   main.querySelector('#s-reload').onclick = () => reloadToNew(); // app.js
+  main.querySelector('#s-ver').onclick = copyBuildSha;
   main.querySelector('#s-push').onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -191,7 +191,9 @@ function renderConn() {
       const n = state.agents.filter((a) => (a.host || localId()) === x.id).length;
       const bad = !x.online || x.herdr !== 'up';
       const status = !x.online ? `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''}` : `herdr ${x.herdr === 'up' ? '연결됨' : esc(x.herdr)} · 에이전트 ${n}개`;
-      return `<li><span class="hdot${bad ? ' off' : ''}" aria-hidden="true"></span><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? '이 주소' : '허브'}</span>` : ''}<span class="cl-st">${status}</span></li>`;
+      const api = apiMismatch(x);
+      const warn = api ? `<span class="cl-warn">${esc(api)} — 배포가 필요합니다</span>` : '';
+      return `<li><span class="hdot${bad ? ' off' : ''}" aria-hidden="true"></span><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? '이 주소' : '허브'}</span>` : ''}<span class="cl-st">${status}</span>${warn}</li>`;
     })
     .join('');
   if (box._html === html) return;
@@ -199,14 +201,24 @@ function renderConn() {
   box.innerHTML = html;
 }
 
-// 정보: this page's version and, when the server serves a newer one, that (app.js checks it).
+// 정보: this page's build and, when the server serves another one, that (app.js checks it).
+// A click copies the full commit hash.
 function renderVersionInfo() {
   const el = document.getElementById('s-ver');
   if (!el) return;
-  const v = appVersion();
-  const text = !v ? '버전 알 수 없음' : Update.newer(v, serverVersion) ? `v${v} · 새 버전 v${serverVersion} 있음` : `버전 v${v}`;
+  const mine = Update.buildLabel(myBuild);
+  const text = !mine ? '버전 알 수 없음' : hasNew() ? `${mine} · 새 버전 ${Update.shortLabel(serverBuild)} 있음` : mine;
   if (el.textContent !== text) el.textContent = text;
-  el.classList.toggle('ver-new', Update.newer(v, serverVersion));
+  el.classList.toggle('ver-new', hasNew());
+  el.title = myBuild && myBuild.sha ? `${myBuild.sha} — 눌러서 복사` : '';
+  el.classList.toggle('ver-copy', Boolean(myBuild && myBuild.sha));
+}
+async function copyBuildSha() {
+  if (!myBuild || !myBuild.sha) return;
+  try {
+    await navigator.clipboard.writeText(myBuild.sha);
+    toast(`커밋 ${myBuild.commit} 복사함`);
+  } catch {}
 }
 
 // What this device keeps besides the settings: kept chats, unsent text, read marks, the swipe

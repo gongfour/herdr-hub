@@ -8,7 +8,8 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const zlib = require('zlib');
-const { serveStatic, pickEncoding, parseHosts, hostAllowed } = require('../lib/http');
+const crypto = require('crypto');
+const { serveStatic, indexPage, pickEncoding, parseHosts, hostAllowed } = require('../lib/http');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-http-'));
 const big = `/* ${'style rules '.repeat(400)} */`;
@@ -40,10 +41,21 @@ function get(p, headers = {}, method = 'GET') {
   });
 }
 
-test('?v= files are cached for a year; the rest revalidate with an ETag and get a 304', async () => {
-  const v = await get('/style.css?v=61');
+const hash8 = (file) => crypto.createHash('sha1').update(fs.readFileSync(path.join(root, file))).digest('hex').slice(0, 8);
+
+test('?v=<its hash> is cached for a year; another ?v= gets the file as it is, revalidated', async () => {
+  const v = await get(`/style.css?v=${hash8('style.css')}`);
   assert.equal(v.status, 200);
   assert.equal(v.headers['cache-control'], 'public, max-age=31536000, immutable');
+  // A page from before a deploy (or a hand-made ?v=115): today's file, but not kept under that URL.
+  const stale = await get('/style.css?v=115');
+  assert.equal(stale.status, 200);
+  assert.equal(stale.body.toString(), big);
+  assert.equal(stale.headers['cache-control'], 'no-cache');
+  assert.equal((await get('/style.css?v=115', { 'If-None-Match': stale.headers.etag })).status, 304);
+});
+
+test('the rest revalidate with an ETag and get a 304', async () => {
   const page = await get('/');
   assert.equal(page.headers['cache-control'], 'no-cache');
   assert.match(page.headers.etag, /^W\/"[\w-]+"$/);
@@ -62,6 +74,66 @@ test('a changed file gets a new ETag', async () => {
   assert.equal(after.status, 200);
   assert.notEqual(after.headers.etag, before);
   assert.match(after.body.toString(), /v=62/);
+});
+
+test('index.html: every local asset gets ?v=<its hash>; only a changed file a new one', async () => {
+  const site = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-site-'));
+  const w = (f, body) => fs.writeFileSync(path.join(site, f), body);
+  w('index.html', `<!doctype html><head><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg?v=2"><link rel="stylesheet" href="/style.css"><script src="https://cdn.example/x.js"></script><script src="//cdn.example/y.js"></script></head><body><script src="/a.js" defer></script><script src="/b.js?v=115" defer></script><script src="/gone.js" defer></script><a href="/settings">x</a><!-- ${'padding '.repeat(80)} --></body>`);
+  for (const f of ['a.js', 'b.js', 'style.css', 'icon.svg', 'manifest.webmanifest']) w(f, `/* ${f} */`);
+  const srv = http.createServer((req, res) => serveStatic(site, req, res, new URL(req.url, 'http://x'), { decorate: (html, assets) => html.replace('</head>', `<meta name="assets" content="${assets}"></head>`) }));
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const at = (p, headers = {}) =>
+    new Promise((resolve, reject) => {
+      http.get({ host: '127.0.0.1', port: srv.address().port, path: p, headers }, (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+      }).on('error', reject);
+    });
+  const h = (f) => crypto.createHash('sha1').update(fs.readFileSync(path.join(site, f))).digest('hex').slice(0, 8);
+  try {
+    const one = await at('/');
+    const html = one.body.toString();
+    assert.equal(one.headers['cache-control'], 'no-cache');
+    assert.ok(html.includes(`src="/a.js?v=${h('a.js')}"`));
+    assert.ok(html.includes(`src="/b.js?v=${h('b.js')}"`)); // a hand-written ?v= is replaced
+    assert.ok(html.includes(`href="/style.css?v=${h('style.css')}"`));
+    assert.ok(html.includes(`href="/icon.svg?v=${h('icon.svg')}"`));
+    assert.ok(html.includes('href="/manifest.webmanifest"')); // an installed app may key on its URL
+    assert.ok(html.includes('src="https://cdn.example/x.js"') && html.includes('src="//cdn.example/y.js"'));
+    assert.ok(html.includes('src="/gone.js"') && html.includes('href="/settings"')); // not a file: as it was
+    assert.match(html, /<meta name="assets" content="[0-9a-f]{12}"><\/head>/);
+    assert.equal((await at('/index.html')).body.toString(), html);
+    assert.equal((await at('/', { 'If-None-Match': one.headers.etag })).status, 304);
+    // The asset itself, at the URL the page names: immutable, gzip, 304.
+    const a = await at(`/a.js?v=${h('a.js')}`);
+    assert.equal(a.headers['cache-control'], 'public, max-age=31536000, immutable');
+    // One file changes: its URL and the page's ETag change, nothing else.
+    const before = h('style.css');
+    w('style.css', `/* ${'changed '.repeat(200)} */`);
+    const two = await at('/', { 'If-None-Match': one.headers.etag, 'Accept-Encoding': 'gzip' });
+    assert.equal(two.status, 200);
+    assert.notEqual(two.headers.etag, one.headers.etag);
+    assert.equal(two.headers['content-encoding'], 'gzip');
+    const html2 = zlib.gunzipSync(two.body).toString();
+    assert.ok(html2.includes(`href="/style.css?v=${h('style.css')}"`) && h('style.css') !== before);
+    assert.equal(html2.replace(/style\.css\?v=\w+/, '').replace(/content="\w+"/, ''), html.replace(/style\.css\?v=\w+/, '').replace(/content="\w+"/, ''));
+    // The old URL still brings the file (today's), only not to keep.
+    const old = await at(`/style.css?v=${before}`);
+    assert.equal(old.status, 200);
+    assert.equal(old.headers['cache-control'], 'no-cache');
+    assert.match(old.body.toString(), /changed/);
+    assert.equal((await at('/', { 'If-None-Match': two.headers.etag })).status, 304);
+    // HEAD of the page: the headers, no body.
+    const head = await new Promise((resolve) => http.request({ host: '127.0.0.1', port: srv.address().port, path: '/', method: 'HEAD' }, resolve).end());
+    assert.equal(head.statusCode, 200);
+    assert.equal(head.headers.etag, two.headers.etag);
+    assert.equal(indexPage(site, {}).assets.length, 12);
+  } finally {
+    srv.close();
+    fs.rmSync(site, { recursive: true, force: true });
+  }
 });
 
 test('text goes brotli or gzip when the browser takes it; images and small files as they are', async () => {

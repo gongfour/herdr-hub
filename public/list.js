@@ -255,7 +255,7 @@ function render() {
     ${multi() ? `
     <nav class="seg hosts" role="group" aria-label="호스트"${keyAttrs(null, '호스트 바꾸기', 'Alt+←→')}>
       <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
-      ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"><span class="hdot"></span>${esc(x.label)}</button>`).join('')}
+      ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"${apiMismatch(x) ? ` title="${esc(apiMismatch(x))} — 배포가 필요합니다"` : ''}><span class="hdot"></span>${esc(x.label)}${apiMismatch(x) ? '<span class="api-warn" aria-label="API 버전 다름">!</span>' : ''}</button>`).join('')}
     </nav>` : ''}`;
   const head = [
     ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>옆으로 밀면 작업공간과 설정이 넘어가고, 줄을 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),

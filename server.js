@@ -16,9 +16,14 @@ const notifyLib = require('./lib/notify');
 const { parseChoices, choicesSettled } = require('./public/choices');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
-const { appVersion, send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed } = require('./lib/http');
+const { indexPage, send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed } = require('./lib/http');
 const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
 const { screenReader } = require('./lib/screen');
+const { readBuild, describe, decorator } = require('./lib/build');
+
+// The contract between this server and its pages, and between a hub and its peers. Bumped by
+// hand when either changes (AGENTS.md); 설정 → 연결 shows a peer whose number differs from the hub's.
+const API_VERSION = 1;
 
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -60,6 +65,15 @@ const peers = new Map(parsePeers(process.env.HERDR_HUB_PEERS).map((p) => [p.id, 
 if (peers.has(HOST_ID)) {
   console.error('HERDR_HUB_PEERS must not list this host itself.');
   process.exit(2);
+}
+
+// The build this host runs (lib/build.js), written into the page it serves; the page compares it
+// with what /api/version and the stream say to know a new build is out.
+const BUILD = readBuild(__dirname);
+const SITE = { decorate: decorator(BUILD, API_VERSION) };
+function buildNow() {
+  const page = indexPage(PUBLIC, SITE);
+  return describe(BUILD, API_VERSION, page ? page.assets : '');
 }
 
 // Pane reads with herdr's fallbacks (lib/screen).
@@ -173,7 +187,7 @@ const tag = (id, label) => (x) => ({ ...x, host: id, hostLabel: label });
 
 // Rebuild the merged state and send it to clients if anything but the timestamp changed.
 function publish() {
-  const hosts = [{ id: HOST_ID, label: HOSTNAME, local: true, online: true, herdr: local.herdr, error: local.error, since: null }, ...[...peers.values()].map((p) => p.info())];
+  const hosts = [{ id: HOST_ID, label: HOSTNAME, local: true, online: true, herdr: local.herdr, error: local.error, since: null, api: API_VERSION, version: BUILD.version }, ...[...peers.values()].map((p) => p.info())];
   const order = new Map(hosts.map((h, i) => [h.id, i]));
   const parts = [{ id: HOST_ID, label: HOSTNAME, s: local }, ...[...peers.values()].filter((p) => p.online && p.state).map((p) => ({ id: p.id, label: p.label, s: p.state }))];
   const all = (key) => parts.flatMap(({ id, label, s }) => (s[key] || []).map(tag(id, label)));
@@ -353,13 +367,13 @@ async function api(req, res, url) {
   if (method !== 'GET' && req.headers['x-herdr-hub'] !== '1') return send(res, 403, { error: 'missing_header' });
 
   if (method === 'GET' && parts[0] === 'state') return send(res, 200, state);
-  // The app version this host serves (index.html's ?v=): an installed app resumed from memory
-  // compares it with its own and loads the new one (public/update.js).
-  if (method === 'GET' && parts[0] === 'version' && !parts[1]) return send(res, 200, { v: appVersion(PUBLIC) });
+  // The build this host serves: an installed app resumed from memory compares it with the one
+  // it was served with and loads the new one (public/update.js).
+  if (method === 'GET' && parts[0] === 'version' && !parts[1]) return send(res, 200, buildNow());
 
   if (method === 'GET' && parts[0] === 'stream') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
-    res.write(`event: version\ndata: ${JSON.stringify({ v: appVersion(PUBLIC) })}\n\n`);
+    res.write(`event: version\ndata: ${JSON.stringify(buildNow())}\n\n`);
     res.write(`event: state\ndata: ${JSON.stringify(state)}\n\n`);
     clients.add(res);
     req.on('close', () => clients.delete(res));
@@ -369,7 +383,7 @@ async function api(req, res, url) {
   if (parts[0] === 'peers' && parts[1]) return proxy(req, res, url);
 
   if (method === 'GET' && parts[0] === 'host')
-    return send(res, 200, { id: HOST_ID, label: HOSTNAME, platform: process.platform, home: os.homedir(), kinds: KINDS, recentCwds: recentCwds(), places: dirs.places() });
+    return send(res, 200, { id: HOST_ID, label: HOSTNAME, api: API_VERSION, build: { version: BUILD.version, commit: BUILD.commit, time: BUILD.time, dirty: BUILD.dirty }, platform: process.platform, home: os.homedir(), kinds: KINDS, recentCwds: recentCwds(), places: dirs.places() });
 
   // Folder browser: subfolders of ?path= (home when empty), or the drive letters on Windows.
   if (method === 'GET' && parts[0] === 'dirs' && !parts[1]) {
@@ -666,7 +680,7 @@ const server = http.createServer(async (req, res) => {
   if (!identity(req)) return send(res, 403, { error: 'forbidden' }, { 'Content-Type': 'text/plain; charset=utf-8' });
   try {
     if (url.pathname.startsWith('/api/')) await api(req, res, url);
-    else if (req.method === 'GET' || req.method === 'HEAD') serveStatic(PUBLIC, req, res, url);
+    else if (req.method === 'GET' || req.method === 'HEAD') serveStatic(PUBLIC, req, res, url, SITE);
     else send(res, 405, { error: 'method_not_allowed' });
   } catch (err) {
     const status = err.status || (err instanceof herdr.HerdrError ? 502 : 500);
@@ -683,6 +697,7 @@ server.listen(PORT, HOST, () => {
   console.log(`herdr-hub on http://${HOST}:${PORT} (herdr socket ${herdr.defaultSocketPath()})`);
   console.log(ALLOWED.length ? `allowed tailscale logins: ${ALLOWED.join(', ')}` : 'local access only');
   console.log(`hosts: ${[...HOST_RULE.allowed, ...HOST_RULE.suffixes.map((x) => `*${x}`)].join(', ')}`);
+  console.log(`build ${BUILD.version}${BUILD.dirty ? '+dirty' : ''} ${BUILD.commit} (${BUILD.from}); API ${API_VERSION}`);
   console.log(`host ${HOST_ID} (${HOSTNAME}); push ${push ? 'on' : 'off'}${PUSH_MUTE.length ? ` (muted: ${PUSH_MUTE.join(', ')})` : ''}; peers: ${[...peers.values()].map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);
 });
 
