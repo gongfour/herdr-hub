@@ -1,5 +1,5 @@
 'use strict';
-// Answering an agent: key rows, choice buttons (also on the 답 필요 strip), the blocked box in the
+// Answering an agent: key rows, choice buttons, the blocked box in the
 // agent view, and sendKeys.
 
 // Keys an agent takes from here: the blocked box's 직접 입력, the ⋯ 키 보내기 menu and the
@@ -10,7 +10,7 @@ const keyRow = (keys, cls = '') => `<div class="keys ${cls}">${keys.map(([k, lab
 function bindKeyRow(row) {
   if (row) row.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
 }
-// A choice button (the blocked box here, or a quick answer on the 답 필요 strip) goes through
+// A choice button (the blocked box) goes through
 // the host's guard (POST /agents/<pane>/answer, lib/notify checkAnswer): the keys go only while
 // the agent is still blocked on the prompt the buttons were drawn for (stateSeq) and option n
 // still reads the same. A tapped button stays pressed while the answer is on its way and a
@@ -29,7 +29,6 @@ function redrawChoices() {
 }
 // The prompt moved on before the answer arrived: forget what was read for it and read again.
 function questionChanged(host, pane) {
-  questions.delete(rowKey(host, pane));
   if (view.name === 'agent' && detail.pane === pane && curHost() === host) {
     detail.blockedText = null;
     loadDetail();

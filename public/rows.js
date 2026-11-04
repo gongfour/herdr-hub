@@ -151,12 +151,6 @@ function rowClick(e) {
     e.stopPropagation();
     return;
   }
-  const quick = e.target.closest('[data-quick]');
-  if (quick) {
-    e.preventDefault();
-    if (!quick.disabled) quickAnswer(quick);
-    return;
-  }
   const more = e.target.closest('.ws-more');
   if (more) {
     // The card's ⋯ opens the same menu as a long press, not another page.

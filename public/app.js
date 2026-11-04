@@ -314,13 +314,13 @@ let stepFocus = false;
 function stepList(dir) {
   const main = listRoot() && listRoot().querySelector(':scope > main.home');
   if (!main) return false;
-  const links = [...main.querySelectorAll('a.attn-row, a.sw-front')].map((a) => a.getAttribute('href'));
+  const links = [...main.querySelectorAll('a.sw-front')].map((a) => a.getAttribute('href'));
   const cur = main.querySelector('a[aria-current]');
   const next = Split.stepRow(links, cur && cur.getAttribute('href'), dir);
   if (!next) return true;
   stepFocus = true;
   location.hash = next;
-  const el = [...main.querySelectorAll('a.attn-row, a.sw-front')].find((a) => a.getAttribute('href') === next);
+  const el = [...main.querySelectorAll('a.sw-front')].find((a) => a.getAttribute('href') === next);
   if (el) el.scrollIntoView({ block: 'nearest' });
   return true;
 }

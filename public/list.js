@@ -1,11 +1,11 @@
 'use strict';
-// The list: 작업공간 (workspace cards), the bottom tab bar, the 답 필요 strip with its quick
-// answers, the unread mark of finishes not opened yet, and the times on the rows.
+// The list: 작업공간 (workspace cards), the bottom tab bar, the unread mark of finishes not opened
+// yet, and the times on the rows.
 
 // ------------------------------------------------------------ list view
 
-// The herdr hierarchy: host → workspace → pane, one card per workspace, with blocked agents
-// from every workspace also in a strip on top. State updates patch the list in place (one
+// The herdr hierarchy: host → workspace → pane, one card per workspace; cards with a blocked
+// agent come first. State updates patch the list in place (one
 // element per card, replaced only when its HTML changed), so the scroll position and an open
 // row survive them; a card that does change closes the row open in it.
 
@@ -242,8 +242,7 @@ function render() {
   const root = listRoot();
   const down = state.herdr !== 'up';
   const f = filter();
-  const { blocked, list } = listModel();
-  for (const a of blocked) ensureQuestion(a);
+  const { list } = listModel();
   // Peers in view that are offline or whose herdr is down.
   const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
   const hostLine = esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f));
@@ -261,7 +260,6 @@ function render() {
   const head = [
     ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>옆으로 밀면 작업공간과 설정이 넘어가고, 줄을 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
     ...trouble.map((x) => [`off|${x.id}`, `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`]),
-    ...(blocked.length ? [['attn', attnStrip(blocked)]] : []),
   ];
   const parts = [...head, ...spacesParts(list, down, f)];
   let main = root.querySelector(':scope > main.home');
@@ -376,76 +374,6 @@ const rowData = (kind, host, id) => `data-kind="${kind}" data-host="${esc(host |
 const SWIPE_ACTS = ''; // rows no longer slide open (the sideways swipe changes tab); menus have 이름 / 닫기
 const agentTitle = (a) => (a.name ? `${a.name} · ${a.title}` : a.title);
 
-// ---- 답 필요 strip: each blocked agent with its question and quick answers
-// The question is read off the agent's visible screen once per prompt (stateSeq) and parsed
-// like the detail view does. One tap answers through the same guard as there (answer.js).
-const questions = new Map(); // host|pane -> { seq, choices, loading, at }
-// A read that caught the prompt half drawn (choicesSettled) is repeated a few times.
-const QUESTION_RETRY_MS = 1200;
-const QUESTION_TRIES = 4;
-function ensureQuestion(a) {
-  const k = rowKey(a.host, a.pane);
-  const q = questions.get(k);
-  if (q && q.seq === a.stateSeq) {
-    if (q.loading) return;
-    if (q.failed ? Date.now() - q.at <= 10000 : q.choices !== undefined && (choicesSettled(q.choices) || q.tries >= QUESTION_TRIES)) return;
-    if (!q.failed && Date.now() - q.at < QUESTION_RETRY_MS) return;
-  }
-  const seq = a.stateSeq;
-  const tries = (q && q.seq === seq && !q.failed ? q.tries || 0 : 0) + 1;
-  // Keep showing the earlier read while the next one is on its way.
-  questions.set(k, { ...(q && q.seq === seq ? q : {}), seq, loading: true });
-  api(hp(`/agents/${encodeURIComponent(a.pane)}/screen?source=visible&lines=30`, a.host || localId()))
-    .then((r) => {
-      const cur = state.agents.find((x) => same(x, a.host || localId(), a.pane));
-      // Read after the prompt changed: that screen is not this question's.
-      if (!cur || cur.stateSeq !== seq) return questions.delete(k);
-      const choices = window.parseChoices ? parseChoices(String(r.text || '').replace(/\s+$/, '')) : null;
-      questions.set(k, { seq, choices, tries, at: Date.now() });
-      if (!choicesSettled(choices) && tries < QUESTION_TRIES) setTimeout(() => listShown() && render(), QUESTION_RETRY_MS + 50);
-    })
-    .catch(() => questions.set(k, { seq, choices: null, failed: true, at: Date.now() }))
-    .finally(() => listShown() && render());
-}
-
-function attnStrip(list) {
-  return `<section class="attn" aria-label="답 필요">
-    <h2>답 필요 (${list.length})</h2>
-    ${list.map(attnRow).join('')}
-  </section>`;
-}
-
-function attnRow(a) {
-  const k = rowKey(a.host, a.pane);
-  const q = questions.get(k);
-  const ch = q && q.seq === a.stateSeq ? q.choices : null;
-  const quick = quickChoices(ch); // choices.js
-  const press = pressedOn(a.host || localId(), a);
-  const primary = ch ? primaryChoice(ch.items) : null;
-  const where = `${esc(a.workspaceLabel)}${multi() && filter() === 'all' ? ` · ${esc(a.hostLabel || hostLabel(a.host))}` : ''}`;
-  return `<div class="attn-item" ${rowData('agent', a.host, a.pane)}>
-    <a class="attn-row" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
-      <span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
-      <span class="pane-main"><span class="pane-title">${esc(a.name || a.title)}<span class="pane-meta-inline"> · ${where}</span></span>${
-        ch && ch.question ? `<span class="attn-q">${esc(ch.question)}</span>` : `<span class="pane-meta">${q && q.loading ? '질문을 읽는 중…' : '열어서 답하세요'}</span>`
-      }</span>
-      <span class="go" aria-hidden="true">›</span>
-    </a>
-    ${quick.length ? `<div class="quick" role="group" aria-label="빠른 답">${quick.map((x) => choiceButton(ch, x, { press, primary, compact: true }).replace('<button ', '<button data-quick ')).join('')}</div>` : ''}
-  </div>`;
-}
-
-function quickAnswer(btn) {
-  const row = btn.closest('[data-kind]');
-  const host = row.dataset.host || localId();
-  const pane = row.dataset.id;
-  const a = state.agents.find((x) => same(x, host, pane));
-  const q = questions.get(rowKey(host, pane));
-  if (!a || a.status !== 'blocked' || !q || q.seq !== a.stateSeq || !q.choices) return;
-  const item = q.choices.items.find((x) => x.n === Number(btn.dataset.n));
-  if (item && choiceKeys(q.choices, item.n)) answerChoice(host, a, item);
-}
-
 function wsSection({ w, agents, terms }) {
   const first = [...agents, ...terms].sort(paneOrder)[0];
   const rows = [...agents.map(agentRow), ...terms.map(termRow)].join('');
@@ -463,14 +391,11 @@ function wsSection({ w, agents, terms }) {
   </section>`;
 }
 
-// A blocked agent is answered from the strip on top; here it only says so (no second full row).
+// A blocked agent says so with its badge; it is answered by opening it (the chat's blocked box).
 // A finish not opened yet: a dot before the icon and a bolder name, like an unread message.
 function agentRow(a) {
   const unread = isUnread(a);
-  const badge =
-    a.status === 'blocked'
-      ? `<span class="badge blocked up" aria-label="답 필요 — 위 목록에서 답하세요">↑ 답 필요</span>`
-      : `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
+  const badge = `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
   return `<div class="sw" ${rowData('agent', a.host, a.pane)}>${SWIPE_ACTS}
     <a class="sw-front pane-row agent${unread ? ' unread' : ''}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
       ${unread ? '<span class="unread-dot" role="img" aria-label="새 결과"></span>' : ''}<span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>

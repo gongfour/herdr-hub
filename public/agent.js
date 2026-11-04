@@ -493,7 +493,7 @@ function prefetchNeighbours() {
   prefetchTimer = setTimeout(async () => {
     const main = listRoot() && listRoot().querySelector(':scope > main.home');
     if (!main || d !== detail) return;
-    const links = [...main.querySelectorAll('a.attn-row, a.sw-front')].map((x) => x.getAttribute('href'));
+    const links = [...main.querySelectorAll('a.sw-front')].map((x) => x.getAttribute('href'));
     const cur = main.querySelector('a[aria-current]');
     const here = cur && cur.getAttribute('href');
     for (const dir of [1, -1]) {

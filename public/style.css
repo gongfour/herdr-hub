@@ -193,13 +193,7 @@ button:disabled { cursor: default; }
 .list.home { gap: 12px; }
 /* flex: none — the list is a fixed-height flex column, and a card with overflow: hidden has no
    minimum height, so it would be squeezed (rows cut in half) once the list overflows. */
-.attn, .ws, .list.home > * { flex: none; }
-.attn { border-radius: var(--radius); background: var(--blocked-bg); padding: 2px 0; }
-.attn h2 { font-size: 13px; font-weight: 700; color: var(--blocked); margin: 10px 14px 2px; }
-.attn-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 14px; color: inherit; text-decoration: none; }
-.attn-row + .attn-row { border-top: 1px solid color-mix(in srgb, var(--blocked) 16%, transparent); }
-.attn-row:active { background: color-mix(in srgb, var(--blocked) 10%, transparent); }
-.attn-row .pane-ic { background: var(--surface); color: var(--blocked); }
+.ws, .list.home > * { flex: none; }
 .ws { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .ws-front { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 9px 8px 9px 14px; }
 .ws-main { flex: 1; min-width: 0; }
@@ -230,7 +224,7 @@ button:disabled { cursor: default; }
 
 /* Swipe a row left: the front slides over 이름 / 닫기 underneath. No callout or text selection
    on rows, so a long press can open the action menu instead. */
-.sw, .attn-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.sw { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .sw { position: relative; overflow: hidden; touch-action: pan-y; }
 .sw-front { position: relative; z-index: 1; background: var(--surface); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .sw.drag > .sw-front { transition: none; }
@@ -779,12 +773,12 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* Keyboard focus: a clear ring, inset where a parent clips. */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.pane-row:focus-visible, .attn-row:focus-visible, .action:focus-visible, .dir-item:focus-visible, .pal-row:focus-visible, .ws-more:focus-visible, .choice:focus-visible { outline-offset: -3px; }
+.pane-row:focus-visible, .action:focus-visible, .dir-item:focus-visible, .pal-row:focus-visible, .ws-more:focus-visible, .choice:focus-visible { outline-offset: -3px; }
 .composer .input:focus-visible, .field:focus-visible, .composer .cmd:focus-visible { outline-offset: -1px; }
 
 /* Hover, for a mouse or trackpad only. */
 @media (hover: hover) {
-  .pane-row:hover, .attn-row:hover, .card:hover, .dir-item:hover, .dir-row:hover, .action:hover, .pal-row:hover { background: color-mix(in srgb, var(--surface-2) 65%, var(--surface)); }
+  .pane-row:hover, .card:hover, .dir-item:hover, .dir-row:hover, .action:hover, .pal-row:hover { background: color-mix(in srgb, var(--surface-2) 65%, var(--surface)); }
   .pane-row.term:hover { background: var(--surface-2); }
   .attn-row:hover { background: color-mix(in srgb, var(--blocked) 8%, transparent); }
   .icon-btn:hover, .attach:hover:not(:disabled), .crumb:hover { background: var(--surface-2); }
@@ -840,7 +834,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .el.ago { color: var(--muted); }
 #d-badge .el { margin-right: 8px; }
 .card .el { align-self: center; margin-right: 2px; }
-.badge.blocked.up { font-weight: 600; }
 
 .mode-chip {
   /* A 44px tap target that looks like the status badge beside it (same height and type): the
