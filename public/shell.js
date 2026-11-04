@@ -182,7 +182,7 @@ function renderTerminal() {
     e.preventDefault();
     rawPress({ key: k });
   });
-  document.getElementById('t-more').onclick = terminalMenu;
+  document.getElementById('t-more').onclick = () => paneMenu('term', currentTerminal()); // actions.js
   mountScreen(document.getElementById('t-body'), 'term', document.getElementById('s-tools'));
   document.getElementById('t-body').addEventListener('scroll', termScrolled);
   renderTerminalHeader();
@@ -407,28 +407,3 @@ function termScrolled() {
   }
 }
 
-async function terminalMenu() {
-  const t = currentTerminal();
-  if (!t) return;
-  const k = await menu(termTitle(t), [
-    ['agent', '여기서 에이전트 시작'],
-    ['down', '아래로 나누기'],
-    ['right', '오른쪽으로 나누기'],
-    ['tab', '새 탭'],
-    ['rename', '이름 바꾸기'],
-    ['ws', '워크스페이스 보기'],
-    ['close', '패널 닫기', true],
-  ]);
-  if (k === 'agent') location.hash = link(t.host, `/start/pane/${encodeURIComponent(t.pane)}`);
-  if (k === 'ws') location.hash = link(t.host, `/ws/${encodeURIComponent(t.workspace)}`);
-  if (k === 'down' || k === 'right') {
-    const r = await act(hp(`/panes/${encodeURIComponent(t.pane)}/split`), { direction: k }, '새 셸을 열었습니다');
-    if (r && r.pane) location.hash = link(t.host, `/term/${encodeURIComponent(r.pane)}`);
-  }
-  if (k === 'tab') {
-    const w = wsFor(t.host || localId(), t.workspace);
-    if (w) newTab(w);
-  }
-  if (k === 'rename') renamePane(t, false);
-  if (k === 'close') closePane(t.host, t.pane, termTitle(t), false);
-}

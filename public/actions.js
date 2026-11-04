@@ -88,3 +88,100 @@ async function act(path, body, okText) {
     return null;
   }
 }
+
+// ---- one menu per thing: an agent, a shell, a workspace
+// The same items wherever it opens (the ⋯ of its own view, or a long press / ⋯ on its row in a
+// list), in blocks: what to do with it, then managing it, then closing it (red). From a row it
+// starts with 열기. Opened in its own view, an item with a shortcut shows the key (with a keyboard).
+
+async function paneMenu(kind, x, { fromRow = false } = {}) {
+  if (!x) return;
+  const host = x.host || localId();
+  const here = !fromRow && ['agent', 'term'].includes(view.name) && same(x, curHost(), detail.pane);
+  const agent = kind === 'agent';
+  const items = agent
+    ? [
+        fromRow ? ['open', '대화 열기'] : null,
+        fromRow ? '-' : null,
+        x.status === 'working' ? ['stop', '중단', false, '', here ? 'stop' : null] : null,
+        screenBody(x) ? null : ['screen', '터미널 화면 보기', false, '', here ? 'terminal' : null],
+        ['keys', '키 보내기', false, 'Esc · ⇧Tab · Enter · ↑ ↓ · 1–3'],
+        here && lastReply() ? ['copy', '마지막 답 복사'] : null,
+        '-',
+        ['rename', '이름 바꾸기'],
+        ['ws', '워크스페이스 보기'],
+        ['close', '에이전트 닫기', true, '에이전트도 함께 끝납니다', here ? 'closeView' : null],
+      ]
+    : [
+        fromRow ? ['open', '셸 보기'] : null,
+        fromRow ? '-' : null,
+        ['agent', '여기서 에이전트 시작'],
+        ['down', '아래로 나누기'],
+        ['right', '오른쪽으로 나누기'],
+        ['tab', '새 셸 열기', false, '새 탭에'],
+        '-',
+        ['rename', '이름 바꾸기'],
+        ['ws', '워크스페이스 보기'],
+        ['close', '셸 닫기', true, '', here ? 'closeView' : null],
+      ];
+  const label = agent ? x.name || x.title : termTitle(x);
+  const k = await menu(label, items, { sub: agent ? '에이전트' : '셸' });
+  if (k) paneAction(kind, x, k, { here });
+}
+
+async function paneAction(kind, x, k, { here = false } = {}) {
+  const host = x.host || localId();
+  const pane = encodeURIComponent(x.pane);
+  const agent = kind === 'agent';
+  if (k === 'open') location.hash = link(x.host, `/${agent ? 'agent' : 'term'}/${pane}`);
+  if (k === 'ws') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace)}`);
+  if (k === 'stop') confirmStop(x); // agent.js
+  if (k === 'screen') {
+    if (here) openScreenSheet();
+    else location.hash = link(x.host, `/agent/${pane}/screen`); // the chat with its terminal sheet
+  }
+  if (k === 'keys') {
+    const key = await menu('키 보내기', AGENT_KEYS.map(([kk, l]) => [kk, l]), { sub: x.name || x.title });
+    if (key && (await sendKeys([key], host, x.pane))) toast(`${AGENT_KEYS.find((y) => y[0] === key)[1]} 키를 보냈습니다`);
+  }
+  if (k === 'copy') copyText(lastReply(), '마지막 답을 복사했습니다');
+  if (k === 'rename') renamePane(x, agent);
+  if (k === 'close') closePane(x.host, x.pane, agent ? x.name || x.title : termTitle(x), agent);
+  if (k === 'agent') location.hash = link(x.host, `/start/pane/${pane}`);
+  if (k === 'down' || k === 'right') {
+    const r = await act(hp(`/panes/${pane}/split`, host), { direction: k }, '새 셸을 열었습니다');
+    if (r && r.pane) location.hash = link(x.host, `/term/${encodeURIComponent(r.pane)}`);
+  }
+  if (k === 'tab') {
+    const w = wsFor(host, x.workspace);
+    if (w) newTab(w);
+  }
+}
+
+async function wsMenu(w, { fromRow = false } = {}) {
+  if (!w) return;
+  const here = !fromRow && view.name === 'ws' && same(w, curHost(), view.id, 'workspace_id');
+  const k = await menu(
+    w.label,
+    [
+      fromRow ? ['open', '워크스페이스 보기'] : null,
+      fromRow ? '-' : null,
+      ['agent', '에이전트 시작', false, '', here ? 'newAgent' : null],
+      ['tab', '새 셸 열기', false, '새 탭에'],
+      '-',
+      ['rename', '이름 바꾸기'],
+      ['close', '워크스페이스 닫기', true, '안의 패널이 모두 끝납니다', here ? 'closeView' : null],
+    ],
+    { sub: '워크스페이스' },
+  );
+  if (k) wsAction(w, k);
+}
+
+function wsAction(w, k) {
+  const id = encodeURIComponent(w.workspace_id);
+  if (k === 'open') location.hash = link(w.host, `/ws/${id}`);
+  if (k === 'agent') location.hash = link(w.host, `/start/ws/${id}`);
+  if (k === 'tab') newTab(w);
+  if (k === 'rename') renameWorkspace(w);
+  if (k === 'close') closeWorkspace(w);
+}

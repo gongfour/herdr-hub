@@ -180,16 +180,18 @@ function renderDetail() {
   };
   document.getElementById('d-send').onclick = sendNow;
   keepFocusTap(document.getElementById('d-send'), sendNow);
-  document.getElementById('d-stop').onclick = confirmStop;
-  document.getElementById('d-more').onclick = agentMenu;
+  document.getElementById('d-stop').onclick = () => confirmStop();
+  document.getElementById('d-more').onclick = () => paneMenu('agent', currentAgent()); // actions.js
   document.getElementById('d-mode').onclick = cycleMode;
   renderDetailHeader();
   renderDetailBody(true);
 }
 
-async function confirmStop() {
-  if (!(await sheet({ title: '작업 멈추기', text: '작업을 멈출까요? 대화는 남습니다.', ok: '멈추기', danger: true }))) return;
-  sendKeys(['esc']);
+// 중단 (the stop button, a menu): an agent's work, after asking. Esc to it; the chat stays.
+async function confirmStop(a = currentAgent()) {
+  if (!a) return;
+  if (!(await sheet({ title: '작업 중단', text: `‘${a.name || a.title}’ 의 작업을 중단할까요? 대화는 남습니다.`, ok: '중단', danger: true }))) return;
+  if ((await sendKeys(['esc'], a.host || localId(), a.pane)) && view.name !== 'agent') toast('중단하라고 보냈습니다');
 }
 
 // Alt+. twice within STOP_MS (keymap.js): what 중단 does once its sheet says yes. The first press
@@ -958,34 +960,6 @@ function closeScreenSheet() {
   else el.remove();
 }
 
-async function agentMenu() {
-  const a = currentAgent();
-  if (!a) return;
-  const last = lastReply();
-  const k = await menu(a.name || a.title, [
-    a.status === 'working' ? ['stop', '멈추기'] : null,
-    screenBody(a) ? null : ['screen', '터미널 화면 보기'],
-    ['keys', '키 보내기', false, 'Esc · ⇧Tab · Enter · ↑ ↓ · 1–3'],
-    last ? ['copy', '마지막 답 복사'] : null,
-    ['rename', '이름 바꾸기'],
-    ['ws', '워크스페이스 보기'],
-    ['close', '패널 닫기(에이전트 종료)', true],
-  ]);
-  if (k === 'stop') confirmStop();
-  if (k === 'screen') openScreenSheet();
-  if (k === 'keys') {
-    const key = await menu('키 보내기', AGENT_KEYS.map(([key, label]) => [key, label]), { sub: a.name || a.title });
-    if (key) {
-      const host = a.host;
-      const pane = a.pane;
-      if (await sendKeys([key], host, pane)) toast(`${AGENT_KEYS.find((x) => x[0] === key)[1]} 키를 보냈습니다`);
-    }
-  }
-  if (k === 'copy') copyText(lastReply(), '마지막 답을 복사했습니다');
-  if (k === 'ws') location.hash = link(a.host, `/ws/${encodeURIComponent(a.workspace)}`);
-  if (k === 'rename') renamePane(a, true);
-  if (k === 'close') closePane(a.host, a.pane, a.name || a.title, true);
-}
 
 async function copyText(text, okText) {
   try {

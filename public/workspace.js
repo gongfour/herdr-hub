@@ -1,5 +1,5 @@
 'use strict';
-// The workspace page, in 설정's grouped cards: what to do here first (에이전트 시작, 셸 열기),
+// The workspace page, in 설정's grouped cards: what to do here first (에이전트 시작, 새 셸 열기),
 // where it is (its folder, its host and tabs), its agents and shells as the list draws them
 // (list.js agentRow / termRow: icon, unread dot, time, status), and last the rare and the
 // destructive (이름 바꾸기, 워크스페이스 닫기) as quiet rows rather than big buttons.
@@ -31,7 +31,7 @@ function renderWorkspace() {
       ${w ? `
       <div class="row ws-acts">
         <a class="btn" href="${link(host, `/start/ws/${id}`)}"${keyAttrs('newAgent', '에이전트 시작')}>에이전트 시작</a>
-        <button type="button" class="btn secondary" id="w-tab" title="이 워크스페이스에 새 탭을 열고 셸을 띄웁니다">셸 열기</button>
+        <button type="button" class="btn secondary" id="w-tab" title="이 워크스페이스에 새 탭을 열고 셸을 띄웁니다">새 셸 열기</button>
       </div>
       <section class="pgroup" aria-label="정보">
         <div class="pcard ws-info">${info.map(([k, v]) => `<div class="ws-kv"><span class="ws-k">${k}</span><span class="ws-v">${v}</span></div>`).join('')}</div>

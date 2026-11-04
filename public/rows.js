@@ -185,38 +185,14 @@ async function rowMenu(el) {
   const kind = el.dataset.kind;
   const x = rowTarget(el);
   if (!x) return;
-  const items =
-    kind === 'ws'
-      ? [['open', '워크스페이스 보기'], ['agent', '에이전트 시작'], ['tab', '새 탭'], ['rename', '이름 바꾸기'], ['close', '워크스페이스 닫기', true]]
-      : [
-          ['open', kind === 'agent' ? '대화 열기' : '셸 열기'],
-          kind === 'agent' && x.status === 'working' ? ['stop', '멈추기'] : null,
-          ['rename', '이름 바꾸기'],
-          ['ws', '워크스페이스 보기'],
-          ['close', kind === 'agent' ? '패널 닫기(에이전트 종료)' : '패널 닫기', true],
-        ];
-  const k = await menu(rowLabel(kind, x), items, { sub: kind === 'ws' ? '워크스페이스' : kind === 'agent' ? '에이전트' : '셸' });
-  if (k) rowAction(el, k);
+  if (kind === 'ws') wsMenu(x, { fromRow: true }); // actions.js: the same menus as the views' ⋯
+  else paneMenu(kind, x, { fromRow: true });
 }
 
-// The same calls the agent, shell and workspace menus make.
-async function rowAction(el, k) {
-  const kind = el.dataset.kind;
+// A row's action by name (the slide-open buttons, while any are left).
+function rowAction(el, k) {
   const x = rowTarget(el);
   if (!x) return toast('이미 닫혔습니다');
-  if (kind === 'ws') {
-    if (k === 'open') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace_id)}`);
-    if (k === 'agent') location.hash = link(x.host, `/start/ws/${encodeURIComponent(x.workspace_id)}`);
-    if (k === 'tab') newTab(x);
-    if (k === 'rename') renameWorkspace(x);
-    if (k === 'close') closeWorkspace(x);
-    return;
-  }
-  if (k === 'open') location.hash = link(x.host, `/${kind === 'agent' ? 'agent' : 'term'}/${encodeURIComponent(x.pane)}`);
-  if (k === 'ws') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace)}`);
-  if (k === 'stop' && (await sheet({ title: '작업 멈추기', text: `‘${rowLabel(kind, x)}’ 의 작업을 멈출까요? 대화는 남습니다.`, ok: '멈추기', danger: true }))) {
-    if (await sendKeys(['esc'], x.host || localId(), x.pane)) toast('멈추라고 보냈습니다');
-  }
-  if (k === 'rename') renamePane(x, kind === 'agent');
-  if (k === 'close') closePane(x.host, x.pane, rowLabel(kind, x), kind === 'agent');
+  if (el.dataset.kind === 'ws') wsAction(x, k);
+  else paneAction(el.dataset.kind, x, k);
 }

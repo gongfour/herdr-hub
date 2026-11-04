@@ -423,7 +423,7 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', dang
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.className = 'sheet-back';
-    el.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    el.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1">
         <h2>${esc(title)}</h2>
         ${text ? `<p>${esc(text)}</p>` : ''}
         ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
@@ -459,7 +459,8 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', dang
     };
     check();
     // Shown again after an error: no slide, so it reads as the same sheet.
-    layer = openLayer(el, { onClose: (v) => resolve(v === undefined ? null : v), focus: field || submit, animate: !again });
+    // The OK button takes Enter when it came from a key; after a tap it would only look picked.
+    layer = openLayer(el, { onClose: (v) => resolve(v === undefined ? null : v), focus: field || (lastInput === 'key' ? submit : el.querySelector('.sheet')), animate: !again });
   });
 }
 
@@ -481,19 +482,35 @@ async function askLoop(opts, post) {
 
 // A list of actions in a sheet. Resolves with the chosen key or null.
 // items: [key, label, danger?, sub?]; a null item is skipped. Danger items go last, under a gap.
+// How the last thing was done: 'pointer' (a finger, a mouse) or 'key'. A menu or sheet opened by
+// a tap leaves the focus on itself, so no item looks picked, even on a tablet with a keyboard;
+// opened from a key, its first item (or OK) takes the focus for ↑↓ and Enter.
+let lastInput = 'pointer';
+addEventListener('pointerdown', () => (lastInput = 'pointer'), true);
+addEventListener('keydown', (e) => !['Control', 'Alt', 'Shift', 'Meta'].includes(e.key) && (lastInput = 'key'), true);
+
+// items: [key, label, danger, note, action] (action: keymap.js's, whose key shows at the end of
+// the row with a keyboard), or '-' to start a new block. The danger items make the last block.
+// Opened from a key, the first item takes the focus (↑↓ and Enter); opened by a tap the sheet
+// itself does (lastInput), so no item looks picked before a finger picks it.
 function menu(title, items, { sub = '' } = {}) {
   return new Promise((resolve) => {
-    const list = items.filter(Boolean);
-    const row = ([key, label, danger, note]) =>
-      `<button class="action ${danger ? 'danger' : ''}" data-k="${esc(key)}">${esc(label)}${note ? `<span class="sub">${esc(note)}</span>` : ''}</button>`;
-    const plain = list.filter((x) => !x[2]);
-    const risky = list.filter((x) => x[2]);
+    const kbd = keyboardLikely();
+    const row = ([key, label, danger, note, action]) => {
+      const k = kbd && action ? Keymap.hint(action) : '';
+      return `<button class="action ${danger ? 'danger' : ''}" data-k="${esc(key)}"><span class="act-main">${esc(label)}${note ? `<span class="sub">${esc(note)}</span>` : ''}</span>${k ? `<kbd class="act-key">${esc(k)}</kbd>` : ''}</button>`;
+    };
+    const blocks = [[]];
+    for (const x of items.filter(Boolean)) {
+      if (x === '-') blocks.push([]);
+      else if (!x[2]) blocks[blocks.length - 1].push(x);
+    }
+    const risky = items.filter((x) => Array.isArray(x) && x[2]);
     const el = document.createElement('div');
     el.className = 'sheet-back';
-    el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1">
         <h2>${esc(title)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</h2>
-        ${plain.length ? `<div class="actions">${plain.map(row).join('')}</div>` : ''}
-        ${risky.length ? `<div class="actions">${risky.map(row).join('')}</div>` : ''}
+        ${[...blocks.filter((b) => b.length), ...(risky.length ? [risky] : [])].map((b) => `<div class="actions">${b.map(row).join('')}</div>`).join('')}
         <button class="btn secondary wide" data-k="">취소</button>
       </div>`;
     let layer = null;
@@ -503,7 +520,7 @@ function menu(title, items, { sub = '' } = {}) {
       if (e.target === el) done(null);
     };
     el.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => done(b.dataset.k)));
-    layer = openLayer(el, { onClose: (v) => resolve(v || null), focus: '.action' });
+    layer = openLayer(el, { onClose: (v) => resolve(v || null), focus: lastInput === 'key' ? '.action' : '.sheet' });
   });
 }
 

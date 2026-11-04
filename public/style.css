@@ -247,7 +247,7 @@ button:disabled { cursor: default; }
 /* ---- detail */
 /* What a working agent is doing, read off its screen; a tap opens the terminal sheet. */
 .activity {
-  flex: none; display: flex; align-items: center; gap: 8px; margin: 8px 16px 0; padding: 0 12px; min-height: 38px;
+  flex: none; display: flex; align-items: center; gap: 8px; margin: 8px 16px 0; padding: 0 12px; min-height: 44px;
   border: 0; border-radius: 10px; background: var(--working-bg); color: var(--working); font-size: 13px;
   text-align: left; white-space: nowrap; overflow: hidden; cursor: pointer;
 }
@@ -626,6 +626,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .action:first-child { border-top: 0; }
 .action:active { background: var(--surface-2); }
 .action.danger { color: var(--blocked); }
+/* A menu row: its words (and note) on the left, its key, with a keyboard, at the end (core.js menu). */
+.action { display: flex; align-items: center; gap: 12px; width: 100%; }
+.action .act-main { flex: 1; min-width: 0; }
+.action .act-key { flex: none; font: 12px/1 var(--mono); padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); color: var(--muted); }
+.sheet:focus { outline: none; } /* focused on open on a touch screen, so no item looks picked */
 
 .term-keys { padding: 8px 12px 0; border-top: 1px solid var(--line); background: var(--bg); }
 .term-keys .key { min-height: 44px; padding: 0 12px; font-size: 14px; }
@@ -644,7 +649,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .seg.hosts button.off { color: var(--muted); }
 .seg.hosts button.off .hdot { background: var(--blocked); }
 .host-chip {
-  display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.5; padding: 0 6px; margin-right: 6px; border-radius: 6px;
+  display: inline-block; font-size: 12px; font-weight: 600; line-height: 1.5; padding: 0 6px; margin-right: 6px; border-radius: 6px;
   background: var(--surface-2); color: var(--text); border: 1px solid var(--line); vertical-align: 1px;
 }
 .offline { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--blocked-bg); color: var(--text); font-size: 14px; }
@@ -815,7 +820,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .pref-line { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; min-height: 44px; }
 .pref-label { font-size: 15px; }
 .pref .seg { flex: none; }
-.pref .seg button { flex: none; min-height: 38px; }
+.pref .seg button { flex: none; min-height: 44px; }
 .panel .pref-hint { margin: 2px 0; font-size: 13px; line-height: 1.4; }
 .pcard > .pref-hint { padding: 0 14px 10px; }
 .pref-link {
@@ -1239,3 +1244,14 @@ button.tool:active { filter: brightness(0.95); }
 }
 .seg.hosts.tracking button { position: relative; z-index: 1; }
 .seg.hosts.tracking button[aria-pressed="true"] { background: transparent; border-color: transparent; box-shadow: none; }
+
+/* Fingers (no fine pointer): the small controls get a 44px target. The chat's tool lines stay
+   compact (a long run of 44px lines would push the answer away), at 36px; the 단축키 page's ×, +
+   and 셸 grow only here, where a keyboard is less likely the way in. */
+@media (pointer: coarse) {
+  .tool { padding-top: 10px; padding-bottom: 10px; }
+  .kchip .kx { min-width: 44px; min-height: 44px; }
+  .k-add { min-width: 44px; min-height: 44px; }
+  .kchip .ksh { min-width: 44px; min-height: 44px; padding: 0 10px; }
+  .k-reset { min-height: 44px; }
+}
