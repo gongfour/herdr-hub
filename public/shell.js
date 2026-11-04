@@ -173,9 +173,11 @@ function renderTerminal() {
     if (e.data && !composedEcho(e.data)) rawPress({ text: e.data });
     setTimeout(() => (input.value = ''), 0);
   });
+  // A key the keymap gives the Hub here (a binding with shell, keymap.js) is left to app.js;
+  // 뒤로's keys are the shell's Esc; every other key goes to the shell as rawKeyName names it.
   input.addEventListener('keydown', (e) => {
     if (!detail.raw || e.isComposing || e.keyCode === 229) return;
-    const k = Keys.rawKeyName(e);
+    const k = shellKeyName(e);
     if (!k) return;
     e.preventDefault();
     rawPress({ key: k });
@@ -208,10 +210,16 @@ document.addEventListener(
   true,
 );
 
+// What a key pressed in the shell view's 키 직접 입력 sends to the shell: nothing when the keymap
+// gives it to the Hub, Esc for 뒤로's keys (the shell's Esc), else its rawKeyName (null: typed
+// text, which beforeinput sends, or a key the shell never gets).
+const shellKeyName = (e) => Keymap.shellKey(e, keyContext()); // app.js
+
 // The shell view, a key pressed while the focus is on the page (before the screen was tapped,
 // or after ⌨ put the keyboard away): it goes to the shell, and its field takes the focus for
 // the next ones. Esc, [ ] and / here are the shell's, never 뒤로 or the list; the way out is
-// ‹ (✕), or Alt+↑/↓ in the split layout. The header's own controls keep their keys.
+// ‹ (✕), or a key the keymap gives the Hub in the shell view (Alt+↑/↓ in the split layout),
+// which is left to app.js. The header's own controls keep their keys.
 // Returns true when the key was taken.
 function termStrayKey(e) {
   if (view.name !== 'term' || e.isComposing || e.keyCode === 229 || topLayer()) return false;
@@ -222,10 +230,12 @@ function termStrayKey(e) {
   // open this shell. A link or button keeps Enter, Space and Tab; the header keeps every key.
   const control = a && a.closest && a.closest('a, button');
   const onPage = !a || a === document.body || a === document.documentElement || (!editable(a) && !a.closest('.bar') && (detailRoot().contains(a) || (split && listRoot().contains(a))));
-  if (!onPage || (control && ['Enter', ' ', 'Tab'].includes(e.key)) || (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) return false;
+  if (!onPage || (control && ['Enter', ' ', 'Tab'].includes(e.key))) return false;
   if (detail.raw) {
-    const k = Keys.rawKeyName(e);
-    const text = !k && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 ? e.key : null;
+    const b = Keymap.match(e, keyContext()); // app.js
+    if (b && !Keymap.ACTIONS[b.action].shellEsc) return false; // the Hub's
+    const k = shellKeyName(e);
+    const text = !b && !k && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 ? e.key : null;
     if (!k && text == null) return false;
     input.focus({ preventScroll: true });
     rawPress(k ? { key: k } : { text });

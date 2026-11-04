@@ -2,7 +2,9 @@
 // The 단축키 page (#/keys), as VS Code's Keyboard Shortcuts editor: every action of keymap.js
 // with its keys, where they work and whether this device changed them, a search over names and
 // keys (or by pressing the key itself), and the editing in place: × takes a key off, + records
-// the next key pressed (Esc cancels), 기본값 puts an action back, 모두 기본값으로 all of them.
+// the next key pressed (Esc cancels), a key's 셸 switches 「셸 화면에서도」 (the Hub takes that
+// key in the shell view, or leaves it to the shell; keymap.js setShell), 기본값 puts an action
+// back, 모두 기본값으로 all of them.
 // Split it opens on the right like 설정; on the phone it is a page of its own. ✕ (Esc) closes it.
 
 const kp = { q: '', rec: null }; // rec: the action whose key is being recorded, or 'search'
@@ -78,26 +80,32 @@ function drawKeysList() {
     if (r.fixed) keys = r.keys.length > 2 ? `<kbd>${esc(Keymap.label(r.keys[0]))}–${esc(Keymap.label(r.keys[r.keys.length - 1]))}</kbd>` : r.keys.map(kbd).join('');
     else
       keys = r.keys
-        .map((k) => {
+        .map((k, i) => {
           const keep = r.action === 'back' && k === 'Escape'; // 뒤로 always has Esc
-          return `<span class="kchip">${kbd(k)}${keep ? '' : `<button type="button" class="kx" data-rm="${esc(k)}" aria-label="${esc(Keymap.label(k))} 빼기" title="빼기">×</button>`}</span>`;
+          const sh = r.shells[i];
+          const name = Keymap.label(k);
+          const shBtn = sh && sh.can
+            ? `<button type="button" class="ksh" data-sh="${esc(k)}" role="switch" aria-checked="${sh.on}" aria-label="${esc(name)} 셸 화면에서도" title="셸 화면에서도: ${sh.on ? '켜짐 (Hub 가 씀)' : '꺼짐 (셸로 감)'}">셸</button>`
+            : '';
+          return `<span class="kchip">${kbd(k)}${shBtn}${keep ? '' : `<button type="button" class="kx" data-rm="${esc(k)}" aria-label="${esc(name)} 빼기" title="빼기">×</button>`}</span>`;
         })
         .join('');
     const where = Keymap.whereText(r.action);
+    const loses = r.fixed ? [] : r.shells.filter((x) => x.loses).map((x) => `${Keymap.label(x.key)}: ${x.loses}`);
     const tools = r.fixed
       ? '<span class="k-fixed">바꿀 수 없음</span>'
       : `${rec ? '<span class="k-recnote" role="status">누를 키를 누르세요 · Esc 취소</span>' : '<button type="button" class="k-add" data-add aria-label="키 더하기" title="키 더하기">+</button>'}${
           r.changed ? '<button type="button" class="k-reset" data-reset title="이 동작을 기본 키로">기본값</button>' : ''
         }`;
     return `<div class="k-row${r.changed ? ' changed' : ''}${rec ? ' recording' : ''}" data-action="${esc(r.action)}">
-        <div class="k-what"><span class="k-name">${esc(r.label)}</span>${r.changed ? '<span class="k-mark">바꿈</span>' : ''}${where ? `<span class="k-where">${esc(where)}</span>` : ''}</div>
+        <div class="k-what"><span class="k-name">${esc(r.label)}</span>${r.changed ? '<span class="k-mark">바꿈</span>' : ''}${where ? `<span class="k-where">${esc(where)}</span>` : ''}${loses.map((t) => `<span class="k-loses">${esc(t)}</span>`).join('')}</div>
         <div class="k-keys">${keys || '<span class="k-none">키 없음</span>'}${tools}</div>
       </div>`;
   };
   const local = Keymap.LOCAL.filter((x) => keysMatch({ label: `${x.group} ${x.label}`, keys: Keymap.localKeys(x) }, q));
   const changed = Object.keys(keyOverrides).length > 0;
   const html = `
-    <p class="pnote k-note">바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만, 셸이 쓰는 키는 셸 화면에서 빼고 동작합니다.</p>
+    <p class="pnote k-note">바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만 동작합니다. 키 옆의 <span class="ksh-demo" aria-hidden="true">셸</span>이 켜진 키는 셸 화면에서도 Hub 가 쓰고, 꺼진 키는 셸 화면에서 셸로 갑니다.</p>
     ${[...groups]
       .map(([g, rows]) => `<section class="pgroup"><h2>${esc(g)}</h2><div class="pcard">${rows.map(row).join('')}</div></section>`)
       .join('')}
@@ -143,6 +151,19 @@ function bindKeysPage(main) {
       return drawKeysList();
     }
     if (t.closest('[data-reset]')) return saveKeys(Keymap.reset(keyOverrides, action)), drawKeysList();
+    const sh = t.closest('[data-sh]');
+    if (sh) {
+      try {
+        saveKeys(Keymap.setShell(keyOverrides, action, sh.dataset.sh, sh.getAttribute('aria-checked') !== 'true'));
+      } catch (err) {
+        toastErr(err.message);
+      }
+      drawKeysList();
+      // The list is drawn anew: the focus back on the same switch, for the keyboard.
+      const again = [...document.querySelectorAll(`.k-row[data-action="${CSS.escape(action)}"] [data-sh]`)].find((b) => b.dataset.sh === sh.dataset.sh);
+      if (again) again.focus({ preventScroll: true });
+      return;
+    }
     const rm = t.closest('[data-rm]');
     if (rm) {
       try {

@@ -57,26 +57,35 @@ test('rawKeyName: F-keys, word keys, Ctrl+[ and the meta keys', () => {
   assert.equal(rawKeyName(key('≥', { altKey: true, code: 'Period' })), 'alt+.');
 });
 
-test('rawKeyName: paste chords, Alt+↑/↓ and Alt+P (the Hub\'s 빠른 이동) are not sent', () => {
-  assert.equal(rawKeyName(key('p', { altKey: true, code: 'KeyP' })), null);
-  assert.equal(rawKeyName(key('b', { altKey: true, code: 'KeyB' })), null); // the sidebar's (Alt+← is the shell's back-a-word)
-  assert.equal(rawKeyName(key('π', { altKey: true, code: 'KeyP' })), null); // a Mac's Option+P
-  assert.equal(rawKeyName(key('p', { ctrlKey: true, code: 'KeyP' })), 'ctrl+p'); // the shell's
-  // Alt+K/J are Alt+↑/↓'s twins (the Hub's rows); Alt+H/L stay the shell's, as Alt+←/→.
-  assert.equal(rawKeyName(key('k', { altKey: true, code: 'KeyK' })), null);
-  assert.equal(rawKeyName(key('j', { altKey: true, code: 'KeyJ' })), null);
-  assert.equal(rawKeyName(key('∆', { altKey: true, code: 'KeyJ' })), null); // a Mac's Option+J
+// rawKeyName says what the shell would get, nothing more: which of those keys the Hub keeps in
+// the shell view is the keymap's (keymap.test.js, 'the shell keys the defaults take').
+test('rawKeyName: Alt+P/B/J/K are shell keys too; paste chords, Alt+↑/↓ and AltGr are none', () => {
+  assert.equal(rawKeyName(key('p', { altKey: true, code: 'KeyP' })), 'alt+p');
+  assert.equal(rawKeyName(key('b', { altKey: true, code: 'KeyB' })), 'alt+b');
+  assert.equal(rawKeyName(key('π', { altKey: true, code: 'KeyP' })), 'alt+p'); // a Mac's Option+P
+  assert.equal(rawKeyName(key('p', { ctrlKey: true, code: 'KeyP' })), 'ctrl+p');
+  assert.equal(rawKeyName(key('k', { altKey: true, code: 'KeyK' })), 'alt+k');
+  assert.equal(rawKeyName(key('j', { altKey: true, code: 'KeyJ' })), 'alt+j');
+  assert.equal(rawKeyName(key('∆', { altKey: true, code: 'KeyJ' })), 'alt+j'); // a Mac's Option+J
   assert.equal(rawKeyName(key('h', { altKey: true, code: 'KeyH' })), 'alt+h');
   assert.equal(rawKeyName(key('l', { altKey: true, code: 'KeyL' })), 'alt+l');
   assert.equal(rawKeyName(key('k', { ctrlKey: true, code: 'KeyK' })), 'ctrl+k');
   assert.equal(rawKeyName(key(',', { ctrlKey: true, code: 'Comma' })), null); // Ctrl+, sends nothing either way
   assert.equal(rawKeyName(key('b', { ctrlKey: true, code: 'KeyB' })), 'ctrl+b');
+  assert.equal(rawKeyName(key('[', { altKey: true, code: 'BracketLeft' })), null);
   assert.equal(rawKeyName(key('v', { ctrlKey: true, code: 'KeyV' })), null);
   assert.equal(rawKeyName(key('V', { ctrlKey: true, shiftKey: true, code: 'KeyV' })), null);
   assert.equal(rawKeyName(key('v', { metaKey: true, code: 'KeyV' })), null);
   assert.equal(rawKeyName(key('ArrowUp', { altKey: true })), null);
   assert.equal(rawKeyName(key('ArrowDown', { altKey: true })), null);
   assert.equal(rawKeyName(key('a', { ctrlKey: true, altKey: true, code: 'KeyA' })), null); // AltGr
+});
+
+test('shellMeaning: well-known shell keys in words, else nothing', () => {
+  const { shellMeaning } = require('../public/keys.js');
+  assert.equal(shellMeaning('alt+b'), '한 단어 뒤로');
+  assert.equal(shellMeaning('ctrl+r'), '기록 찾기');
+  assert.equal(shellMeaning('alt+j'), '');
 });
 
 test('withMods: the sticky Ctrl and Alt turn the next key into a chord', () => {

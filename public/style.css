@@ -1179,6 +1179,13 @@ button.tool:active { filter: brightness(0.95); }
 .kchip { display: inline-flex; align-items: center; }
 .kchip .kx { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; min-width: 26px; min-height: 32px; cursor: pointer; border-radius: 6px; }
 .kchip .kx:hover { color: var(--blocked); background: var(--surface-2); }
+/* A key's 「셸 화면에서도」 switch: a small pill, filled when the Hub takes the key in the shell view. */
+.kchip .ksh, .ksh-demo { font-size: 11px; font-weight: 600; line-height: 1; padding: 4px 6px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); }
+.kchip .ksh { margin-left: 4px; min-height: 28px; cursor: pointer; }
+.kchip .ksh[aria-checked="true"], .ksh-demo { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.kchip .ksh:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ksh-demo { display: inline-block; padding: 2px 5px; }
+.k-loses { flex-basis: 100%; font-size: 12px; color: var(--muted); }
 .k-add, .k-reset { min-height: 32px; padding: 0 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .k-add { border: 1px dashed var(--line); background: none; color: var(--accent); min-width: 32px; padding: 0; font-size: 18px; line-height: 1; }
 .k-reset { border: 1px solid var(--line); background: var(--surface); color: var(--muted); }

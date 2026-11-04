@@ -29,9 +29,37 @@ test('no key is bound twice', () => {
   }
 });
 
-test('the shell view takes no key the shell needs (rawKeyName), Esc and Ctrl+[ aside', () => {
-  // In 키 직접 입력 the shell's field sends those two to the shell before the page sees them.
-  for (const x of BINDINGS.filter((y) => y.shell && y.action !== 'back')) assert.equal(rawKeyName(ev(x.key)), null, x.key);
+// The shell's field asks the keymap first (shellKey): a binding with shell takes its key from
+// the shell there. The defaults take exactly these shell keys; every other one goes to the shell.
+test('the shell keys the defaults take are exactly this list', () => {
+  const taken = BINDINGS.filter((x) => x.shell && rawKeyName(ev(x.key)) != null).map((x) => `${x.key} ${x.action}`);
+  assert.deepEqual(taken, [
+    'Escape back', // 뒤로's keys: the shell's Esc there (shellEsc)
+    'Ctrl+[ back',
+    'ScrollLock back',
+    'Alt+k prevRow', // vim's k and j, the split layout only
+    'Alt+j nextRow',
+    'Alt+p switcher', // Ctrl+P stays the shell's
+    'Alt+b toggleSide', // the split layout only; Alt+← is the shell's back-a-word too
+  ]);
+});
+
+test('shellKey: what a key in the shell\'s 키 직접 입력 sends there under the defaults', () => {
+  const sp = { shell: true, split: true };
+  const sk = (key, ctx, extra) => KM0.shellKey(ev(key, extra), ctx);
+  assert.equal(sk('Alt+b', sp), null); // folds the sidebar
+  assert.equal(sk('Alt+b', sp, { key: '∫', code: 'KeyB' }), null); // a Mac's Option+B
+  assert.equal(sk('Alt+b', { shell: true }), 'alt+b'); // the phone: no sidebar, the shell's
+  assert.equal(sk('Ctrl+b', sp), 'ctrl+b');
+  assert.equal(sk('Alt+ArrowLeft', sp), 'alt+left'); // the shell's back-a-word
+  assert.equal(sk('Alt+p', sp), null);
+  assert.equal(sk('Ctrl+p', sp), 'ctrl+p');
+  assert.equal(sk('Alt+j', sp), null);
+  assert.equal(sk('Alt+j', { shell: true }), 'alt+j');
+  for (const k of ['Escape', 'Ctrl+[', 'ScrollLock']) assert.equal(sk(k, sp), 'esc', k);
+  assert.equal(sk('Ctrl+ArrowUp', sp), null); // prevMine
+  assert.equal(sk('Ctrl+Alt+w', sp), null); // closeView (no shell key anyway)
+  assert.equal(sk('a', sp), null); // typed text: the field sends it
 });
 
 test('Scroll Lock goes back too (a remapped cover Esc: no text, no Ctrl needed), everywhere', () => {
@@ -381,9 +409,11 @@ test('stop says ×2 whatever its key', () => {
 });
 
 test('whereText: where an action\'s keys work, the odd one named', () => {
-  assert.equal(KM.whereText('jumpEnd'), '입력 칸에서도 (End 빼고) · 셸 화면에서도 (End 빼고) · 시트 위에서도');
-  assert.equal(KM.whereText('nextRow'), '입력 칸에서도 · 셸 화면에서도 · 두 칸에서만');
-  assert.equal(KM.whereText('help'), '입력 칸에서도 · 셸 화면에서도');
+  // The shell view is each key's own 「셸」 switch on the page, except where there is none (뒤로).
+  assert.equal(KM.whereText('jumpEnd'), '입력 칸에서도 (End 빼고) · 시트 위에서도');
+  assert.equal(KM.whereText('nextRow'), '입력 칸에서도 · 두 칸에서만');
+  assert.equal(KM.whereText('help'), '입력 칸에서도');
+  assert.equal(KM.whereText('back'), '입력 칸에서도 · 셸 화면에서도 · 시트 위에서도');
   assert.equal(KM.whereText('focusInput'), ''); // only on the page
   withKeys({ help: [] }, () => assert.equal(KM.whereText('help'), ''));
 });
@@ -421,4 +451,98 @@ test('Ctrl+Alt+W: the same close, the shell view included (no shell key)', () =>
   for (const ctx of [{}, { field: true }, { shell: true }, { shell: true, field: true }]) assert.equal(act('Ctrl+Alt+w', ctx), 'closeView');
   assert.equal(rawKeyName(ev('Ctrl+Alt+w')), null);
   assert.equal(act('Ctrl+Alt+w', { layer: true }), null);
+});
+
+// ---- the shell view and the 「셸 화면에서도」 switch
+const { withMods } = require('../public/keys.js');
+const sp = { shell: true, split: true };
+
+test('unbinding Alt+B gives alt+b back to the shell; the sidebar keeps Ctrl+B', () => {
+  withKeys(KM.unassign({}, 'toggleSide', 'Alt+b'), () => {
+    assert.equal(KM.shellKey(ev('Alt+b'), sp), 'alt+b');
+    assert.equal(act('Alt+b', { split: true }), null);
+    assert.equal(act('Ctrl+b', { split: true }), 'toggleSide');
+  });
+  assert.equal(KM.shellKey(ev('Alt+b'), sp), null); // the defaults again
+});
+
+test('a new key: the switch on takes it in the shell view, off (or left alone) leaves it to the shell', () => {
+  // Alt+S (the shell's alt+s) for newAgent: automatic is off, the shell uses the key.
+  let over = KM.assign({}, 'newAgent', 'Alt+s').overrides;
+  withKeys(over, () => {
+    assert.equal(KM.shellFor('newAgent', 'Alt+s'), false);
+    assert.equal(KM.shellKey(ev('Alt+s'), sp), 'alt+s');
+    assert.equal(act('Alt+s', { field: true }), 'newAgent'); // still in a field
+  });
+  over = KM.setShell(over, 'newAgent', 'Alt+s', true);
+  assert.deepEqual(over.newAgent, ['Ctrl+n', 'Alt+n', { key: 'Alt+s', shell: true }]);
+  withKeys(over, () => {
+    assert.equal(KM.shellFor('newAgent', 'Alt+s'), true);
+    assert.equal(KM.shellKey(ev('Alt+s'), sp), null);
+    assert.equal(KM.shellKey(ev('Alt+s'), { shell: true }), null); // not split-only
+    assert.equal(act('Alt+s', { shell: true, field: true }), 'newAgent'); // 한 줄 입력's line too
+    assert.equal(KM.shellKey(ev('Alt+n'), sp), 'alt+n'); // the others as they were
+    const row = KM.actionRows().find((r) => r.action === 'newAgent');
+    assert.deepEqual(row.shells.find((x) => x.key === 'Alt+s'), { key: 'Alt+s', can: true, on: true, loses: '셸이 이 키(alt+s)를 받지 못합니다' });
+  });
+  over = KM.setShell(over, 'newAgent', 'Alt+s', false); // back to automatic: the plain key
+  assert.deepEqual(over.newAgent, ['Ctrl+n', 'Alt+n', 'Alt+s']);
+  withKeys(over, () => assert.equal(KM.shellKey(ev('Alt+s'), sp), 'alt+s'));
+});
+
+test('the switch on a default key: off gives it to the shell; back on drops the override', () => {
+  let over = KM.setShell({}, 'toggleSide', 'Alt+b', false);
+  assert.deepEqual(over, { toggleSide: ['Ctrl+b', { key: 'Alt+b', shell: false }] });
+  withKeys(over, () => {
+    assert.equal(KM.shellKey(ev('Alt+b'), sp), 'alt+b');
+    assert.equal(act('Alt+b', { split: true, field: true }), 'toggleSide'); // elsewhere still the sidebar
+  });
+  over = KM.setShell(over, 'toggleSide', 'Alt+b', true);
+  assert.deepEqual(over, {});
+  // On for a default the shell keeps: Ctrl+B takes the shell's back-a-character, and says so.
+  over = KM.setShell({}, 'toggleSide', 'Ctrl+b', true);
+  withKeys(over, () => {
+    assert.equal(KM.shellKey(ev('Ctrl+b'), sp), null);
+    const row = KM.actionRows().find((r) => r.action === 'toggleSide');
+    assert.equal(row.shells.find((x) => x.key === 'Ctrl+b').loses, '셸의 한 글자 뒤로(ctrl+b) 대신 Hub 가 씁니다');
+    assert.equal(row.shells.find((x) => x.key === 'Alt+b').loses, '셸의 한 단어 뒤로(alt+b) 대신 Hub 가 씁니다');
+  });
+});
+
+test('the switch: not for 뒤로, actions meaningless in the shell view, or a key that types', () => {
+  assert.throws(() => KM.setShell({}, 'back', 'Ctrl+[', false), /Esc/);
+  assert.throws(() => KM.setShell({}, 'stop', 'Alt+.', true), /셸 화면에서 쓸 일이 없습니다/);
+  assert.throws(() => KM.setShell({}, 'focusInput', '/', true), /셸 화면에서 쓸 일이 없습니다/);
+  assert.throws(() => KM.setShell(KM.assign({}, 'jumpEnd', 'g').overrides, 'jumpEnd', 'g', true), /글자를 칩니다/);
+  assert.equal(KM.refuseShell('jumpEnd', 'End'), ''); // a key that types nothing may
+  const rows = KM.actionRows();
+  for (const a of ['back', 'stop', 'answer', 'focusInput', 'terminal', 'mode']) assert.ok(rows.find((r) => r.action === a).shells.every((x) => !x.can), a);
+  // A stored switch where none can be is dropped, and one that says what the key does anyway too.
+  const kept = KM.setOverrides({ stop: [{ key: 'Alt+.', shell: true }], toggleSide: ['Ctrl+b', { key: 'Alt+b', shell: true }] });
+  try {
+    assert.deepEqual(kept, { stop: ['Alt+.'], toggleSide: ['Ctrl+b', 'Alt+b'] });
+  } finally {
+    KM.setOverrides({});
+  }
+});
+
+test('stored overrides of the current format (plain key strings) still load as before', () => {
+  const stored = JSON.parse('{"jumpEnd":["Ctrl+g","End"],"toggleSide":["Ctrl+b"],"back":["Escape","ScrollLock"]}');
+  withKeys(stored, () => {
+    assert.equal(act('Ctrl+g', { field: true, layer: true }), 'jumpEnd');
+    assert.equal(KM.shellKey(ev('Ctrl+g'), sp), 'ctrl+g'); // a new key the shell uses: the shell's
+    assert.equal(act('End', {}), 'jumpEnd');
+    assert.equal(act('End', { field: true }), null);
+    assert.equal(KM.shellKey(ev('Alt+b'), sp), 'alt+b'); // Alt+B off the sidebar: the shell's
+    assert.equal(KM.shellKey(ev('Ctrl+['), sp), 'esc'); // off 뒤로: still the shell's Esc (rawKeyName)
+    assert.equal(KM.shellKey(ev('Escape'), sp), 'esc');
+    assert.equal(act('Escape', { field: true }), 'back'); // a kept default key keeps its places
+    assert.deepEqual(KM.keysFor('jumpEnd'), ['Ctrl+g', 'End']);
+  });
+});
+
+test('the key row\'s sticky Alt still sends alt+b: a typed b is no key, and withMods makes it the chord', () => {
+  assert.equal(KM.shellKey(ev('b'), sp), null); // the field's beforeinput sends it as text
+  assert.deepEqual(withMods({ text: 'b' }, { alt: true }), { key: 'alt+b' });
+  assert.deepEqual(withMods({ text: 'p' }, { alt: true }), { key: 'alt+p' });
 });

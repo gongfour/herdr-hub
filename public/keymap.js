@@ -10,24 +10,30 @@
 //          Shift, which the symbol already says.
 //   field  also while typing in a field (the composer, the shell's line, a form); else only with
 //          the focus on the page.
-//   shell  also in the shell view. A key the shell itself needs (keys.js rawKeyName) must not be
-//          taken there: the tests hold every shell binding to that.
+//   shell  also in the shell view. There the shell's field asks this table first (shell.js): a
+//          key bound with shell is the Hub's, every other key goes to the shell as keys.js
+//          rawKeyName names it. So a shell binding takes that key from the shell; the defaults
+//          take only a few (the tests list them), and 뒤로's keys there are the shell's Esc.
 //   layer  also while a sheet or menu is open (the action decides what it means there).
 //   split  only in the two-column layout.
 // ACTIONS give each action its words for the sheet, in the group it is listed under; fixed: its
-// keys are what it means (1–9 pick that choice), so they can't be changed; twice: pressed twice.
+// keys are what it means (1–9 pick that choice), so they can't be changed; twice: pressed twice;
+// noShell: means nothing in the shell view (no 「셸 화면에서도」 switch); shellEsc: in the shell's
+// 키 직접 입력 its keys send the shell Esc (뒤로 there is the shell's Esc).
 //
 // Changing keys (the 단축키 sheet's 바꾸기): a device keeps overrides, { action: [key, …] }, the
 // whole list for each action it changed (core.js, localStorage). setOverrides lays them over the
-// table; a key moved to another action leaves the one it had. A changed key's places come from
-// its action's defaults, cut down so it never takes a typed character (no Ctrl/Alt/⌘: not in a
-// field) or a key the shell needs (keys.js rawKeyName: not in the shell view).
+// table; a key moved to another action leaves the one it had. A key of the action's defaults keeps
+// its default places. A new key's places come from its action's defaults, cut down so it never
+// takes a typed character (no Ctrl/Alt/⌘: not in a field) or a key the shell uses (keys.js
+// rawKeyName: not in the shell view). The 단축키 page's 「셸 화면에서도」 switch overrides the
+// shell part for one key: an entry { key, shell } in place of the key string (shellFor).
 (function (root) {
   const ACTIONS = {
-    back: { group: '어디서나', label: '시트·메뉴 닫기, 입력 칸에서 나가기, 뒤로' },
+    back: { group: '어디서나', label: '시트·메뉴 닫기, 입력 칸에서 나가기, 뒤로 (셸의 키 직접 입력에서는 셸의 Esc)', shellEsc: true },
     help: { group: '어디서나', label: '단축키 보기' },
     settings: { group: '어디서나', label: '설정 열기·닫기 (두 칸이면 오른쪽에)' },
-    focusInput: { group: '어디서나', label: '입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)' },
+    focusInput: { group: '어디서나', label: '입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)', noShell: true },
     newAgent: { group: '어디서나', label: '새 에이전트: 지금 연 것의 작업공간에 (목록이면 새 워크스페이스)' },
     newWorkspace: { group: '어디서나', label: '새 워크스페이스' },
     switcher: { group: '어디서나', label: '빠른 이동: 에이전트·셸을 이름·작업공간·호스트로 찾아 열기 (셸 화면에서는 Alt+P)' },
@@ -40,11 +46,11 @@
     nextMine: { group: '대화·터미널 화면', label: '내가 보낸 다음 메시지로 (마지막 다음은 맨 아래, 입력 칸으로)' },
     scrollUp: { group: '대화·터미널 화면', label: '위로 스크롤 (누르고 있으면 계속)' },
     scrollDown: { group: '대화·터미널 화면', label: '아래로 스크롤 (누르고 있으면 계속)' },
-    answer: { group: '대화·터미널 화면', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)', fixed: true },
-    stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', twice: true },
-    terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기' },
+    answer: { group: '대화·터미널 화면', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)', fixed: true, noShell: true },
+    stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', twice: true, noShell: true },
+    terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기', noShell: true },
     closeView: { group: '대화·터미널 화면', label: '연 에이전트·셸(또는 워크스페이스) 닫기: 확인 창에서 리턴으로 닫고 Esc 로 그만둔다' },
-    mode: { group: '대화·터미널 화면', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)' },
+    mode: { group: '대화·터미널 화면', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)', noShell: true },
     prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
     prevRow: { group: '목록', label: '두 칸: 목록의 이전 에이전트·셸 열기' },
@@ -56,7 +62,7 @@
   const BINDINGS = [
     // Always taken (app.js): Android turns an Esc the page leaves alone into Back, which closes
     // the app. Ctrl+[ is the terminal's Esc, for a keyboard cover whose Esc the system keeps.
-    // In the shell's 키 직접 입력 the field takes both first and sends them to the shell.
+    // In the shell's 키 직접 입력 they are the shell's Esc (shellEsc): the field sends it.
     b('back', 'Escape', { field: true, shell: true, layer: true }),
     b('back', 'Ctrl+[', { field: true, shell: true, layer: true }),
     // Scroll Lock: a key with no text and no system meaning, for a key remapper to turn the
@@ -87,12 +93,13 @@
     // Alt+↑/↓ works in the shell too: it is the way out of a shell that has every other key.
     b('prevRow', 'Alt+ArrowUp', { field: true, shell: true, split: true }),
     b('nextRow', 'Alt+ArrowDown', { field: true, shell: true, split: true }),
-    // Alt+K/J as vim's k and j: the same, the shell included (keys.js leaves them to the Hub there).
+    // Alt+K/J as vim's k and j: the same, the shell included (taken from the shell there).
     b('prevRow', 'Alt+k', { field: true, shell: true, split: true }),
     b('nextRow', 'Alt+j', { field: true, shell: true, split: true }),
     // Ctrl+, as in VS Code. Not in the shell, whose keys stay its own; it types nothing in a field.
     b('settings', 'Ctrl+,', { field: true }),
-    // Ctrl+P is the shell's (previous line): there Alt+P, which keys.js leaves to the Hub. Taken
+    // Ctrl+P is the shell's (previous line): there Alt+P, taken from the shell (its rarely used
+    // history search by prefix). Taken
     // under a sheet too, so the browser never prints; switcher.js decides what it means there.
     b('switcher', 'Ctrl+p', { field: true, layer: true }),
     b('switcher', 'Alt+p', { field: true, shell: true, layer: true }),
@@ -100,7 +107,8 @@
     ...'123456789'.split('').map((n) => b('answer', n)),
     // Ctrl+B is the shell's (back a character), Alt+. its last argument.
     b('toggleSide', 'Ctrl+b', { field: true, split: true }),
-    // Alt+B in the shell view too (its back-a-word is also Alt+←); Ctrl+B there stays the shell's.
+    // Alt+B in the shell view too, taken from the shell (its back-a-word is also Alt+←); Ctrl+B
+    // there stays the shell's.
     b('toggleSide', 'Alt+b', { field: true, shell: true, split: true }),
     b('stop', 'Alt+.', { field: true }),
     // Ctrl+N is the shell's (next line) and Alt+N readline's; Chrome may keep Ctrl+N (and
@@ -118,7 +126,7 @@
     // Alt+W: Ctrl+W is the browser's (close the tab or the app window). Alt+W is the shell's
     // (copy a word back), so not in the shell view; close a shell with ⋯ or exit.
     b('closeView', 'Alt+w', { field: true }),
-    // Ctrl+Alt+W reaches the Hub in the shell view too (keys.js sends no Ctrl+Alt chord to the shell).
+    // Ctrl+Alt+W in the shell view too: no shell key (keys.js sends no Ctrl+Alt chord to the shell).
     b('closeView', 'Ctrl+Alt+w', { field: true, shell: true }),
     // Shift+Tab is the shell's (and moves the focus back on the page): only the message box takes it
     // (KEY_ACTIONS.mode), so a field, not the shell view.
@@ -135,7 +143,8 @@
     { group: '메시지 칸', key: '/', label: '맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)' },
     { group: '메시지 칸', key: '', label: '대화 화면에서 입력 칸 밖에서 친 글자도 메시지 칸으로 간다 (단축키·선택지 숫자·Space 는 빼고)' },
     { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
-    { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc. Alt+←/→·Alt+H/L·Alt+.·Alt+N 과 Ctrl+K·J·P·N·B 는 셸로 간다 (빠른 이동은 Alt+P, 사이드바는 Alt+B, 셸의 한 단어 뒤로는 Alt+←)' },
+    { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc' },
+    { group: '셸', key: '', label: '「셸 화면에서도」가 켜진 키만 Hub 가 쓰고, 나머지는 모두 셸로 간다. 키 줄의 Alt·Ctrl 을 누르고 친 키는 언제나 셸로 (Alt 다음 B 는 셸의 alt+b)' },
     { group: '빠른 이동', key: 'Enter', label: '고른 것 열기. Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
     { group: '빠른 이동', key: 'Ctrl+j', follows: 'scrollDown', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞; 아래로 스크롤의 키)' },
     { group: '빠른 이동', key: 'Ctrl+k', follows: 'scrollUp', label: '이전 것 고르기 (↑ 와 같다; 위로 스크롤의 키)' },
@@ -172,6 +181,15 @@
       if (matches(e, x.key)) return x;
     }
     return null;
+  }
+
+  // What a key pressed in the shell's 키 직접 입력 sends to the shell (ctx: as for match, with
+  // shell): null when a binding gives it to the Hub, 'esc' for 뒤로's keys (the shell's Esc),
+  // else keys.js rawKeyName (null: typed text, which the field sends, or no shell key).
+  function shellKey(e, ctx = { shell: true }) {
+    const x = match(e, ctx);
+    if (x) return ACTIONS[x.action].shellEsc ? 'esc' : null;
+    return rawKeyName(e);
   }
 
   // ---- changed keys
@@ -225,26 +243,63 @@
     return '';
   }
 
-  // A changed key's binding: the action's places, cut down (the comment at the top).
-  function bindingFor(action, key) {
-    const own = BINDINGS.filter((x) => x.action === action);
+  // An override entry is a key string, or { key, shell } with the 「셸 화면에서도」 switch set.
+  const keyOfEntry = (x) => (typeof x === 'string' ? x : x && x.key);
+  const defaultOf = (action, key) => BINDINGS.find((x) => x.action === action && norm(x.key) === norm(key));
+  // A key that types a character (no Ctrl/Alt/⌘): never the Hub's in a field or the shell view.
+  const typesText = (key) => {
     const k = parse(key);
-    const typed = !(k.ctrl || k.alt || k.meta);
+    return !(k.ctrl || k.alt || k.meta) && [...k.name].length === 1;
+  };
+
+  // Whether the Hub takes key (of action) in the shell view when the switch is left alone: a
+  // default key as the table says; a new one if its action works there and the shell doesn't
+  // use the key.
+  function autoShell(action, key) {
+    const def = defaultOf(action, key);
+    if (def) return def.shell;
+    const k = parse(key);
+    return BINDINGS.some((x) => x.action === action && x.shell) && (k.ctrl || k.alt || k.meta) && rawKeyName(eventOf(key)) == null;
+  }
+  // Whether an action's keys can have the switch at all.
+  const canShellAction = (action) => Boolean(ACTIONS[action] && !ACTIONS[action].fixed && !ACTIONS[action].noShell && !ACTIONS[action].shellEsc);
+  // Why the switch can't be turned on for key of action, or ''.
+  function refuseShell(action, key) {
+    const a = ACTIONS[action];
+    if (a && a.shellEsc) return '셸 화면에서는 셸의 Esc 입니다';
+    if (!canShellAction(action)) return '이 동작은 셸 화면에서 쓸 일이 없습니다';
+    if (typesText(key)) return `${label(key)} 는 글자를 칩니다: 셸 화면에서는 셸로 갑니다`;
+    return '';
+  }
+
+  // A changed key's binding: its default places, or the action's places cut down (the comment at
+  // the top); the switch, if set, decides the shell view.
+  function bindingFor(action, entry) {
+    const key = keyOfEntry(entry);
+    const def = defaultOf(action, key);
+    const shell = typeof entry === 'object' && typeof entry.shell === 'boolean' && !refuseShell(action, key) ? entry.shell : autoShell(action, key);
+    if (def) return { ...def, key, shell, custom: shell !== def.shell };
+    const own = BINDINGS.filter((x) => x.action === action);
     const any = (f) => own.some((x) => x[f]);
+    const k = parse(key);
     return {
       action,
       key,
-      field: any('field') && !typed,
-      shell: any('shell') && !typed && rawKeyName(eventOf(key)) == null,
+      field: any('field') && (k.ctrl || k.alt || k.meta),
+      shell,
       layer: any('layer'),
       split: own.length > 0 && own.every((x) => x.split),
       custom: true,
     };
   }
 
+  // An action's override entries (its default keys when it has none of its own).
+  function entriesFor(action, overrides = current) {
+    return overrides && Array.isArray(overrides[action]) ? overrides[action] : BINDINGS.filter((x) => x.action === action).map((x) => x.key);
+  }
   // The keys an action has under overrides (its defaults when it has none of its own).
   function keysFor(action, overrides = current) {
-    return overrides && Array.isArray(overrides[action]) ? overrides[action] : BINDINGS.filter((x) => x.action === action).map((x) => x.key);
+    return entriesFor(action, overrides).map(keyOfEntry);
   }
 
   // A key string this page could have recorded: modifiers, then one character or a key's name.
@@ -265,10 +320,14 @@
     for (const [action, keys] of Object.entries(overrides || {})) {
       if (!ACTIONS[action] || ACTIONS[action].fixed || !Array.isArray(keys)) continue;
       out[action] = [];
-      for (const key of keys) {
+      for (const entry of keys) {
+        const key = keyOfEntry(entry);
         if (!realKey(key) || refuse(action, key) || taken.has(norm(key))) continue;
         taken.set(norm(key), action);
-        out[action].push(key);
+        // The switch is kept only where it says something: on a key that can have it, and not
+        // what the key would do anyway.
+        const sw = entry && typeof entry === 'object' && typeof entry.shell === 'boolean' && !refuseShell(action, key) && entry.shell !== autoShell(action, key);
+        out[action].push(sw ? { key, shell: entry.shell } : key);
       }
     }
     if (out.back && !out.back.some((k) => norm(k) === norm('Escape'))) out.back.unshift('Escape');
@@ -281,10 +340,10 @@
   // an override gave to another action leaves its own. Returns the overrides as kept.
   function setOverrides(overrides) {
     current = clean(overrides);
-    const given = new Set(Object.values(current).flat().map(norm));
+    const given = new Set(Object.values(current).flat().map(keyOfEntry).map(norm));
     active = [
       ...BINDINGS.filter((x) => !(x.action in current) && !given.has(norm(x.key))),
-      ...Object.entries(current).flatMap(([action, keys]) => keys.map((key) => bindingFor(action, key))),
+      ...Object.entries(current).flatMap(([action, keys]) => keys.map((entry) => bindingFor(action, entry))),
     ];
     return current;
   }
@@ -297,14 +356,44 @@
     const was = active.find((x) => norm(x.key) === norm(key));
     if (was && was.action === action) return { overrides, from: null };
     const out = { ...overrides };
-    if (was) out[was.action] = keysFor(was.action, overrides).filter((k) => norm(k) !== norm(key));
-    out[action] = [...keysFor(action, overrides), key];
+    if (was) out[was.action] = entriesFor(was.action, overrides).filter((x) => norm(keyOfEntry(x)) !== norm(key));
+    out[action] = [...entriesFor(action, overrides), key];
     return { overrides: out, from: was ? was.action : null };
   }
   // key taken off action (뒤로 keeps Esc).
   function unassign(overrides, action, key) {
     if (action === 'back' && norm(key) === norm('Escape')) throw new Error('Esc 는 뺄 수 없습니다: 뒤로·닫기의 기본 키입니다');
-    return { ...overrides, [action]: keysFor(action, overrides).filter((k) => norm(k) !== norm(key)) };
+    return { ...overrides, [action]: entriesFor(action, overrides).filter((x) => norm(keyOfEntry(x)) !== norm(key)) };
+  }
+  // The 「셸 화면에서도」 switch of one key of action: on, the Hub takes it in the shell view; off,
+  // it goes to the shell there. Back to what the key does anyway, the switch is dropped (and the
+  // action's override with it when nothing else is changed). Throws the reason when it can't be.
+  function setShell(overrides, action, key, on) {
+    const why = refuseShell(action, key);
+    if (why && on !== autoShell(action, key)) throw new Error(why);
+    const entries = entriesFor(action, overrides).map((x) => {
+      const k = keyOfEntry(x);
+      if (norm(k) !== norm(key)) return x;
+      return on === autoShell(action, k) ? k : { key: k, shell: on };
+    });
+    const out = { ...overrides, [action]: entries };
+    const defaults = BINDINGS.filter((x) => x.action === action).map((x) => x.key);
+    if (entries.length === defaults.length && entries.every((x, i) => x === defaults[i])) delete out[action];
+    return out;
+  }
+  // Whether the Hub takes key in the shell view now (the active table).
+  function shellFor(action, key) {
+    const x = active.find((y) => y.action === action && norm(y.key) === norm(key));
+    return Boolean(x && x.shell);
+  }
+  // What the shell loses when the Hub takes key there: 「셸의 한 단어 뒤로(alt+b) 대신 Hub 가
+  // 씁니다」, 「셸이 이 키(alt+j)를 받지 못합니다」, or '' (a key the shell never gets).
+  function shellLoses(key) {
+    const name = rawKeyName(eventOf(key));
+    if (!name) return '';
+    const K = typeof module === 'object' && module.exports ? require('./keys.js') : root.Keys;
+    const what = K && K.shellMeaning ? K.shellMeaning(name) : '';
+    return what ? `셸의 ${what}(${name}) 대신 Hub 가 씁니다` : `셸이 이 키(${name})를 받지 못합니다`;
   }
   // action back to its defaults.
   function reset(overrides, action) {
@@ -328,23 +417,34 @@
     const out = [];
     const field = but('field');
     if (field != null) out.push(`입력 칸에서도${field}`);
+    // The keys' own 「셸」 switches say it where there are switches.
     const shell = but('shell');
-    if (shell != null) out.push(`셸 화면에서도${shell}`);
+    if (shell != null && !canShellAction(action)) out.push(`셸 화면에서도${shell}`);
     if (own.every((x) => x.split)) out.push('두 칸에서만');
     if (own.every((x) => x.layer)) out.push('시트 위에서도');
     return out.join(' · ');
   }
 
   // The 바꾸기 rows: each action, its keys now, and whether this device changed them.
+  // shells: per key, whether the 「셸 화면에서도」 switch can be there (can), is on (on), and what
+  // the shell loses to it (loses, only when on).
   function actionRows() {
-    return Object.entries(ACTIONS).map(([action, a]) => ({
-      action,
-      group: a.group,
-      label: a.label,
-      fixed: Boolean(a.fixed),
-      changed: action in current,
-      keys: active.filter((x) => x.action === action).map((x) => x.key),
-    }));
+    return Object.entries(ACTIONS).map(([action, a]) => {
+      const keys = active.filter((x) => x.action === action).map((x) => x.key);
+      return {
+        action,
+        group: a.group,
+        label: a.label,
+        fixed: Boolean(a.fixed),
+        changed: action in current,
+        keys,
+        shells: keys.map((key) => {
+          const on = shellFor(action, key);
+          const can = !refuseShell(action, key);
+          return { key, can, on, loses: on && can ? shellLoses(key) : '' };
+        }),
+      };
+    });
   }
 
   // How a key reads in the sheet: Ctrl+↓, ⌘+↓, Esc.
@@ -389,7 +489,7 @@
     return [...groups].map(([group, rows]) => ({ group, rows }));
   }
 
-  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, setOverrides, assign, unassign, reset, keysFor, actionRows, whereText, localKeys };
+  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, refuseShell, shellKey, setOverrides, assign, unassign, reset, setShell, shellFor, shellLoses, keysFor, actionRows, whereText, localKeys };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keymap = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -624,10 +624,17 @@ document.addEventListener(
 document.addEventListener('keyup', (e) => (e.key === 'Control' || e.key === 'Alt') && hideKeyHints(), true);
 window.addEventListener('blur', hideKeyHints);
 
+// Where a key is pressed, for Keymap.match. The shell's field in 키 직접 입력 is the shell, not a
+// field one types into: there a binding with shell decides alone (shell.js asks the same).
+function keyContext() {
+  const a = document.activeElement;
+  const rawShell = view.name === 'term' && detail.raw && a && a.id === 't-input';
+  return { field: editable(a) && !rawShell, shell: view.name === 'term', layer: Boolean(topLayer()), split };
+}
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;
   if (termStrayKey(e)) return e.preventDefault();
-  const b = Keymap.match(e, { field: editable(document.activeElement), shell: view.name === 'term', layer: Boolean(topLayer()), split });
+  const b = Keymap.match(e, keyContext());
   if (b && KEY_ACTIONS[b.action](b, e)) return e.preventDefault();
   chatStrayKey(e);
 });
