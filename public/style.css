@@ -264,6 +264,9 @@ button:disabled { cursor: default; }
 /* Replies use the full width like a terminal transcript; only what you sent is a bubble. */
 .msg.assistant { align-self: stretch; line-height: 1.55; }
 .msg.user + .msg.assistant { margin-top: 2px; }
+/* Sent, not taken yet (Claude Code holds a prompt while it is busy). */
+.msg.user.pending { opacity: 0.65; }
+.msg.user.pending .wait { display: block; margin-top: 4px; font-size: 11px; font-weight: 600; text-align: right; opacity: 0.85; white-space: nowrap; }
 .msg.assistant + .msg.assistant { margin-top: -8px; }
 .msg .tools:first-child { margin-top: 0; }
 .msg p { margin: 0 0 8px; }

@@ -148,6 +148,10 @@ function renderDetail() {
         }
       }
       await api(hp(`/agents/${encodeURIComponent(pane)}/prompt`, host), { method: 'POST', body: JSON.stringify({ text: promptText(text, files.map((f) => f.path)) }) });
+      if (here()) {
+        addPending(key, text.trim(), files.length);
+        renderDetailBody(false);
+      }
       if (here() && detail.files === files) {
         input.value = '';
         hidePalette();
@@ -329,6 +333,38 @@ async function loadDetail() {
   }
 }
 
+// ---- sent, not in the transcript yet
+
+// Claude Code holds a prompt that comes while it is busy and writes it down only when it takes
+// it (between tool calls, or once the turn ends): a bubble marked 대기 중 shows it meanwhile.
+// Per agent while the page lives. One goes when a user message with its text turns up after
+// the point it was sent at, or when the agent has been idle a minute since (taken, or dropped).
+const pendingSent = new Map(); // host|pane -> [{ text, after, at, pics }]
+const sameText = (s) => String(s).replace(/\s+/g, ' ').trim();
+function addPending(key, text, pics) {
+  const msgs = (detail.transcript && detail.transcript.messages) || [];
+  const last = msgs[msgs.length - 1];
+  pendingSent.set(key, [...(pendingSent.get(key) || []), { text, after: last ? last.id : null, at: Date.now(), pics }]);
+}
+function pendingNow(key, a) {
+  const list = pendingSent.get(key);
+  if (!list) return [];
+  const msgs = (detail.transcript && detail.transcript.messages) || [];
+  const idle = a && a.status !== 'working' && a.status !== 'blocked';
+  const keep = list.filter((p) => {
+    if (idle && Date.now() - p.at > 60000) return false;
+    const from = p.after ? msgs.findIndex((m) => m.id === p.after) + 1 : 0;
+    return !msgs.slice(from).some((m) => m.role === 'user' && !m.bash && sameText(userParts(m).text) === sameText(p.text));
+  });
+  if (keep.length) pendingSent.set(key, keep);
+  else pendingSent.delete(key);
+  return keep;
+}
+function pendingBubble(p) {
+  const pics = p.pics ? `<div class="pics"><span class="img-chip">사진 ${p.pics}장</span></div>` : '';
+  return `<div class="msg user pending">${pics}${p.text ? `<span>${esc(p.text)}</span>` : ''}<small class="wait">대기 중</small></div>`;
+}
+
 // Only Claude has a transcript; any other agent kind shows its terminal screen in the body.
 const screenBody = (a = currentAgent()) => Boolean(a && a.agent && a.agent !== 'claude');
 
@@ -362,7 +398,8 @@ function renderDetailBody(reset) {
     body.querySelector('.trunc').hidden = !t.truncated;
     // One element per message, replaced only when its HTML changed: a poll that brings
     // nothing new touches nothing, so a text selection or a press survives it.
-    patchList(body.querySelector('.msgs'), t.messages.map((m, i) => [m.id || `i${i}`, message(m)]));
+    const waiting = pendingNow(rowKey(curHost(), detail.pane), currentAgent()).map((p) => [`wait:${p.at}`, pendingBubble(p)]);
+    patchList(body.querySelector('.msgs'), [...t.messages.map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting]);
   }
   if (nearBottom) body.scrollTop = body.scrollHeight;
 }
