@@ -224,6 +224,7 @@ function route(e, { relayout = false } = {}) {
   } else if (r.name === 'settings') {
     view = { name: 'settings' };
     if (split) colTab = 'settings';
+    if (split && sideOff()) setSideOff(false); // 설정 lives in the sidebar
     renderSettings();
   } else {
     view = { name: 'list' };
@@ -255,7 +256,7 @@ function relayout() {
   dropTabPages();
   colTab = split ? (view.name === 'settings' ? 'settings' : 'spaces') : null;
   document.documentElement.classList.toggle('split', split);
-  $app.innerHTML = split ? '<div class="col" id="list-pane"></div><div class="col" id="detail-pane"></div>' : '';
+  $app.innerHTML = split ? '<nav class="rail" id="rail" aria-label="탭"></nav><div class="col" id="list-pane"></div><div class="col" id="detail-pane"></div>' : '';
   route(null, { relayout: true });
   refocusInput(refocus && document.getElementById(refocus));
 }
@@ -279,9 +280,11 @@ function renderEmpty() {
   if (!root) return;
   const blocked = state.agents.filter((a) => a.status === 'blocked' && shown(a));
   const first = blocked[0];
+  const off = sideOff();
   const html = `<div class="empty-detail">
       <span class="ed-ic" aria-hidden="true">${ICON.panel}</span>
-      <h2>왼쪽에서 에이전트를 고르세요</h2>
+      <h2>${off ? '목록을 열어 에이전트를 고르세요' : '왼쪽에서 에이전트를 고르세요'}</h2>
+      ${off ? '<button type="button" class="btn secondary ed-open" aria-controls="list-pane">작업공간 목록 열기</button>' : ''}
       ${first ? `<a class="ed-attn" href="${link(first.host, `/agent/${encodeURIComponent(first.pane)}`)}">답 필요 ${blocked.length} · ${esc(first.name || first.title)} 열기</a>` : ''}
       <p class="ed-keys"><kbd>Alt</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> 또는 <kbd>[</kbd> <kbd>]</kbd> 로 목록을 옮겨 다니고, <kbd>Esc</kbd> 로 닫습니다.</p>
     </div>`;
@@ -311,6 +314,11 @@ function markSelected() {
 // the page's focus, so they go on stepping.
 let stepFocus = false;
 function stepList(dir, alt) {
+  // The folded sidebar on 설정: step through 작업공간 all the same (it opens there when unfolded).
+  if (sideOff() && colTab === 'settings') {
+    colTab = 'spaces';
+    renderCol();
+  }
   const main = listRoot() && listRoot().querySelector(':scope > main.home');
   if (!main) return false;
   const links = [...main.querySelectorAll('a.attn-row, a.sw-front')].map((a) => a.getAttribute('href'));
@@ -392,18 +400,35 @@ document.addEventListener('keydown', (e) => {
     if (dir && stepList(dir === 'next' ? 1 : -1, e.altKey)) e.preventDefault();
   }
 });
-// Split: a tab press while a detail is open changes only the list column (작업공간 / 설정);
-// the detail stays. With nothing open it is an ordinary link to that tab's route.
-document.addEventListener('click', (e) => {
-  const a = split && e.target.closest && e.target.closest('#list-pane .tabbar a.tab');
-  if (!a || !isDetail() || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
-  e.preventDefault();
-  const h = a.getAttribute('href');
-  colTab = h === '#/settings' ? 'settings' : 'spaces';
+// Split: the list column shows tab t. With a detail open only the column changes and the
+// detail stays; with nothing open it is that tab's route (as the phone's tab bar link).
+function showCol(t) {
+  if (!isDetail()) {
+    const h = t === 'settings' ? '#/settings' : '#/';
+    if (location.hash !== h) {
+      history.pushState(null, '', h);
+      route();
+    }
+    return;
+  }
+  colTab = t;
   renderCol();
   // ✕ in the detail header leads to where the list column now is.
   const close = detailRoot().querySelector('a.close-detail');
   if (close) close.setAttribute('href', homeHash());
+}
+// The rail, as VS Code's activity bar: the tab the open sidebar shows folds it; any tab
+// while folded unfolds it on that tab; the other tab switches the sidebar to it.
+document.addEventListener('click', (e) => {
+  if (!split || !e.target.closest) return;
+  if (e.target.closest('.ed-open')) return setSideOff(false);
+  const b = e.target.closest('#rail .rail-btn');
+  if (!b) return;
+  const t = b.dataset.tab;
+  if (!sideOff() && colTab === t) return setSideOff(true);
+  if (sideOff()) setSideOff(false);
+  if (colTab !== t) showCol(t);
+  renderRail();
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') stashDraft();
@@ -411,6 +436,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', stashDraft);
 splitMq.addEventListener('change', relayout);
+document.documentElement.classList.toggle('side-off', sideOff());
 connect();
 if (splitMq.matches) relayout();
 else route();

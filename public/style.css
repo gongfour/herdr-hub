@@ -931,8 +931,31 @@ button.tool:active { filter: brightness(0.95); }
 .detail.raw .term-side { padding-left: 2px; }
 
 /* ---- split: the list and the open detail side by side (landscape tablet, laptop; split.js).
-   The list column keeps its own header, scroll and tab bar; the detail fills the rest. */
-:root { --list-w: clamp(340px, 28vw, 380px); }
+   At the far left the activity rail (작업공간 / 설정, as VS Code's); then the sidebar (the list
+   column, its own header and scroll); the detail fills the rest. Folded (.side-off), the
+   sidebar is hidden and the detail takes its width. */
+:root { --list-w: clamp(340px, 28vw, 380px); --rail-w: 52px; --side-w: calc(var(--rail-w) + var(--list-w)); }
+:root.side-off { --side-w: var(--rail-w); }
+.split #rail {
+  flex: none; width: var(--rail-w); display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: calc(10px + var(--safe-top)) 0 calc(10px + var(--safe-bottom));
+  background: color-mix(in srgb, var(--surface-2) 45%, var(--bg)); border-right: 1px solid var(--line);
+}
+.rail-gap { flex: 1; }
+.rail-btn {
+  position: relative; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 10px;
+  background: transparent; color: var(--muted); cursor: pointer; -webkit-touch-callout: none; user-select: none;
+}
+.rail-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.rail-btn[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+/* The open tab is marked on the rail's edge too, as in VS Code. */
+.rail-btn[aria-pressed="true"]::before { content: ''; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--accent); }
+.rail-btn:active { opacity: 0.6; }
+.rail-btn:focus-visible { outline-offset: 1px; }
+.rail-btn .tab-badge { top: -2px; left: auto; right: -5px; }
+.rail-dot { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--surface-2) 45%, var(--bg)); }
+@media (hover: hover) { .rail-btn:hover { color: var(--text); background: color-mix(in srgb, var(--surface-2) 80%, transparent); } .rail-btn[aria-pressed="true"]:hover { color: var(--accent); } }
+:root.split.side-off #app > #list-pane { display: none; }
 :root.split body { background: var(--bg); }
 :root.split #app {
   width: auto; margin: 0; border-inline: 0; flex-direction: row; background: var(--bg);
@@ -979,8 +1002,8 @@ button.tool:active { filter: brightness(0.95); }
 
 /* Sheets about the detail (terminal screen, folder browser) rise in the detail column; short
    dialogs and menus stay in the middle of the screen. Toasts sit over the detail too. */
-.split .sheet-back:has(> .term-sheet), .split .sheet-back:has(> .browser) { padding-left: var(--list-w); align-items: flex-end; }
-.split .toasts { left: calc(var(--list-w) + 24px); right: 24px; align-items: center; }
+.split .sheet-back:has(> .term-sheet), .split .sheet-back:has(> .browser) { padding-left: var(--side-w); align-items: flex-end; }
+.split .toasts { left: calc(var(--side-w) + 24px); right: 24px; align-items: center; }
 .split .toast { width: min(560px, 100%); }
 
 /* ---- agent header on the phone: the title row is the agent's name (two lines at most); the

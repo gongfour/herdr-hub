@@ -100,7 +100,9 @@ function showTab(t) {
 // The layout changed (relayout): kept pages were drawn for the other one.
 const dropTabPages = () => (tabPages.spaces = tabPages.settings = null);
 
+// Split, the tabs are the activity rail instead (renderRail); the list column has no tab bar.
 function mountTabBar(active) {
+  if (split) return renderRail();
   const root = listRoot();
   const html = tabBar(active);
   const old = root.querySelector(':scope > .tabbar');
@@ -111,6 +113,56 @@ function mountTabBar(active) {
   el._html = html;
   if (old) old.replaceWith(el);
   else root.appendChild(el);
+}
+
+// ---- split: the activity rail at the far left (as in VS Code) and the sidebar it folds
+// The rail has 작업공간 at the top and 설정 at the bottom. Pressing the tab the sidebar shows
+// folds the sidebar away and the detail takes its width; pressing either opens it again on that
+// tab. Folded is remembered on this device. The folded list column keeps its DOM (display: none),
+// so it stays current and Alt+↑/↓ still steps through it.
+const SIDE_KEY = 'herdr-hub.sideOff';
+let memSide = null;
+function sideOff() {
+  if (memSide == null) {
+    try {
+      memSide = localStorage.getItem(SIDE_KEY) === '1';
+    } catch {
+      memSide = false;
+    }
+  }
+  return memSide;
+}
+function setSideOff(off) {
+  memSide = off;
+  try {
+    if (off) localStorage.setItem(SIDE_KEY, '1');
+    else localStorage.removeItem(SIDE_KEY);
+  } catch {
+    /* this page only */
+  }
+  document.documentElement.classList.toggle('side-off', off);
+  if (!split) return;
+  renderRail();
+  if (!isDetail()) renderEmpty(); // its words say where the list is
+}
+
+function renderRail() {
+  const rail = document.getElementById('rail');
+  if (!rail) return;
+  const n = state.agents.filter((a) => a.status === 'blocked' && shown(a)).length;
+  const open = !sideOff();
+  // Finishes not opened yet, on 작업공간 while its list is out of sight.
+  const dot = (!open || colTab === 'settings') && state.agents.some((a) => shown(a) && isUnread(a));
+  const btn = (key, icon, label, extra = '') => {
+    const on = colTab === key;
+    const what = on && open ? `${label} 사이드바 접기` : `${label} 사이드바 열기`;
+    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="list-pane" aria-pressed="${on && open}"${on ? ' aria-current="page"' : ''} aria-label="${what}" title="${label}">${icon}${extra}</button>`;
+  };
+  const html = `${btn('spaces', ICON.grid, '작업공간', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : dot ? '<span class="rail-dot" role="img" aria-label="새 결과"></span>' : '')}
+    <span class="rail-gap"></span>
+    ${btn('settings', ICON.gear, '설정')}`;
+  if (rail._html === html) return;
+  rail.innerHTML = rail._html = html;
 }
 
 // ---- unread: finishes this device has not opened yet (per device, in localStorage)

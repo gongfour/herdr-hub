@@ -1,8 +1,8 @@
 'use strict';
 // A sideways swipe on 작업공간 or 설정 moves to the other tab, as on Android.
 // The page follows the finger; past TAB_SWIPE_MIN px (or a quick flick) it changes tab the
-// moment the finger lifts, the way the tab bar's own link would (split with a detail open: the
-// list column only), and the new tab slides in from the side the finger went. Each tab's page is
+// moment the finger lifts, the way the tab bar's own link would (split: the sidebar changes
+// page as the rail's tab would), and the new tab slides in from the side the finger went. Each tab's page is
 // kept (list.js showTab), so the switch itself is cheap.
 // Not from the left screen edge, not on anything that scrolls sideways itself (key rows, wide
 // tables, the host segment when it overflows) or a text field, and never in a detail view.
@@ -30,12 +30,14 @@ function tabSwipeClear(parts) {
 }
 const TAB_IN_MS = 200;
 // Commit: change tab now, then one short slide of the new tab in after the finger.
-function tabSwipeGo(dir, next, link) {
+function tabSwipeGo(dir, next) {
   const w = listRoot().clientWidth || innerWidth;
   const out = tabSwipeParts();
   tabSwipeClear(out); // the old page is kept as it was, back in place
-  if (split && isDetail()) link.click(); // app.js: the list column only, drawn at once
-  else {
+  if (split) {
+    showCol(next === '#/settings' ? 'settings' : 'spaces'); // app.js: as the rail's tab, drawn at once
+    renderRail();
+  } else {
     // The link's own navigation, but drawn now rather than on hashchange a task later.
     history.pushState(null, '', next);
     route();
@@ -48,6 +50,7 @@ function tabSwipeGo(dir, next, link) {
   setTimeout(() => tabSwipeClear(parts), TAB_IN_MS + 40);
 }
 function currentTabIndex() {
+  if (split) return colTab === 'settings' ? 1 : 0; // the rail's tabs, the sidebar's page
   const cur = listRoot().querySelector('.tabbar a.tab[aria-current="page"]');
   return cur ? TAB_ORDER.indexOf(cur.getAttribute('href')) : -1;
 }
@@ -102,8 +105,7 @@ function tabSwipeEnd() {
   cancelAnimationFrame(g.raf);
   const dir = g.dx <= -TAB_SWIPE_MIN || g.v <= -TAB_SWIPE_FLICK ? 1 : g.dx >= TAB_SWIPE_MIN || g.v >= TAB_SWIPE_FLICK ? -1 : 0;
   const next = TAB_ORDER[g.i + dir];
-  const link = dir && g.i >= 0 && next && listRoot().querySelector(`.tabbar a.tab[href="${next}"]`);
-  if (link) return tabSwipeGo(dir, next, link);
+  if (dir && g.i >= 0 && next) return tabSwipeGo(dir, next);
   // Not far enough: back into place.
   tabSwipeStyle(g.parts, 0, 1, reduced() ? 0 : 240);
   setTimeout(() => tabSwipeClear(g.parts), 280);
