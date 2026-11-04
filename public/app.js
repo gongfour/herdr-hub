@@ -596,8 +596,22 @@ document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;
   if (termStrayKey(e)) return e.preventDefault();
   const b = Keymap.match(e, { field: editable(document.activeElement), shell: view.name === 'term', layer: Boolean(topLayer()), split });
-  if (b && KEY_ACTIONS[b.action](b, e)) e.preventDefault();
+  if (b && KEY_ACTIONS[b.action](b, e)) return e.preventDefault();
+  chatStrayKey(e);
 });
+// The agent view, a character typed with the focus on the page (not a shortcut: the keymap had
+// its turn): the caret goes to the composer and the character lands there, as in the shell view.
+// The key is left alone, so the browser (and an IME) puts it into the field that now has the
+// focus. Space keeps scrolling; the header and a link or button keep their keys.
+function chatStrayKey(e) {
+  if (view.name !== 'agent' || topLayer() || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!(e.key.length === 1 && e.key !== ' ') && e.keyCode !== 229) return;
+  const input = document.getElementById('d-input');
+  const a = document.activeElement;
+  if (!input || a === input || editable(a) || (a && a.closest && a.closest('.bar'))) return;
+  input.focus({ preventScroll: true });
+  caretToEnd(input);
+}
 // The rail, as VS Code's activity bar: 작업공간 folds and unfolds the sidebar; ⚙ opens 설정 on
 // the right (as VS Code opens its settings in the editor), and closes it when it is open.
 document.addEventListener('click', (e) => {

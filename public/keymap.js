@@ -121,6 +121,7 @@
     { group: '메시지 칸', key: 'Ctrl+Enter', label: '보내기 (⌘+리턴도). 리턴 키 설정이 「보내기」면 리턴, 줄바꿈은 Shift+리턴' },
     { group: '메시지 칸', key: 'ArrowUp', label: '빈 칸에서: 전에 보낸 메시지 불러오기 (↓ 는 다음)' },
     { group: '메시지 칸', key: '/', label: '맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)' },
+    { group: '메시지 칸', key: '', label: '대화 화면에서 입력 칸 밖에서 친 글자도 메시지 칸으로 간다 (단축키·선택지 숫자·Space 는 빼고)' },
     { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
     { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc. Alt+←/→·Alt+H/L·Alt+.·Alt+N 과 Ctrl+K·J·P·N·B 는 셸로 간다 (빠른 이동은 Alt+P)' },
     { group: '빠른 이동', key: 'Enter', label: '고른 것 열기. Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
