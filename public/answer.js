@@ -81,12 +81,22 @@ function choiceButton(choices, x, { press, primary, compact = false }) {
 }
 
 // Re-drawn only when what it shows changed: a poll must not swallow a tap or a selection.
+// The blocked box sits between the conversation and the composer: as it comes, grows or goes,
+// the conversation's height changes from below. Read at its end, it stays at its end (the
+// last message above the question), as the chat follows new messages (renderDetailBody).
+function keepChatEnd(change) {
+  const body = document.getElementById('d-body');
+  const pinned = body && body.scrollHeight - body.scrollTop - body.clientHeight < 80;
+  change();
+  if (pinned) body.scrollTop = body.scrollHeight;
+}
+
 function renderBlocked() {
   const box = document.getElementById('d-blocked');
   const a = currentAgent();
   if (!box) return;
   if (!a || a.status !== 'blocked') {
-    if (box._html !== '') box.innerHTML = box._html = '';
+    if (box._html !== '') keepChatEnd(() => (box.innerHTML = box._html = ''));
     return;
   }
   const text = detail.blockedText;
@@ -117,7 +127,7 @@ function renderBlocked() {
   }
   if (box._html === html) return;
   box._html = html;
-  box.innerHTML = html;
+  keepChatEnd(() => (box.innerHTML = html));
   if (choices) {
     box.querySelectorAll('.choice').forEach((b) => {
       b.onclick = () => pickChoice(choices, Number(b.dataset.n));

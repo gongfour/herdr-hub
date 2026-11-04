@@ -16,9 +16,9 @@ function renderDetail() {
         <button class="icon-btn" id="d-more" aria-label="더 보기">${ICON.more}</button>
       </header>
       <button type="button" class="activity" id="d-activity" aria-label="터미널 화면 보기" hidden></button>
-      <div id="d-blocked"></div>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="d-body"></div>
+      <div id="d-blocked"></div>
       <div class="attach-tray" id="d-tray" hidden></div>
       <input type="file" id="d-file" accept="image/*" multiple hidden>
       <input type="file" id="d-cam" accept="image/*" capture="environment" hidden>

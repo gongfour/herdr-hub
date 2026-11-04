@@ -409,9 +409,10 @@ button:disabled { cursor: default; }
 
 /* Choices read off the prompt: one full-width button per option. A long prompt scrolls inside
    its box so the conversation below keeps some room. */
-#d-blocked { flex: none; max-height: min(52%, 520px); overflow-y: auto; overscroll-behavior: contain; }
+/* Between the conversation and the composer, where the question comes last. */
+#d-blocked { flex: none; max-height: min(42%, 440px); overflow-y: auto; overscroll-behavior: contain; }
 .blocked-box .b-title { display: block; font-size: 16px; line-height: 1.4; }
-#d-blocked:not(:empty) { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+#d-blocked:not(:empty) { padding-bottom: 10px; border-top: 1px solid var(--line); }
 .detail .scroll { min-height: 0; }
 .blocked-box .question { margin: 8px 0 0; font-size: 16px; font-weight: 600; line-height: 1.4; }
 .blocked-box .question.muted { color: var(--muted); font-weight: 400; font-size: 14px; }
