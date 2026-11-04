@@ -292,14 +292,19 @@ function render() {
   tickList();
 }
 
-// Alt+←/→ (split.js hostKey): the host segment one step along, where the list shows it (the
-// list view, or the split list column on 작업공간). False when there is no segment there.
+// Alt+←/→ (split.js hostKey): the host segment one step along. Phone: on the list view only.
+// Split: always, and the sidebar comes out to show it: unfolded, and on 작업공간 if it was on
+// 설정. False when there is no segment to step.
 function stepHostFilter(dir) {
-  const listShown = split ? colTab !== 'settings' : view.name === 'list';
-  if (!multi() || !listShown) return false;
+  if (!multi() || (!split && view.name !== 'list')) return false;
   const next = Split.stepHost(['all', ...hosts().map((h) => h.id)], filter(), dir);
   if (!next) return false;
   setFilter(next);
+  if (split) {
+    if (sideOff()) setSideOff(false);
+    if (colTab === 'settings') showCol('spaces'); // draws the list with the new host
+    renderRail();
+  }
   render();
   if (split && !isDetail()) renderEmpty(); // its 답 필요 count follows the filter
   return true;
