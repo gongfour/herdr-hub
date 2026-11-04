@@ -477,18 +477,25 @@ button:disabled { cursor: default; }
   top: calc(var(--app-top, 0px) + var(--app-h, 100dvh) - 80px - var(--safe-bottom)); transform: translateY(-100%);
   display: flex; flex-direction: column; gap: 8px;
 }
+/* A card on the page's own surface, so it follows the theme like the rest of the app; an error sits on
+   --blocked-bg with the --blocked bar inside the left edge (as on the attention rows). */
 .toast {
   pointer-events: auto; display: flex; align-items: center; gap: 10px;
-  background: var(--text); color: var(--bg); padding: 12px 14px; border-radius: 12px; font-size: 14px;
-  box-shadow: 0 6px 24px rgb(0 0 0 / 0.2); animation: toast-in 0.18s ease-out;
+  background: var(--surface); color: var(--text); border: 1px solid var(--line); padding: 12px 14px; border-radius: 12px; font-size: 14px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12); animation: toast-in 0.18s ease-out;
 }
 .toast .t { flex: 1; min-width: 0; }
-.toast.err { border-left: 4px solid var(--blocked); }
+.toast.err {
+  background: var(--blocked-bg); border-color: color-mix(in srgb, var(--blocked) 30%, var(--blocked-bg)); padding-left: 18px;
+  box-shadow: inset 4px 0 0 var(--blocked), 0 4px 16px rgb(0 0 0 / 0.12);
+}
 .toast .t-act {
   flex: none; min-height: 44px; margin: -8px -6px -8px 0; padding: 0 12px; border: 0; border-radius: 10px;
-  background: color-mix(in srgb, var(--bg) 18%, transparent); color: var(--bg); font-weight: 700; cursor: pointer;
+  background: var(--surface-2); color: var(--accent); font-weight: 700; cursor: pointer;
 }
-.toast .t-act:active { background: color-mix(in srgb, var(--bg) 30%, transparent); }
+.toast .t-act:active { background: color-mix(in srgb, var(--text) 10%, var(--surface-2)); }
+.toast.err .t-act { background: var(--surface); color: var(--blocked); }
+.toast.err .t-act:active { background: color-mix(in srgb, var(--blocked) 12%, var(--surface)); }
 .toast.closing { animation: toast-out 0.16s ease-in forwards; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(6px); } }
