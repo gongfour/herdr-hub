@@ -25,7 +25,6 @@ function renderDetail() {
       <div class="palette" id="d-pal" role="listbox" aria-label="명령 제안" hidden></div>
       <div class="composer" id="d-form">
         <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">${ICON.photo}</button>
-        <button type="button" class="attach" id="d-camera" aria-label="카메라로 찍기">${ICON.camera}</button>
         <div id="d-input" class="input" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="메시지" data-placeholder="메시지 보내기" enterkeyhint="${getEnter() === 'send' ? 'send' : 'enter'}" autocapitalize="sentences"></div>
         <button type="button" class="stop" id="d-stop" aria-label="중단"${keyAttrs('stop', '중단')} hidden>${ICON.stop}</button>
         <button type="button" class="send" id="d-send" aria-label="보내기"${keyAttrs(null, '보내기', Keymap.label('Ctrl+Enter'))} disabled>${ICON.send}</button>
@@ -75,14 +74,20 @@ function renderDetail() {
     if (!e.clipboardData.types.includes('text/plain')) e.preventDefault();
     addFiles(images);
   });
-  for (const [btn, id] of [['d-attach', 'd-file'], ['d-camera', 'd-cam']]) {
+  // One button. The iPhone's picker offers 사진 찍기 itself, and a desktop has no camera to aim;
+  // Android's may leave the camera out of a multiple-photo picker, so there it asks first.
+  for (const id of ['d-file', 'd-cam']) {
     const picker = document.getElementById(id);
-    document.getElementById(btn).onclick = () => picker.click();
     picker.onchange = () => {
       addFiles([...picker.files]);
       picker.value = ''; // the same photo can be picked again
     };
   }
+  document.getElementById('d-attach').onclick = async () => {
+    if (!ANDROID) return document.getElementById('d-file').click();
+    const k = await menu('사진 첨부', [['pick', '사진 고르기'], ['cam', '카메라로 찍기']]);
+    if (k) document.getElementById(k === 'cam' ? 'd-cam' : 'd-file').click();
+  };
   document.getElementById('d-tray').onclick = (e) => {
     const x = e.target.closest('[data-drop]');
     if (x) removeFile(Number(x.dataset.drop));
@@ -222,7 +227,7 @@ function updateComposer() {
   // Blocked: only the answer to a "Type something" choice goes from here.
   const blockedNow = a && a.status === 'blocked' && !detail.answerMode;
   send.disabled = !a || (!input.value.trim() && !files.length) || blockedNow || Boolean(detail.sending);
-  for (const id of ['d-attach', 'd-camera']) {
+  for (const id of ['d-attach']) {
     const b = document.getElementById(id);
     if (b) b.disabled = Boolean(detail.sending) || files.length >= MAX_FILES;
   }
