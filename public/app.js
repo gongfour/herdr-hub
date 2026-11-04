@@ -12,8 +12,33 @@ let stream = null;
 let retryTimer = null;
 let retryDelay = 1000;
 let live = false; // the live stream is open and has sent a state
-// A small dot in a detail header while the live stream is down (statuses may be stale).
-const liveDot = () => (live ? '' : '<span class="live-dot" role="img" aria-label="실시간 연결 끊김" title="실시간 연결 끊김 — 다시 붙는 중"></span>');
+// While the live stream is down the statuses on screen may be stale. Every header says so the
+// same way: a small red chip with a word (not a bare dot, whose title a finger never sees), which a
+// tap explains in a toast. Nothing shows while all is well. liveDot: the agent, shell and workspace
+// headers (the stream only); liveChip: the list's header, which also tells a host's herdr being down.
+const LIVE_WHY = {
+  stream: '실시간 연결이 끊겨 다시 붙는 중입니다. 그동안 보이는 상태는 늦을 수 있습니다.',
+  connecting: '실시간 연결을 여는 중입니다.',
+  herdr: '허브에는 닿지만 herdr 에 연결하지 못했습니다. 에이전트 상태가 늦을 수 있습니다.',
+};
+const liveChipHtml = (word, why) => `<button type="button" class="live-chip" data-live-why="${why}" aria-label="${word} — 설명 보기"><span class="dot" aria-hidden="true"></span>${word}</button>`;
+const liveDot = () => (live ? '' : liveChipHtml('끊김', 'stream'));
+function liveChip() {
+  if (!live) return state.herdr === 'connecting' ? liveChipHtml('연결 중', 'connecting') : liveChipHtml('연결 끊김', 'stream');
+  if (state.herdr === 'down') return liveChipHtml('herdr 연결 끊김', 'herdr');
+  return '';
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-live-why]');
+  if (b) toast(LIVE_WHY[b.dataset.liveWhy] || LIVE_WHY.stream);
+});
+// The stream went down (or was found dead): every header that shows it says so now.
+function showLiveLost() {
+  if (listShown()) render();
+  if (view.name === 'agent') renderDetailHeader();
+  if (view.name === 'term') renderTerminalHeader();
+  if (view.name === 'ws' && !backSwipeBusy()) renderWorkspace();
+}
 
 function connect() {
   clearTimeout(retryTimer);
@@ -40,9 +65,7 @@ function connect() {
     state = { ...state, herdr: 'offline' };
     live = false;
     hubLost();
-    if (listShown()) render();
-    if (view.name === 'agent') renderDetailHeader();
-    if (view.name === 'term') renderTerminalHeader();
+    showLiveLost();
     if (es.readyState === EventSource.CLOSED && es === stream) {
       retryTimer = setTimeout(connect, retryDelay);
       retryDelay = Math.min(retryDelay * 2, 15000);
@@ -59,7 +82,7 @@ function revive(reason) {
   if (stream && stream.readyState === EventSource.OPEN && Date.now() - lastHeard < (reason === 'watchdog' ? STALE_MS : 4000)) return;
   live = false;
   hubLost();
-  if (listShown()) render();
+  showLiveLost();
   retryDelay = 1000;
   connect();
 }
@@ -75,6 +98,8 @@ let downSince = null;
 let downTimer = null;
 let downBar = null;
 let downProbe = { at: 0, live: [], busy: false };
+let downOpen = true; // the notice's 먼저 볼 것 is unfolded
+let downFold = null;
 function hubUp() {
   downSince = null;
   clearTimeout(downTimer);
@@ -123,16 +148,27 @@ function showHubDown() {
     downBar.className = 'hub-down';
     downBar.setAttribute('role', 'status');
     downBar.addEventListener('click', (e) => {
+      if (e.target.closest('.hd-more > summary')) clearTimeout(downFold);
       if (!e.target.closest('[data-retry]')) return;
       downProbe.at = 0;
       revive('retry');
       checkHubDown();
     });
+    // What to check shows when the notice first appears and folds after a while, leaving the
+    // title and 다시 시도 (a phone's screen is short); 먼저 볼 것 opens it again, and stays as left.
+    downOpen = true;
+    // toggle doesn't bubble (and fires for a redraw too); a tap on 먼저 볼 것 is the person's choice.
+    downBar.addEventListener('toggle', (e) => e.target.matches('.hd-more') && (downOpen = e.target.open), true);
+    clearTimeout(downFold);
+    downFold = setTimeout(() => {
+      const d = downBar && downBar.querySelector('.hd-more');
+      if (d && d.open && !d.contains(document.activeElement)) d.open = false; // the toggle event keeps downOpen
+    }, 12000);
     document.body.appendChild(downBar);
     new ResizeObserver(() => downBar && document.documentElement.style.setProperty('--down-h', `${downBar.offsetHeight}px`)).observe(downBar);
     document.documentElement.classList.add('has-down');
   }
-  const html = Conn.noticeHtml(Conn.notice(Conn.read(localStorage), { live: downProbe.live, probing: downProbe.busy }));
+  const html = Conn.noticeHtml(Conn.notice(Conn.read(localStorage), { live: downProbe.live, probing: downProbe.busy }), { open: downOpen });
   if (downBar._html === html) return;
   // Redrawn in place: a focused button keeps the focus when it is still there.
   const focused = document.activeElement && downBar.contains(document.activeElement) ? document.activeElement.getAttribute('data-direct') || (document.activeElement.hasAttribute('data-retry') ? 'retry' : null) : null;
@@ -147,6 +183,7 @@ function hideHubDown() {
   if (!downBar) return;
   downBar.remove();
   downBar = null;
+  clearTimeout(downFold);
   downProbe = { at: 0, live: [], busy: false };
   document.documentElement.classList.remove('has-down');
   document.documentElement.style.removeProperty('--down-h');
@@ -242,7 +279,7 @@ function showUpdateBanner() {
     updateBanner = document.createElement('div');
     updateBanner.className = 'update-bar';
     updateBanner.setAttribute('role', 'status');
-    updateBanner.innerHTML = `<span class="ub-t">새 버전이 있습니다</span>
+    updateBanner.innerHTML = `<span class="ub-t"></span>
       <button type="button" class="ub-go">새로고침</button>
       <button type="button" class="ub-x" aria-label="닫기" title="닫기">${ICON.x}</button>`;
     updateBanner.querySelector('.ub-go').onclick = () => reloadToNew();
@@ -253,7 +290,10 @@ function showUpdateBanner() {
     document.body.appendChild(updateBanner);
     new ResizeObserver(() => updateBanner && document.documentElement.style.setProperty('--update-h', `${updateBanner.offsetHeight}px`)).observe(updateBanner);
   }
-  updateBanner.querySelector('.ub-t').textContent = `새 버전 ${Update.shortLabel(serverBuild)}`;
+  // What to do, not the number (설정 → 정보 has that; here it is the tooltip).
+  const t = updateBanner.querySelector('.ub-t');
+  t.textContent = '새 버전이 나왔습니다 · 새로고침하면 적용됩니다';
+  t.title = `새 버전 ${Update.shortLabel(serverBuild)}`;
   document.documentElement.classList.add('has-update');
 }
 function hideUpdateBanner() {

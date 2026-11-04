@@ -75,6 +75,9 @@ test('candidates and the notice: the likeliest cause first, a button per peer th
   assert.match(html, /href="https:\/\/server\.example\.ts\.net:8443\/"/);
   assert.match(html, /&lt;s&gt; 로 직접 열기/);
   assert.match(html, /data-retry>다시 시도</);
+  assert.match(html, /<details class="hd-more" open>/);
+  assert.doesNotMatch(Conn.noticeHtml(Conn.notice(rec), { open: false }), /<details[^>]* open/); // folded once it has been seen
+  assert.match(n.lines[1], /desktop 컴퓨터가/); // not 「desktop가」
 });
 
 test('probe: the hosts whose /api/version answers as a Herdr Hub, without credentials', async () => {

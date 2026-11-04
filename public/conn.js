@@ -106,7 +106,8 @@
     const where = self.hub ? `허브${name ? `(${name})` : ''}` : name || '이 호스트';
     const lines = [
       '이 기기의 Tailscale 이 켜져 있는지 확인하세요.',
-      `켜져 있다면 ${name || '그 컴퓨터'}가 잠들었거나 Herdr Hub 가 꺼져 있을 수 있습니다.`,
+      // 「desktop 컴퓨터가」: a Latin name takes no particle well (「desktop가」), the word between does.
+      `켜져 있다면 ${name ? `${name} 컴퓨터` : '그 컴퓨터'}가 잠들었거나 Herdr Hub 가 꺼져 있을 수 있습니다.`,
     ];
     const buttons = live.map((h) => ({ label: `${h.label} 로 직접 열기`, url: h.url, id: h.id }));
     const note = buttons.length
@@ -120,14 +121,17 @@
   }
 
   const escape = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  // The notice's inside (app.js puts it in a bar, offline.html fills its page with it).
-  function noticeHtml(n) {
+  // The notice's inside (app.js puts it in a bar, offline.html fills its page with it). The title
+  // and 다시 시도 share one line; what to check sits in a <details> that the bar folds after a
+  // while (open: false), so on a phone it keeps only that line rather than a quarter of the screen.
+  function noticeHtml(n, { open = true } = {}) {
     const go = n.buttons.map((b) => `<a class="btn" href="${escape(b.url)}/" data-direct="${escape(b.id)}">${escape(b.label)}</a>`).join('');
+    // The note goes with what it is about: beside the direct buttons, else folded with the rest.
+    const note = n.note ? `<p class="hd-note" aria-live="polite">${escape(n.note)}</p>` : '';
     return `<div class="hd-body">
-        <h2 class="hd-title">${escape(n.title)}</h2>
-        ${n.lines.map((l) => `<p class="hd-line">${escape(l)}</p>`).join('')}
-        <div class="row hd-acts">${go}<button type="button" class="btn ${go ? 'secondary' : ''}" data-retry>다시 시도</button></div>
-        ${n.note ? `<p class="hd-note" aria-live="polite">${escape(n.note)}</p>` : ''}
+        <div class="hd-head"><h2 class="hd-title">${escape(n.title)}</h2><button type="button" class="btn ${go ? 'secondary' : ''}" data-retry>다시 시도</button></div>
+        <details class="hd-more"${open ? ' open' : ''}><summary>먼저 볼 것</summary>${n.lines.map((l) => `<p class="hd-line">${escape(l)}</p>`).join('')}${go ? '' : note}</details>
+        ${go ? `<div class="row hd-acts">${go}</div>${note}` : ''}
       </div>`;
   }
 

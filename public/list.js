@@ -272,13 +272,12 @@ function render() {
   if (swipe.g && Date.now() - swipe.g.t0 < 10000) return void (swipe.pending = true); // after the finger lifts
   showTab('spaces');
   const root = listRoot();
-  const down = state.herdr !== 'up';
   const f = filter();
   const sub = esc(hostLine());
   const top = `
     <header class="bar">
       <h1>작업공간${sub ? `<span class="sub">${sub}</span>` : ''}</h1>
-      <span class="conn ${down ? 'down' : ''}"><span class="dot"></span>${down ? (state.herdr === 'down' ? 'herdr 연결 끊김' : state.herdr === 'offline' ? '연결 끊김' : '연결 중') : '실시간'}</span>
+      ${liveChip()}
       <a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스"${keyAttrs('newWorkspace', '새 워크스페이스')}>${ICON.plus}</a>
     </header>${hostSeg(f)}`;
   const parts = homeParts(f);

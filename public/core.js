@@ -439,11 +439,15 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', canc
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.className = 'sheet-back';
-    el.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1">
+    // The text is the dialog's description (「되돌릴 수 없습니다」 is heard, not only the title). The
+    // field comes with its old value picked, so typing replaces it, and an ⓧ that empties it (iOS has
+    // no select-all-and-delete in reach).
+    el.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"${text ? ' aria-describedby="sheet-text"' : ''} tabindex="-1">
         <h2>${esc(title)}</h2>
-        ${text ? `<p>${esc(text)}</p>` : ''}
+        ${text ? `<p id="sheet-text">${esc(text)}</p>` : ''}
         ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
-        ${input ? `<input class="field" name="v" value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="sheet-hint">
+        ${input ? `<div class="field-wrap"><input class="field" name="v" value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="sheet-hint">
+        <button type="button" class="field-clear" data-clear aria-label="지우기"${input.value ? '' : ' hidden'}>${ICON.x}</button></div>
         <p class="hint" id="sheet-hint" aria-live="polite"></p>` : ''}
         <div class="row end">
           ${cancel ? `<button type="button" class="btn secondary" data-cancel>${esc(cancel)}</button>` : ''}
@@ -462,12 +466,27 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', canc
     };
     let layer = null;
     const done = (v) => closeLayer(layer, v);
+    const first = field ? field.value : '';
     // A block body: an onclick that returns false would cancel the submit button's click.
+    // A tap beside the sheet closes it, but not once something was typed: a slip would lose it
+    // (취소, Esc and Back still do).
     el.onclick = (e) => {
-      if (e.target === el) done(null);
+      if (e.target === el && !(field && field.value !== first)) done(null);
     };
     if (cancel) el.querySelector('[data-cancel]').onclick = () => done(null);
-    if (field) field.oninput = check;
+    const clear = el.querySelector('[data-clear]');
+    if (field)
+      field.oninput = () => {
+        clear.hidden = !field.value;
+        check();
+      };
+    if (clear)
+      clear.onclick = () => {
+        field.value = '';
+        clear.hidden = true;
+        check();
+        field.focus();
+      };
     el.querySelector('form').onsubmit = (e) => {
       e.preventDefault();
       if (!check()) return;
@@ -477,6 +496,8 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', canc
     // Shown again after an error: no slide, so it reads as the same sheet.
     // The OK button takes Enter when it came from a key; after a tap it would only look picked.
     layer = openLayer(el, { onClose: (v) => resolve(v === undefined ? null : v), focus: field || (lastInput === 'key' ? submit : el.querySelector('.sheet')), animate: !again });
+    // Shown again after an error, the typed text stays as it was (the cursor at its end).
+    if (field && !again && field.value) field.select();
   });
 }
 
@@ -541,44 +562,87 @@ function menu(title, items, { sub = '' } = {}) {
 }
 
 // Toasts stack above the composer (newest at the bottom, three at most); the same text again
-// replaces the old one. Errors are announced at once (role=alert), the rest politely.
-// action: { label, run } adds a button (다시 보내기).
+// replaces the old one. The box is a polite live region on the page from the start (VoiceOver
+// misses a status that arrives together with its region); an error is announced at once (role=alert).
+// A tap or a push down puts one away. action: { label, run } adds a button (다시 보내기), and such a
+// toast stays until it is used, put away (an × for that) or the page changes (WCAG 2.2.1).
 let toastBox = null;
-function toast(text, { error = false, action = null, ms } = {}) {
+function toastRoot() {
   if (!toastBox || !toastBox.isConnected) {
     toastBox = document.createElement('div');
     toastBox.className = 'toasts';
+    toastBox.setAttribute('aria-live', 'polite');
     document.body.appendChild(toastBox);
   }
-  for (const old of toastBox.querySelectorAll('.toast')) if (old.dataset.text === text) old.remove();
+  return toastBox;
+}
+addEventListener('DOMContentLoaded', toastRoot);
+function toast(text, { error = false, action = null, ms } = {}) {
+  const box = toastRoot();
+  for (const old of box.querySelectorAll('.toast')) if (old.dataset.text === text) old.remove();
   const el = document.createElement('div');
   el.className = `toast${error ? ' err' : ''}`;
-  el.setAttribute('role', error ? 'alert' : 'status');
+  if (error) el.setAttribute('role', 'alert');
   el.dataset.text = text;
-  el.innerHTML = `<span class="t">${esc(text)}</span>${action ? `<button type="button" class="t-act">${esc(action.label)}</button>` : ''}`;
+  el.innerHTML = `<span class="t">${esc(text)}</span>${action ? `<button type="button" class="t-act">${esc(action.label)}</button><button type="button" class="t-x" aria-label="알림 닫기">×</button>` : ''}`;
   const remove = () => {
     if (!el.isConnected) return;
     if (reduced()) return el.remove();
     el.classList.add('closing');
     setTimeout(() => el.remove(), 160);
   };
-  if (action)
+  if (action) {
     el.querySelector('.t-act').onclick = () => {
       remove();
       action.run();
     };
-  toastBox.appendChild(el);
+    el.querySelector('.t-x').onclick = remove;
+  }
+  toastGestures(el, remove);
+  box.appendChild(el);
   placeToasts();
-  const all = toastBox.querySelectorAll('.toast:not(.closing)');
+  const all = box.querySelectorAll('.toast:not(.closing)');
   for (let i = 0; i < all.length - 3; i++) all[i].remove();
-  setTimeout(remove, ms || (action ? 6000 : error ? 4500 : 3200));
+  if (ms || !action) setTimeout(remove, ms || (error ? 4500 : 3200));
+  else addEventListener('hashchange', remove, { once: true }); // its button is about the page it came on
+}
+// A tap on a toast (not on its buttons) puts it away; so does pushing it down past 28px, the
+// toast following the finger meanwhile and going back when let go short of that.
+function toastGestures(el, remove) {
+  let g = null;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button') || e.button > 0) return;
+    g = { id: e.pointerId, y: e.clientY, x: e.clientX, dy: 0, moved: 0 };
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch {}
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!g || e.pointerId !== g.id) return;
+    g.dy = Math.max(0, e.clientY - g.y);
+    g.moved = Math.max(g.moved, Math.hypot(e.clientX - g.x, e.clientY - g.y));
+    el.classList.remove('settling');
+    el.style.transform = g.dy ? `translateY(${g.dy}px)` : '';
+    el.style.opacity = g.dy ? String(Math.max(0.3, 1 - g.dy / 120)) : '';
+  });
+  const end = (e) => {
+    if (!g || e.pointerId !== g.id) return;
+    const { dy, moved } = g;
+    g = null;
+    if (e.type === 'pointerup' && (dy > 28 || moved < 8)) return void remove();
+    el.classList.add('settling');
+    el.style.transform = '';
+    el.style.opacity = '';
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
 }
 const toastErr = (text, action) => toast(text, { error: true, action });
-// Toasts sit just above whatever is at the bottom of the screen now: the composer with its photo
+// Toasts sit just above whatever is at the bottom of the screen now (the workspace page's buttons too): the composer with its photo
 // tray or command list (two lines tall, on the keyboard), the shell's key row and line, the tab
 // bar, or the 「방금 본 대화」 chip over it (fwdchip.js). Without one, the CSS place (80px up from
 // the bottom). Again as the screen or the composer changes size while one shows (viewport.js fit, typing).
-const TOAST_ABOVE = '#d-pal:not([hidden]), #d-tray:not([hidden]), #d-form, #t-keys, #t-form, .tabbar, .fwd-chip:not(.closing)';
+const TOAST_ABOVE = '#d-pal:not([hidden]), #d-tray:not([hidden]), #d-form, #t-keys, #t-form, .tabbar, .ws-dock, .fwd-chip:not(.closing)';
 function placeToasts() {
   if (!toastBox || !toastBox.isConnected || !toastBox.children.length) return;
   let top = Infinity;

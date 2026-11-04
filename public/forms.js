@@ -295,14 +295,14 @@ async function submitForm(e) {
       return folderMissing();
     }
     const withAgent = document.getElementById('f-with').checked;
-    r = await act(hp('/workspaces', host), { cwd: val('f-cwd'), label: val('f-label'), agent: withAgent ? agent : null });
+    r = await act(hp('/workspaces', host), { cwd: val('f-cwd'), label: val('f-label'), agent: withAgent ? agent : null }, null, '워크스페이스를 만들지 못했습니다');
     if (r) {
       if (r.agentError) toast(`워크스페이스는 만들었지만 에이전트를 시작하지 못했습니다: ${r.agentError}`);
       started = Boolean(r.agent);
       hostCache.delete(host); // recent folders changed
     }
-  } else if (view.mode === 'ws') r = await act(hp(`/workspaces/${encodeURIComponent(view.target)}/agents`, host), agent);
-  else r = await act(hp(`/panes/${encodeURIComponent(view.target)}/agent`, host), agent);
+  } else if (view.mode === 'ws') r = await act(hp(`/workspaces/${encodeURIComponent(view.target)}/agents`, host), agent, null, '에이전트를 시작하지 못했습니다');
+  else r = await act(hp(`/panes/${encodeURIComponent(view.target)}/agent`, host), agent, null, '에이전트를 시작하지 못했습니다');
   syncSubmit();
   if (!r) return;
   const pane = encodeURIComponent(r.pane || view.target);

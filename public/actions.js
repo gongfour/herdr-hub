@@ -33,11 +33,11 @@ async function renamePane(x, isAgent) {
 async function closePane(host, pane, label, isAgent) {
   const ok = await sheet({
     title: isAgent ? '에이전트 닫기' : '셸 닫기',
-    text: `‘${label}’ 패널을 닫을까요?${isAgent ? ' 에이전트도 함께 끝납니다.' : ''} 되돌릴 수 없습니다.`,
-    ok: '닫기',
+    text: `‘${label}’ ${isAgent ? '패널을 닫으면 에이전트와 그 대화가 끝납니다' : '셸을 닫으면 그 안에서 돌던 것이 끝납니다'}. 되돌릴 수 없습니다.`,
+    ok: isAgent ? '에이전트 닫기' : '셸 닫기',
     danger: true,
   });
-  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다')) && leaveFor(host, pane)) goBack(homeHash());
+  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다', isAgent ? '에이전트를 닫지 못했습니다' : '셸을 닫지 못했습니다')) && leaveFor(host, pane)) goBack(homeHash());
 }
 
 // After closing a pane or workspace: back to the list when that was open. On the phone the list
@@ -64,27 +64,29 @@ async function closeWorkspace(w) {
   const panes = w.pane_count || agents + (state.terminals || []).filter((t) => same(t, host, w.workspace_id, 'workspace')).length;
   const ok = await sheet({
     title: '워크스페이스 닫기',
-    text: `‘${w.label}’ 워크스페이스를 닫을까요? 안의 패널 ${panes}개${agents ? `와 에이전트 ${agents}개` : ''}가 모두 끝납니다. 되돌릴 수 없습니다.`,
-    ok: '닫기',
+    // The agents are among the panes, not besides them: 「패널 6개(에이전트 6개 포함)」, not 「와」.
+    text: `‘${w.label}’ 워크스페이스를 닫으면 안의 패널 ${panes}개${agents ? `(에이전트 ${agents}개 포함)` : ''}가 모두 끝납니다. 되돌릴 수 없습니다.`,
+    ok: '워크스페이스 닫기',
     danger: true,
   });
-  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다')) && leaveFor(host, null, w.workspace_id)) goBack(homeHash());
+  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다', '워크스페이스를 닫지 못했습니다')) && leaveFor(host, null, w.workspace_id)) goBack(homeHash());
 }
 
 async function newTab(w) {
   const host = w.host || localId();
-  const r = await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/tabs`, host), {}, '새 탭을 열었습니다');
+  const r = await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/tabs`, host), {}, '새 탭을 열었습니다', '새 셸을 열지 못했습니다');
   if (r && r.pane) location.hash = link(host, `/term/${encodeURIComponent(r.pane)}`);
 }
 
-// POST a mutation; toasts on failure. Returns the response body or null.
-async function act(path, body, okText) {
+// POST a mutation; toasts on failure, saying what failed (failText: 「워크스페이스를 닫지 못했습니다」).
+// Returns the response body or null.
+async function act(path, body, okText, failText = '하지 못했습니다') {
   try {
     const r = await api(path, { method: 'POST', body: JSON.stringify(body) });
     if (okText) toast(okText);
     return r;
   } catch (err) {
-    toastErr(`하지 못했습니다: ${errText(err)}`);
+    toastErr(`${failText}: ${errText(err)}`);
     return null;
   }
 }
@@ -110,7 +112,7 @@ async function paneMenu(kind, x, { fromRow = false } = {}) {
         '-',
         ['rename', '이름 바꾸기'],
         ['ws', '워크스페이스 보기'],
-        ['close', '에이전트 닫기', true, '에이전트도 함께 끝납니다', here ? 'closeView' : null],
+        ['close', '에이전트 닫기', true, '패널과 대화가 끝납니다', here ? 'closeView' : null],
       ]
     : [
         fromRow ? ['open', '셸 보기'] : null,
@@ -162,7 +164,7 @@ async function paneAction(kind, x, k, { here = false } = {}) {
   if (k === 'close') closePane(x.host, x.pane, agent ? x.name || x.title : termTitle(x), agent);
   if (k === 'agent') location.hash = link(x.host, `/start/pane/${pane}`);
   if (k === 'down' || k === 'right') {
-    const r = await act(hp(`/panes/${pane}/split`, host), { direction: k }, '새 셸을 열었습니다');
+    const r = await act(hp(`/panes/${pane}/split`, host), { direction: k }, '새 셸을 열었습니다', '새 셸을 열지 못했습니다');
     if (r && r.pane) location.hash = link(x.host, `/term/${encodeURIComponent(r.pane)}`);
   }
   if (k === 'tab') {

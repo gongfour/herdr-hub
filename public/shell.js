@@ -96,7 +96,7 @@ function renderTerminal() {
     if (!currentTerminal()) return;
     if (detail.raw) return rawPress(k.endsWith('text') ? { text: k.slice(0, -4) } : { key: k });
     followTerm();
-    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [k], text: input.value })) {
+    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [k], text: input.value }, null, '키를 보내지 못했습니다')) {
       input.value = '';
       setTimeout(loadTerminal, 300);
     }
@@ -148,7 +148,7 @@ function renderTerminal() {
     e.preventDefault();
     if (detail.raw || !currentTerminal()) return;
     followTerm();
-    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: input.value })) {
+    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: input.value }, null, '셸에 보내지 못했습니다')) {
       input.value = '';
       setTimeout(loadTerminal, 400);
     }

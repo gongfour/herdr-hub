@@ -141,17 +141,24 @@ function toggleSwitcher() {
   if (topLayer()) return true;
   const el = document.createElement('div');
   el.className = 'sheet-back qs-back';
-  el.innerHTML = `<div class="qs" role="dialog" aria-modal="true" aria-label="빠른 이동">
-      <input class="field qs-field" type="text" placeholder="에이전트·셸 이름, 작업공간, 호스트" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
-        role="combobox" aria-expanded="true" aria-controls="qs-list" aria-autocomplete="list" aria-label="빠른 이동 검색">
+  // With fingers: no key help (a phone has no ↑↓ or Esc), a 취소 beside the field (the keyboard
+  // leaves little dimmed page to tap, and iOS has no Back), and no row looks picked before
+  // anything is typed (by-touch; once typed, the picked row is what 이동 opens).
+  const touch = !keyboardLikely() && lastInput === 'pointer';
+  el.innerHTML = `<div class="qs${touch ? ' by-touch' : ''}" role="dialog" aria-modal="true" aria-label="빠른 이동">
+      <div class="qs-top">
+        <input class="field qs-field" type="text" placeholder="에이전트·셸 이름, 작업공간, 호스트" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
+          role="combobox" aria-expanded="true" aria-controls="qs-list" aria-autocomplete="list" aria-label="빠른 이동 검색">
+        <button type="button" class="qs-cancel" data-cancel>취소</button>
+      </div>
       <div class="qs-list" id="qs-list" role="listbox" aria-label="에이전트·셸"></div>
-      <p class="qs-keys" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd> 고르기 · <kbd>리턴</kbd> 열기 · <kbd>Esc</kbd> 닫기</p>
+      ${keyboardLikely() ? '<p class="qs-keys" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd> 고르기 · <kbd>리턴</kbd> 열기 · <kbd>Esc</kbd> 닫기</p>' : ''}
     </div>`;
   const input = el.querySelector('input');
   const list = el.querySelector('.qs-list');
   qs = { el, input, list, items: [], sel: 0, typed: false, layer: null };
   el.onclick = (e) => {
-    if (e.target === el) closeLayer(qs.layer);
+    if (e.target === el || e.target.closest('[data-cancel]')) closeLayer(qs.layer);
   };
   list.onclick = (e) => {
     const row = e.target.closest('.qs-row');
@@ -171,6 +178,7 @@ function toggleSwitcher() {
     const down = e.key === 'ArrowDown' || has('scrollDown');
     if (down || e.key === 'ArrowUp' || has('scrollUp')) {
       e.preventDefault();
+      qs.el.querySelector('.qs').classList.remove('by-touch');
       moveSwitcher(down ? 1 : -1);
     } else if (e.key === 'Enter') {
       e.preventDefault();

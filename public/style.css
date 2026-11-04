@@ -22,6 +22,13 @@
   /* The chosen segment of a segmented control: lighter than its track in both themes. */
   --seg-on: #ffffff;
   --seg-on-line: #b3ad9f;
+  /* A toast floats over the page's cards: in the dark it sits a step lighter, with an edge and a
+     shadow that show there (the light theme's white card on the warm page already does). */
+  --toast-bg: #ffffff;
+  --toast-line: #e2dfd7;
+  --toast-shadow: rgb(0 0 0 / 0.12);
+  /* What dims the page under a sheet; darker in the dark, so the sheet's edge still reads. */
+  --scrim: rgb(0 0 0 / 0.35);
   /* Terminal colours 0-15 in the screen box, tuned to read on --surface. */
   --ansi-0: #1d1c19; --ansi-1: #b42318; --ansi-2: #1f7a3a; --ansi-3: #8a6a00;
   --ansi-4: #1f5fbf; --ansi-5: #9b2fae; --ansi-6: #0f7c86; --ansi-7: #6d6a62;
@@ -61,6 +68,10 @@
   --d-field-line: #76736c;
   --d-seg-on: #42413c;
   --d-seg-on-line: #7a7871;
+  --d-toast-bg: #2a2926;
+  --d-toast-line: #4a4844;
+  --d-toast-shadow: rgb(0 0 0 / 0.5);
+  --d-scrim: rgb(0 0 0 / 0.6);
   --d-ansi-0: #8a877f;
   --d-ansi-1: #ff6b5e;
   --d-ansi-2: #7fd08a;
@@ -86,6 +97,7 @@
   --done: var(--d-done); --done-bg: var(--d-done-bg); --working: var(--d-working);
   --working-bg: var(--d-working-bg); --idle: var(--d-idle); --idle-bg: var(--d-idle-bg); --field-line: var(--d-field-line);
   --seg-on: var(--d-seg-on); --seg-on-line: var(--d-seg-on-line);
+  --toast-bg: var(--d-toast-bg); --toast-line: var(--d-toast-line); --toast-shadow: var(--d-toast-shadow); --scrim: var(--d-scrim);
   --ansi-0: var(--d-ansi-0); --ansi-1: var(--d-ansi-1); --ansi-2: var(--d-ansi-2);
   --ansi-3: var(--d-ansi-3); --ansi-4: var(--d-ansi-4); --ansi-5: var(--d-ansi-5);
   --ansi-6: var(--d-ansi-6); --ansi-7: var(--d-ansi-7); --ansi-8: var(--d-ansi-8);
@@ -102,6 +114,7 @@
     --done: var(--d-done); --done-bg: var(--d-done-bg); --working: var(--d-working);
     --working-bg: var(--d-working-bg); --idle: var(--d-idle); --idle-bg: var(--d-idle-bg); --field-line: var(--d-field-line);
   --seg-on: var(--d-seg-on); --seg-on-line: var(--d-seg-on-line);
+  --toast-bg: var(--d-toast-bg); --toast-line: var(--d-toast-line); --toast-shadow: var(--d-toast-shadow); --scrim: var(--d-scrim);
     --ansi-0: var(--d-ansi-0); --ansi-1: var(--d-ansi-1); --ansi-2: var(--d-ansi-2);
     --ansi-3: var(--d-ansi-3); --ansi-4: var(--d-ansi-4); --ansi-5: var(--d-ansi-5);
     --ansi-6: var(--d-ansi-6); --ansi-7: var(--d-ansi-7); --ansi-8: var(--d-ansi-8);
@@ -170,9 +183,16 @@ button:disabled { cursor: default; }
 .icon-btn:active { background: var(--surface-2); }
 .icon-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-.conn { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
-.conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--done); }
-.conn.down .dot { background: var(--blocked); }
+/* The live stream is down (app.js liveChip/liveDot): a small red chip with a word, in every header
+   the same; a tap tells what it means. Nothing shows while all is well. */
+.live-chip {
+  position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px;
+  border: 0; border-radius: 999px; background: var(--blocked-bg); color: var(--blocked); font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.live-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blocked); }
+.live-chip::after { content: ""; position: absolute; inset: -8px -2px; } /* a 44px target */
+.live-chip:focus-visible { outline: 2px solid var(--blocked); outline-offset: 2px; }
+#d-badge .live-chip { margin-right: 8px; }
 
 /* ---- list */
 .list { padding: 8px 16px calc(24px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 18px; }
@@ -534,13 +554,13 @@ div.tool { background: none; padding: 2px 8px; }
   padding: calc(6px + var(--safe-top)) calc(8px + var(--safe-right)) 6px calc(16px + var(--safe-left));
   background: var(--surface); color: var(--text); border-bottom: 1px solid var(--line); font-size: 14px;
 }
-.update-bar .ub-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.update-bar .ub-t { flex: 1; min-width: 0; line-height: 1.35; } /* may take two lines on a phone */
 .update-bar .ub-go {
-  flex: none; min-height: 36px; padding: 0 14px; border: 0; border-radius: 10px;
+  flex: none; min-height: 44px; padding: 0 14px; border: 0; border-radius: 10px;
   background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer;
 }
 .update-bar .ub-x {
-  flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 10px;
+  flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 10px;
   background: none; color: var(--muted); cursor: pointer;
 }
 .update-bar .ub-x svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -553,15 +573,23 @@ div.tool { background: none; padding: 2px 8px; }
    update bar; offline.html shows the same inside as its whole page. */
 .hub-down {
   position: fixed; left: 0; right: 0; top: var(--app-top, 0px); z-index: 21;
-  padding: calc(12px + var(--safe-top)) calc(16px + var(--safe-right)) 14px calc(16px + var(--safe-left));
+  padding: calc(8px + var(--safe-top)) calc(16px + var(--safe-right)) 6px calc(16px + var(--safe-left));
   background: var(--surface); color: var(--text); border-bottom: 1px solid var(--line);
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.06);
 }
 .hd-body { max-width: 640px; }
-.hd-title { margin: 0 0 4px; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.hd-head { display: flex; align-items: center; gap: 10px; }
+.hd-head .btn { flex: none; min-height: 44px; margin: 0; }
+.hd-title { flex: 1; min-width: 0; margin: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .hd-title::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--blocked); box-shadow: 0 0 0 3px var(--blocked-bg); }
 .hd-line { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
 .hd-line:first-of-type { color: var(--text); }
+.hd-more { margin-top: 2px; }
+.hd-more > summary { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; color: var(--muted); font-size: 13px; cursor: pointer; list-style: none; }
+.hd-more > summary::-webkit-details-marker { display: none; }
+.hd-more > summary::before { content: "›"; display: inline-block; width: 1em; text-align: center; font-size: 16px; transition: transform 0.15s; }
+.hd-more[open] > summary::before { transform: rotate(90deg); }
+.hd-more[open] > summary { margin-bottom: 2px; }
 .hd-acts { margin-top: 10px; }
 .hd-acts .btn { min-height: 44px; }
 .hd-note { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
@@ -577,13 +605,17 @@ div.tool { background: none; padding: 2px 8px; }
    --blocked-bg with the --blocked bar inside the left edge (as on the attention rows). */
 .toast {
   pointer-events: auto; display: flex; align-items: center; gap: 10px;
-  background: var(--surface); color: var(--text); border: 1px solid var(--line); padding: 12px 14px; border-radius: 12px; font-size: 14px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12); animation: toast-in 0.18s ease-out;
+  background: var(--toast-bg); color: var(--text); border: 1px solid var(--toast-line); padding: 12px 14px; border-radius: 12px; font-size: 14px;
+  box-shadow: 0 4px 16px var(--toast-shadow); animation: toast-in 0.18s ease-out; cursor: default; touch-action: none;
 }
+/* A toast goes away when tapped or pushed down (core.js); it follows the finger meanwhile. */
+.toast.dragging { transition: none; }
+.toast.settling { transition: transform 0.16s ease-out, opacity 0.16s ease-out; }
+.toast .t-x { flex: none; width: 44px; min-height: 44px; margin: -12px -14px -12px -6px; display: grid; place-items: center; border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
 .toast .t { flex: 1; min-width: 0; }
 .toast.err {
   background: var(--blocked-bg); border-color: color-mix(in srgb, var(--blocked) 30%, var(--blocked-bg)); padding-left: 18px;
-  box-shadow: inset 4px 0 0 var(--blocked), 0 4px 16px rgb(0 0 0 / 0.12);
+  box-shadow: inset 4px 0 0 var(--blocked), 0 4px 16px var(--toast-shadow);
 }
 .toast .t-act {
   flex: none; min-height: 44px; margin: -8px -6px -8px 0; padding: 0 12px; border: 0; border-radius: 10px;
@@ -611,16 +643,22 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   border: 1px solid var(--field-line); background: var(--bg); color: var(--text); font: inherit; font-size: 16px;
 }
 .field[aria-invalid="true"] { border-color: var(--blocked); }
-.hint { margin: 4px 2px 0; font-size: 13px; color: var(--blocked); }
+.hint, .sheet .hint, .panel .hint { margin: 4px 2px 0; font-size: 13px; color: var(--blocked); } /* over .sheet p, .panel p */
 .hint:empty { display: none; }
 .field:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.field[aria-invalid="true"]:focus { outline-color: var(--blocked); }
+.field-wrap { position: relative; }
+.field-wrap > .field { padding-right: 44px; }
+.field-clear { position: absolute; top: 0; right: 0; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; color: var(--muted); cursor: pointer; border-radius: 10px; }
+.field-clear[hidden] { display: none; }
+.field-clear svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 15px; min-height: 44px; }
 .check input { width: 20px; height: 20px; accent-color: var(--accent); }
 
 .sheet-back {
-  position: fixed; left: 0; right: 0; top: var(--app-top, 0px); height: var(--app-h, 100%); z-index: 30; background: rgb(0 0 0 / 0.35);
+  position: fixed; left: 0; right: 0; top: var(--app-top, 0px); height: var(--app-h, 100%); z-index: 30; background: var(--scrim);
   display: flex; align-items: flex-end; justify-content: center;
   animation: fade-in 0.18s ease-out;
 }
@@ -639,7 +677,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .sheet {
   width: 100%; max-width: 520px; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); color: var(--text);
-  border-radius: 18px 18px 0 0; padding: 18px 16px calc(16px + var(--safe-bottom));
+  border-radius: 18px 18px 0 0; padding: 18px 16px calc(16px + var(--safe-bottom)); border-top: 1px solid var(--line);
   box-shadow: 0 -6px 24px rgb(0 0 0 / 0.2); display: flex; flex-direction: column; gap: 10px;
 }
 .sheet h2 { font-size: 17px; margin: 0; }
@@ -655,7 +693,12 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 @keyframes qs-in { from { transform: translateY(-8px); opacity: 0.6; } }
 .qs-back.closing > .qs { animation: fade-out 0.16s ease-in forwards; }
-.qs-field { margin: 10px; width: auto; }
+.qs-top { display: flex; align-items: center; gap: 4px; padding: 10px; }
+.qs-field { flex: 1; min-width: 0; margin: 0; width: auto; }
+.qs-cancel { flex: none; min-height: 44px; padding: 0 10px; border: 0; border-radius: 10px; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.qs-cancel:active { background: var(--surface-2); }
+/* Opened by a finger: nothing looks picked until something is typed or ↑↓ pressed (switcher.js). */
+.qs.by-touch:has(.qs-field:placeholder-shown) .qs-row[aria-selected="true"] { background: none; }
 .qs-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
 .qs-row {
   position: relative; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 14px; cursor: pointer;
@@ -954,8 +997,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .pref-ver .btn { flex: none; min-height: 36px; padding: 0 12px; font-size: 14px; }
 
 /* ---- polish: small pieces */
-/* In a detail header while the live stream is down: statuses may be stale. */
-.live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--blocked); margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 0 3px var(--blocked-bg); }
 #d-badge { display: flex; align-items: center; flex: none; }
 .hint-row { display: flex; align-items: center; gap: 4px; margin: 0; padding: 4px 4px 4px 14px; border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: 13px; }
 .hint-row span { flex: 1; }
@@ -1333,7 +1374,7 @@ button.tool:active { filter: brightness(0.95); }
 /* 단축키 page (keyspage.js), in 설정's cards: the action and where it works on the left, its keys
    (× to take off, + to add) on the right; stacked when narrow. */
 .keys-page .k-search { display: flex; gap: 8px; align-items: center; position: sticky; top: -16px; z-index: 2; padding: 8px 0; background: var(--bg); }
-.keys-page .k-search input { flex: 1; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 15px; }
+.keys-page .k-search input { flex: 1; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 16px; } /* 16px: iOS zooms into a smaller field */
 .keys-page .k-search input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; }
 .keys-page .k-search .toggle { flex: none; min-height: 44px; white-space: nowrap; }
 #k-list { display: flex; flex-direction: column; gap: 18px; } /* 설정's gap, one level down */
@@ -1349,12 +1390,15 @@ button.tool:active { filter: brightness(0.95); }
 .kchip { display: inline-flex; align-items: center; }
 .kchip .kx { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; min-width: 26px; min-height: 32px; cursor: pointer; border-radius: 6px; }
 .kchip .kx:hover { color: var(--blocked); background: var(--surface-2); }
-/* A key's 「셸 화면에서도」 switch: a small pill, filled when the Hub takes the key in the shell view. */
-.kchip .ksh, .ksh-demo { font-size: 11px; font-weight: 600; line-height: 1; padding: 4px 6px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); }
-.kchip .ksh { margin-left: 4px; min-height: 28px; cursor: pointer; }
-.kchip .ksh[aria-checked="true"], .ksh-demo { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.kchip .ksh:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.ksh-demo { display: inline-block; padding: 2px 5px; }
+/* A key's 「셸 화면에서도」 switch: on is a filled 「✓ 셸」, off an outlined 「셸」 (shape and words,
+   not a tint alone; the outline is --field-line, 3:1 against the card). */
+.kchip .ksh, .ksh-demo { font-size: 11px; font-weight: 600; line-height: 1; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--field-line); background: none; color: var(--muted); white-space: nowrap; }
+.kchip .ksh { position: relative; margin-left: 4px; min-height: 28px; cursor: pointer; }
+.kchip .ksh[aria-checked="true"], .ksh-demo { color: var(--accent-text); border-color: var(--accent); background: var(--accent); }
+.ksh-demo.off { color: var(--muted); border-color: var(--field-line); background: none; }
+.kchip .ksh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ksh-demo { display: inline-block; padding: 2px 6px; }
+.k-lock { font-size: 11px; color: var(--muted); padding: 0 6px; }
 .k-loses { flex-basis: 100%; font-size: 12px; color: var(--muted); }
 .k-add, .k-reset { min-height: 32px; padding: 0 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .k-add { border: 1px dashed var(--line); background: none; color: var(--accent); min-width: 32px; padding: 0; font-size: 18px; line-height: 1; }
@@ -1363,15 +1407,31 @@ button.tool:active { filter: brightness(0.95); }
 .k-fixed, .k-none { font-size: 12px; color: var(--muted); }
 .k-empty { color: var(--muted); text-align: center; margin: 24px 0; }
 @media (max-width: 560px) { .k-row { grid-template-columns: 1fr; } .k-keys { justify-content: flex-start; } }
-.keys-page .k-heard { margin: 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); font: 12px/1.5 var(--mono); color: var(--text); overflow-wrap: anywhere; }
+.keys-page .k-heard { margin: 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.keys-page .k-heard code { font: 12px/1.5 var(--mono); }
 
 /* The workspace page (workspace.js), in 설정's cards: the two things to do first, a key-value card
    for where it is, its panes as the list's rows (the room for the unread dot kept), and
    the rare and destructive as quiet rows. */
-.ws-page .ws-acts .btn { margin-top: 0; }
+/* 에이전트 시작 · 새 셸 열기 sit at the bottom, under the scrolling page, where a thumb reaches. */
+:is(#app, .col) > .ws-dock {
+  flex: none; display: flex; gap: 8px; padding: 10px calc(16px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(16px + var(--safe-left));
+  border-top: 1px solid var(--line); background: var(--bg);
+}
+.ws-dock .btn { flex: 1; justify-content: center; margin: 0; min-height: 48px; }
+:is(#app, .col) > main.panel:has(+ .ws-dock) { padding-bottom: 16px; }
+.split #detail-pane > .ws-dock { padding-inline: max(24px, calc((100% - 760px) / 2)); }
+/* The name may take two lines (a long one isn't cut off with no way to read it). */
+.ws-bar h1 { white-space: normal; }
+.ws-bar h1 .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.ws-bar h1 .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Not here (closed, gone, its host offline): why, and the way back to 작업공간. */
+.ws-gone { display: flex; flex-direction: column; align-items: center; gap: 14px; margin: 48px auto 0; max-width: 360px; text-align: center; }
+.ws-gone p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.5; }
+.ws-gone .btn { min-height: 48px; padding: 0 22px; }
 .ws-info .ws-kv { display: flex; align-items: baseline; gap: 12px; min-height: 44px; padding: 11px 14px; }
 .ws-info .ws-k { flex: none; width: 3.5em; font-size: 13px; color: var(--muted); }
-.ws-info .ws-v { min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.ws-info .ws-v { min-width: 0; font-size: 14px; overflow-wrap: break-word; } /* the path breaks at its separators (<wbr>) */
 .ws-info .ws-path { font: 13px/1.5 var(--mono); background: none; padding: 0; user-select: all; }
 .ws-page .pcard > .pref-link + .pref-link { border-top: 1px solid var(--line); } /* .pref-link's border: 0 would drop the card's rule */
 .ws-none { margin: 0; padding: 14px; font-size: 14px; color: var(--muted); }
@@ -1417,7 +1477,9 @@ button.tool:active { filter: brightness(0.95); }
   .tool { padding-top: 10px; padding-bottom: 10px; }
   .kchip .kx { min-width: 44px; min-height: 44px; }
   .k-add { min-width: 44px; min-height: 44px; }
-  .kchip .ksh { min-width: 44px; min-height: 44px; padding: 0 10px; }
+  /* A 32px pill beside the key chip, its target 44px (::after); a gap so it isn't the ×'s neighbour. */
+  .kchip .ksh { min-width: 44px; min-height: 32px; padding: 0 10px; margin: 0 6px; }
+  .kchip .ksh::after { content: ""; position: absolute; inset: -6px -2px; }
   .k-reset { min-height: 44px; }
 }
 

@@ -2,7 +2,7 @@
 // The 단축키 page (#/keys), as VS Code's Keyboard Shortcuts editor: every action of keymap.js
 // with its keys, where they work and whether this device changed them, a search over names and
 // keys (or by pressing the key itself), and the editing in place: × takes a key off, + records
-// the next key pressed (Esc cancels), a key's 셸 switches 「셸 화면에서도」 (the Hub takes that
+// the next key pressed (Esc or 취소 cancels), a key's 셸 switches 「셸 화면에서도」 (the Hub takes that
 // key in the shell view, or leaves it to the shell; keymap.js setShell), 기본값 puts an action
 // back, 모두 기본값으로 all of them.
 // Split it opens on the right like 설정; on the phone it is a page of its own. ✕ (Esc) closes it.
@@ -84,17 +84,20 @@ function drawKeysList() {
           const keep = r.action === 'back' && k === 'Escape'; // 뒤로 always has Esc
           const sh = r.shells[i];
           const name = Keymap.label(k);
+          // On and off differ in shape and words, not only a tint: filled 「✓ 셸」 or an outlined 「셸」.
           const shBtn = sh && sh.can
-            ? `<button type="button" class="ksh" data-sh="${esc(k)}" role="switch" aria-checked="${sh.on}" aria-label="${esc(name)} 셸 화면에서도" title="셸 화면에서도: ${sh.on ? '켜짐 (Hub 가 씀)' : '꺼짐 (셸로 감)'}">셸</button>`
+            ? `<button type="button" class="ksh" data-sh="${esc(k)}" role="switch" aria-checked="${sh.on}" aria-label="${esc(name)} 셸 화면에서도" title="셸 화면에서도: ${sh.on ? '켜짐 (Hub 가 씀)' : '꺼짐 (셸로 감)'}">${sh.on ? '✓ 셸' : '셸'}</button>`
             : '';
-          return `<span class="kchip">${kbd(k)}${shBtn}${keep ? '' : `<button type="button" class="kx" data-rm="${esc(k)}" aria-label="${esc(name)} 빼기" title="빼기">×</button>`}</span>`;
+          // 뒤로's Esc can't be taken off: said so where the others have their ×.
+          const end = keep ? '<span class="k-lock" title="뒤로는 늘 Esc 를 씁니다">고정</span>' : `<button type="button" class="kx" data-rm="${esc(k)}" aria-label="${esc(name)} 빼기" title="빼기">×</button>`;
+          return `<span class="kchip">${kbd(k)}${shBtn}${end}</span>`;
         })
         .join('');
     const where = Keymap.whereText(r.action);
     const loses = r.fixed ? [] : r.shells.filter((x) => x.loses).map((x) => `${Keymap.label(x.key)}: ${x.loses}`);
     const tools = r.fixed
       ? '<span class="k-fixed">바꿀 수 없음</span>'
-      : `${rec ? '<span class="k-recnote" role="status">누를 키를 누르세요 · Esc 취소</span>' : '<button type="button" class="k-add" data-add aria-label="키 더하기" title="키 더하기">+</button>'}${
+      : `${rec ? `<span class="k-recnote" role="status">누를 키를 누르세요${keyboardLikely() ? ' · Esc 취소' : ''}</span><button type="button" class="k-reset k-cancel" data-cancel-rec>취소</button>` : '<button type="button" class="k-add" data-add aria-label="키 더하기" title="키 더하기">+</button>'}${
           r.changed ? '<button type="button" class="k-reset" data-reset title="이 동작을 기본 키로">기본값</button>' : ''
         }`;
     return `<div class="k-row${r.changed ? ' changed' : ''}${rec ? ' recording' : ''}" data-action="${esc(r.action)}">
@@ -105,7 +108,7 @@ function drawKeysList() {
   const local = Keymap.LOCAL.filter((x) => keysMatch({ label: `${x.group} ${x.label}`, keys: Keymap.localKeys(x) }, q));
   const changed = Object.keys(keyOverrides).length > 0;
   const html = `
-    <p class="pnote k-note">바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만 동작합니다. 키 옆의 <span class="ksh-demo" aria-hidden="true">셸</span>이 켜진 키는 셸 화면에서도 Hub 가 쓰고, 꺼진 키는 셸 화면에서 셸로 갑니다.</p>
+    <p class="pnote k-note">바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만 동작합니다. 키 옆이 <span class="ksh-demo" aria-hidden="true">✓ 셸</span>인 키는 셸 화면에서도 Hub 가 쓰고, <span class="ksh-demo off" aria-hidden="true">셸</span>인 키는 셸 화면에서 셸로 갑니다.</p>
     ${[...groups]
       .map(([g, rows]) => `<section class="pgroup"><h2>${esc(g)}</h2><div class="pcard">${rows.map(row).join('')}</div></section>`)
       .join('')}
@@ -118,6 +121,8 @@ function drawKeysList() {
     }
     ${!groups.size && !local.length ? `<p class="k-empty">「${esc(q)}」에 맞는 단축키가 없습니다.</p>` : ''}
     ${changed ? '<section class="pgroup"><div class="pcard"><button type="button" class="pref-link danger-text" data-reset-all><span>모든 단축키를 기본값으로</span></button></div></section>' : ''}`;
+  // What 키로 찾기 heard stays after the key it heard, until something else is recorded or it's turned off.
+  if (kp.rec !== 'search' && kp.rec) showHeard('');
   if (box._html === html) return;
   box._html = html;
   box.innerHTML = html;
@@ -137,7 +142,7 @@ function bindKeysPage(main) {
   };
   main.querySelector('#k-rec').onclick = () => {
     kp.rec = kp.rec === 'search' ? null : 'search';
-    if (kp.rec) showHeard('누를 키를 누르세요. 페이지가 받은 그대로 여기 보입니다 (아무것도 안 뜨면 기기가 먼저 가져간 키).');
+    showHeard(kp.rec ? '누를 키를 누르세요. 페이지가 받은 그대로 여기 보입니다 (아무것도 안 뜨면 기기가 먼저 가져간 키).' : '');
     drawKeysList();
   };
   main.onclick = (e) => {
@@ -146,6 +151,10 @@ function bindKeysPage(main) {
     const row = t.closest('.k-row[data-action]');
     if (!row) return;
     const action = row.dataset.action;
+    if (t.closest('[data-cancel-rec]')) {
+      kp.rec = null;
+      return drawKeysList();
+    }
     if (t.closest('[data-add]')) {
       kp.rec = action;
       return drawKeysList();
@@ -164,10 +173,13 @@ function bindKeysPage(main) {
       if (again) again.focus({ preventScroll: true });
       return;
     }
+    // Taken off at once, with a way back in the toast (the × sits right by 셸; a slip is easy).
     const rm = t.closest('[data-rm]');
     if (rm) {
+      const before = JSON.parse(JSON.stringify(keyOverrides));
       try {
         saveKeys(Keymap.unassign(keyOverrides, action, rm.dataset.rm));
+        toast(`${Keymap.label(rm.dataset.rm)} 를 뺐습니다`, { action: { label: '되돌리기', run: () => (saveKeys(before), drawKeysList()) }, ms: 8000 });
       } catch (err) {
         toastErr(err.message);
       }
@@ -177,18 +189,19 @@ function bindKeysPage(main) {
 }
 
 // 키로 찾기: what the page got for each key, raw, to tell a key the device keeps (nothing shows)
-// from one that comes as something else (a cover's ` as Dead, Alt eaten by the IME …).
-function showHeard(text) {
+// from one that comes as something else (a cover's ` as Dead, Alt eaten by the IME …). The words in
+// the page's type, the raw values (raw) in mono.
+function showHeard(text, raw = '', after = '') {
   const el = document.getElementById('k-heard');
   if (!el) return;
-  el.textContent = text;
+  el.innerHTML = text ? `${esc(text)}${raw ? ` <code>${esc(raw)}</code>` : ''}${after ? ` ${esc(after)}` : ''}` : '';
   el.hidden = !text;
 }
-const heardText = (e) => {
+function showHeardKey(e, note = '') {
   const mods = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.metaKey && 'Meta', e.shiftKey && 'Shift'].filter(Boolean).join('+') || '없음';
   const as = Keymap.keyOf(e);
-  return `받은 키: key="${e.key}" code="${e.code || ''}" 보조키=${mods}${e.repeat ? ' (반복)' : ''} → ${as ? Keymap.label(as) : '단축키로 쓸 수 없는 키'}`;
-};
+  showHeard('받은 키:', `key="${e.key}" code="${e.code || ''}" 보조키=${mods}`, `${e.repeat ? '(반복) ' : ''}→ ${as ? Keymap.label(as) : '단축키로 쓸 수 없는 키'}${note}`);
+}
 
 // While recording, the next key is the page's alone: a new key for an action, or the key to
 // search by. Esc cancels. Before every other listener (capture on window).
@@ -196,7 +209,7 @@ window.addEventListener(
   'keydown',
   (e) => {
     if (view.name !== 'keys' || !kp.rec) return;
-    if (kp.rec === 'search') showHeard(heardText(e) + (e.isComposing || e.keyCode === 229 ? ' (한글 입력기가 조합 중)' : ''));
+    if (kp.rec === 'search') showHeardKey(e, e.isComposing || e.keyCode === 229 ? ' (한글 입력기가 조합 중)' : '');
     if (e.isComposing || e.keyCode === 229) return;
     e.preventDefault();
     e.stopImmediatePropagation();
