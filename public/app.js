@@ -305,9 +305,11 @@ function markSelected() {
 }
 
 // Alt+↑/↓ (or [ ]): the previous or next agent or shell in the list column, opened on the right.
-// Typing in a composer or the shell, the caret goes on into the next one's (route takes it).
+// Alt+↑/↓ (only a real keyboard has it) puts the caret in the next one's composer or shell
+// input, as does either key pressed while typing in one (route takes it). [ ] from the page keep
+// the page's focus, so they go on stepping.
 let stepFocus = false;
-function stepList(dir) {
+function stepList(dir, alt) {
   const main = listRoot() && listRoot().querySelector(':scope > main.home');
   if (!main) return false;
   const links = [...main.querySelectorAll('a.attn-row, a.sw-front')].map((a) => a.getAttribute('href'));
@@ -315,7 +317,7 @@ function stepList(dir) {
   const next = Split.stepRow(links, cur && cur.getAttribute('href'), dir);
   if (!next) return true;
   const f = document.activeElement;
-  stepFocus = Boolean(f && ['d-input', 't-input'].includes(f.id));
+  stepFocus = alt || Boolean(f && ['d-input', 't-input'].includes(f.id));
   location.hash = next;
   const el = [...main.querySelectorAll('a.attn-row, a.sw-front')].find((a) => a.getAttribute('href') === next);
   if (el) el.scrollIntoView({ block: 'nearest' });
@@ -381,7 +383,7 @@ document.addEventListener('keydown', (e) => {
   if (split) {
     const a = document.activeElement;
     const dir = Split.listKey(e, { editable: editable(a), shell: view.name === 'term', layer: Boolean(topLayer()) });
-    if (dir && stepList(dir === 'next' ? 1 : -1)) e.preventDefault();
+    if (dir && stepList(dir === 'next' ? 1 : -1, e.altKey)) e.preventDefault();
   }
 });
 // Split: a tab press while a detail is open changes only the list column (홈 / 작업공간 /
