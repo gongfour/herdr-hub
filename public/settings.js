@@ -44,7 +44,6 @@ function settingsHtml() {
         ${g.note ? `<p class="pnote">${esc(g.note)}</p>` : ''}
       </section>`;
   }).join('');
-  const v = appVersion();
   // Split, 설정 is a detail on the right: ✕ (Esc) closes it back to what was open there.
   return `
     <header class="bar">
@@ -65,7 +64,8 @@ function settingsHtml() {
         <h2 id="g-conn">연결 · 정보</h2>
         <div class="pcard">
           <ul class="conn-list" id="s-conn"></ul>
-          <p class="pref-info">${v ? `버전 v${esc(v)} · ` : ''}${esc(location.host)}<br>설정은 모두 이 기기에만 저장됩니다.</p>
+          <div class="pref-ver"><p class="pref-info" id="s-ver"></p><button type="button" class="btn secondary" id="s-reload">새로고침</button></div>
+          <p class="pref-info">${esc(location.host)}<br>설정은 모두 이 기기에만 저장됩니다.</p>
           <button type="button" class="pref-link danger-text" id="s-clear"><span>이 기기 저장 데이터 지우기</span><span class="pl-end" aria-hidden="true">›</span></button>
         </div>
       </section>
@@ -95,6 +95,7 @@ function renderSettings({ focus = false } = {}) {
   main.querySelector('#s-keys kbd').hidden = !helpKey;
   renderPushBlock();
   renderConn();
+  renderVersionInfo();
   if (!split) mountTabBar('settings');
   if (focus) main.focus({ preventScroll: true });
 }
@@ -151,6 +152,7 @@ function bindSettings(main) {
   });
   main.querySelector('#s-keys').onclick = openKeySheet;
   main.querySelector('#s-clear').onclick = clearDeviceData;
+  main.querySelector('#s-reload').onclick = () => reloadToNew(); // app.js
   main.querySelector('#s-push').onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -192,6 +194,16 @@ function renderConn() {
   if (box._html === html) return;
   box._html = html;
   box.innerHTML = html;
+}
+
+// 정보: this page's version and, when the server serves a newer one, that (app.js checks it).
+function renderVersionInfo() {
+  const el = document.getElementById('s-ver');
+  if (!el) return;
+  const v = appVersion();
+  const text = !v ? '버전 알 수 없음' : Update.newer(v, serverVersion) ? `v${v} · 새 버전 v${serverVersion} 있음` : `버전 v${v}`;
+  if (el.textContent !== text) el.textContent = text;
+  el.classList.toggle('ver-new', Update.newer(v, serverVersion));
 }
 
 // What this device keeps besides the settings: kept chats, unsent text, read marks, the swipe

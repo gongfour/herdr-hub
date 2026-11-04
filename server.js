@@ -16,7 +16,7 @@ const notifyLib = require('./lib/notify');
 const { parseChoices, choicesSettled } = require('./public/choices');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
-const { send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed } = require('./lib/http');
+const { appVersion, send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed } = require('./lib/http');
 const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
 const { screenReader } = require('./lib/screen');
 
@@ -353,9 +353,13 @@ async function api(req, res, url) {
   if (method !== 'GET' && req.headers['x-herdr-hub'] !== '1') return send(res, 403, { error: 'missing_header' });
 
   if (method === 'GET' && parts[0] === 'state') return send(res, 200, state);
+  // The app version this host serves (index.html's ?v=): an installed app resumed from memory
+  // compares it with its own and loads the new one (public/update.js).
+  if (method === 'GET' && parts[0] === 'version' && !parts[1]) return send(res, 200, { v: appVersion(PUBLIC) });
 
   if (method === 'GET' && parts[0] === 'stream') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    res.write(`event: version\ndata: ${JSON.stringify({ v: appVersion(PUBLIC) })}\n\n`);
     res.write(`event: state\ndata: ${JSON.stringify(state)}\n\n`);
     clients.add(res);
     req.on('close', () => clients.delete(res));

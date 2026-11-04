@@ -485,6 +485,28 @@ button:disabled { cursor: default; }
 .btn.secondary { background: var(--surface-2); color: var(--text); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* A new version (app.js): a calm bar at the very top. The app shell moves down under it, so it
+   covers none of the header's controls; the bar takes the notch's inset and the header drops its own. */
+.update-bar {
+  position: fixed; left: 0; right: 0; top: var(--app-top, 0px); z-index: 20;
+  display: flex; align-items: center; gap: 8px;
+  padding: calc(6px + var(--safe-top)) calc(8px + var(--safe-right)) 6px calc(16px + var(--safe-left));
+  background: var(--surface); color: var(--text); border-bottom: 1px solid var(--line); font-size: 14px;
+}
+.update-bar .ub-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.update-bar .ub-go {
+  flex: none; min-height: 36px; padding: 0 14px; border: 0; border-radius: 10px;
+  background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer;
+}
+.update-bar .ub-x {
+  flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 10px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+.update-bar .ub-x svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.update-bar button:active { filter: brightness(0.95); }
+:root.has-update #app { top: calc(var(--app-top, 0px) + var(--update-h, 0px)); height: calc(var(--app-h, 100%) - var(--update-h, 0px)); --safe-top: 0px; }
+.split .update-bar { padding-left: 16px; }
+
 /* Toasts stack above the composer, which may be sitting on the keyboard; newest at the bottom. */
 .toasts {
   position: fixed; left: 16px; right: 16px; z-index: 40; pointer-events: none;
@@ -841,6 +863,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .conn-list .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
 .conn-list .cl-st { color: var(--muted); }
 .panel .pref-info { margin: 0; padding: 10px 14px; font-size: 13px; line-height: 1.5; }
+.pref-ver { display: flex; align-items: center; gap: 8px; padding-right: 14px; }
+.pref-ver .pref-info { flex: 1; min-width: 0; }
+.panel .pref-info.ver-new { color: var(--text); font-weight: 600; }
+.pref-ver .btn { flex: none; min-height: 36px; padding: 0 12px; font-size: 14px; }
 
 /* ---- polish: small pieces */
 /* In a detail header while the live stream is down: statuses may be stale. */

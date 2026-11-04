@@ -21,6 +21,11 @@ function connect() {
   const es = (stream = new EventSource('/api/stream'));
   lastHeard = Date.now();
   es.addEventListener('ping', () => (lastHeard = Date.now()));
+  es.addEventListener('version', (e) => {
+    try {
+      checkVersion(JSON.parse(e.data).v);
+    } catch {}
+  });
   es.addEventListener('state', (e) => {
     lastHeard = Date.now();
     retryDelay = 1000;
@@ -59,6 +64,117 @@ document.addEventListener('visibilitychange', () => document.visibilityState ===
 window.addEventListener('pageshow', (e) => e.persisted && revive('pageshow'));
 window.addEventListener('online', () => revive('online'));
 setInterval(() => document.visibilityState === 'visible' && revive('watchdog'), 10000);
+
+// ------------------------------------------------------------ new version
+
+// An installed app is resumed from memory for days, so after a deploy it still runs the old
+// code. The server says which version it serves (the first message of every stream, and
+// /api/version when the app comes back to the foreground); when that is newer, the page loads
+// again by itself if that loses nothing (Update.safeToReload), else a banner offers 새로고침.
+const myVersion = appVersion(); // settings.js: this page's ?v=
+let serverVersion = '';
+let returnedAt = 0; // when the app last came back to the foreground
+const RELOAD_KEY = 'herdr-hub.reloadedFor'; // { v, t }: this tab's last try (sessionStorage)
+const DISMISS_KEY = 'herdr-hub.updateDismissed'; // the version whose banner was closed
+const session = {
+  get(k) {
+    try {
+      return JSON.parse(sessionStorage.getItem(k));
+    } catch {
+      return null;
+    }
+  },
+  set(k, v) {
+    try {
+      sessionStorage.setItem(k, JSON.stringify(v));
+    } catch {}
+  },
+};
+const returning = () => document.visibilityState === 'hidden' || Date.now() - returnedAt < 5000;
+function reloadState() {
+  const input = document.getElementById('d-input');
+  return {
+    returning: returning(),
+    layer: Boolean(topLayer()) || switcherOpen(),
+    typing: editable(document.activeElement) && document.activeElement.id !== 'd-input',
+    composer: Boolean((input && input.value.trim()) || (view.name === 'agent' && detail.files && detail.files.length)),
+    sending: Boolean(detail.sending),
+    answering: Boolean(detail.answerMode),
+  };
+}
+function checkVersion(v) {
+  if (!v || v === serverVersion) {
+    if (v && Update.newer(myVersion, v)) offerUpdate();
+    return;
+  }
+  serverVersion = String(v);
+  if (view.name === 'settings') renderVersionInfo();
+  if (!Update.newer(myVersion, serverVersion)) return hideUpdateBanner();
+  offerUpdate();
+}
+// Reload when that is safe and this version wasn't just tried; else the banner.
+function offerUpdate() {
+  if (Update.safeToReload(reloadState()) && Update.mayTry(session.get(RELOAD_KEY), serverVersion, Date.now())) return void reloadToNew({ auto: true });
+  showUpdateBanner();
+}
+async function checkServerVersion() {
+  try {
+    const r = await fetch('/api/version', { cache: 'no-store' });
+    if (r.ok) checkVersion((await r.json()).v);
+  } catch {}
+}
+// Load the new page, keeping the route (the hash) and the draft. index.html is no-cache with an
+// ETag, so a reload asks the server again anyway; fetching it first with cache:'reload' also
+// writes the new copy into the HTTP cache (in case a resumed page's reload would take the cached
+// one), and tells whether the server really serves the new version: when it doesn't, an automatic
+// reload stays put (a reload into the same old page would go round).
+async function reloadToNew({ auto = false } = {}) {
+  session.set(RELOAD_KEY, { v: serverVersion || myVersion, t: Date.now() });
+  try {
+    const r = await fetch('/', { cache: 'reload', credentials: 'same-origin' });
+    const got = Update.versionOf(await r.text());
+    if (auto && !Update.newer(myVersion, got)) return showUpdateBanner();
+  } catch {
+    if (auto) return showUpdateBanner();
+  }
+  if (auto && !Update.safeToReload({ ...reloadState(), returning: true })) return showUpdateBanner(); // changed meanwhile
+  stashDraft();
+  location.reload();
+}
+let updateBanner = null;
+function showUpdateBanner() {
+  if (!Update.newer(myVersion, serverVersion) || session.get(DISMISS_KEY) === serverVersion) return;
+  if (!updateBanner) {
+    updateBanner = document.createElement('div');
+    updateBanner.className = 'update-bar';
+    updateBanner.setAttribute('role', 'status');
+    updateBanner.innerHTML = `<span class="ub-t">새 버전이 있습니다</span>
+      <button type="button" class="ub-go">새로고침</button>
+      <button type="button" class="ub-x" aria-label="닫기" title="닫기">${ICON.x}</button>`;
+    updateBanner.querySelector('.ub-go').onclick = () => reloadToNew();
+    updateBanner.querySelector('.ub-x').onclick = () => {
+      session.set(DISMISS_KEY, serverVersion);
+      hideUpdateBanner();
+    };
+    document.body.appendChild(updateBanner);
+    new ResizeObserver(() => updateBanner && document.documentElement.style.setProperty('--update-h', `${updateBanner.offsetHeight}px`)).observe(updateBanner);
+  }
+  updateBanner.querySelector('.ub-t').textContent = `새 버전이 있습니다 (v${serverVersion})`;
+  document.documentElement.classList.add('has-update');
+}
+function hideUpdateBanner() {
+  if (!updateBanner) return;
+  updateBanner.remove();
+  updateBanner = null;
+  document.documentElement.classList.remove('has-update');
+  document.documentElement.style.removeProperty('--update-h');
+}
+const backToFront = () => {
+  returnedAt = Date.now();
+  checkServerVersion();
+};
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && backToFront());
+window.addEventListener('pageshow', (e) => e.persisted && backToFront());
 
 function onState() {
   forgetGone(); // kept chats of agents that are gone (agent.js)
@@ -228,6 +344,17 @@ function route(e, { relayout = false } = {}) {
     if (draft) {
       document.getElementById('d-input').value = draft.text;
       renderTray();
+    } else if (!curHost()) {
+      // Opened before the first state (the app just started, or reloaded onto a new version):
+      // the host isn't known yet, so neither is the draft's key. Put it back once it is.
+      ready.then(() => {
+        const d = view.name === 'agent' && detail.pane === pane && drafts.get(rowKey(curHost(), pane));
+        const input = document.getElementById('d-input');
+        if (d && input && !input.value) {
+          input.value = d.text;
+          updateComposer();
+        }
+      });
     }
     loadDetail();
     closeNotes(curHost(), pane);
