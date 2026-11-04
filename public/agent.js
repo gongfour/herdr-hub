@@ -667,6 +667,25 @@ function navStep(dir) {
   return true;
 }
 
+// Ctrl+K / Ctrl+J: the conversation (or the screen box in view) a quarter of its height up or
+// down, gliding; held, the key repeats. A press while the last glide is still going adds to
+// where that one was headed (a new glide from where it has got to would cover less each time,
+// and a held key would crawl). The focus stays. False with nothing to scroll.
+const GLIDE_MS = 450;
+function scrollStep(dir) {
+  const top = topLayer();
+  const chat = document.getElementById('d-body');
+  const box = scr && (!top || top.el.contains(scr.body)) ? scr.body : !top && chat && chat._html === 'chat' ? chat : null;
+  if (!box) return false;
+  const now = Date.now();
+  const from = box._goal != null && now - box._goalAt < GLIDE_MS ? box._goal : box.scrollTop;
+  const max = box.scrollHeight - box.clientHeight;
+  box._goal = Math.max(0, Math.min(max, from + dir * Math.round(box.clientHeight / 4)));
+  box._goalAt = now;
+  box.scrollTo({ top: box._goal, behavior: reduced() ? 'auto' : 'smooth' });
+  return true;
+}
+
 function jumpLatest(focus) {
   const top = topLayer();
   if (scr && (!top || top.el.contains(scr.body))) {

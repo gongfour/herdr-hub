@@ -41,9 +41,8 @@ test('Esc and Ctrl+[ go back everywhere, a sheet and the shell included', () => 
   assert.equal(match({ key: 'ㅔ', code: 'BracketLeft', ctrlKey: true }, {}).action, 'back'); // a layout without [ there
 });
 
-test('jumpEnd: Ctrl+↓, Ctrl+End and ⌘+↓ anywhere, End alone only outside a field', () => {
+test('jumpEnd: Ctrl+End and ⌘+↓ anywhere, End alone only outside a field', () => {
   for (const ctx of [{}, { field: true }, { shell: true }, { layer: true }]) {
-    assert.equal(act('Ctrl+ArrowDown', ctx), 'jumpEnd');
     assert.equal(act('Ctrl+End', ctx), 'jumpEnd');
     assert.equal(act('Meta+ArrowDown', ctx), 'jumpEnd');
   }
@@ -56,20 +55,28 @@ test('jumpEnd: Ctrl+↓, Ctrl+End and ⌘+↓ anywhere, End alone only outside a
   assert.equal(act('Ctrl+End', {}, { keyCode: 229 }), null);
 });
 
-test('prevMine / nextMine: Ctrl+↑ and Ctrl+K back, Ctrl+J on; K and J stay the shell\'s', () => {
-  assert.equal(act('Ctrl+ArrowUp', {}), 'prevMine');
-  assert.equal(act('Ctrl+ArrowUp', { field: true }), 'prevMine');
-  assert.equal(act('Ctrl+ArrowUp', { shell: true }), 'prevMine');
-  assert.equal(act('Ctrl+k', { field: true }), 'prevMine');
-  assert.equal(act('Ctrl+j', { field: true }), 'nextMine');
-  assert.equal(act('Ctrl+k', {}, { key: 'ㅏ', code: 'KeyK' }), 'prevMine'); // keyboard set to Korean
-  assert.equal(act('Ctrl+j', {}, { key: 'ㅓ', code: 'KeyJ' }), 'nextMine');
+test('prevMine / nextMine: Ctrl+↑ and Ctrl+↓ anywhere, the shell and a sheet included', () => {
+  for (const ctx of [{}, { field: true }, { shell: true }, { layer: true }]) {
+    assert.equal(act('Ctrl+ArrowUp', ctx), 'prevMine');
+    assert.equal(act('Ctrl+ArrowDown', ctx), 'nextMine');
+  }
+  assert.equal(act('ArrowUp', { field: true }), null); // the composer's recall
+  assert.equal(act('Ctrl+Alt+ArrowUp', {}), null);
+  assert.equal(act('Ctrl+Shift+ArrowDown', {}), null);
+});
+
+test('scrollUp / scrollDown: Ctrl+K and Ctrl+J, a field and a sheet too; K and J stay the shell\'s', () => {
+  for (const ctx of [{}, { field: true }, { layer: true }]) {
+    assert.equal(act('Ctrl+k', ctx), 'scrollUp');
+    assert.equal(act('Ctrl+j', ctx), 'scrollDown');
+  }
+  assert.equal(act('Ctrl+k', {}, { key: 'ㅏ', code: 'KeyK' }), 'scrollUp'); // keyboard set to Korean
+  assert.equal(act('Ctrl+j', {}, { key: 'ㅓ', code: 'KeyJ' }), 'scrollDown');
   assert.equal(act('Ctrl+Shift+k', {}, { key: 'K' }), null); // Ctrl+Shift+K is not it
   assert.equal(act('Ctrl+k', { shell: true }), null);
   assert.equal(act('Ctrl+j', { shell: true }), null);
   assert.equal(act('k', {}), null);
-  assert.equal(act('ArrowUp', { field: true }), null); // the composer's recall
-  assert.equal(act('Ctrl+Alt+ArrowUp', {}), null);
+  assert.equal(act('j', {}), null);
 });
 
 test('hosts: Alt+←/→ in a field too, never in the shell or under a sheet', () => {
@@ -112,5 +119,5 @@ test('label reads as on the keycap; the sheet lists every action once with all i
   const rows = groups.flatMap((g) => g.rows);
   for (const a of Object.values(ACTIONS)) assert.equal(rows.filter((r) => r.label === a.label).length, 1, a.label);
   const jump = rows.find((r) => r.label === ACTIONS.jumpEnd.label);
-  assert.deepEqual(jump.keys, ['Ctrl+↓', 'Ctrl+End', '⌘+↓', 'End']);
+  assert.deepEqual(jump.keys, ['Ctrl+End', '⌘+↓', 'End']);
 });

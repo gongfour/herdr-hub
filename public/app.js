@@ -382,6 +382,8 @@ const KEY_ACTIONS = {
   jumpEnd: () => jumpLatest(true),
   prevMine: () => navStep(-1),
   nextMine: () => navStep(1),
+  scrollUp: () => scrollStep(-1),
+  scrollDown: () => scrollStep(1),
   prevHost: () => stepHostFilter(-1),
   nextHost: () => stepHostFilter(1),
   // Alt+↑/↓: the caret goes into the next one's field.

@@ -22,7 +22,9 @@
     focusInput: { group: '어디서나', label: '입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)' },
     jumpEnd: { group: '대화·터미널 화면', label: '맨 아래로, 그리고 입력 칸으로' },
     prevMine: { group: '대화·터미널 화면', label: '내가 보낸 이전 메시지로 (터미널 화면은 한 화면 위로)' },
-    nextMine: { group: '대화·터미널 화면', label: '내가 보낸 다음 메시지로 (마지막 다음은 맨 아래)' },
+    nextMine: { group: '대화·터미널 화면', label: '내가 보낸 다음 메시지로 (마지막 다음은 맨 아래, 입력 칸으로)' },
+    scrollUp: { group: '대화·터미널 화면', label: '위로 스크롤 (누르고 있으면 계속)' },
+    scrollDown: { group: '대화·터미널 화면', label: '아래로 스크롤 (누르고 있으면 계속)' },
     prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
     prevRow: { group: '목록', label: '두 칸: 목록의 이전 에이전트·셸 열기' },
@@ -38,13 +40,14 @@
     b('back', 'Ctrl+[', { field: true, shell: true, layer: true }),
     b('help', '?'),
     b('focusInput', '/'),
-    b('jumpEnd', 'Ctrl+ArrowDown', { field: true, shell: true, layer: true }),
     b('jumpEnd', 'Ctrl+End', { field: true, shell: true, layer: true }),
     b('jumpEnd', 'Meta+ArrowDown', { field: true, shell: true, layer: true }),
     b('jumpEnd', 'End', { layer: true }), // in a field End is the caret's
+    // Ctrl+↑/↓ step by the messages you sent; Ctrl+K/J (as vim's k and j) just scroll.
     b('prevMine', 'Ctrl+ArrowUp', { field: true, shell: true, layer: true }),
-    b('prevMine', 'Ctrl+k', { field: true, layer: true }), // the shell's kill-to-end
-    b('nextMine', 'Ctrl+j', { field: true, layer: true }), // the shell's newline
+    b('nextMine', 'Ctrl+ArrowDown', { field: true, shell: true, layer: true }),
+    b('scrollUp', 'Ctrl+k', { field: true, layer: true }), // the shell's kill-to-end
+    b('scrollDown', 'Ctrl+j', { field: true, layer: true }), // the shell's newline
     b('prevHost', 'Alt+ArrowLeft', { field: true }), // the shell's word keys
     b('nextHost', 'Alt+ArrowRight', { field: true }),
     // Alt+↑/↓ works in the shell too: it is the way out of a shell that has every other key.
