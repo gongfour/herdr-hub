@@ -166,8 +166,10 @@ function toggleSwitcher() {
   input.onkeydown = (e) => {
     if (e.isComposing || e.keyCode === 229) return;
     // Ctrl+J/K as ↓/↑ (vim's j and k; by e.code, so with the keyboard set to Korean too).
-    const down = e.key === 'ArrowDown' || Keymap.matches(e, 'Ctrl+j');
-    if (down || e.key === 'ArrowUp' || Keymap.matches(e, 'Ctrl+k')) {
+    // ↑↓, and the keys scrolling has (Ctrl+J/K unless this device changed them).
+    const has = (action) => Keymap.keysFor(action).some((k) => Keymap.matches(e, k));
+    const down = e.key === 'ArrowDown' || has('scrollDown');
+    if (down || e.key === 'ArrowUp' || has('scrollUp')) {
       e.preventDefault();
       moveSwitcher(down ? 1 : -1);
     } else if (e.key === 'Enter') {

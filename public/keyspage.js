@@ -93,7 +93,7 @@ function drawKeysList() {
         <div class="k-keys">${keys || '<span class="k-none">키 없음</span>'}${tools}</div>
       </div>`;
   };
-  const local = Keymap.LOCAL.filter((x) => keysMatch({ label: `${x.group} ${x.label}`, keys: x.key ? [x.key] : [] }, q));
+  const local = Keymap.LOCAL.filter((x) => keysMatch({ label: `${x.group} ${x.label}`, keys: Keymap.localKeys(x) }, q));
   const changed = Object.keys(keyOverrides).length > 0;
   const html = `
     <p class="pnote k-note">바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만, 셸이 쓰는 키는 셸 화면에서 빼고 동작합니다.</p>
@@ -103,7 +103,7 @@ function drawKeysList() {
     ${
       local.length
         ? `<section class="pgroup"><h2>입력 칸 안의 키</h2><div class="pcard">${local
-            .map((x) => `<div class="k-row local"><div class="k-what"><span class="k-name">${esc(x.label)}</span><span class="k-where">${esc(x.group)}</span></div><div class="k-keys">${x.key ? kbd(x.key) : ''}</div></div>`)
+            .map((x) => `<div class="k-row local"><div class="k-what"><span class="k-name">${esc(x.label)}</span><span class="k-where">${esc(x.group)}</span></div><div class="k-keys">${Keymap.localKeys(x).map(kbd).join('')}</div></div>`)
             .join('')}</div></section>`
         : ''
     }

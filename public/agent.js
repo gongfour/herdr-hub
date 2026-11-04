@@ -687,10 +687,18 @@ function navStep(dir) {
 
 // The box Ctrl+K/J and Ctrl+Shift+↑ move: the screen box in view (the terminal sheet, a
 // screen-only agent, the shell), else the conversation; nothing under another sheet.
+// Any other page has its own: 설정, 단축키, a workspace, a form (viewport.js mainScroller), or the
+// list, on the phone or in a split sidebar with nothing on the right that scrolls.
 function scrollBox() {
   const top = topLayer();
+  if (scr && (!top || top.el.contains(scr.body))) return scr.body;
+  if (top) return null;
   const chat = document.getElementById('d-body');
-  return scr && (!top || top.el.contains(scr.body)) ? scr.body : !top && chat && chat._html === 'chat' ? chat : null;
+  if (chat) return chat._html === 'chat' ? chat : null;
+  const page = mainScroller();
+  if (page && page.scrollHeight > page.clientHeight) return page;
+  const list = split && !sideOff() && listRoot() && listRoot().querySelector(':scope > main');
+  return list || page || null;
 }
 
 // Ctrl+K / Ctrl+J. A press: a quarter of the view up or down, gliding; a press while that glide

@@ -375,3 +375,9 @@ test('whereText: where an action\'s keys work, the odd one named', () => {
   assert.equal(KM.whereText('help'), '');
   withKeys({ help: [] }, () => assert.equal(KM.whereText('help'), ''));
 });
+
+test('the quick switcher\'s Ctrl+J/K are the scroll keys: changed with them', () => {
+  const row = (re) => KM.LOCAL.find((x) => re.test(x.label));
+  assert.deepEqual(KM.localKeys(row(/다음 것 고르기/)), ['Ctrl+j']);
+  withKeys({ scrollDown: ['Alt+j'] }, () => assert.deepEqual(KM.localKeys(row(/다음 것 고르기/)), ['Alt+j']));
+});

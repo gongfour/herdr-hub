@@ -119,8 +119,8 @@
     { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
     { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc. Alt+←/→·Alt+H/L·Alt+.·Alt+N 과 Ctrl+K·J·P·N·B 는 셸로 간다 (빠른 이동은 Alt+P)' },
     { group: '빠른 이동', key: 'Enter', label: '고른 것 열기. Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
-    { group: '빠른 이동', key: 'Ctrl+j', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞)' },
-    { group: '빠른 이동', key: 'Ctrl+k', label: '이전 것 고르기 (↑ 와 같다)' },
+    { group: '빠른 이동', key: 'Ctrl+j', follows: 'scrollDown', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞; 아래로 스크롤의 키)' },
+    { group: '빠른 이동', key: 'Ctrl+k', follows: 'scrollUp', label: '이전 것 고르기 (↑ 와 같다; 위로 스크롤의 키)' },
   ];
 
   const MODS = ['Ctrl', 'Alt', 'Meta', 'Shift'];
@@ -345,6 +345,12 @@
     return a && a.twice ? `${label(x.key)} ×2` : label(x.key);
   }
 
+  // A LOCAL row's keys: an action's (follows: the field uses that action's keys), else its own.
+  function localKeys(x) {
+    if (x.follows) return keysFor(x.follows);
+    return x.key ? [x.key] : [];
+  }
+
   // The sheet's rows: [{ group, rows: [{ keys: ['Ctrl+↓', …], label }] }], groups in order.
   function sheetGroups() {
     const groups = new Map();
@@ -356,14 +362,14 @@
       else rows.push({ label, keys: [...keys] });
     };
     for (const x of active) add(ACTIONS[x.action].group, ACTIONS[x.action].label, [label(x.key)]);
-    for (const x of LOCAL) add(x.group, x.label, x.key ? [label(x.key)] : []);
+    for (const x of LOCAL) add(x.group, x.label, localKeys(x).map(label));
     // 1 … 9 read as one key: 1–9.
     for (const rows of groups.values())
       for (const r of rows) if (r.keys.length > 2 && r.keys.every((k) => /^\d$/.test(k))) r.keys = [`${r.keys[0]}–${r.keys[r.keys.length - 1]}`];
     return [...groups].map(([group, rows]) => ({ group, rows }));
   }
 
-  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, setOverrides, assign, unassign, reset, keysFor, actionRows, whereText };
+  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, setOverrides, assign, unassign, reset, keysFor, actionRows, whereText, localKeys };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keymap = api;
 })(typeof self !== 'undefined' ? self : this);
