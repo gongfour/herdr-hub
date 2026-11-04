@@ -864,10 +864,10 @@ button.tool:active { filter: brightness(0.95); }
 .term-keys .key:active { filter: brightness(0.9); }
 .term-keys + .composer, .term-keys + * + .composer { border-top: 0; padding-top: 2px; }
 
-/* ---- bottom tab bar: 홈 / 작업공간 / 설정 (iOS style: icon over a short label) */
+/* ---- bottom tab bar: 작업공간 / 설정 (iOS style: icon over a short label) */
 :is(#app, .col) > .tabbar { flex: none; }
 .tabbar {
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; /* one equal column per tab */
   padding: 0 8px var(--safe-bottom);
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: saturate(1.4) blur(14px);
