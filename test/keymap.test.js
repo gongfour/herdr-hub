@@ -261,3 +261,14 @@ test('hint: an action\'s own hint, else its first key, else nothing', () => {
   assert.equal(hint('jumpEnd'), 'Ctrl+Shift+↓');
   assert.equal(hint('nothing'), '');
 });
+
+test('빠른 이동: Ctrl+J/K move the selection there (its field, by e.code too); the sheet lists them', () => {
+  const { matches } = require('../public/keymap.js');
+  assert.ok(matches({ ctrlKey: true, key: 'j', code: 'KeyJ' }, 'Ctrl+j'));
+  assert.ok(matches({ ctrlKey: true, key: 'ㅓ', code: 'KeyJ' }, 'Ctrl+j')); // keyboard set to Korean
+  assert.ok(matches({ ctrlKey: true, key: 'ㅏ', code: 'KeyK' }, 'Ctrl+k'));
+  assert.ok(!matches({ ctrlKey: true, shiftKey: true, key: 'J', code: 'KeyJ' }, 'Ctrl+j'));
+  const qs = sheetGroups().find((g) => g.group === '빠른 이동');
+  const keys = qs.rows.flatMap((r) => r.keys);
+  for (const k of ['리턴', 'Ctrl+J', 'Ctrl+K']) assert.ok(keys.includes(k), k);
+});

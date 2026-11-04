@@ -111,7 +111,9 @@
     { group: '메시지 칸', key: '/', label: '맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)' },
     { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
     { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc. Alt+←/→·Alt+H/L·Alt+.·Alt+N 과 Ctrl+K·J·P·N·B 는 셸로 간다 (빠른 이동은 Alt+P)' },
-    { group: '빠른 이동', key: 'Enter', label: '고른 것 열기 (↑↓ 로 고른다). Esc·Ctrl+[ 로 닫기' },
+    { group: '빠른 이동', key: 'Enter', label: '고른 것 열기. Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
+    { group: '빠른 이동', key: 'Ctrl+j', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞)' },
+    { group: '빠른 이동', key: 'Ctrl+k', label: '이전 것 고르기 (↑ 와 같다)' },
   ];
 
   const MODS = ['Ctrl', 'Alt', 'Meta', 'Shift'];

@@ -1,6 +1,6 @@
 'use strict';
 // 빠른 이동 (Ctrl+P; Alt+P, also in the shell, keymap.js): a small palette over the page. Type to
-// find an agent or a shell on any host by its name, workspace or host; ↑↓ move, Enter opens it as
+// find an agent or a shell on any host by its name, workspace or host; ↑↓ (Ctrl+J/K) move, Enter opens it as
 // a tap on its row would (split: on the right, with the caret in its field, as Alt+↑/↓ does).
 // Esc / Ctrl+[ close it like any layer. With nothing typed: 답 필요 first, then the recently opened.
 
@@ -113,14 +113,22 @@ function moveSwitcher(d) {
 }
 
 // Open it as its row would; in the split layout the caret goes into its field (stepFocus).
+// Another page takes the palette's history entry (core.js), so Back from it goes where it would
+// have before the palette opened, and no entry is left over.
 function openSwitched(r) {
-  closeLayer(qs.layer);
+  const layer = qs.layer;
+  const other = r && location.hash !== r.href;
+  const own = other && !hist.pending && BackStack.depthOf(history.state) === layer.depth;
+  closeLayer(layer, undefined, own ? 'replace' : undefined);
   if (!r) return;
   if (split) stepFocus = true;
-  if (location.hash === r.href) {
+  if (!other) {
     stepFocus = false;
     if (split) refocusInput(document.getElementById('d-input') || document.getElementById('t-input'));
-  } else location.hash = r.href;
+  } else if (own) {
+    history.replaceState({ prev: lastHash }, '', r.href);
+    route();
+  } else afterHist(() => (location.hash = r.href));
 }
 
 // Ctrl+P / Alt+P. Again while it is open: closed. Under another sheet: taken, nothing opens
@@ -157,9 +165,11 @@ function toggleSwitcher() {
   // Keys of this field alone (keymap.js LOCAL). Enter waits for the IME to finish a syllable.
   input.onkeydown = (e) => {
     if (e.isComposing || e.keyCode === 229) return;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    // Ctrl+J/K as ↓/↑ (vim's j and k; by e.code, so with the keyboard set to Korean too).
+    const down = e.key === 'ArrowDown' || Keymap.matches(e, 'Ctrl+j');
+    if (down || e.key === 'ArrowUp' || Keymap.matches(e, 'Ctrl+k')) {
       e.preventDefault();
-      moveSwitcher(e.key === 'ArrowDown' ? 1 : -1);
+      moveSwitcher(down ? 1 : -1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
       openSwitched(qs.items[qs.sel]);

@@ -253,8 +253,41 @@ function syncInert() {
   $app.inert = layers.length > 0;
   layers.forEach((l, i) => (l.el.inert = i < layers.length - 1));
 }
+// Back closes the top layer (backstack.js): a layer pushes one history entry at the same address
+// as it opens (a tap or a key, so Chrome does not skip it on Back). Closed any other way (Esc,
+// ✕, the backdrop, a choice) its entry is taken back off with history.back(); what the closing
+// leads to (onClose: a menu's choice opening the next page or sheet) waits for that, so the next
+// entry never lands under the popped one. A route change keeps the entry under the new page;
+// Back steps over it there (BackStack.onPop skip).
+const hist = { pending: 0, after: [], timer: 0, hold: false };
+const histDepth = () => {
+  for (let i = layers.length - 1; i >= 0; i--) if (layers[i].depth) return layers[i].depth;
+  return 0;
+};
+const histSettled = () => {
+  hist.pending = 0;
+  clearTimeout(hist.timer);
+  const run = hist.after.splice(0);
+  run.forEach((f) => f());
+};
+// Run now, or once our own history.back() calls have come back.
+const afterHist = (f) => (hist.pending ? hist.after.push(f) : f());
+function pushLayerEntry(layer) {
+  if (layer.closed) return;
+  const st = history.state || {};
+  // An entry of this depth already here (the terminal sheet opened again by relayout): reuse it.
+  if (BackStack.depthOf(st) === layer.depth) return;
+  history.pushState({ ...st, layer: layer.depth }, '');
+}
+function popLayerEntry() {
+  hist.pending++;
+  clearTimeout(hist.timer);
+  // A popstate that never comes (the entry was gone already) must not hold the next page up.
+  hist.timer = setTimeout(histSettled, 600);
+  history.back();
+}
 function openLayer(el, { onClose, focus, animate = true } = {}) {
-  const layer = { el, onClose, back: document.activeElement, closed: false };
+  const layer = { el, onClose, back: document.activeElement, closed: false, depth: histDepth() + 1 };
   layers.push(layer);
   if (!animate) el.classList.add('no-anim');
   document.body.appendChild(el);
@@ -262,9 +295,12 @@ function openLayer(el, { onClose, focus, animate = true } = {}) {
   const target = typeof focus === 'string' ? el.querySelector(focus) : focus || el.querySelector('[autofocus], input, [data-k], button');
   if (target) target.focus({ preventScroll: true });
   layer.close = (v) => closeLayer(layer, v);
+  afterHist(() => pushLayerEntry(layer));
   return layer;
 }
-function closeLayer(layer, value) {
+// how: 'pop' when Back already took its entry off, 'replace' when the caller puts the next page
+// in its entry (switcher.js), else its entry is taken back off here, if it is the current one.
+function closeLayer(layer, value, how) {
   if (!layer || layer.closed) return;
   layer.closed = true;
   const i = layers.indexOf(layer);
@@ -280,7 +316,25 @@ function closeLayer(layer, value) {
   // Back to where focus was, if that is still on the page and not under another layer.
   const back = layer.back;
   if (back && back.isConnected && !back.closest('[inert]') && typeof back.focus === 'function') back.focus({ preventScroll: true });
-  if (layer.onClose) layer.onClose(value);
+  if (!how && !hist.hold && !hist.pending && BackStack.depthOf(history.state) === layer.depth) popLayerEntry();
+  if (layer.onClose) afterHist(() => layer.onClose(value));
+}
+// Back (Android's, the cover's Esc, the browser's, an iOS swipe) onto an entry of a lower depth.
+window.addEventListener('popstate', (e) => {
+  if (hist.pending) {
+    if (--hist.pending === 0) histSettled();
+    return;
+  }
+  const plan = BackStack.onPop(BackStack.depthOf(e.state), histDepth());
+  if (plan.close) {
+    const to = histDepth() - plan.close;
+    while (layers.length && histDepth() > to) closeLayer(topLayer(), undefined, 'pop');
+  } else if (plan.skip) history.back();
+});
+// A reload on a layer's entry: no layer is open, the entry is the page's own now.
+if (BackStack.depthOf(history.state)) {
+  const { layer, ...st } = history.state;
+  history.replaceState(st, '');
 }
 const topLayer = () => layers[layers.length - 1] || null;
 

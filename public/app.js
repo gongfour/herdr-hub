@@ -188,7 +188,10 @@ function route(e, { relayout = false } = {}) {
   clearInterval(pollTimer);
   clearInterval(tickTimer);
   tickTimer = null;
+  // relayout opens it again over the same entry (core.js: Back still closes it).
+  hist.hold = relayout;
   closeScreenSheet();
+  hist.hold = false;
   if (split) closeRow(); // the list stays on screen: don't leave a row slid open
   swipe.open = swipe.g = null;
   setTimeout(() => fit({ type: 'route' }), 0);
