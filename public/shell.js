@@ -187,19 +187,28 @@ function renderTerminal() {
   // With a hardware keyboard (a tablet's cover, a laptop) typing goes to the shell at once,
   // here and after Alt+↑/↓; a phone's keyboard stays down until the screen is tapped.
   if (keyboardLikely()) input.focus({ preventScroll: true });
+  escGuard();
+}
+// Esc that arrived as Android's Back (backkey.js).
+function termEscape() {
+  const input = document.getElementById('t-input');
+  if (detail.raw) rawPress({ key: 'esc' });
+  else if (input) input.focus({ preventScroll: true });
 }
 
 // ---- hardware keyboard
 
 // A key pressed with nothing to type into, or a chord or Esc, came from a real keyboard (a
-// soft keyboard only types into a field and has none of these).
+// soft keyboard only types into a field and has none of these). escGuard (backkey.js) then
+// keeps Android's Back, which a cover's Esc turns into, in the shell.
 let hardKeys = false;
 const keyboardLikely = () => hardKeys || matchMedia('(pointer: fine)').matches;
 document.addEventListener(
   'keydown',
   (e) => {
     if (hardKeys || e.keyCode === 229 || e.key === 'Unidentified' || e.isComposing) return;
-    if (!editable(e.target) || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || /^F\d/.test(e.key)) hardKeys = true;
+    // On Android a soft keyboard's letters come as keyCode 229 (skipped above); a cover's don't.
+    if (!editable(e.target) || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || /^F\d/.test(e.key) || (ANDROID && e.key.length === 1)) hardKeys = true;
   },
   true,
 );
