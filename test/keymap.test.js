@@ -394,3 +394,12 @@ test('keyOf records Ctrl+Shift+/ as Ctrl+?, Ctrl+/ as itself', () => {
   assert.equal(KM.keyOf({ key: '?', code: 'Slash', ctrlKey: true, shiftKey: true }), 'Ctrl+?');
   assert.equal(KM.keyOf({ key: '/', code: 'Slash', ctrlKey: true }), 'Ctrl+/');
 });
+
+test('Shift+Tab: 모드 in a field (the message box decides), not in the shell view; can be added back', () => {
+  assert.equal(act('Shift+Tab', { field: true }), 'mode');
+  assert.equal(act('Shift+Tab', {}), 'mode'); // the action leaves it to the focus there
+  assert.equal(act('Shift+Tab', { shell: true }), null); // the shell's shift+tab
+  assert.equal(act('Tab', { field: true }), null);
+  assert.equal(KM.refuse('mode', 'Shift+Tab'), '');
+  assert.match(KM.refuse('mode', 'Tab'), /만으로는/);
+});

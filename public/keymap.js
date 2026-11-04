@@ -43,6 +43,7 @@
     answer: { group: '대화·터미널 화면', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)', fixed: true },
     stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', twice: true },
     terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기' },
+    mode: { group: '대화·터미널 화면', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)' },
     prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
     prevRow: { group: '목록', label: '두 칸: 목록의 이전 에이전트·셸 열기' },
@@ -111,6 +112,9 @@
     b('prevBlocked', 'Alt+Shift+ArrowUp', { field: true, shell: true }),
     // Alt+T is the shell's (swap words); the agent view has no shell, and it closes its own sheet.
     b('terminal', 'Alt+t', { field: true, layer: true }),
+    // Shift+Tab is the shell's (and moves the focus back on the page): only the message box takes it
+    // (KEY_ACTIONS.mode), so a field, not the shell view.
+    b('mode', 'Shift+Tab', { field: true }),
     // Alt+` as an app switcher's last app; the backquote key by code too (a Mac's Option+` is a
     // dead key). No shell key either.
     b('lastView', 'Alt+`', { field: true, shell: true }),
@@ -205,7 +209,7 @@
     const mod = k.ctrl || k.alt || k.meta;
     if (RESERVED.includes(norm(key))) return `${label(key)} 는 브라우저가 먼저 가져갑니다`;
     if (k.name === '+') return '+ 는 쓸 수 없습니다';
-    if (!mod && ['Enter', 'Tab', ' ', 'Backspace', 'Delete'].includes(k.name)) return `${label(key)} 만으로는 쓸 수 없습니다: 단추 누르기·이동·지우기에 씁니다`;
+    if (!mod && !(k.shift && k.name === 'Tab') && ['Enter', 'Tab', ' ', 'Backspace', 'Delete'].includes(k.name)) return `${label(key)} 만으로는 쓸 수 없습니다: 단추 누르기·이동·지우기에 씁니다`;
     if (k.name === 'Escape' && action !== 'back') return 'Esc 는 뒤로·닫기에만 씁니다';
     const fixed = BINDINGS.find((x) => ACTIONS[x.action].fixed && norm(x.key) === norm(key));
     if (fixed) return `${label(key)} 는 「${ACTIONS[fixed.action].label}」에 씁니다`;

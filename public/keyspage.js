@@ -36,6 +36,7 @@ function renderKeys({ focus = false } = {}) {
           <input type="search" id="k-q" placeholder="동작이나 키 이름으로 찾기" aria-label="단축키 찾기" autocomplete="off" enterkeyhint="search">
           <button type="button" class="toggle" id="k-rec" aria-pressed="false" title="키를 눌러 그 키를 쓰는 동작 찾기">⌨ 키로 찾기</button>
         </div>
+        <p class="k-heard" id="k-heard" role="status" hidden></p>
         <div id="k-list"></div>
       </main>`;
     main = root.querySelector(':scope > main.keys-page');
@@ -128,6 +129,7 @@ function bindKeysPage(main) {
   };
   main.querySelector('#k-rec').onclick = () => {
     kp.rec = kp.rec === 'search' ? null : 'search';
+    if (kp.rec) showHeard('누를 키를 누르세요. 페이지가 받은 그대로 여기 보입니다 (아무것도 안 뜨면 기기가 먼저 가져간 키).');
     drawKeysList();
   };
   main.onclick = (e) => {
@@ -153,12 +155,28 @@ function bindKeysPage(main) {
   };
 }
 
+// 키로 찾기: what the page got for each key, raw, to tell a key the device keeps (nothing shows)
+// from one that comes as something else (a cover's ` as Dead, Alt eaten by the IME …).
+function showHeard(text) {
+  const el = document.getElementById('k-heard');
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = !text;
+}
+const heardText = (e) => {
+  const mods = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.metaKey && 'Meta', e.shiftKey && 'Shift'].filter(Boolean).join('+') || '없음';
+  const as = Keymap.keyOf(e);
+  return `받은 키: key="${e.key}" code="${e.code || ''}" 보조키=${mods}${e.repeat ? ' (반복)' : ''} → ${as ? Keymap.label(as) : '단축키로 쓸 수 없는 키'}`;
+};
+
 // While recording, the next key is the page's alone: a new key for an action, or the key to
 // search by. Esc cancels. Before every other listener (capture on window).
 window.addEventListener(
   'keydown',
   (e) => {
-    if (view.name !== 'keys' || !kp.rec || e.isComposing || e.keyCode === 229) return;
+    if (view.name !== 'keys' || !kp.rec) return;
+    if (kp.rec === 'search') showHeard(heardText(e) + (e.isComposing || e.keyCode === 229 ? ' (한글 입력기가 조합 중)' : ''));
+    if (e.isComposing || e.keyCode === 229) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     if (e.key === 'Escape') {

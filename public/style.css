@@ -1100,18 +1100,11 @@ button.tool:active { filter: brightness(0.95); }
 .empty-detail .ed-ic { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
 .empty-detail .ed-ic svg { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .empty-detail h2 { margin: 0; font-size: 17px; font-weight: 600; color: var(--text); }
-.ed-attn {
-  display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px;
-  background: var(--blocked-bg); color: var(--blocked); font-size: 14px; font-weight: 600; text-decoration: none; max-width: 100%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.ed-attn:active { filter: brightness(0.95); }
 .ed-keys { margin: 4px 0 0; font-size: 13px; line-height: 1.6; max-width: 420px; }
 .ed-keys kbd {
   display: inline-block; min-width: 22px; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px;
   background: var(--surface); color: var(--text); font: 600 12px/18px var(--mono); text-align: center;
 }
-@media (hover: hover) { .ed-attn:hover { filter: brightness(0.97); } }
 
 /* Sheets about the detail (terminal screen, folder browser) rise in the detail column; short
    dialogs and menus stay in the middle of the screen. Toasts sit over the detail too. */
@@ -1187,3 +1180,4 @@ button.tool:active { filter: brightness(0.95); }
 .k-fixed, .k-none { font-size: 12px; color: var(--muted); }
 .k-empty { color: var(--muted); text-align: center; margin: 24px 0; }
 @media (max-width: 560px) { .k-row { grid-template-columns: 1fr; } .k-keys { justify-content: flex-start; } }
+.keys-page .k-heard { margin: 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); font: 12px/1.5 var(--mono); color: var(--text); overflow-wrap: anywhere; }

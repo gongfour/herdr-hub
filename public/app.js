@@ -427,15 +427,18 @@ function refocusInput(el) {
 function renderEmpty() {
   const root = detailRoot();
   if (!root) return;
-  const blocked = state.agents.filter((a) => a.status === 'blocked' && shown(a));
-  const first = blocked[0];
   const off = sideOff();
+  // The keys as this device has them (keymap.js), only those it has.
+  const k = (action, words) => {
+    const h = Keymap.hint(action);
+    return h ? `<kbd>${esc(h)}</kbd> ${words}` : '';
+  };
+  const keys = [k('switcher', '찾아 열기'), k('nextRow', '목록 옮겨 다니기'), k('nextBlocked', '다음 답 필요'), k('toggleSide', '사이드바 접기')].filter(Boolean);
   const html = `<div class="empty-detail">
       <span class="ed-ic" aria-hidden="true">${ICON.panel}</span>
       <h2>${off ? '목록을 열어 에이전트를 고르세요' : '왼쪽에서 에이전트를 고르세요'}</h2>
       ${off ? '<button type="button" class="btn secondary ed-open" aria-controls="list-pane">작업공간 목록 열기</button>' : ''}
-      ${first ? `<a class="ed-attn" href="${link(first.host, `/agent/${encodeURIComponent(first.pane)}`)}">답 필요 ${blocked.length} · ${esc(first.name || first.title)} 열기</a>` : ''}
-      <p class="ed-keys"><kbd>Ctrl</kbd> + <kbd>P</kbd> 로 찾아 열고, <kbd>Alt</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> 로 목록을 옮겨 다니고, <kbd>Ctrl</kbd> + <kbd>B</kbd> 로 사이드바를 접습니다.</p>
+      ${keys.length ? `<p class="ed-keys">${keys.join(' · ')}</p>` : ''}
     </div>`;
   const cur = root.firstElementChild;
   if (cur && cur.classList.contains('empty-detail') && cur._html === html) return;
@@ -544,6 +547,12 @@ const KEY_ACTIONS = {
   nextBlocked: () => stepBlocked(1), // list.js
   prevBlocked: () => stepBlocked(-1),
   terminal: () => toggleScreenSheet(), // agent.js
+  // In the message box only: elsewhere Shift+Tab moves the focus back, as always.
+  mode() {
+    if (view.name !== 'agent' || document.activeElement?.id !== 'd-input') return false;
+    cycleMode(); // agent.js: Claude's own Shift+Tab, through herdr
+    return true;
+  },
   // The agent or shell open before this one (route keeps the two).
   lastView() {
     if (!visits.prev) return false;
@@ -575,16 +584,16 @@ const KEY_ACTIONS = {
 let hintTimer = 0;
 function hideKeyHints() {
   clearTimeout(hintTimer);
+  hintTimer = 0;
   document.documentElement.classList.remove('show-keys');
 }
 document.addEventListener(
   'keydown',
   (e) => {
     if (e.key === 'Control' || e.key === 'Alt') {
-      if (!e.repeat) {
-        clearTimeout(hintTimer);
-        hintTimer = setTimeout(() => document.documentElement.classList.add('show-keys'), 500);
-      }
+      // Held, a modifier comes again and again, on some keyboards (a Galaxy Tab cover) with
+      // e.repeat false: a timer already running (or the badges up) is left as it is.
+      if (!hintTimer && !document.documentElement.classList.contains('show-keys')) hintTimer = setTimeout(() => document.documentElement.classList.add('show-keys'), 500);
     } else if (e.key !== 'Shift') hideKeyHints();
   },
   true,

@@ -11,7 +11,7 @@ function renderDetail() {
         ${backLink(homeHash())}
         <h1 id="d-title"></h1>
         <span class="sync" id="d-sync" role="img" aria-label="새로 불러오는 중" title="새로 불러오는 중" hidden></span>
-        <button type="button" class="mode-chip" id="d-mode" hidden></button>
+        <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', '모드 바꾸기')} hidden></button>
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기">${ICON.more}</button>
       </header>
