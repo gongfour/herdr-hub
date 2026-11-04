@@ -700,12 +700,18 @@ function scrollBox() {
 const GLIDE_MS = 450;
 const HOLD_SPEED = 1.5; // views a second while held
 let hold = null; // { box, dir, raf, last }
+// A held key is also one whose next keydown comes with no keyup between: some keyboards (or
+// their browser) leave e.repeat false on the repeats, and each would glide again, creeping
+// while held and then running on to all the presses' goal when let go.
+let stepDown = null; // { dir, at } of the last Ctrl+K/J keydown not yet let go
 function scrollStep(dir, repeat) {
   const box = scrollBox();
   if (!box) return false;
-  if (repeat && !reduced()) return startHold(box, dir), true;
-  stopHold();
   const now = Date.now();
+  const again = stepDown && stepDown.dir === dir && now - stepDown.at < 1000;
+  stepDown = { dir, at: now };
+  if ((repeat || again) && !reduced()) return startHold(box, dir), true;
+  stopHold();
   const from = box._goal != null && now - box._goalAt < GLIDE_MS ? box._goal : box.scrollTop;
   const max = box.scrollHeight - box.clientHeight;
   box._goal = Math.max(0, Math.min(max, from + dir * Math.round(box.clientHeight / 4)));
@@ -737,9 +743,15 @@ function stopHold() {
 }
 // Not a shortcut (keymap.js has those): only the end of a held Ctrl+K/J.
 document.addEventListener('keyup', (e) => {
-  if (hold && (e.key === 'Control' || /^Key[JK]$/.test(e.code || '') || /^[jk]$/i.test(e.key))) stopHold();
+  if (e.key === 'Control' || /^Key[JK]$/.test(e.code || '') || /^[jk]$/i.test(e.key)) {
+    stepDown = null;
+    stopHold();
+  }
 });
-window.addEventListener('blur', stopHold);
+window.addEventListener('blur', () => {
+  stepDown = null;
+  stopHold();
+});
 
 // Ctrl+Shift+↑: the conversation (or the screen box in view) to its top. The focus stays. In
 // the shell the top of a full box reads the longer scrollback (shell.js), as scrolling there does.
