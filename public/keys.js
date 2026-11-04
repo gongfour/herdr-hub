@@ -5,8 +5,12 @@
 (function (root) {
   // What Enter does in the composer: 'send', 'newline' or null (leave it to the IME).
   // Korean (and other) IMEs send Enter while a syllable is still being composed: never act then.
+  // ⌘/Ctrl+Enter on a syllable still being composed (the last one typed) says to send once the
+  // IME has put it in: 'send-later'.
   function enterAction(e, mode) {
-    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return null;
+    const composing = e.isComposing || e.keyCode === 229;
+    if (composing && (e.metaKey || e.ctrlKey) && (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter')) return 'send-later';
+    if (e.key !== 'Enter' || composing) return null;
     if (e.metaKey || e.ctrlKey) return 'send';
     if (mode === 'send' && !e.shiftKey && !e.altKey) return 'send';
     return 'newline';

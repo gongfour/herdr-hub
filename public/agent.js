@@ -46,11 +46,20 @@ function renderDetail() {
   };
   input.onkeydown = (e) => {
     if (paletteKey(e) || recallKey(e, input)) return;
-    if (Keys.enterAction(e, getEnter()) === 'send') {
+    const act = Keys.enterAction(e, getEnter());
+    if (act === 'send') {
       e.preventDefault();
       sendNow();
-    }
+    } else if (act === 'send-later') sendAfterIme = Date.now();
   };
+  // ⌘/Ctrl+Enter on the syllable still being composed: sent as soon as the IME has put it in
+  // (a moment, so a stray compositionend much later doesn't send).
+  let sendAfterIme = 0;
+  input.addEventListener('compositionend', () => {
+    if (Date.now() - sendAfterIme > 1000) return;
+    sendAfterIme = 0;
+    setTimeout(sendNow, 0);
+  });
   input.addEventListener('click', updatePalette);
   input.addEventListener('focus', updatePalette);
   // A tap on a suggestion must not count as leaving the field.

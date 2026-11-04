@@ -79,6 +79,19 @@ test('the parse is cached by size and mtime; since and rev send only what change
   assert.equal(r.messages.length, 3);
 });
 
+test('a prompt typed while the agent was busy (a queued_command attachment) is a user message', () => {
+  const m = parse(
+    [
+      line({ type: 'user', uuid: 'u1', message: { role: 'user', content: '먼저' } }),
+      line({ type: 'attachment', uuid: 'q1', timestamp: 't2', attachment: { type: 'queued_command', prompt: '그리고 이것도', commandMode: 'prompt', origin: { kind: 'human' } } }),
+      line({ type: 'attachment', uuid: 'q2', attachment: { type: 'queued_command', prompt: '<task-notification>x</task-notification>', commandMode: 'task-notification', origin: { kind: 'task-notification' } } }),
+      line({ type: 'attachment', uuid: 'q3', attachment: { type: 'queued_command', prompt: '<agent-message from="a">x</agent-message>', isMeta: true, origin: { kind: 'peer' } } }),
+      line({ type: 'attachment', uuid: 'q4', attachment: { type: 'todo', content: [] } }),
+    ].join('\n'),
+  );
+  assert.deepEqual(m.map((x) => [x.role, x.text, x.id]), [['user', '먼저', 'u1'], ['user', '그리고 이것도', 'q1']]);
+});
+
 test('bash mode: the "!" line and its output', () => {
   const { parse } = require('../lib/transcript');
   const L = (uuid, content) => JSON.stringify({ type: 'user', uuid, message: { role: 'user', content } });

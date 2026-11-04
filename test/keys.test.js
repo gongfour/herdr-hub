@@ -19,6 +19,9 @@ test('enterAction: newline by default, send with ⌘/Ctrl, Shift keeps a newline
 test('enterAction: never while an IME is composing, nothing for other keys', () => {
   assert.equal(enterAction(key('Enter', { isComposing: true }), 'send'), null);
   assert.equal(enterAction(key('Enter', { keyCode: 229 }), 'send'), null);
+  // ⌘/Ctrl+Enter on the last syllable: sent once the IME is done with it.
+  assert.equal(enterAction(key('Enter', { isComposing: true, ctrlKey: true }), 'newline'), 'send-later');
+  assert.equal(enterAction(key('Process', { keyCode: 229, code: 'Enter', metaKey: true }), 'newline'), 'send-later');
   assert.equal(enterAction(key('a'), 'send'), null);
 });
 
