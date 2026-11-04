@@ -203,7 +203,9 @@ button:disabled { cursor: default; }
 .ws, .list.home > * { flex: none; }
 .ws { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .ws-front { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 9px 8px 9px 14px; }
-.ws-main { flex: 1; min-width: 0; }
+/* The workspace's name opens the workspace view (its own link: the ⋯ beside it is a button). */
+.ws-main { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; color: inherit; text-decoration: none; border-radius: 8px; }
+.ws-main:active { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .ws-label { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-cwd { font: 12px/1.4 var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
 .ws .ws-more { margin: -6px 0; color: var(--muted); }

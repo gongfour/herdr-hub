@@ -396,10 +396,10 @@ function wsSection({ w, agents, terms }) {
   return `<section class="ws">
     <div class="sw ws-head" ${rowData('ws', w.host, w.workspace_id)}>${SWIPE_ACTS}
       <div class="sw-front ws-front">
-        <div class="ws-main">
+        <a class="ws-main" href="${link(w.host, `/ws/${encodeURIComponent(w.workspace_id)}`)}">
           <div class="ws-label">${filter() === 'all' ? hostChip(w) : ''}${esc(w.label)}</div>
           ${first && first.cwd ? `<div class="ws-cwd">${esc(first.cwd)}</div>` : ''}
-        </div>
+        </a>
         <button type="button" class="icon-btn ws-more" aria-haspopup="dialog" aria-label="${esc(w.label)} 워크스페이스 메뉴">${ICON.more}</button>
       </div>
     </div>
