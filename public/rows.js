@@ -1,6 +1,6 @@
 'use strict';
 // Row actions in the lists: long-press or right-click a row for its menu. A sideways swipe
-// belongs to the page (tabswipe.js: 작업공간 ↔ 설정), so rows no longer slide open; the
+// belongs to the page (tabswipe.js: the next host), so rows no longer slide open; the
 // slide code below stays only to shut a row that is somehow open.
 
 // ---- row actions: long-press or right-click for a menu

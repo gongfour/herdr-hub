@@ -1,22 +1,22 @@
 'use strict';
-// A sideways swipe on 작업공간 or 설정 moves to the other tab, as on Android.
-// The page follows the finger; past TAB_SWIPE_MIN px (or a quick flick) it changes tab the
-// moment the finger lifts, the way the tab bar's own link would (split: the sidebar changes
-// page as the rail's tab would), and the new tab slides in from the side the finger went. Each tab's page is
-// kept (list.js showTab), so the switch itself is cheap.
+// A sideways swipe on the 작업공간 list moves to the next host (전체 → desktop → server …), as
+// Alt+←/→ and the host segment do (list.js stepHostFilter). 설정 is the tab bar's.
+// The list follows the finger; past TAB_SWIPE_MIN px (or a quick flick) the host changes the
+// moment the finger lifts, and the list slides in from the side the finger went. The header
+// (with the host segment) stays put. Phone, and the split layout's sidebar.
 // Not from the left screen edge, not on anything that scrolls sideways itself (key rows, wide
 // tables, the host segment when it overflows) or a text field, and never in a detail view.
 
-const TAB_ORDER = ['#/', '#/settings'];
 const TAB_SWIPE_MIN = 70; // px
 const TAB_SWIPE_FLICK = 0.5; // px/ms
 const tabSwipe = { g: null };
 
+const hostOrder = () => ['all', ...hosts().map((h) => h.id)];
 function tabPageShown() {
-  return !split && (listShown() || settingsShown()); // split: the sidebar has one page
+  return multi() && (split || listShown());
 }
-// The tab content that moves with the finger: everything in the list root but the tab bar.
-const tabSwipeParts = () => [...listRoot().children].filter((el) => !el.classList.contains('tabbar'));
+// What moves with the finger: the list itself, under the header.
+const tabSwipeParts = () => [...listRoot().querySelectorAll(':scope > main.home')];
 const TAB_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 function tabSwipeStyle(parts, dx, fade, ms, ease = TAB_EASE) {
   for (const el of parts) {
@@ -29,15 +29,11 @@ function tabSwipeClear(parts) {
   for (const el of parts) el.style.transition = el.style.transform = el.style.opacity = el.style.willChange = '';
 }
 const TAB_IN_MS = 200;
-// Commit: change tab now, then one short slide of the new tab in after the finger.
-function tabSwipeGo(dir, next) {
+// Commit: the next host now, then one short slide of the list in after the finger.
+function tabSwipeGo(dir) {
   const w = listRoot().clientWidth || innerWidth;
-  const out = tabSwipeParts();
-  tabSwipeClear(out); // the old page is kept as it was, back in place
-  // The link's own navigation, but drawn now rather than on hashchange a task later.
-  history.pushState(null, '', next);
-  route();
-  if (reduced()) return;
+  tabSwipeClear(tabSwipeParts());
+  if (!stepHostFilter(dir) || reduced()) return;
   const parts = tabSwipeParts();
   tabSwipeStyle(parts, dir * Math.min(w * 0.3, 120), 0.4, 0);
   void listRoot().offsetWidth;
@@ -45,8 +41,7 @@ function tabSwipeGo(dir, next) {
   setTimeout(() => tabSwipeClear(parts), TAB_IN_MS + 40);
 }
 function currentTabIndex() {
-  const cur = listRoot().querySelector('.tabbar a.tab[aria-current="page"]');
-  return cur ? TAB_ORDER.indexOf(cur.getAttribute('href')) : -1;
+  return hostOrder().indexOf(filter());
 }
 
 document.addEventListener(
@@ -80,8 +75,8 @@ document.addEventListener(
     }
     if (g.axis !== 'x') return;
     if (e.cancelable) e.preventDefault();
-    // No tab past either end: the page only gives a little.
-    const edge = (dx > 0 && g.i <= 0) || (dx < 0 && g.i >= TAB_ORDER.length - 1);
+    // No host past either end: the list only gives a little.
+    const edge = (dx > 0 && g.i <= 0) || (dx < 0 && g.i >= hostOrder().length - 1);
     g.dx = edge ? dx / 4 : dx;
     const now = Date.now();
     if (now > g.lastT) g.v = (t.clientX - g.lastX) / (now - g.lastT);
@@ -98,8 +93,7 @@ function tabSwipeEnd() {
   if (!g || g.axis !== 'x') return;
   cancelAnimationFrame(g.raf);
   const dir = g.dx <= -TAB_SWIPE_MIN || g.v <= -TAB_SWIPE_FLICK ? 1 : g.dx >= TAB_SWIPE_MIN || g.v >= TAB_SWIPE_FLICK ? -1 : 0;
-  const next = TAB_ORDER[g.i + dir];
-  if (dir && g.i >= 0 && next) return tabSwipeGo(dir, next);
+  if (dir && g.i >= 0 && hostOrder()[g.i + dir]) return tabSwipeGo(dir);
   // Not far enough: back into place.
   tabSwipeStyle(g.parts, 0, 1, reduced() ? 0 : 240);
   setTimeout(() => tabSwipeClear(g.parts), 280);
