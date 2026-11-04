@@ -786,6 +786,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* ---- 설정: groups of rows (prefs.js), a small heading above each card */
 .panel.settings { gap: 18px; }
+/* Focused as a whole when 설정 opens (settings.js): the place to start from, not a control. */
+.panel.settings:focus { outline: none; }
 .panel.settings section.pgroup { background: none; border: 0; padding: 0; }
 .pgroup > h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 6px 4px; }
 .pgroup[hidden] { display: none; }

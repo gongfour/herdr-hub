@@ -248,7 +248,7 @@ function route(e, { relayout = false } = {}) {
     renderForm();
   } else if (r.name === 'settings') {
     view = { name: 'settings' };
-    renderSettings({ focus: split }); // split: on the right, the list stays; the focus goes into it
+    renderSettings({ focus: true }); // into the page (split: on the right, the list stays)
   } else {
     view = { name: 'list' };
     render();

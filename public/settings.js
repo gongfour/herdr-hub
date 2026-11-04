@@ -48,10 +48,10 @@ function settingsHtml() {
   // Split, 설정 is a detail on the right: ✕ (Esc) closes it back to what was open there.
   return `
     <header class="bar">
-      <h1 tabindex="-1">설정</h1>
+      <h1 id="s-title">설정</h1>
       ${split ? `<a class="icon-btn close-detail" href="${settingsBack()}" data-back aria-label="닫기"${keyAttrs('back', '닫기')}>${ICON.x}</a>` : ''}
     </header>
-    <main class="panel settings">
+    <main class="panel settings" tabindex="-1" aria-labelledby="s-title">
       <section class="pgroup" aria-labelledby="g-push">
         <h2 id="g-push">알림</h2>
         <div class="pcard" id="s-push"></div>
@@ -72,8 +72,9 @@ function settingsHtml() {
     </main>`;
 }
 
-// focus: move the focus to the heading (split: 설정 just opened on the right, so a keyboard user
-// lands in it rather than at the top of the list).
+// focus: move the focus into the page itself (split: 설정 opens on the right, so a keyboard user
+// lands in it rather than in the list): no ring, as nothing there is pressed; the arrows and
+// PgUp/PgDn scroll it, and Tab goes on to the first control. Not a field: no soft keyboard.
 function renderSettings({ focus = false } = {}) {
   if (!split) showTab('settings'); // the kept page, if there is one
   const root = split ? detailRoot() : listRoot();
@@ -92,7 +93,7 @@ function renderSettings({ focus = false } = {}) {
   renderPushBlock();
   renderConn();
   if (!split) mountTabBar('settings');
-  if (focus) root.querySelector(':scope > .bar h1').focus({ preventScroll: true });
+  if (focus) main.focus({ preventScroll: true });
 }
 
 // Every control as Prefs has it: the checked radio (the one Tab stop of its group), its hint.
