@@ -1,6 +1,6 @@
 'use strict';
 // Row actions in the lists: long-press or right-click a row for its menu. A sideways swipe
-// belongs to the page (tabswipe.js: 홈 ↔ 작업공간 ↔ 설정), so rows no longer slide open; the
+// belongs to the page (tabswipe.js: 작업공간 ↔ 설정), so rows no longer slide open; the
 // slide code below stays only to shut a row that is somehow open.
 
 // ---- row actions: long-press or right-click for a menu
@@ -44,7 +44,7 @@ function bindList(main) {
   main.addEventListener(
     'scroll',
     () => {
-      listScroll[main.dataset.tab || 'home'] = main.scrollTop;
+      listScroll = main.scrollTop;
       if (!(swipe.g && swipe.g.axis === 'x')) closeRow();
     },
     { passive: true }
@@ -156,12 +156,6 @@ function rowClick(e) {
     e.preventDefault();
     if (!quick.disabled) quickAnswer(quick);
     return;
-  }
-  const quiet = e.target.closest('.quiet-toggle');
-  if (quiet) {
-    e.preventDefault();
-    quietOpen = !quietOpen;
-    return render();
   }
   const more = e.target.closest('.ws-more');
   if (more) {

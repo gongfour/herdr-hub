@@ -1,8 +1,8 @@
 'use strict';
-// The home inbox: summaries and bucketing (public/inbox.js).
+// Unread finishes and the one-line summaries (public/inbox.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { firstLine, glance, bucket, seenKey } = require('../public/inbox.js');
+const { firstLine, glance, unread, seenKey } = require('../public/inbox.js');
 
 test('firstLine: the first readable line of a markdown reply', () => {
   assert.equal(firstLine('\n\n## 결과\n\n본문'), '결과');
@@ -37,29 +37,25 @@ test('glance: last reply, and the last tool of the current turn only', () => {
   assert.equal(glance([{ role: 'assistant', text: '', tools: [{ name: 'TodoWrite', summary: '' }] }]).lastTool, 'TodoWrite');
 });
 
-test('bucket: blocked, just finished (unseen, recent), working, quiet', () => {
+test('unread: stopped recently (or herdr says done) and this finish not opened', () => {
   const now = 10_000_000;
   const A = (pane, status, extra = {}) => ({ host: 'desktop', pane, status, ...extra });
   const agents = [
-    A('p1', 'idle'),
-    A('p2', 'working', { workingSince: now - 60_000 }),
-    A('p3', 'blocked'),
+    A('p1', 'idle'), // never finished while the hub watched
+    A('p2', 'working', { workingSince: now - 60_000, doneAt: now - 120_000 }),
+    A('p3', 'blocked', { doneAt: now - 120_000 }),
     A('p4', 'done', { doneAt: now - 180_000 }),
     A('p5', 'idle', { doneAt: now - 60_000 }),
     A('p6', 'idle', { doneAt: now - 13 * 3600_000 }), // too old
     A('p7', 'done', { doneAt: null }), // herdr says done, the hub restarted since
-    A('p8', 'working', { workingSince: null }),
-    A('p9', 'working', { workingSince: now - 600_000 }),
-    A('pA', 'unknown'),
+    A('p8', 'idle', { doneAt: now - 30_000 }),
   ];
   const seen = new Set([seenKey(agents[4])]); // p5 was opened after it finished
-  const b = bucket(agents, { now, isSeen: (k) => seen.has(k) });
-  const ids = (xs) => xs.map((x) => x.pane);
-  assert.deepEqual(ids(b.blocked), ['p3']);
-  assert.deepEqual(ids(b.done), ['p4', 'p7']);
-  assert.deepEqual(ids(b.working), ['p9', 'p2', 'p8']);
-  assert.deepEqual(ids(b.idle), ['p1', 'p5', 'p6', 'pA']);
+  const ids = agents.filter((a) => unread(a, { now, isSeen: (k) => seen.has(k) })).map((a) => a.pane);
+  assert.deepEqual(ids, ['p4', 'p7', 'p8']);
   // A new finish of the same pane is new again.
   assert.notEqual(seenKey({ ...agents[4], doneAt: now }), seenKey(agents[4]));
+  assert.equal(unread({ ...agents[4], doneAt: now }, { now, isSeen: (k) => seen.has(k) }), true);
   assert.equal(seenKey(agents[6]), 'desktop|p7|done');
+  assert.equal(unread(null), false);
 });

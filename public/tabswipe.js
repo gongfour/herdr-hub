@@ -1,11 +1,11 @@
 'use strict';
-// A sideways swipe on 홈, 작업공간 or 설정 moves to the next or previous tab, as on Android.
+// A sideways swipe on 작업공간 or 설정 moves to the other tab, as on Android.
 // The page follows the finger; past TAB_SWIPE_MIN px (or a quick flick) it changes tab
 // through the tab bar's own link, so split view (the list column only) behaves like a tap there.
 // Not from the left screen edge, not on anything that scrolls sideways itself (key rows, wide
 // tables, the host segment when it overflows) or a text field, and never in a detail view.
 
-const TAB_ORDER = ['#/', '#/spaces', '#/settings'];
+const TAB_ORDER = ['#/', '#/settings'];
 const TAB_SWIPE_MIN = 70; // px
 const TAB_SWIPE_FLICK = 0.5; // px/ms
 const tabSwipe = { g: null };

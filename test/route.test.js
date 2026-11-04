@@ -4,11 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parse } = require('../public/route.js');
 
-test('lists: 홈 by default, 작업공간, 설정', () => {
-  assert.deepEqual(parse('/'), { name: 'list', host: null, tab: 'home' });
-  assert.deepEqual(parse(''), { name: 'list', host: null, tab: 'home' });
-  assert.deepEqual(parse('/spaces'), { name: 'list', host: null, tab: 'spaces' });
-  assert.deepEqual(parse('/nonsense'), { name: 'list', host: null, tab: 'home' });
+test('lists: 작업공간 by default (the old /spaces too), 설정', () => {
+  assert.deepEqual(parse('/'), { name: 'list', host: null });
+  assert.deepEqual(parse(''), { name: 'list', host: null });
+  assert.deepEqual(parse('/spaces'), { name: 'list', host: null });
+  assert.deepEqual(parse('/nonsense'), { name: 'list', host: null });
   assert.deepEqual(parse('/settings'), { name: 'settings', host: null });
 });
 
@@ -29,7 +29,7 @@ test('shells, workspaces and the forms', () => {
   assert.deepEqual(parse('/start/pane/w1%3Ap4'), { name: 'form', host: null, mode: 'pane', target: 'w1:p4' });
 });
 
-test('a host alone is that host\'s 홈', () => {
-  assert.deepEqual(parse('/h/server'), { name: 'list', host: 'server', tab: 'home' });
-  assert.deepEqual(parse('/h/server/spaces'), { name: 'list', host: 'server', tab: 'spaces' });
+test('a host alone is that host\'s 작업공간', () => {
+  assert.deepEqual(parse('/h/server'), { name: 'list', host: 'server' });
+  assert.deepEqual(parse('/h/server/spaces'), { name: 'list', host: 'server' });
 });

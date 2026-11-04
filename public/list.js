@@ -1,6 +1,6 @@
 'use strict';
-// The lists: 홈 (inbox) and 작업공간 (workspace cards), the bottom tab bar, the 답 필요 strip with
-// its quick answers, 방금 끝남 bookkeeping, and the times on the rows.
+// The list: 작업공간 (workspace cards), the bottom tab bar, the 답 필요 strip with its quick
+// answers, the unread mark of finishes not opened yet, and the times on the rows.
 
 // ------------------------------------------------------------ list view
 
@@ -50,33 +50,10 @@ function wsFor(host, id) {
   return p ? { workspace_id: id, label: p.workspaceLabel, host: p.host, hostLabel: p.hostLabel, pane_count: 0, tab_count: 0 } : null;
 }
 
-// ---- tabs: 홈 (inbox) / 작업공간 (the workspace cards) / 설정, as a bottom tab bar
-const TAB_KEY = 'herdr-hub.tab';
-let memTab = null;
-let routed = false; // the first route may restore the last tab
-function getTab() {
-  if (memTab == null) {
-    try {
-      memTab = localStorage.getItem(TAB_KEY) === 'spaces' ? 'spaces' : 'home';
-    } catch {
-      memTab = 'home';
-    }
-  }
-  return memTab;
-}
-function setTab(t) {
-  memTab = t;
-  try {
-    localStorage.setItem(TAB_KEY, t);
-  } catch {
-    /* remembered for this page only */
-  }
-}
-// Where 뒤로 from an agent, shell or workspace leads: the list tab it was opened from (split:
-// whatever the list column shows, 설정 included).
-const homeHash = () => (split && colTab === 'settings' ? '#/settings' : getTab() === 'spaces' ? '#/spaces' : '#/');
-// The list tab render() draws: the view's own on the phone, the list column's when split.
-const listTab = () => (split ? (colTab === 'spaces' ? 'spaces' : 'home') : view.tab || 'home');
+// ---- tabs: 작업공간 (the workspace cards) / 설정, as a bottom tab bar
+// Where 뒤로 from an agent, shell or workspace leads: 작업공간 (split: whatever the list column
+// shows, 설정 included).
+const homeHash = () => (split && colTab === 'settings' ? '#/settings' : '#/');
 
 // 뒤로 in a detail header. Split, the list is already beside it: a detail that leads back to
 // the list gets ✕ (닫기) at the end of the header instead, and closing it goes to the list route.
@@ -90,8 +67,7 @@ function tabBar(active) {
   const tab = (key, href, icon, label, extra = '') =>
     `<a class="tab" href="${href}"${active === key ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${extra}</a>`;
   return `<nav class="tabbar" aria-label="탭">
-    ${tab('home', '#/', ICON.inbox, '홈', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : '')}
-    ${tab('spaces', '#/spaces', ICON.grid, '작업공간')}
+    ${tab('spaces', '#/', ICON.grid, '작업공간', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : '')}
     ${tab('settings', '#/settings', ICON.gear, '설정')}
   </nav>`;
 }
@@ -108,7 +84,7 @@ function mountTabBar(active) {
   else root.appendChild(el);
 }
 
-// ---- 방금 끝남: finishes this device has not opened yet (per device, in localStorage)
+// ---- unread: finishes this device has not opened yet (per device, in localStorage)
 const SEEN_KEY = 'herdr-hub.seen';
 const SEEN_DAYS = 7;
 let memSeen = null;
@@ -123,12 +99,16 @@ function seenMap() {
   return memSeen;
 }
 const isSeen = (k) => Boolean(seenMap()[k]);
+// An agent row gets the unread mark (a dot, a bolder name) while this is true.
+const isUnread = (a) => Inbox.unread({ ...a, host: a.host || localId() }, { isSeen });
 // Opening an agent that has finished marks that finish read (not one that is still running).
+// Split, the list beside it drops the mark at once.
 function markSeen(a) {
   if (!a || a.status === 'working' || a.status === 'blocked') return;
   const k = Inbox.seenKey({ ...a, host: a.host || localId() });
   const m = seenMap();
   if (m[k]) return;
+  if (split && colTab !== 'settings') setTimeout(render, 0);
   const cut = Date.now() - SEEN_DAYS * 86400000;
   for (const [key, t] of Object.entries(m)) if (t < cut) delete m[key];
   m[k] = Date.now();
@@ -173,14 +153,12 @@ function listModel() {
   return { blocked: agents.filter((a) => a.status === 'blocked'), list };
 }
 
-const listScroll = { home: 0, spaces: 0 }; // each tab's scroll position, kept while a detail view is open
-let quietOpen = false; // 조용함 expanded (this page's life)
+let listScroll = 0; // the list's scroll position, kept while a detail view is open
 
 function render() {
   if (swipe.g && Date.now() - swipe.g.t0 < 10000) return void (swipe.pending = true); // after the finger lifts
   if (split && colTab === 'settings') return; // the list column shows 설정
   const root = listRoot();
-  const tab = listTab();
   const down = state.herdr !== 'up';
   const f = filter();
   const { blocked, list } = listModel();
@@ -190,7 +168,7 @@ function render() {
   const hostLine = esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f));
   const top = `
     <header class="bar">
-      <h1>${tab === 'home' ? '홈' : '작업공간'}<span class="sub">${hostLine}</span></h1>
+      <h1>작업공간<span class="sub">${hostLine}</span></h1>
       <span class="conn ${down ? 'down' : ''}"><span class="dot"></span>${down ? (state.herdr === 'down' ? 'herdr 연결 끊김' : state.herdr === 'offline' ? '연결 끊김' : '연결 중') : '실시간'}</span>
       <a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스">${ICON.plus}</a>
     </header>
@@ -200,15 +178,15 @@ function render() {
       ${hosts().map((x) => `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}"><span class="hdot"></span>${esc(x.label)}</button>`).join('')}
     </nav>` : ''}`;
   const head = [
-    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>옆으로 밀면 홈·작업공간·설정이 넘어가고, 줄을 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
+    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>옆으로 밀면 작업공간과 설정이 넘어가고, 줄을 길게 누르면 메뉴가 나옵니다.</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
     ...trouble.map((x) => [`off|${x.id}`, `<p class="offline" role="status"><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>`]),
     ...(blocked.length ? [['attn', attnStrip(blocked)]] : []),
   ];
-  const parts = tab === 'home' ? [...head, ...inboxParts(down, f)] : [...head, ...spacesParts(list, down, f)];
+  const parts = [...head, ...spacesParts(list, down, f)];
   let main = root.querySelector(':scope > main.home');
-  const fresh = !main || main.dataset.tab !== tab;
+  const fresh = !main;
   if (fresh) {
-    root.innerHTML = `${top}<main class="list home" data-tab="${tab}"></main>`;
+    root.innerHTML = `${top}<main class="list home"></main>`;
     main = root.querySelector(':scope > main.home');
     main._top = top;
     bindList(main);
@@ -218,9 +196,9 @@ function render() {
   }
   main._top = top;
   patchList(main, parts);
-  mountTabBar(tab);
-  // Back from an agent: where this tab was left.
-  if (fresh && listScroll[tab]) main.scrollTop = listScroll[tab];
+  mountTabBar('spaces');
+  // Back from an agent: where the list was left.
+  if (fresh && listScroll) main.scrollTop = listScroll;
   root.querySelectorAll('.hosts button').forEach((b) => {
     b.onclick = () => {
       setFilter(b.dataset.host);
@@ -235,70 +213,6 @@ function render() {
 function spacesParts(list, down, f) {
   const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '열린 워크스페이스가 없습니다.';
   return [...list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s)]), ...(!list.length && empty ? [['empty', `<p class="empty">${empty}</p>`]] : [])];
-}
-
-// The agent open now (on the right when split). Opening marks its finish read at once, but the
-// mark only moves it out of 방금 끝남 once it is closed: while it is open its row stays where
-// it was, under the finger, and Alt+↑/↓ steps on from there.
-const openRowKey = () => (view.name === 'agent' && detail.pane ? rowKey(curHost(), detail.pane) : null);
-
-// 홈: 답 필요 (the strip, above), 방금 끝남, 작업 중, and 조용함 folded into one line.
-function inboxParts(down, f) {
-  const open = openRowKey();
-  const b = Inbox.bucket(state.agents.filter(shown), { isSeen: (k) => isSeen(k) && !(open && k.startsWith(`${open}|`)) });
-  // A quiet agent that is open shows under the folded 조용함 line, so its row is never hidden.
-  const openQuiet = !quietOpen && open ? b.idle.find((a) => rowKey(a.host, a.pane) === open) : null;
-  const out = [];
-  if (b.done.length) out.push(['done', inboxSection('방금 끝남', b.done, 'done')]);
-  if (b.working.length) out.push(['working', inboxSection('작업 중', b.working, 'working')]);
-  if (b.idle.length)
-    out.push([
-      'quiet',
-      `<section class="ib-sec quiet">
-        <button type="button" class="quiet-toggle" aria-expanded="${quietOpen}"><span>조용함</span><span class="quiet-n">대기 ${b.idle.length}</span><span class="chev${quietOpen ? ' open' : ''}" aria-hidden="true">${ICON.chevron}</span></button>
-        ${quietOpen ? `<div class="ib-card">${b.idle.map((a) => inboxRow(a, 'idle')).join('')}</div>` : openQuiet ? `<div class="ib-card">${inboxRow(openQuiet, 'idle')}</div>` : ''}
-      </section>`,
-    ]);
-  if (!b.blocked.length && !b.done.length && !b.working.length) {
-    const none = !state.agents.filter(shown).length;
-    const msg = f !== 'all' && !online(f) ? '' : down && !state.agents.length ? 'herdr 서버에 연결하지 못했습니다.' : none ? '에이전트가 없습니다. + 로 워크스페이스를 만들거나 작업공간 탭에서 시작하세요.' : '답할 것도, 작업 중인 것도 없습니다.';
-    if (msg) out.unshift(['calm', `<p class="empty calm">${msg}</p>`]);
-  }
-  return out;
-}
-
-function inboxSection(title, agents, kind) {
-  return `<section class="ib-sec ${kind}" aria-label="${title}">
-    <h2>${title}<span class="ib-count">${agents.length}</span></h2>
-    <div class="ib-card">${agents.map((a) => inboxRow(a, kind)).join('')}</div>
-  </section>`;
-}
-
-// One compact agent row (56–64px): name · workspace · host and the time on the first line,
-// what it said or is doing on the second. Swipe and long press work as in the workspace cards.
-function inboxRow(a, kind) {
-  const host = multi() && filter() === 'all' ? ` · ${esc(a.hostLabel || hostLabel(a.host))}` : '';
-  const where = `${esc(a.workspaceLabel)}${host}`;
-  const name = a.name || a.title;
-  let sub = '';
-  let time = '';
-  if (kind === 'done') {
-    sub = a.lastReply || '';
-    time = a.doneAt ? `<span class="el ago" data-ago="${Number(a.doneAt)}" title="${esc(clock(a.doneAt))} 완료"></span>` : `<span class="el ago">완료</span>`;
-  } else if (kind === 'working') {
-    sub = a.lastTool || '작업 중…';
-    time = a.workingSince ? `<span class="el" data-since="${Number(a.workingSince)}"></span>` : '';
-  }
-  return `<div class="sw" ${rowData('agent', a.host, a.pane)}>${SWIPE_ACTS}
-    <a class="sw-front ib-row ${kind}${sub ? '' : ' one'}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
-      <span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
-      <span class="ib-main">
-        <span class="ib-top"><span class="ib-name">${esc(name)}</span><span class="ib-where"> · ${where}</span></span>
-        ${sub ? `<span class="ib-sub${kind === "working" ? " ib-tool" : ""}">${esc(sub)}</span>` : ''}
-      </span>
-      ${time}
-    </a>
-  </div>`;
 }
 
 // One-time hint about the hidden row gestures: shown on the first visit to the list (and for
@@ -452,14 +366,16 @@ function wsSection({ w, agents, terms }) {
 }
 
 // A blocked agent is answered from the strip on top; here it only says so (no second full row).
+// A finish not opened yet: a dot before the icon and a bolder name, like an unread message.
 function agentRow(a) {
+  const unread = isUnread(a);
   const badge =
     a.status === 'blocked'
       ? `<span class="badge blocked up" aria-label="답 필요 — 위 목록에서 답하세요">↑ 답 필요</span>`
       : `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
   return `<div class="sw" ${rowData('agent', a.host, a.pane)}>${SWIPE_ACTS}
-    <a class="sw-front pane-row agent" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
-      <span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
+    <a class="sw-front pane-row agent${unread ? ' unread' : ''}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
+      ${unread ? '<span class="unread-dot" role="img" aria-label="새 결과"></span>' : ''}<span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
       <span class="pane-main"><span class="pane-title">${esc(agentTitle(a))}</span></span>
       ${timeTag(a)}
       ${badge}

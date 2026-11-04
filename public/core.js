@@ -21,9 +21,7 @@ const ICON = {
   term: '<svg viewBox="0 0 24 24"><path d="M12 19h8" /><path d="m4 17 6-6-6-6" /></svg>', // terminal
   x: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>', // x
   folder: '<svg viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>', // folder
-  inbox: '<svg viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></svg>', // inbox
   grid: '<svg viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>', // layout-grid
-  chevron: '<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></svg>', // chevron-right
   file: '<svg viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /></svg>', // file
   panel: '<svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" /></svg>', // panel-left
 };
@@ -84,12 +82,12 @@ const ready = new Promise((r) => (resolveReady = r)); // the first state has arr
 
 // ---- wide screens: the list and the open detail side by side (split.js has the rules)
 // Narrower than Split.SPLIT_MIN, #app holds one view at a time as on the phone. Split, it holds
-// two columns: #list-pane (홈 / 작업공간 / 설정 with the tab bar) and #detail-pane (agent,
+// two columns: #list-pane (작업공간 / 설정 with the tab bar) and #detail-pane (agent,
 // shell, workspace, form, or a calm placeholder). The route stays the source of truth for the
 // detail; the list column shows colTab, which a tab press changes without closing the detail.
 const splitMq = matchMedia(`(min-width: ${window.Split ? Split.SPLIT_MIN : 1000}px)`);
 let split = false;
-let colTab = null; // split only: 'home' | 'spaces' | 'settings'
+let colTab = null; // split only: 'spaces' | 'settings'
 const listRoot = () => (split ? document.getElementById('list-pane') : $app);
 const detailRoot = () => (split ? document.getElementById('detail-pane') : $app);
 const isDetail = () => !['list', 'settings'].includes(view.name);
@@ -132,6 +130,10 @@ try {
       if (localStorage.getItem(nk) == null) localStorage.setItem(nk, localStorage.getItem(k));
       localStorage.removeItem(k);
     }
+} catch {}
+// 홈 is gone (작업공간 is the one list): the last list tab it kept means nothing now.
+try {
+  localStorage.removeItem('herdr-hub.tab');
 } catch {}
 
 const FILTER_KEY = 'herdr-hub.host';

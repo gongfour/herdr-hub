@@ -174,13 +174,12 @@ function route(e, { relayout = false } = {}) {
   setTimeout(() => fit({ type: 'route' }), 0);
   scr = null;
   let h = location.hash.replace(/^#/, '') || '/';
-  // The app opens on the tab it was left on.
-  if (!routed && h === '/' && getTab() === 'spaces') {
-    history.replaceState(history.state, '', '#/spaces');
-    lastHash = '#/spaces';
-    h = '/spaces';
+  // An old 작업공간 link (#/spaces, #/h/<id>/spaces) becomes the list's own address, so 뒤로 finds it.
+  if (/^(\/h\/[^/]+)?\/spaces$/.test(h)) {
+    h = h.replace(/\/spaces$/, '') || '/';
+    lastHash = `#${h}`;
+    history.replaceState(history.state, '', lastHash);
   }
-  routed = true;
   // The route as data (route.js); the views below keep the shapes they always had.
   const r = Route.parse(h);
   const host = r.host;
@@ -225,9 +224,8 @@ function route(e, { relayout = false } = {}) {
     if (split) colTab = 'settings';
     renderSettings();
   } else {
-    view = { name: 'list', tab: r.tab };
-    setTab(view.tab);
-    if (split) colTab = view.tab;
+    view = { name: 'list' };
+    if (split) colTab = 'spaces';
     render();
   }
   if (split) {
@@ -252,7 +250,7 @@ function relayout() {
   const refocus = f && ['d-input', 't-input'].includes(f.id) ? f.id : null;
   stashDraft();
   split = want;
-  colTab = split ? (view.name === 'list' ? view.tab : view.name === 'settings' ? 'settings' : getTab()) : null;
+  colTab = split ? (view.name === 'settings' ? 'settings' : 'spaces') : null;
   document.documentElement.classList.toggle('split', split);
   $app.innerHTML = split ? '<div class="col" id="list-pane"></div><div class="col" id="detail-pane"></div>' : '';
   route(null, { relayout: true });
@@ -386,15 +384,14 @@ document.addEventListener('keydown', (e) => {
     if (dir && stepList(dir === 'next' ? 1 : -1, e.altKey)) e.preventDefault();
   }
 });
-// Split: a tab press while a detail is open changes only the list column (홈 / 작업공간 /
-// 설정); the detail stays. With nothing open it is an ordinary link to that tab's route.
+// Split: a tab press while a detail is open changes only the list column (작업공간 / 설정);
+// the detail stays. With nothing open it is an ordinary link to that tab's route.
 document.addEventListener('click', (e) => {
   const a = split && e.target.closest && e.target.closest('#list-pane .tabbar a.tab');
   if (!a || !isDetail() || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
   e.preventDefault();
   const h = a.getAttribute('href');
-  colTab = h === '#/settings' ? 'settings' : h === '#/spaces' ? 'spaces' : 'home';
-  if (colTab !== 'settings') setTab(colTab);
+  colTab = h === '#/settings' ? 'settings' : 'spaces';
   renderCol();
   // ✕ in the detail header leads to where the list column now is.
   const close = detailRoot().querySelector('a.close-detail');

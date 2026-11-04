@@ -220,6 +220,9 @@ button:disabled { cursor: default; }
 .pane-row.term .pane-ic { background: var(--surface-2); color: var(--muted); font: 700 11px/1 var(--mono); letter-spacing: -0.04em; }
 .pane-main { flex: 1; min-width: 0; }
 .pane-title { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A finish not opened yet, like an unread message: a dot in the row's left gutter, a bolder name. */
+.unread-dot { position: absolute; left: 8px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: var(--accent); }
+.pane-row.unread .pane-title { font-weight: 700; }
 .pane-row.term .pane-title { font: 14px var(--mono); }
 .pane-meta { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pane-kind { flex: none; font-size: 12px; color: var(--muted); }
@@ -888,41 +891,7 @@ button.tool:active { filter: brightness(0.95); }
 :is(#app, .col) > main.panel:has(+ .tabbar) { padding-bottom: 20px; }
 .panel p.muted { color: var(--muted); font-size: 14px; }
 
-/* ---- 홈: inbox sections of compact rows, inset-grouped like iOS lists */
-.ib-sec h2 { display: flex; align-items: baseline; gap: 6px; margin: 0 4px 6px; font-size: 13px; font-weight: 700; color: var(--muted); }
-.ib-sec.done h2 { color: var(--done); }
-.ib-sec.working h2 { color: var(--working); }
-.ib-count { font-weight: 600; font-variant-numeric: tabular-nums; opacity: 0.8; }
-.ib-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.ib-card > .sw + .sw { border-top: 1px solid var(--line); }
-.ib-row { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 8px 12px 8px 12px; color: inherit; text-decoration: none; }
-.ib-row.one { min-height: 48px; }
-.ib-row:active { background: var(--surface-2); }
-.ib-row .pane-ic { background: var(--done-bg); color: var(--accent); }
-.ib-row.working .pane-ic { background: var(--working-bg); color: var(--working); }
-.ib-row.idle .pane-ic { background: var(--surface-2); color: var(--muted); }
-.ib-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.ib-top { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; }
-.ib-name { font-weight: 600; }
-.ib-where { color: var(--muted); font-size: 13px; }
-.ib-sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 1.3; color: var(--muted); }
-.ib-sub.ib-tool { font: 12px/1.35 var(--mono); }
-.ib-row .el { align-self: flex-start; margin-top: 2px; }
-.quiet-toggle {
-  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 12px 0 14px;
-  border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); cursor: pointer; text-align: left;
-}
-.quiet-toggle:active { background: var(--surface-2); }
-.quiet-toggle > span:first-child { font-weight: 600; }
-.quiet-n { flex: 1; color: var(--muted); font-size: 14px; }
-.quiet-toggle .chev { display: grid; color: var(--muted); transition: transform 0.18s; }
-.quiet-toggle .chev svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.quiet-toggle .chev.open { transform: rotate(90deg); }
-.ib-sec.quiet .ib-card { margin-top: 8px; }
-.empty.calm { padding: 28px 16px; }
-@media (prefers-reduced-motion: reduce) { .quiet-toggle .chev { transition: none; } }
-@media (hover: hover) { .ib-row:hover, .quiet-toggle:hover { background: color-mix(in srgb, var(--surface-2) 65%, var(--surface)); } }
-.ib-row:focus-visible, .quiet-toggle:focus-visible, .tab:focus-visible { outline-offset: -3px; }
+.tab:focus-visible { outline-offset: -3px; }
 
 /* ---- bash mode in the chat: the "!" line and its output */
 .msg.user.bash { font: 14px/1.4 var(--mono); }

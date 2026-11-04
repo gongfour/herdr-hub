@@ -1,12 +1,12 @@
 'use strict';
-// The home screen as an inbox: what needs me (답 필요), what just finished (방금 끝남), what is
-// running (작업 중) and the rest (조용함). Also the one-line summaries the hub sends along:
-// the first line of an agent's last reply and the last tool it ran.
+// Which finishes this device has not opened yet (the unread mark on a 작업공간 row), and the
+// one-line summaries the hub sends along: the first line of an agent's last reply (the 완료
+// notification) and the last tool it ran.
 // Pure: loaded as a plain script in the page (window.Inbox), required by the server and tests.
 (function (root) {
   const SUMMARY_MAX = 120;
   const TOOL_MAX = 80;
-  // 방금 끝남 keeps an agent this long after it finished, until it is opened.
+  // A finish shows as unread this long after it happened, until it is opened.
   const RECENT_MS = 12 * 3600 * 1000;
 
   const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
@@ -61,25 +61,15 @@
   // An agent herdr calls done whose finish time the hub doesn't know (it restarted) uses "done".
   const seenKey = (a) => `${a.host || ''}|${a.pane}|${a.doneAt || 'done'}`;
 
-  // agents: the hub's state.agents (shells are not agents, so never here).
-  // isSeen(key) -> boolean. Returns { blocked, done, working, idle }, each in display order.
-  function bucket(agents, { now = Date.now(), isSeen = () => false, recentMs = RECENT_MS } = {}) {
-    const out = { blocked: [], done: [], working: [], idle: [] };
-    for (const a of agents || []) {
-      if (a.status === 'blocked') out.blocked.push(a);
-      else if (a.status === 'working') out.working.push(a);
-      else {
-        const fresh = a.doneAt ? now - a.doneAt <= recentMs : a.status === 'done';
-        (fresh && !isSeen(seenKey(a)) ? out.done : out.idle).push(a);
-      }
-    }
-    const asc = (k) => (x, y) => (x[k] == null) - (y[k] == null) || (x[k] || 0) - (y[k] || 0);
-    out.done.sort((x, y) => (x.doneAt == null) - (y.doneAt == null) || (y.doneAt || 0) - (x.doneAt || 0));
-    out.working.sort(asc('workingSince')); // the longest-running first
-    return out;
+  // a: an agent of the hub's state.agents; isSeen(key) -> boolean. Unread: it has stopped
+  // (not working or blocked) within recentMs, or herdr calls it done, and this finish was not opened.
+  function unread(a, { now = Date.now(), isSeen = () => false, recentMs = RECENT_MS } = {}) {
+    if (!a || a.status === 'blocked' || a.status === 'working') return false;
+    const fresh = a.doneAt ? now - a.doneAt <= recentMs : a.status === 'done';
+    return fresh && !isSeen(seenKey(a));
   }
 
-  const api = { firstLine, glance, bucket, seenKey, RECENT_MS };
+  const api = { firstLine, glance, unread, seenKey, RECENT_MS };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Inbox = api;
 })(typeof self !== 'undefined' ? self : this);
