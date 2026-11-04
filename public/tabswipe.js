@@ -3,7 +3,7 @@
 // Alt+←/→ and the host segment do (list.js stepHostFilter). 설정 is the tab bar's.
 // The hosts' lists lie side by side: the list follows the finger and the neighbour host's list
 // (drawn off to the side when the finger first reveals it) comes in with it, while the host
-// segment's pill slides toward that host. Past TAB_SWIPE_MIN px (or a quick flick) the pages
+// segment's pill slides toward that host, its label's colour going with it. Past TAB_SWIPE_MIN px (or a quick flick) the pages
 // carry on from the finger's speed until the neighbour is in place (motion.js spring), and the
 // host changes; else they settle back. With no host beyond, the list gives less the further it
 // is pulled (rubber band). The header stays put. Phone, and the split layout's sidebar.
@@ -58,7 +58,10 @@ function tabPill(g) {
   el.style.cssText = `top:${cur.offsetTop}px;height:${cur.offsetHeight}px;width:${cur.offsetWidth}px;transform:translate3d(${cur.offsetLeft}px,0,0)`;
   nav.prepend(el);
   nav.classList.add('tracking');
-  return { nav, el, from: r(cur), to: { 1: r(btns[g.i + 1]), '-1': r(btns[g.i - 1]) } };
+  // The labels go with it: the host it leaves fades as it goes, the one it nears comes up.
+  cur.style.setProperty('--on', '1');
+  cur.classList.add('ind-on');
+  return { nav, el, btns, from: r(cur), to: { 1: r(btns[g.i + 1]), '-1': r(btns[g.i - 1]) } };
 }
 
 // One frame: the list at x, its neighbours a page to either side, the pill part of the way.
@@ -67,12 +70,26 @@ function tabFrame(g, x) {
   g.main.style.transform = `translate3d(${x}px,0,0)`;
   for (const d of [1, -1]) if (g.nb[d]) g.nb[d].style.transform = `translate3d(${x + d * g.w}px,0,0)`;
   if (g.pill) {
-    const { from, to } = g.pill;
-    const t = to[x < 0 ? 1 : -1];
+    const { from, to, btns } = g.pill;
+    const dir = x < 0 ? 1 : -1;
+    const t = to[dir];
     const p = t ? Math.min(1, Math.abs(x) / g.w) : 0;
     const left = t ? from.left + (t.left - from.left) * p : from.left;
     const width = t ? from.width + (t.width - from.width) * p : from.width;
-    g.pill.el.style.transform = `translate3d(${left}px,0,0) scaleX(${width / from.width})`;
+    // Its real width, not a scaleX: a stretched pill stretches its corners and shadow too.
+    g.pill.el.style.transform = `translate3d(${left}px,0,0)`;
+    g.pill.el.style.width = `${width}px`;
+    // The labels' colour follows the pill; the bold moves over once it is past halfway, so the
+    // host it lands on already looks chosen when the list there takes over.
+    const src = btns[g.i];
+    const dst = t ? btns[g.i + dir] : null;
+    for (const b of btns) if (b !== src && b !== dst) b.style.setProperty('--on', '0'), b.classList.remove('ind-on');
+    src.style.setProperty('--on', String(1 - p));
+    src.classList.toggle('ind-on', p < 0.5);
+    if (dst) {
+      dst.style.setProperty('--on', String(p));
+      dst.classList.toggle('ind-on', p >= 0.5);
+    }
   }
 }
 
@@ -85,6 +102,7 @@ function tabSwipeDone(g, { flush = true } = {}) {
   g.nb = {};
   if (g.pill) {
     g.pill.el.remove();
+    for (const b of g.pill.btns) b.style.removeProperty('--on'), b.classList.remove('ind-on');
     g.pill.nav.classList.remove('tracking');
     g.pill = null;
   }

@@ -1244,6 +1244,10 @@ button.tool:active { filter: brightness(0.95); }
 }
 .seg.hosts.tracking button { position: relative; z-index: 1; }
 .seg.hosts.tracking button[aria-pressed="true"] { background: transparent; border-color: transparent; box-shadow: none; }
+/* While tracking, a label is as chosen as the pill is over it (--on 0…1, tabswipe.js), and bold
+   from halfway (.ind-on): nothing changes the moment the host does. */
+.seg.hosts.tracking button { color: color-mix(in srgb, var(--text) calc(var(--on, 0) * 100%), var(--muted)); font-weight: 400; }
+.seg.hosts.tracking button.ind-on { font-weight: 600; }
 
 /* Fingers (no fine pointer): the small controls get a 44px target. The chat's tool lines stay
    compact (a long run of 44px lines would push the answer away), at 36px; the 단축키 page's ×, +
