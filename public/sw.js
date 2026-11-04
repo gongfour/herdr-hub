@@ -1,9 +1,50 @@
 'use strict';
 // Service worker: shows push notifications, answers from their buttons, and opens the agent
-// they point at. No offline cache: the app is useless without the host anyway.
+// they point at. No offline copy of the app (it is useless without the host), only one small
+// page: when the app's page can't be loaded at all (no network to the host, or tailscale serve's
+// 502 while Herdr Hub is down), offline.html says why and offers the other hosts this device
+// remembers (conn.js), instead of the browser's error page.
 
-self.addEventListener('install', () => self.skipWaiting());
+const OFFLINE_CACHE = 'herdr-hub-offline';
+const OFFLINE_FILES = ['/offline.html', '/conn.js', '/style.css'];
+const REFRESH_MS = 3600e3;
+let refreshedAt = 0;
+// Fetched again, not from the HTTP cache: a deploy changes them without changing this file.
+function cacheOffline() {
+  refreshedAt = Date.now();
+  return caches.open(OFFLINE_CACHE).then((c) => c.addAll(OFFLINE_FILES.map((u) => new Request(u, { cache: 'no-cache' }))));
+}
+
+self.addEventListener('install', (e) => e.waitUntil(cacheOffline().catch(() => {}).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+
+const offlinePage = () => caches.match('/offline.html', { cacheName: OFFLINE_CACHE });
+const down = (status) => status === 502 || status === 503 || status === 504;
+// A page load: the network as always; offline.html only when that fails. A load that works now
+// and then (hourly) refreshes the copy. Nothing else is touched: the API, the stream and every
+// asset go straight to the network as before.
+async function navigate(e) {
+  try {
+    const res = await fetch(e.request);
+    if (down(res.status)) return (await offlinePage()) || res;
+    if (res.ok && Date.now() - refreshedAt > REFRESH_MS) e.waitUntil(cacheOffline().catch(() => {}));
+    return res;
+  } catch (err) {
+    const page = await offlinePage();
+    if (page) return page;
+    throw err;
+  }
+}
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  if (req.mode === 'navigate') return e.respondWith(navigate(e));
+  // offline.html's own files, asked for by their plain names (the app asks with ?v=).
+  if (OFFLINE_FILES.includes(url.pathname) && !url.search && url.pathname !== '/offline.html')
+    e.respondWith(fetch(req).catch(() => caches.match(url.pathname, { cacheName: OFFLINE_CACHE }).then((r) => r || Response.error())));
+});
 
 // Whether this browser shows notification buttons at all. iOS/iPadOS Safari web push has no
 // actions (Notification.maxActions is missing there); Chrome, Edge and Firefox on desktop and

@@ -509,6 +509,25 @@ button:disabled { cursor: default; }
 :root.has-update #app { top: calc(var(--app-top, 0px) + var(--update-h, 0px)); height: calc(var(--app-h, 100%) - var(--update-h, 0px)); --safe-top: 0px; }
 .split .update-bar { padding-left: 16px; }
 
+/* The hub can't be reached (app.js, conn.js): a calm full-width notice at the top, with the likeliest
+   cause first and a way to open a remembered host directly. The app moves down under it like the
+   update bar; offline.html shows the same inside as its whole page. */
+.hub-down {
+  position: fixed; left: 0; right: 0; top: var(--app-top, 0px); z-index: 21;
+  padding: calc(12px + var(--safe-top)) calc(16px + var(--safe-right)) 14px calc(16px + var(--safe-left));
+  background: var(--surface); color: var(--text); border-bottom: 1px solid var(--line);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.06);
+}
+.hd-body { max-width: 640px; }
+.hd-title { margin: 0 0 4px; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.hd-title::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--blocked); box-shadow: 0 0 0 3px var(--blocked-bg); }
+.hd-line { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.hd-line:first-of-type { color: var(--text); }
+.hd-acts { margin-top: 10px; }
+.hd-acts .btn { min-height: 44px; }
+.hd-note { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+:root.has-down #app { top: calc(var(--app-top, 0px) + var(--down-h, 0px)); height: calc(var(--app-h, 100%) - var(--down-h, 0px)); --safe-top: 0px; }
+
 /* Toasts stack above the composer, which may be sitting on the keyboard; newest at the bottom. */
 .toasts {
   position: fixed; left: 16px; right: 16px; z-index: 40; pointer-events: none;
@@ -845,6 +864,26 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .conn-list .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
 .conn-list .cl-st { color: var(--muted); }
 .conn-list .cl-warn { flex-basis: 100%; color: var(--blocked); font-size: 12px; }
+/* A host line: the dot, then its name, status and address, then ⋯ on a hub (settings.js). */
+.conn-list li:has(.cl-main) { flex-wrap: nowrap; align-items: flex-start; padding: 6px 0; }
+.conn-list li:has(.cl-main) > .hdot { margin-top: 7px; }
+.conn-list .cl-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.conn-list .cl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 22px; }
+.conn-list .cl-url { flex-basis: 100%; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.conn-list .cl-more { flex: none; width: 44px; height: 44px; margin: -6px -10px -6px 0; color: var(--muted); }
+.conn-list .cl-add { margin: 2px -14px -6px; border-top: 1px solid var(--line); }
+.conn-list .cl-add .pref-link { color: var(--accent); font-weight: 600; }
+.conn-list .cl-add .pl-end { color: var(--accent); font-size: 22px; }
+.conn-list .cl-note { color: var(--muted); font-size: 13px; line-height: 1.4; padding: 4px 0 6px; }
+/* 호스트 추가 */
+.host-form .hf { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+.host-form .hf > span { font-weight: 600; color: var(--text); }
+.host-form .ha-result { min-height: 1.4em; font-size: 14px; line-height: 1.45; color: var(--muted); }
+.host-form .ha-result:empty { display: none; }
+.host-form .ha-result.on { color: var(--done); }
+.host-form .ha-result.warn { color: var(--working); }
+.host-form .ha-result.bad { color: var(--blocked); }
+.host-form .row.end .btn { flex: none; }
 .seg.hosts .api-warn { margin-left: 4px; font-weight: 700; color: var(--blocked); }
 .panel .pref-info { margin: 0; padding: 10px 14px; font-size: 13px; line-height: 1.5; }
 .pref-ver { display: flex; align-items: center; gap: 8px; padding-right: 14px; }

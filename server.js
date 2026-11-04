@@ -15,8 +15,9 @@ const times = require('./lib/times');
 const notifyLib = require('./lib/notify');
 const { parseChoices, choicesSettled } = require('./public/choices');
 const { Push } = require('./lib/push');
-const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
-const { indexPage, send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed } = require('./lib/http');
+const { Peer, ID: HOST_ID_RULE } = require('./lib/peers');
+const hoststore = require('./lib/hoststore');
+const { indexPage, send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed, corsOrigin } = require('./lib/http');
 const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
 const { screenReader } = require('./lib/screen');
 const { readBuild, describe, decorator } = require('./lib/build');
@@ -46,6 +47,12 @@ const HOST_RULE = {
   allowed: [...HOSTS, ...(ALLOW_LOCAL ? [`127.0.0.1:${PORT}`, `localhost:${PORT}`, `[::1]:${PORT}`] : [])],
   suffixes: HOSTS.length ? [] : ['.ts.net'],
 };
+// Pages of the other hosts that may read /api/version (CORS): https on this tailnet (the domain
+// after the first name of HERDR_HUB_HOSTS, else any .ts.net), and loopback with ALLOW_LOCAL.
+const CORS_RULE = {
+  suffixes: HOSTS.length ? [...new Set(HOSTS.map((h) => h.replace(/:\d+$/, '').replace(/^[^.]+/, '')).filter((d) => d.includes('.')))] : ['.ts.net'],
+  local: ALLOW_LOCAL,
+};
 
 if (!HOST_ID_RULE.test(HOST_ID) || HOST_ID === 'all') {
   console.error(`HERDR_HUB_HOST_ID must match ${HOST_ID_RULE} and not be "all".`);
@@ -60,12 +67,30 @@ if (!ALLOWED.length && !ALLOW_LOCAL) {
 // Only the hub sends notifications (HERDR_HUB_PUSH=0 on peers), so none arrive twice.
 const push = PUSH_ON ? new Push(DATA, process.env.HERDR_HUB_VAPID_SUBJECT || 'https://herdr-hub.invalid') : null;
 
-// HERDR_HUB_PEERS makes this Herdr Hub a hub over the listed peers.
-const peers = new Map(parsePeers(process.env.HERDR_HUB_PEERS).map((p) => [p.id, new Peer(p)]));
-if (peers.has(HOST_ID)) {
-  console.error('HERDR_HUB_PEERS must not list this host itself.');
+// The peers this Herdr Hub merges into its view: data/peers.json, edited in 설정 → 연결
+// (lib/hoststore.js). HERDR_HUB_PEERS seeds the file the first time; then the file wins. A host
+// with neither is a peer: its 연결 block is read-only.
+const PEERS_FILE = path.join(DATA, 'peers.json');
+// This hub's own addresses, which can't be added as a peer.
+const SELF = {
+  id: HOST_ID,
+  urls: [...HOSTS.map((h) => `https://${h}`), ...(ALLOW_LOCAL ? [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`] : [])].map((u) => {
+    try {
+      return hoststore.cleanUrl(u);
+    } catch {
+      return null;
+    }
+  }).filter(Boolean),
+};
+let peerStore;
+try {
+  peerStore = hoststore.load(PEERS_FILE, process.env.HERDR_HUB_PEERS, SELF, (m) => console.error(m));
+} catch (err) {
+  console.error(err.message);
   process.exit(2);
 }
+let peerList = peerStore.list;
+const peers = new Map();
 
 // The build this host runs (lib/build.js), written into the page it serves; the page compares it
 // with what /api/version and the stream say to know a new build is out.
@@ -189,7 +214,7 @@ const tag = (id, label) => (x) => ({ ...x, host: id, hostLabel: label });
 function publish() {
   const hosts = [{ id: HOST_ID, label: HOSTNAME, local: true, online: true, herdr: local.herdr, error: local.error, since: null, api: API_VERSION, version: BUILD.version + (BUILD.dirty ? '+dirty' : '') }, ...[...peers.values()].map((p) => p.info())];
   const order = new Map(hosts.map((h, i) => [h.id, i]));
-  const parts = [{ id: HOST_ID, label: HOSTNAME, s: local }, ...[...peers.values()].filter((p) => p.online && p.state).map((p) => ({ id: p.id, label: p.label, s: p.state }))];
+  const parts = [{ id: HOST_ID, label: HOSTNAME, s: local }, ...[...peers.values()].filter((p) => p.online && p.state).map((p) => ({ id: p.id, label: p.shown(), s: p.state }))];
   const all = (key) => parts.flatMap(({ id, label, s }) => (s[key] || []).map(tag(id, label)));
   const agents = all('agents').sort(
     (x, y) => (STATUS_RANK[x.status] ?? 9) - (STATUS_RANK[y.status] ?? 9) || order.get(x.host) - order.get(y.host) || y.stateSeq - x.stateSeq
@@ -257,13 +282,49 @@ function notifyTransitions(hostId, hostLabel, list) {
   previous.set(hostId, new Map(list.map((a) => [a.pane, { status: a.status, completion: a.completion }])));
 }
 
-for (const peer of peers.values()) {
+// A peer joins: followed from now on. Leaves: its stream is closed and its items drop out.
+function startPeer(p) {
+  const peer = new Peer(p);
   peer.on('change', () => {
-    if (peer.online && peer.state) notifyTransitions(peer.id, peer.label, peer.state.agents);
+    if (peers.get(peer.id) !== peer) return; // removed or replaced meanwhile
+    if (peer.online && peer.state) notifyTransitions(peer.id, peer.shown(), peer.state.agents);
     publish();
   });
+  peers.set(peer.id, peer);
   peer.start();
+  return peer;
 }
+function stopPeer(id) {
+  const peer = peers.get(id);
+  if (!peer) return;
+  peers.delete(id);
+  peer.stop();
+  previous.delete(id);
+}
+for (const p of peerList) startPeer(p);
+
+// 설정 → 연결 changes the list: saved first, then the connections follow, without a restart.
+function setPeerList(next) {
+  hoststore.save(PEERS_FILE, next);
+  const before = new Map(peerList.map((p) => [p.id, p]));
+  peerList = next;
+  for (const [id, old] of before) {
+    const now = next.find((p) => p.id === id);
+    if (!now || now.url !== old.url) stopPeer(id);
+  }
+  for (const p of next) {
+    const peer = peers.get(p.id);
+    if (!peer) startPeer(p);
+    else peer.name = p.label || '';
+  }
+  // The list's order, which the views follow (a changed address would otherwise go last).
+  const order = next.map((p) => [p.id, peers.get(p.id)]);
+  peers.clear();
+  for (const [id, peer] of order) peers.set(id, peer);
+  console.log(`${new Date().toISOString()} peers: ${next.map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);
+  publish();
+}
+const peerView = () => ({ manageable: peerStore.manageable, self: { id: HOST_ID, label: HOSTNAME }, max: hoststore.MAX_PEERS, peers: peerList.map((p) => ({ id: p.id, url: p.url, label: p.label || '' })) });
 
 let refreshTimer = null;
 const refreshSoon = () => {
@@ -369,7 +430,12 @@ async function api(req, res, url) {
   if (method === 'GET' && parts[0] === 'state') return send(res, 200, state);
   // The build this host serves: an installed app resumed from memory compares it with the one
   // it was served with and loads the new one (public/update.js).
-  if (method === 'GET' && parts[0] === 'version' && !parts[1]) return send(res, 200, buildNow());
+  // Readable from the other hosts' pages too (CORS, this one path only): a page whose hub is down
+  // asks the peers it remembers whether they answer (public/fallback.js). Build info only.
+  if (method === 'GET' && parts[0] === 'version' && !parts[1]) {
+    const origin = corsOrigin(req.headers.origin, CORS_RULE);
+    return send(res, 200, buildNow(), origin ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {});
+  }
 
   if (method === 'GET' && parts[0] === 'stream') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
@@ -382,8 +448,12 @@ async function api(req, res, url) {
 
   if (parts[0] === 'peers' && parts[1]) return proxy(req, res, url);
 
+  // 설정 → 연결: the peer list (lib/hoststore.js). Changed only on a hub (manageable), by its own
+  // page: the Host, login and X-Herdr-Hub checks have run; /api/peers/<id>/… never reaches here.
+  if (parts[0] === 'hosts') return hostsApi(req, res, parts);
+
   if (method === 'GET' && parts[0] === 'host')
-    return send(res, 200, { id: HOST_ID, label: HOSTNAME, api: API_VERSION, build: { version: BUILD.version, commit: BUILD.commit, time: BUILD.time, dirty: BUILD.dirty }, platform: process.platform, home: os.homedir(), kinds: KINDS, recentCwds: recentCwds(), places: dirs.places() });
+    return send(res, 200, { id: HOST_ID, label: HOSTNAME, herdr: local.herdr, api: API_VERSION, build: { version: BUILD.version, commit: BUILD.commit, time: BUILD.time, dirty: BUILD.dirty }, platform: process.platform, home: os.homedir(), kinds: KINDS, recentCwds: recentCwds(), places: dirs.places() });
 
   // Folder browser: subfolders of ?path= (home when empty), or the drive letters on Windows.
   if (method === 'GET' && parts[0] === 'dirs' && !parts[1]) {
@@ -607,6 +677,40 @@ async function api(req, res, url) {
   send(res, 404, { error: 'not_found' });
 }
 
+async function hostsApi(req, res, parts) {
+  const method = req.method;
+  if (method === 'GET' && !parts[1]) return send(res, 200, peerView());
+  if (method !== 'POST') return send(res, 404, { error: 'not_found' });
+  if (!peerStore.manageable) return send(res, 409, { error: 'not_hub' });
+  const body = await readJson(req, 8 * 1024);
+  // 연결 시험: whether a Herdr Hub answers at that address, and what it runs.
+  if (parts[1] === 'test' && !parts[2]) {
+    const r = await hoststore.probe(body.url, { selfId: HOST_ID, hubApi: API_VERSION });
+    console.log(`${new Date().toISOString()} host test ${r.url} -> ${r.code}`);
+    return send(res, 200, r);
+  }
+  if (!parts[1]) {
+    const p = hoststore.cleanPeer(body, { self: SELF, list: peerList });
+    setPeerList([...peerList, p]);
+    return send(res, 200, { ok: true, peer: p, ...peerView() });
+  }
+  const cur = peerList.find((p) => p.id === parts[1]);
+  if (!cur) return send(res, 404, { error: 'unknown_host' });
+  let next;
+  if (parts[2] === 'rename') {
+    const label = hoststore.cleanName(body.label);
+    next = peerList.map((p) => (p.id === cur.id ? (label ? { ...p, label } : { id: p.id, url: p.url }) : p));
+  } else if (parts[2] === 'url') {
+    const u = hoststore.cleanUrl(body.url);
+    hoststore.checkUrl(u, { self: SELF, list: peerList, except: cur.id });
+    next = peerList.map((p) => (p.id === cur.id ? { ...p, url: u } : p));
+  } else if (parts[2] === 'remove') {
+    next = peerList.filter((p) => p.id !== cur.id);
+  } else return send(res, 404, { error: 'not_found' });
+  setPeerList(next);
+  return send(res, 200, { ok: true, ...peerView() });
+}
+
 // What an answer request gets back (here, or through the hub from a notification button).
 const answerBody = (r) => (r.ok ? { ok: true, n: r.item.n, label: r.item.label } : { error: r.error });
 
@@ -655,7 +759,7 @@ async function proxy(req, res, url) {
   const peer = peers.get(decodeURIComponent(raw[2]));
   if (!peer) return send(res, 404, { error: 'unknown_host' });
   if (!PROXIED.has(raw[3])) return send(res, 404, { error: 'not_found' });
-  if (!peer.online) return send(res, 503, { error: 'peer_offline', message: `${peer.label} 오프라인` });
+  if (!peer.online) return send(res, 503, { error: 'peer_offline', message: `${peer.shown()} 오프라인` });
   // Photo uploads are raw image bytes; everything else is JSON. Bodies stay Buffers both ways.
   const body = req.method === 'GET' ? null : await readRaw(req, raw[3] === 'uploads' ? uploads.MAX_BYTES : undefined);
   const headers = req.method === 'GET' ? {} : { 'Content-Type': req.headers['content-type'] || 'application/json', 'X-Herdr-Hub': '1' };
@@ -665,7 +769,7 @@ async function proxy(req, res, url) {
   } catch (err) {
     const timeout = Boolean(err.timeout);
     console.error(`${new Date().toISOString()} proxy ${req.method} ${peer.id} ${raw.slice(3).join('/')}: ${err.code || err.message}`);
-    return send(res, timeout ? 504 : 502, { error: timeout ? 'peer_timeout' : 'peer_unreachable', message: `${peer.label}: ${err.code || err.message}` });
+    return send(res, timeout ? 504 : 502, { error: timeout ? 'peer_timeout' : 'peer_unreachable', message: `${peer.shown()}: ${err.code || err.message}` });
   }
   const out = { 'Content-Type': r.type, ...(r.cache ? { 'Cache-Control': r.cache } : {}) };
   // Came gzipped and the browser takes gzip: passed on as it is; otherwise send() decides.
@@ -698,7 +802,7 @@ server.listen(PORT, HOST, () => {
   console.log(ALLOWED.length ? `allowed tailscale logins: ${ALLOWED.join(', ')}` : 'local access only');
   console.log(`hosts: ${[...HOST_RULE.allowed, ...HOST_RULE.suffixes.map((x) => `*${x}`)].join(', ')}`);
   console.log(`build ${BUILD.version}${BUILD.dirty ? '+dirty' : ''} ${BUILD.commit} (${BUILD.from}); API ${API_VERSION}`);
-  console.log(`host ${HOST_ID} (${HOSTNAME}); push ${push ? 'on' : 'off'}${PUSH_MUTE.length ? ` (muted: ${PUSH_MUTE.join(', ')})` : ''}; peers: ${[...peers.values()].map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);
+  console.log(`host ${HOST_ID} (${HOSTNAME}); push ${push ? 'on' : 'off'}${PUSH_MUTE.length ? ` (muted: ${PUSH_MUTE.join(', ')})` : ''}; peers (${peerStore.from}${peerStore.manageable ? '' : ', not a hub'}): ${[...peers.values()].map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);
 });
 
 for (const sig of ['SIGINT', 'SIGTERM'])

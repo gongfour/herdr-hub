@@ -68,3 +68,57 @@ test('push: actions only where the browser shows them; renotify from the payload
   assert.equal(w.shown[0].renotify, false);
   assert.equal(w.shown[0].actions.length, 2);
 });
+
+// The page load fallback: offline.html (cached at install) when the hub's page can't be loaded.
+function loadNav(netReply) {
+  const handlers = {};
+  const cache = new Map();
+  const added = [];
+  const caches = {
+    open: async () => ({ addAll: async (reqs) => reqs.forEach((r) => (added.push(r.url), cache.set(r.url, `cached ${r.url}`))) }),
+    match: async (u) => cache.get(u) || undefined,
+  };
+  const self = { location: { origin: 'https://hub.invalid' }, addEventListener: (t, fn) => (handlers[t] = fn), skipWaiting() {}, clients: { claim() {} }, registration: {} };
+  class Request {
+    constructor(url, init) {
+      this.url = url;
+      this.init = init;
+    }
+  }
+  const fetch = async (req) => netReply(req);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/sw.js'), 'utf8'), { self, fetch, caches, Request, URL, Response: { error: () => 'error' }, setTimeout: () => 0, Date });
+  const install = async () => {
+    let wait;
+    handlers.install({ waitUntil: (p) => (wait = p) });
+    await wait;
+  };
+  const get = async (url, mode = 'navigate') => {
+    let reply = 'not handled';
+    const waits = [];
+    handlers.fetch({ request: { url, method: 'GET', mode }, respondWith: (p) => (reply = p), waitUntil: (p) => waits.push(p) });
+    return reply === 'not handled' ? reply : await reply.catch((e) => `threw ${e.message}`);
+  };
+  return { install, get, added };
+}
+
+test('a page load that fails gets offline.html; a working one, the API and assets go to the network untouched', async () => {
+  let net = (req) => ({ ok: true, status: 200, body: `net ${req.url}` });
+  const w = loadNav((req) => net(req));
+  await w.install();
+  assert.deepEqual(w.added, ['/offline.html', '/conn.js', '/style.css']);
+  assert.deepEqual(await w.get('https://hub.invalid/#/'), { ok: true, status: 200, body: 'net https://hub.invalid/#/' });
+  assert.equal(await w.get('https://hub.invalid/api/stream', 'cors'), 'not handled');
+  assert.equal(await w.get('https://hub.invalid/app.js?v=1234abcd', 'no-cors'), 'not handled');
+  assert.equal(await w.get('https://other.invalid/', 'navigate'), 'not handled');
+  net = () => {
+    throw new TypeError('Failed to fetch');
+  };
+  assert.equal(await w.get('https://hub.invalid/'), 'cached /offline.html');
+  assert.equal(await w.get('https://hub.invalid/conn.js', 'no-cors'), 'cached /conn.js');
+  assert.equal(await w.get('https://hub.invalid/style.css', 'no-cors'), 'cached /style.css');
+  // tailscale serve's 502 while Herdr Hub is down counts as down; a 403 or 404 does not.
+  net = () => ({ ok: false, status: 502 });
+  assert.equal(await w.get('https://hub.invalid/'), 'cached /offline.html');
+  net = () => ({ ok: false, status: 403 });
+  assert.deepEqual(await w.get('https://hub.invalid/'), { ok: false, status: 403 });
+});

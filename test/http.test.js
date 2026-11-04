@@ -197,3 +197,20 @@ test('hostAllowed: the serve names, loopback only when listed, anything else ref
   assert.equal(hostAllowed('evilts.net', any), false);
   assert.equal(hostAllowed('127.0.0.1:8787', any), false);
 });
+
+test('corsOrigin: this tailnet over https, loopback with ALLOW_LOCAL, nothing else and never *', () => {
+  const { corsOrigin } = require('../lib/http');
+  const rule = { suffixes: ['.example.ts.net'], local: false };
+  assert.equal(corsOrigin('https://desktop.example.ts.net', rule), 'https://desktop.example.ts.net');
+  assert.equal(corsOrigin('https://server.example.ts.net:8443', rule), 'https://server.example.ts.net:8443');
+  assert.equal(corsOrigin('http://desktop.example.ts.net', rule), null); // not https
+  assert.equal(corsOrigin('https://example.ts.net', rule), null); // the suffix alone
+  assert.equal(corsOrigin('https://evil.other.ts.net', rule), null); // another tailnet
+  assert.equal(corsOrigin('https://desktop.example.ts.net.evil.com', rule), null);
+  assert.equal(corsOrigin('null', rule), null);
+  assert.equal(corsOrigin(undefined, rule), null);
+  assert.equal(corsOrigin('https://desktop.example.ts.net/path', rule), null);
+  assert.equal(corsOrigin('http://127.0.0.1:8797', rule), null);
+  assert.equal(corsOrigin('http://127.0.0.1:8797', { ...rule, local: true }), 'http://127.0.0.1:8797');
+  assert.equal(corsOrigin('http://localhost:8797', { ...rule, local: true }), 'http://localhost:8797');
+});

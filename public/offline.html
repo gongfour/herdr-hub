@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#161614" media="(prefers-color-scheme: dark)">
+  <title>Herdr Hub — 연결 안 됨</title>
+  <script>
+    // The service worker serves this page when the app's own page can't be loaded (sw.js).
+    try {
+      var t = localStorage.getItem('herdr-hub.theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    html, body { background: var(--bg, #f6f5f1); color: var(--text, #1d1c19); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow: auto; }
+    .hub-down.hd-page { position: static; border: 0; box-shadow: none; background: none; padding: calc(40px + env(safe-area-inset-top, 0px)) 20px 24px; }
+    .hd-page .hd-body { margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <main class="hub-down hd-page" id="o" role="status"></main>
+  <script src="/conn.js"></script>
+  <script>
+    (function () {
+      var box = document.getElementById('o');
+      var rec = null;
+      try { rec = Conn.read(localStorage); } catch (e) {}
+      var cands = Conn.candidates(rec, location.origin);
+      var draw = function (live, probing) { box.innerHTML = Conn.noticeHtml(Conn.notice(rec, { live: live, probing: probing })); };
+      var ask = function () {
+        draw([], cands.length > 0);
+        if (cands.length) Conn.probe(cands, fetch.bind(window)).then(function (live) { draw(live, false); });
+      };
+      box.addEventListener('click', function (e) {
+        if (e.target.closest('[data-retry]')) location.reload();
+      });
+      ask();
+    })();
+  </script>
+</body>
+</html>

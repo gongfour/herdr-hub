@@ -8,7 +8,7 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
 
 - 서버: `server.js` — herdr API 소켓(Windows 는 named pipe)에 직접 붙는다. SSH·셸을 거치지 않는다.
 - 화면: `public/` — 빌드 없는 바닐라 JS. 목록, 에이전트 보기(대화 + 작업 줄 + 터미널 화면 시트), 응답 키, 보내기, 중단(Esc), 웹 푸시 알림.
-  - 파일: 번들러 없이 `index.html` 이 `<script defer>` 로 차례대로 읽고, 모두 한 전역 범위를 나눠 쓴다. 먼저 순수 함수 파일(`choices` `ansi` `activity` `mode` `inbox` `split` `keys` `keymap` `prefs` `route` `markdown` `update` `motion` `forward`, 시험은 `npm test`), 그다음 `core.js`(상태·api()·설정값 이름·시트·메뉴·단축키 시트·알림 줄), 화면별 파일 `list` `rows` `tabswipe` `backswipe` `fwdchip` `answer` `chat` `composer` `agent` `actions` `shell` `screen` `workspace` `forms` `switcher` `push` `settings` `keyspage` `viewport`, 맨 끝에 `app.js`(실시간 연결·주소·두 칸 배치·시작). 맨 위 코드는 리스너 등록과 정의만 하고, 그리는 일은 `app.js` 에서 시작한다. 새 파일은 `index.html` 에 `?v=` 없이 그냥 넣는다(서버가 붙인다, 아래 정적 파일).
+  - 파일: 번들러 없이 `index.html` 이 `<script defer>` 로 차례대로 읽고, 모두 한 전역 범위를 나눠 쓴다. 먼저 순수 함수 파일(`choices` `ansi` `activity` `mode` `inbox` `split` `keys` `keymap` `prefs` `route` `markdown` `update` `conn` `motion` `forward`, 시험은 `npm test`), 그다음 `core.js`(상태·api()·설정값 이름·시트·메뉴·단축키 시트·알림 줄), 화면별 파일 `list` `rows` `tabswipe` `backswipe` `fwdchip` `answer` `chat` `composer` `agent` `actions` `shell` `screen` `workspace` `forms` `switcher` `push` `settings` `keyspage` `viewport`, 맨 끝에 `app.js`(실시간 연결·주소·두 칸 배치·시작). 맨 위 코드는 리스너 등록과 정의만 하고, 그리는 일은 `app.js` 에서 시작한다. 새 파일은 `index.html` 에 `?v=` 없이 그냥 넣는다(서버가 붙인다, 아래 정적 파일).
   - 서버 쪽 도움 모듈: `lib/http.js`(응답·본문·정적 파일·Host 검사), `lib/tools.js`(도구 한 줄 요약), `lib/validate.js`(키·글·이름·폴더·에이전트 검사), `lib/screen.js`(패널 읽기와 herdr 대체 경로).
 - 탭: 아래 탭 막대 「작업공간 / 설정」(`#/`, `#/settings`). 앱은 작업공간으로 열린다. 예전 홈 탭은 없앴다: 예전 주소 `#/spaces`(`#/h/<host>/spaces`)는 `#/` 로 바뀌고, 마지막 탭을 적어 두던 `herdr-hub.tab` 은 처음 열 때 지운다. 에이전트·셸·워크스페이스 화면의 뒤로는 작업공간으로 간다. 목록의 스크롤 위치를 기억한다. 호스트 선택·+ 는 작업공간 머리글에 있다. 작업공간 카드 맨 위의 이름(과 폴더)을 누르면 그 워크스페이스 화면(`#/ws/<id>`, 두 칸이면 오른쪽)이 열리고, 옆의 ⋯ 는 그 메뉴다. 작업공간 탭에는 답 필요 수가 뜬다.
 - 넓은 화면(폭 1000px 이상: 가로로 둔 Galaxy Tab S7+, 노트북)은 두 칸이다(`public/split.js`, 시험은 `npm test`). 맨 왼쪽은 VS Code 처럼 활동 막대(52px: 위에 작업공간, 아래 끝에 설정), 그 옆 사이드바(340–380px)는 늘 작업공간 목록과 호스트 선택·+, 오른쪽은 연 에이전트·셸·워크스페이스·새 워크스페이스·설정 화면. 아무것도 열지 않았으면 「왼쪽에서 에이전트를 고르세요」와 이 기기의 단축키 몇 가지(빠른 이동·목록 옮기기·다음 답 필요·사이드바). 세로 태블릿(876)·화면 분할의 반쪽·휴대폰은 전과 같은 한 칸이다.
@@ -92,7 +92,7 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
   - API(호스트마다, 피어는 허브가 넘긴다): `GET /api/agents/<pane>/commands` → `{supported, cwd, commands: [{name, desc, hint, source, menu?, scope?}]}`, `GET /api/agents/<pane>/files?q=` → `{supported, files: [{path, dir}], truncated}`. 파일 내용은 보내지 않는다. 폴더(cwd)마다 60초 캐시.
   - 출처(`lib/commands.js`, 2.1.317 에서 실제 `/` 메뉴와 맞춰 봄): 기본 명령은 문서 code.claude.com/docs/en/commands 의 표 전부(기본 명령·번들 스킬 `/run`·`/verify` 등·번들 워크플로 `/deep-research`, 117개; 없어진 `/vim`·`/pr-comments`·`/ultraplan` 과 별칭은 뺐다, 2026-11-03 확인). 요금제·플랫폼에 따라 실제 메뉴에 없는 것도 있다. 프로젝트 `<폴더>/.claude/commands/**/*.md`(폴더와 그 위로 git 루트까지, 하위 폴더는 `a:b`), 사용자 `~/.claude/commands/**/*.md`, 스킬 `~/.claude/skills/*/SKILL.md`·`<폴더…>/.claude/skills/*/SKILL.md`·claude.ai 에서 동기화된 `~/.claude/skills/synced/<id>/*/SKILL.md`(이름 그대로), 켜진 플러그인(`installed_plugins.json` + `settings.json` 의 `enabledPlugins`)의 `commands/`·`skills/` 를 `플러그인:이름` 으로. 이름·`description`·`argument-hint` 는 frontmatter, 설명이 없으면 본문 첫 줄. `user-invocable: false` 와 `skillOverrides` 의 `"off"` 는 숨긴다. 같은 이름이면 스킬이 명령을, 개인이 프로젝트를, 스킬·명령이 기본 명령을 이긴다. MCP 프롬프트(`/mcp__서버__프롬프트`)는 서버를 띄워야 알 수 있어 넣지 않았다.
 - 글 줄바꿈: 한국어는 낱말 사이에서만 끊는다(`body` 의 `word-break: keep-all; overflow-wrap: anywhere`, 긴 경로·주소는 그래도 끊긴다). 코드·터미널 글(`pre`·`code`·화면 상자)은 예전처럼. 꺼진(disabled) 단추는 모두 흐리게(0.45) 보인다.
-- 설정(`#/settings`, 두 칸이면 오른쪽): 쓰는 차례로 알림 · 입력(메시지 칸의 리턴 키, 셸 입력, 오른쪽 끝에서 밀어 방금 본 대화로) · 화면(화면 모드, 터미널 색상, 줄바꿈 · 셸 / 에이전트 터미널 화면) · 키보드(단축키 보기, 터치만 있는 기기에서는 숨김) · 연결 · 정보(호스트별 herdr·에이전트 수, 빌드 「1.0.523 · 11-05 00:58 · ae7dc0a」(누르면 전체 커밋 해시를 복사, 서버가 다른 빌드면 「… · 새 버전 1.0.524 (11-05 01:30) 있음」)과 「새로고침」, 피어의 API 버전이 허브와 다르면 그 줄에 알림·주소, 「이 기기 저장 데이터 지우기」).
+- 설정(`#/settings`, 두 칸이면 오른쪽): 쓰는 차례로 알림 · 입력(메시지 칸의 리턴 키, 셸 입력, 오른쪽 끝에서 밀어 방금 본 대화로) · 화면(화면 모드, 터미널 색상, 줄바꿈 · 셸 / 에이전트 터미널 화면) · 키보드(단축키 보기, 터치만 있는 기기에서는 숨김) · 연결 · 정보(호스트별 herdr·에이전트 수, 허브에서는 호스트 추가·이름·주소 바꾸기·연결 시험·빼기(아래 「여러 호스트」), 빌드 「1.0.523 · 11-05 00:58 · ae7dc0a」(누르면 전체 커밋 해시를 복사, 서버가 다른 빌드면 「… · 새 버전 1.0.524 (11-05 01:30) 있음」)과 「새로고침」, 피어의 API 버전이 허브와 다르면 그 줄에 알림·주소, 「이 기기 저장 데이터 지우기」).
   - 설정값은 모두 이 기기의 localStorage 에 있고, 표 하나 `public/prefs.js` 가 저장 키·기본값·보이는 모양을 정한다(시험은 `npm test` 의 `test/prefs.test.js`). 저장 키와 값은 예전 그대로다(`herdr-hub.enter` `shellInput` `theme` `color` `wrap.term` `wrap.agent`, 켜고 끄기는 `'1'/'0'`, 화면 모드 시스템은 키를 지운다). 저장이 안 되는 브라우저(개인 정보 보호 모드)에서는 고른 것이 그 페이지 동안만 간다. 새 설정을 넣는 규칙은 `AGENTS.md`.
   - 화면은 한 번 그리고 나면 고치기만 한다: 실시간 상태가 바뀌면 연결 칸만, 알림 상태를 다시 물은 답은 알림 칸만, 고른 설정은 그 줄만 바뀐다(키보드 포커스가 그대로). 선택 칸(라디오 묶음)은 Tab 한 번에 들어가고 ←/→(↑/↓)·Home/End 로 고른다. 설정을 열면(Ctrl+, 포함, 두 칸이면 오른쪽) 포커스가 설정 페이지 자체로 간다: 테두리는 없고, 화살표·PgUp/PgDn 으로 스크롤하며 Tab 이 첫 설정으로 간다.
   - 알림 칸(`public/push.js`): 한 줄 상태(받는 중 / 꺼짐 / 거부됨 / 설치해야 함)와 될 때만 단추(알림 켜기, 또는 시험 알림·알림 끄기), 그리고 할 일 한 줄. 무엇을 보일지는 순수 함수 `pushView()` 가 기기(iPhone·Android·데스크톱)·설치 여부·권한·구독 여부로 정한다(시험 있음). 「홈 화면에 추가」 안내는 설치 안 된 iPhone 에서만, 거부됐을 때 고치는 곳도 기기마다 다르다. 허브가 아닌 호스트에서는 알림을 켤 허브 이름을 호스트 목록에서 가져온다.
@@ -117,8 +117,17 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 | desktop (Windows) | 허브, 알림 | `https://desktop.uaru-monster.ts.net` | 0.9.5 |
 | server (이 맥북) | 피어 | `https://server.uaru-monster.ts.net:8443` | 0.9.3 |
 
+- 피어 목록(`lib/hoststore.js`, 시험은 `npm test`)은 허브의 데이터다: `data/peers.json`(`[{ id, url, label? }]`, 임시 파일에 쓰고 바꿔 끼운다). 설정 → 연결에서 고치고, 바꾸면 다시 시작하지 않아도 그 피어의 연결을 열거나 닫는다. 파일이 없을 때 한 번만 `HERDR_HUB_PEERS` 로 채우고(씨앗), 그 뒤로는 파일이 이긴다 — `run.cmd` 의 줄을 바꿔도 이미 있는 목록은 그대로다(다시 씨앗을 쓰려면 `data/peers.json` 을 지운다). 파일도 씨앗도 없는 호스트는 피어다: 연결 칸이 읽기 전용이고 「호스트는 허브에서 관리합니다」. 피어를 모두 빼도 빈 파일이 남아 허브로 남는다. 손으로 고친 파일에서 맞지 않는 줄은 로그에 남기고 건너뛴다(JSON 이 깨졌으면 `peers.json.bad` 로 두고 빈 목록).
+  - 설정 → 연결: 호스트 줄마다 점·이름·herdr·에이전트 수·주소, 피어 줄의 ⋯ → 이름 바꾸기(비우면 피어가 스스로 쓰는 이름) / 주소 바꾸기(곧바로 새 주소로 다시 붙고 연결 시험) / 연결 시험 / 빼기(확인). 「호스트 추가」 는 이름·주소 칸과 「연결 시험」, 「추가」(시험하지 않았으면 먼저 시험하고, 실패하면 「그래도 추가」 — 잠든 피어도 넣을 수 있다). 새 호스트의 id(주소 `#/h/<id>/…`)는 연결 시험에서 그 호스트가 밝힌 자기 id, 없으면 이름, 없으면 주소의 첫 이름이다. 주소는 바꿀 수 있고 id 는 그대로다.
+  - API(허브 자신의 것, `/api/peers/<id>/…` 로는 넘기지 않는다): `GET /api/hosts` → `{manageable, self, max, peers}`, `POST /api/hosts {id, url, label}`, `POST /api/hosts/<id>/rename {label}`, `POST /api/hosts/<id>/url {url}`, `POST /api/hosts/<id>/remove`, `POST /api/hosts/test {url}` → `{url, ok, code, id, label, herdr, api, apiMatch, version}`. 바꾸는 것은 다른 변경과 같은 검사(Host 허용 목록, 로그인, `X-Herdr-Hub`)를 거치고, 허브가 아니면 `409 not_hub`. 오류: `bad_url`, `bad_host_id`, `host_is_self`, `host_id_taken`, `host_url_taken`, `bad_label`, `too_many_hosts`(16), `unknown_host`.
+  - 연결 시험은 그 주소의 `/api/version` 과 `/api/host` 를 묻는다. `code`: `ok`, `timeout`, `dns`, `refused`, `tls`, `redirect`, `bad_host`(그쪽 `HERDR_HUB_HOSTS` 에 없는 이름, 403), `forbidden`(그쪽이 이 로그인을 막음), `http`(예: tailscale serve 의 502 — 노드는 있는데 Herdr Hub 가 꺼짐), `not_hub`, `self`.
+  - 보안: 피어를 더하면 허브가 사람이 적은 주소로 요청을 보낸다. 그래서 주소는 http(s) 출처만(경로·쿼리·로그인 없이, 스킴이 없으면 https), 리다이렉트는 따라가지 않고(그대로 `redirect` 라고 알린다), 5초 제한·64KB 까지만 읽는다. 허브 자신에게는 tailnet 기기만 닿는다(`tailscale serve`, 지금까지와 같은 모델). 새로 넘겨 주는 경로는 없다(피어 프록시는 그대로).
+- 허브가 안 될 때(`public/conn.js`, 시험은 `npm test`): 앱은 이 기기의 `herdr-hub.hosts`(localStorage)에 마지막으로 본 호스트와 그 주소(허브는 지금 페이지의 출처, 피어는 `state.hosts[].url`)를 적어 둔다. 실시간 연결이 10초 넘게 끊겼고 `/api/version` 도 안 되면(배포의 재시작은 그 안에 돌아온다; tailscale serve 의 502 도 안 되는 것으로 본다) 맨 위에 「허브(desktop)에 연결할 수 없습니다」와 먼저 볼 것(「이 기기의 Tailscale 이 켜져 있는지 확인하세요」), 기억한 피어 가운데 지금 답하는 것마다 「server 로 직접 열기」, 「다시 시도」를 띄운다. 돌아오면 저절로 사라진다.
+  - 답하는지는 브라우저가 그 피어의 `GET /api/version` 을 직접 묻는다(3.5초, 자격 증명 없이). 그래서 `/api/version` 하나만 CORS 로 읽게 했다(`Access-Control-Allow-Origin` 은 같은 tailnet 의 https 출처 — `HERDR_HUB_HOSTS` 의 첫 이름 뒤 도메인, 비었으면 `*.ts.net` — 와 `HERDR_HUB_ALLOW_LOCAL` 일 때 loopback 만, `*` 는 쓰지 않음). 빌드 정보뿐이라 열어도 되고, 확인 없이 링크만 주면 잠든 피어로 보내게 되기 때문이다.
+  - 앱의 페이지조차 받지 못할 때(Tailscale 이 꺼졌거나 desktop 이 잠들어 연결이 안 되거나 502·503·504)는 서비스 워커가 브라우저 오류 화면 대신 `offline.html` 을 보여 준다(같은 안내와 단추). 서비스 워커는 이것과 그 파일(`conn.js`, `style.css`)만 캐시하고, 페이지를 받을 때 한 시간에 한 번 새로 받는다. API·실시간 연결·다른 파일은 전처럼 네트워크로만 간다.
+  - 직접 연 피어는 다른 출처다: 그 호스트의 에이전트만 보이고, 설치한 앱·설정·알림·보관한 대화가 따로다(필요하면 그 주소로 따로 설치한다).
 - 허브는 피어마다 `/api/stream`(SSE)을 구독한다. 끊기면 다시 붙고(1초부터 최대 30초 간격), 6초 안에 돌아오지 않으면 그 피어를 **오프라인**으로 표시하고 그 항목을 목록에서 뺀다. 연결은 됐는데 50초 동안 아무것도 안 오면(노트북이 잠든 경우) 끊은 것으로 본다.
-- 허브의 `/api/state`·`/api/stream` 은 모든 호스트를 합친 것이다. 에이전트·터미널·워크스페이스마다 `host`(id)·`hostLabel` 이 붙고, `hosts` 에 호스트별 `online`·`herdr`·`since` 가 들어 있다.
+- 허브의 `/api/state`·`/api/stream` 은 모든 호스트를 합친 것이다. 에이전트·터미널·워크스페이스마다 `host`(id)·`hostLabel` 이 붙고, `hosts` 에 호스트별 `online`·`herdr`·`since`(피어는 허브가 따라가는 주소 `url` 도)가 들어 있다. `/api/host` 는 `herdr` 상태도 준다.
 - 호스트별 요청은 `/api/peers/<id>/<나머지>` 로 보내면 허브가 피어의 `/api/<나머지>` 로 넘긴다(`host`, `dirs`, `agents`, `panes`, `workspaces`, `uploads` 만). 본문은 이진 그대로 오간다(사진 업로드는 10MB, 나머지는 256KB 까지). `X-Herdr-Hub` 검사는 허브에서 먼저 하고 피어로도 넘긴다. 피어가 오프라인이면 `503 peer_offline`, 시간 초과는 `504`(조회 15초, 변경 60초).
 - 알림 내용(`lib/notify.js`, 시험은 `npm test`): 에이전트마다 `tag` 하나(`host|pane`)라 새 상태가 옛 알림을 바꾼다.
   - 답 필요: 허브가 화면을 읽어(피어 것은 피어에게 물어) 본문에 무엇을·질문·선택지를 짧게 넣는다. 예 「Bash: echo hi > note.txt / 진행할까요? 1 Yes · 2 Always · 3 Auto mode · 4 No」. `renotify` 를 켠다.
@@ -140,7 +149,7 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 | `HERDR_HUB_HOSTS` | 이 Herdr Hub 의 이름(쉼표, `Host` 머리글 그대로). `tailscale serve` 는 브라우저의 Host 를 그대로 넘긴다(desktop `desktop.uaru-monster.ts.net`, server `server.uaru-monster.ts.net:8443`, 둘 다 확인함). 다른 Host 는 로그인 검사 전에 `403 bad_host` — 자기 도메인을 127.0.0.1 로 돌린 페이지(DNS rebinding)를 막는다. 포트 없는 이름은 `:443` 도 받는다. 비우면 `*.ts.net` 아무 이름. `127.0.0.1:PORT`·`localhost:PORT` 는 `HERDR_HUB_ALLOW_LOCAL=1` 일 때만 |
 | `HERDR_HUB_HOST_ID` | 짧은 호스트 id(`desktop`, `server`). 영문 소문자로 시작, `all` 은 못 쓴다 |
 | `HERDR_HUB_HOST_LABEL` | 화면에 보일 이름 |
-| `HERDR_HUB_PEERS` | 허브로 만든다: `id=url` 을 쉼표로. 예 `server=https://server.uaru-monster.ts.net:8443` |
+| `HERDR_HUB_PEERS` | 허브로 만든다: `id=url` 을 쉼표로. 예 `server=https://server.uaru-monster.ts.net:8443`. `data/peers.json` 이 없을 때 한 번만 쓰는 씨앗이고, 그 뒤 목록은 설정 → 연결에서 고친다(위) |
 | `HERDR_HUB_PUSH` | `0` 이면 알림을 보내지 않는다(피어용) |
 | `HERDR_HUB_PUSH_MUTE` | 알리지 않을 폴더·워크스페이스 이름 앞글자(쉼표). 시험 워크스페이스용 |
 | `HERDR_HUB_VAPID_SUBJECT`, `HERDR_HUB_DATA`, `PORT`, `HOST` | 전과 같음 |
@@ -148,7 +157,7 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 ## 운영 — desktop (허브)
 
 - 위치: `C:\Users\kangw\src\herdr-hub`, 로그는 `data\herdr-hub.log`, VAPID 키·구독은 `data\`.
-- 시작: 로그온 때 예약 작업 `HerdrHub` 가 `conhost.exe --headless run.cmd` 로 창 없이 띄운다(127.0.0.1:8787). 콘솔 창으로 띄우면 그 창을 닫거나 Ctrl+C 가 눌리는 순간 서버가 꺼진다(종료 코드 0xC000013A). 호스트 id·피어 목록도 `run.cmd` 에 있다. `run.cmd` 는 CRLF 로 둔다(LF 면 cmd 가 `set` 줄을 빠뜨린다).
+- 시작: 로그온 때 예약 작업 `HerdrHub` 가 `conhost.exe --headless run.cmd` 로 창 없이 띄운다(127.0.0.1:8787). 콘솔 창으로 띄우면 그 창을 닫거나 Ctrl+C 가 눌리는 순간 서버가 꺼진다(종료 코드 0xC000013A). 호스트 id 와 피어 목록의 씨앗도 `run.cmd` 에 있다(피어 목록은 `data\peers.json`, 설정 → 연결에서 고친다). `run.cmd` 는 CRLF 로 둔다(LF 면 cmd 가 `set` 줄을 빠뜨린다).
 - 공개: `tailscale serve --bg 8787` → `https://desktop.uaru-monster.ts.net` (tailnet 전용).
 - 배포: 맥에서 `./deploy.sh` (또는 `./deploy.sh desktop`).
 
@@ -185,4 +194,4 @@ tailscale serve --https=8443 off
 rm -rf ~/.local/share/herdr-hub
 ```
 
-그다음 desktop `run.cmd` 의 `HERDR_HUB_PEERS` 줄을 지우고 `./deploy.sh` 하면 허브가 혼자 도는 Herdr Hub 으로 돌아간다(지우지 않아도 server 가 계속 오프라인으로 보일 뿐 동작에는 문제없다).
+그다음 허브의 설정 → 연결에서 server 의 ⋯ → 빼기(빼지 않아도 server 가 계속 오프라인으로 보일 뿐 동작에는 문제없다). `run.cmd` 의 `HERDR_HUB_PEERS` 는 씨앗일 뿐이라 지우지 않아도 된다.

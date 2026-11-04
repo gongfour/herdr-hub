@@ -31,6 +31,7 @@ function connect() {
     retryDelay = 1000;
     live = true;
     state = JSON.parse(e.data);
+    hubUp();
 
     resolveReady();
     onState();
@@ -38,6 +39,7 @@ function connect() {
   es.onerror = () => {
     state = { ...state, herdr: 'offline' };
     live = false;
+    hubLost();
     if (listShown()) render();
     if (view.name === 'agent') renderDetailHeader();
     if (view.name === 'term') renderTerminalHeader();
@@ -56,9 +58,98 @@ const STALE_MS = 35000;
 function revive(reason) {
   if (stream && stream.readyState === EventSource.OPEN && Date.now() - lastHeard < (reason === 'watchdog' ? STALE_MS : 4000)) return;
   live = false;
+  hubLost();
   if (listShown()) render();
   retryDelay = 1000;
   connect();
+}
+
+// ------------------------------------------------------------ hub down (conn.js)
+
+// The hosts this device last saw, with their own addresses, kept for when this page's server
+// can't be reached: the stream down for a while and /api/version failing too shows a calm notice
+// with the likeliest cause and, for each remembered host that answers, a way to open it directly
+// (another origin: its own app install and settings). offline.html says the same when even the
+// page can't be loaded (sw.js).
+let downSince = null;
+let downTimer = null;
+let downBar = null;
+let downProbe = { at: 0, live: [], busy: false };
+function hubUp() {
+  downSince = null;
+  clearTimeout(downTimer);
+  hideHubDown();
+  try {
+    Conn.write(localStorage, Conn.remember(Conn.read(localStorage), location.origin, state));
+  } catch {}
+}
+function hubLost() {
+  if (!downSince) downSince = Date.now();
+  clearTimeout(downTimer);
+  downTimer = setTimeout(checkHubDown, Math.max(500, downSince + Conn.DOWN_MS - Date.now()));
+}
+async function checkHubDown() {
+  clearTimeout(downTimer);
+  if (!downSince || live) return;
+  if (Date.now() - downSince < Conn.DOWN_MS) return hubLost();
+  let versionOk = false;
+  try {
+    const r = await fetch('/api/version', { cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
+    versionOk = r.ok && Conn.answers(r.status, await r.json().catch(() => null));
+  } catch {}
+  if (!downSince || live) return;
+  if (Conn.hubDown({ downSince, now: Date.now(), versionOk })) {
+    showHubDown();
+    // The peers are asked again now and then while the notice stays.
+    if (!downProbe.busy && Date.now() - downProbe.at > 30000) probeHosts();
+  }
+  downTimer = setTimeout(checkHubDown, 10000);
+}
+async function probeHosts() {
+  const rec = Conn.read(localStorage);
+  const cands = Conn.candidates(rec, location.origin);
+  downProbe = { at: Date.now(), live: downProbe.live, busy: cands.length > 0 };
+  showHubDown();
+  if (!cands.length) return;
+  const got = await Conn.probe(cands, fetch.bind(window));
+  downProbe = { at: Date.now(), live: got, busy: false };
+  if (downBar) showHubDown();
+}
+function showHubDown() {
+  if (!downSince || live) return;
+  if (!downBar) {
+    hideUpdateBanner();
+    downBar = document.createElement('div');
+    downBar.className = 'hub-down';
+    downBar.setAttribute('role', 'status');
+    downBar.addEventListener('click', (e) => {
+      if (!e.target.closest('[data-retry]')) return;
+      downProbe.at = 0;
+      revive('retry');
+      checkHubDown();
+    });
+    document.body.appendChild(downBar);
+    new ResizeObserver(() => downBar && document.documentElement.style.setProperty('--down-h', `${downBar.offsetHeight}px`)).observe(downBar);
+    document.documentElement.classList.add('has-down');
+  }
+  const html = Conn.noticeHtml(Conn.notice(Conn.read(localStorage), { live: downProbe.live, probing: downProbe.busy }));
+  if (downBar._html === html) return;
+  // Redrawn in place: a focused button keeps the focus when it is still there.
+  const focused = document.activeElement && downBar.contains(document.activeElement) ? document.activeElement.getAttribute('data-direct') || (document.activeElement.hasAttribute('data-retry') ? 'retry' : null) : null;
+  downBar._html = html;
+  downBar.innerHTML = html;
+  if (focused) {
+    const again = focused === 'retry' ? downBar.querySelector('[data-retry]') : downBar.querySelector(`[data-direct="${CSS.escape(focused)}"]`);
+    if (again) again.focus({ preventScroll: true });
+  }
+}
+function hideHubDown() {
+  if (!downBar) return;
+  downBar.remove();
+  downBar = null;
+  downProbe = { at: 0, live: [], busy: false };
+  document.documentElement.classList.remove('has-down');
+  document.documentElement.style.removeProperty('--down-h');
 }
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && revive('visible'));
 window.addEventListener('pageshow', (e) => e.persisted && revive('pageshow'));
@@ -146,7 +237,7 @@ async function reloadToNew({ auto = false } = {}) {
 }
 let updateBanner = null;
 function showUpdateBanner() {
-  if (!hasNew() || session.get(DISMISS_KEY) === serverBuild.id) return;
+  if (!hasNew() || session.get(DISMISS_KEY) === serverBuild.id || downBar) return;
   if (!updateBanner) {
     updateBanner = document.createElement('div');
     updateBanner.className = 'update-bar';
@@ -695,5 +786,6 @@ window.addEventListener('pagehide', stashDraft);
 splitMq.addEventListener('change', relayout);
 document.documentElement.classList.toggle('side-off', sideOff());
 connect();
+hubLost(); // until the first state: a hub that never answers shows the notice too
 if (splitMq.matches) relayout();
 else route();

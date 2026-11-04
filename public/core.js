@@ -66,6 +66,13 @@ const ERROR_TEXT = {
   agent_blocked: '에이전트가 답을 기다리는 중입니다. 위 버튼으로 먼저 답해 주세요.',
   not_subscribed: '이 기기는 알림이 꺼져 있습니다.',
   forbidden: '이 기기는 허용되지 않았습니다.',
+  bad_url: 'https://이름:포트 꼴의 주소만 됩니다(경로·로그인 없이).',
+  bad_host_id: '호스트 id 가 올바르지 않습니다.',
+  host_is_self: '이 허브 자신입니다.',
+  host_id_taken: '같은 id 의 호스트가 이미 있습니다.',
+  host_url_taken: '그 주소의 호스트가 이미 있습니다.',
+  too_many_hosts: '호스트는 16개까지입니다.',
+  not_hub: '이 호스트는 허브가 아니라서 호스트 목록을 바꿀 수 없습니다.',
 };
 // Korean for every failure: the server's code, else a plain 'try again' (never "Load failed").
 const errText = (err) => ERROR_TEXT[err.code] || (err.status >= 500 ? `호스트 오류(${err.status})입니다. 잠시 뒤에 다시 시도해 주세요.` : err.message && /[가-힣]/.test(err.message) ? err.message : `요청이 실패했습니다${err.code ? ` (${err.code})` : ''}. 다시 시도해 주세요.`);
@@ -419,7 +426,8 @@ const topLayer = () => layers[layers.length - 1] || null;
 // Resolves with the input's value (or true) on OK, null on cancel.
 // validate(value) -> a hint while the typed value can't be used ('' when it can): shown under
 // the field as you type, and OK waits for a usable value.
-function sheet({ title, text = '', error = '', input = null, ok = '확인', danger = false, validate = null, again = false }) {
+// cancel: null for a sheet that only tells something (one button).
+function sheet({ title, text = '', error = '', input = null, ok = '확인', cancel = '취소', danger = false, validate = null, again = false }) {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.className = 'sheet-back';
@@ -430,7 +438,7 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', dang
         ${input ? `<input class="field" name="v" value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="sheet-hint">
         <p class="hint" id="sheet-hint" aria-live="polite"></p>` : ''}
         <div class="row end">
-          <button type="button" class="btn secondary" data-cancel>취소</button>
+          ${cancel ? `<button type="button" class="btn secondary" data-cancel>${esc(cancel)}</button>` : ''}
           <button type="submit" class="btn ${danger ? 'danger' : ''}">${esc(ok)}</button>
         </div>
       </form>`;
@@ -450,7 +458,7 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', dang
     el.onclick = (e) => {
       if (e.target === el) done(null);
     };
-    el.querySelector('[data-cancel]').onclick = () => done(null);
+    if (cancel) el.querySelector('[data-cancel]').onclick = () => done(null);
     if (field) field.oninput = check;
     el.querySelector('form').onsubmit = (e) => {
       e.preventDefault();

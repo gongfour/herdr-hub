@@ -7,7 +7,8 @@ set HERDR_HUB_HOST_ID=desktop
 set HERDR_HUB_HOST_LABEL=desktop
 rem The names this hub answers to (Host header via tailscale serve); anything else gets 403.
 set HERDR_HUB_HOSTS=desktop.uaru-monster.ts.net
-rem Hub: merge these peers into this Herdr Hub (id=url, comma-separated).
+rem Hub: the peers to merge in (id=url, comma-separated). Only a seed: used once, when data\peers.json
+rem does not exist yet; after that the list lives there and is edited in Settings > Connection.
 set HERDR_HUB_PEERS=server=https://server.uaru-monster.ts.net:8443
 set HERDR_HUB_VAPID_SUBJECT=https://desktop.uaru-monster.ts.net
 rem Agents in folders or workspaces named with these prefixes never notify (throwaway test workspaces).
