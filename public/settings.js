@@ -23,7 +23,11 @@ const touchOnly = () => !split && matchMedia('(hover: none) and (pointer: coarse
 // One row of prefs.js's table.
 function prefHtml(p) {
   const id = p.key.replace(/\W/g, '-');
-  if (p.type === 'bool') return `<label class="switch pref" data-pref="${esc(p.key)}"><span>${esc(p.label)}</span><input type="checkbox" role="switch"></label>`;
+  if (p.type === 'bool') {
+    // A switch with a line under it (hint: a string) says what it does, as a choice's does.
+    const hint = Prefs.hintOf(p, true);
+    return `<label class="switch pref" data-pref="${esc(p.key)}"><span>${esc(p.label)}</span><input type="checkbox" role="switch"${hint ? ` aria-describedby="ph-${id}"` : ''}></label>${hint ? `<p class="pref-hint" id="ph-${id}">${esc(hint)}</p>` : ''}`;
+  }
   const radios = Object.entries(p.options)
     .map(([v, label]) => `<button type="button" role="radio" data-v="${esc(v)}" aria-checked="false" tabindex="-1">${esc(label)}</button>`)
     .join('');

@@ -8,8 +8,9 @@
 // carry on from the finger's speed until the neighbour is in place (motion.js spring), and the
 // host changes; else they settle back. With no host beyond, the list gives less the further it
 // is pulled (rubber band). The header stays put. Phone, and the split layout's sidebar.
-// Not from the left screen edge, not on anything that scrolls sideways itself (key rows, wide
-// tables, the host segment when it overflows) or a text field, and never in a detail view.
+// Not from the left screen edge, nor the right one while it goes forward (fwdchip.js), not on
+// anything that scrolls sideways itself (key rows, wide tables, the host segment when it
+// overflows) or a text field, and never in a detail view.
 
 const TAB_SWIPE_MIN = 70; // px
 const TAB_SWIPE_FLICK = 0.5; // px/ms
@@ -168,7 +169,8 @@ document.addEventListener(
     if (e.touches.length !== 1 || tabSwipe.anim || !tabPageShown() || document.querySelector('.sheet-back')) return;
     const t = e.touches[0];
     const root = listRoot();
-    if (!root.contains(e.target) || e.target.closest('.tabbar') || t.clientX < 20) return;
+    // The right edge may be the forward swipe's (fwdchip.js), when there is something to go to.
+    if (!root.contains(e.target) || e.target.closest('.tabbar') || t.clientX < 20 || forwardEdge(t.clientX)) return;
     tabSwipe.g = { x0: t.clientX, y0: t.clientY, t0: Date.now(), target: e.target, axis: null, dx: 0, x: 0, samples: [], raf: 0, nb: {} };
   },
   { passive: true }

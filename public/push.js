@@ -4,12 +4,8 @@
 // The top part is pure: window.PushView in the page, required by the tests.
 
 (function (root) {
-  // 'ios' | 'android' | 'desktop'. iPadOS says Macintosh but has touch points.
-  function platformOf(ua = '', touchPoints = 0) {
-    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1)) return 'ios';
-    if (/Android/.test(ua)) return 'android';
-    return 'desktop';
-  }
+  // 'ios' | 'android' | 'desktop' (prefs.js, which also keeps a default per platform).
+  const platformOf = (ua = '', touchPoints = 0) => (typeof module === 'object' && module.exports ? require('./prefs.js') : root.Prefs).platformOf(ua, touchPoints);
 
   // Where to allow notifications again once they were refused.
   function deniedFix(platform, standalone) {

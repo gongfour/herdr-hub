@@ -306,6 +306,7 @@ function route(e, { relayout = false } = {}) {
   backSwipeRelease(relayout);
   tabSwipeRelease();
   if (!history.state || !('prev' in history.state)) history.replaceState({ ...(history.state || {}), prev: lastHash }, '');
+  const from = lastHash ? Route.parse(lastHash.replace(/^#/, '') || '/') : null; // for fwdchip.js
   lastHash = location.hash || '#/';
   if (!relayout) noteVisit(lastHash);
   if (!relayout) stashDraft(); // relayout() kept it before the old composer went away
@@ -404,6 +405,8 @@ function route(e, { relayout = false } = {}) {
     stepFocus = false;
     refocusInput(document.getElementById('d-input') || document.getElementById('t-input'));
   }
+  // What there is to go forward to, and the 「방금 본 대화」 chip (fwdchip.js).
+  forwardRouted(from, r, relayout);
 }
 
 // ---- split layout: the shell, the list column, the placeholder, the selected row
@@ -590,11 +593,13 @@ const KEY_ACTIONS = {
     cycleMode(); // agent.js: Claude's own Shift+Tab, through herdr
     return true;
   },
-  // The agent or shell open before this one (route keeps the two).
+  // The agent or shell open before this one (route keeps the two); from anywhere else (the list
+  // it was just left for, 설정) the one last open, as the 「방금 본 대화」 chip opens it.
   lastView() {
-    if (!visits.prev) return false;
+    const to = view.name === 'agent' || view.name === 'term' ? visits.prev : visits.cur;
+    if (!to) return false;
     stepFocus = true; // the caret into its field, as Alt+↑/↓
-    location.hash = visits.prev;
+    location.hash = to;
     return true;
   },
   answer: (b) => answerKey(Number(b.key)), // answer.js

@@ -42,6 +42,7 @@ test('storage keys are the ones the app always used', () => {
     color: 'herdr-hub.color',
     'wrap.term': 'herdr-hub.wrap.term',
     'wrap.agent': 'herdr-hub.wrap.agent',
+    edgeForward: 'herdr-hub.edgeForward',
   });
   // index.html applies the theme before any script: it reads this key and these values.
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
@@ -58,6 +59,7 @@ test('values written by the old code read the same (and unknown or missing ones 
     color: (s) => s !== '0',
     'wrap.term': (s) => (s === '1' || s === '0' ? s === '1' : true),
     'wrap.agent': (s) => (s === '1' || s === '0' ? s === '1' : false),
+    edgeForward: (s) => (s === '1' || s === '0' ? s === '1' : false), // new: off unless iOS
   };
   const samples = [null, '', 'send', 'newline', 'line', 'raw', 'light', 'dark', 'system', '1', '0', 'true', 'x'];
   for (const p of PREFS)
@@ -123,6 +125,35 @@ test('private mode: storage that throws gives the defaults, and a choice lasts i
   const s2 = createStore(() => st);
   s2.set('wrap.agent', true);
   assert.equal(s2.get('wrap.agent'), true);
+});
+
+test('오른쪽 끝에서 밀어: on by default on iOS only; a stored choice wins on every platform', () => {
+  const { row, defaultOf, platformOf } = require('../public/prefs.js');
+  const p = row('edgeForward');
+  assert.equal(p.group, 'input');
+  assert.equal(p.type, 'bool');
+  assert.equal(defaultOf(p, 'ios'), true);
+  assert.equal(defaultOf(p, 'android'), false);
+  assert.equal(defaultOf(p, 'desktop'), false);
+  assert.equal(defaultOf(p, undefined), false);
+  assert.equal(createStore(() => fakeStorage(), 'ios').get('edgeForward'), true);
+  assert.equal(createStore(() => fakeStorage(), 'android').get('edgeForward'), false);
+  assert.equal(createStore(() => fakeStorage({ 'herdr-hub.edgeForward': '0' }), 'ios').get('edgeForward'), false);
+  assert.equal(createStore(() => fakeStorage({ 'herdr-hub.edgeForward': '1' }), 'android').get('edgeForward'), true);
+  // Storage that throws: the platform's default.
+  const boom = () => {
+    throw new Error('SecurityError');
+  };
+  assert.equal(createStore(boom, 'ios').get('edgeForward'), true);
+  assert.equal(createStore(boom, 'android').get('edgeForward'), false);
+  // Rows without per-platform defaults are the same everywhere.
+  for (const q of PREFS.filter((x) => !x.defaults)) for (const pl of ['ios', 'android', 'desktop']) assert.deepEqual(defaultOf(q, pl), q.default);
+  // The platform as push.js knew it (it now asks prefs.js).
+  assert.equal(platformOf('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 5), 'ios');
+  assert.equal(platformOf('Mozilla/5.0 (Linux; Android 14; SM-T970) Chrome/130', 5), 'android');
+  assert.equal(platformOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0), 'desktop');
+  // A switch with a hint line: what it does, never empty.
+  assert.match(hintOf(p, true), /오른쪽 끝/);
 });
 
 test('bad values and unknown keys are refused', () => {

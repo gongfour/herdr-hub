@@ -5,12 +5,14 @@
 // changes (화면 모드 repaints) goes in core.js's PREF_EFFECTS.
 // Pure: loaded as a plain script in the page (window.Prefs), required by the tests.
 //
-// A row: { key, store, group, label, type, options, default, clearOnDefault, hint, note }
+// A row: { key, store, group, label, type, options, default, defaults, clearOnDefault, hint, note }
 //   store           the localStorage key. Never rename one: every device keeps its settings
 //                   under it (index.html reads herdr-hub.theme itself before first paint).
 //   type            'choice' (a segmented radiogroup of options) or 'bool' (a switch).
 //   options         choice: { value: label } in the order shown.
 //   default         what a missing or unknown stored value means.
+//   defaults        per platform ('ios' | 'android' | 'desktop', push.js platformOf), in place of
+//                   default on that platform: { ios: true } is on for an iPhone, default elsewhere.
 //   clearOnDefault  choosing the default removes the key instead of storing it (화면 모드).
 //   hint            one line under the control: a string, or { value: line } for the chosen one.
 // Stored values: a choice as its value, a bool as '1' / '0' (as the app always stored them).
@@ -43,6 +45,11 @@
       options: { system: '시스템', light: '밝게', dark: '어둡게' }, default: 'system', clearOnDefault: true,
       hint: { system: '기기의 밝게·어둡게 설정을 따릅니다.', light: '', dark: '' },
     },
+    {
+      key: 'edgeForward', store: 'herdr-hub.edgeForward', group: 'input', label: '오른쪽 끝에서 밀어 방금 본 대화로', type: 'bool',
+      default: false, defaults: { ios: true },
+      hint: '작업공간 목록에서 화면 오른쪽 끝을 왼쪽으로 밀면 방금 나온 대화·셸이 다시 열립니다(다른 곳에서 밀면 호스트가 넘어갑니다). Android 는 시스템의 뒤로 제스처와 겹쳐 처음에 꺼져 있습니다.',
+    },
     { key: 'color', store: 'herdr-hub.color', group: 'screen', label: '터미널 색상', type: 'bool', default: true },
     { key: 'wrap.term', store: 'herdr-hub.wrap.term', group: 'screen', label: '줄바꿈 · 셸', type: 'bool', default: true },
     { key: 'wrap.agent', store: 'herdr-hub.wrap.agent', group: 'screen', label: '줄바꿈 · 에이전트 터미널 화면', type: 'bool', default: false },
@@ -54,10 +61,13 @@
     return p;
   };
 
+  // The default on this platform.
+  const defaultOf = (p, platform) => (p.defaults && platform && Object.prototype.hasOwnProperty.call(p.defaults, platform) ? p.defaults[platform] : p.default);
   // The stored string -> the value; anything unknown (or missing) is the default.
-  function decode(p, raw) {
-    if (p.type === 'bool') return raw === '1' ? true : raw === '0' ? false : p.default;
-    return raw != null && Object.prototype.hasOwnProperty.call(p.options, raw) ? raw : p.default;
+  function decode(p, raw, platform) {
+    const d = defaultOf(p, platform);
+    if (p.type === 'bool') return raw === '1' ? true : raw === '0' ? false : d;
+    return raw != null && Object.prototype.hasOwnProperty.call(p.options, raw) ? raw : d;
   }
   // The value -> the string to store, or null to remove the key.
   function encode(p, v) {
@@ -70,15 +80,16 @@
 
   // A store over storage() (localStorage in the page; it may throw in private mode or with site
   // data blocked). A choice made while storage fails lasts in memory until the page reloads.
-  function createStore(storage) {
+  // platform: the device's, for the rows whose default depends on it.
+  function createStore(storage, platform) {
     const mem = new Map();
     const get = (key) => {
       const p = row(key);
       if (mem.has(key)) return mem.get(key);
       try {
-        return decode(p, storage().getItem(p.store));
+        return decode(p, storage().getItem(p.store), platform);
       } catch {
-        return p.default;
+        return defaultOf(p, platform);
       }
     };
     const set = (key, v) => {
@@ -97,10 +108,17 @@
     return { get, set };
   }
 
-  const api = { GROUPS, PREFS, row, decode, encode, valid, hintOf, createStore };
+  // The device, as push.js platformOf tells it (that file loads later): iPadOS says Macintosh.
+  function platformOf(ua, touchPoints) {
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1)) return 'ios';
+    return /Android/.test(ua) ? 'android' : 'desktop';
+  }
+
+  const api = { GROUPS, PREFS, row, defaultOf, decode, encode, valid, hintOf, createStore, platformOf };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else {
-    const store = createStore(() => root.localStorage);
+    const nav = root.navigator || {};
+    const store = createStore(() => root.localStorage, platformOf(nav.userAgent || '', nav.maxTouchPoints || 0));
     root.Prefs = { ...api, get: store.get, set: store.set };
   }
 })(typeof self !== 'undefined' ? self : this);

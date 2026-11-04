@@ -1259,3 +1259,44 @@ button.tool:active { filter: brightness(0.95); }
   .kchip .ksh { min-width: 44px; min-height: 44px; padding: 0 10px; }
   .k-reset { min-height: 44px; }
 }
+
+/* 「방금 본 대화」 (fwdchip.js): a calm chip above the tab bar after an agent or shell is left for
+   the list, on the phone. The list keeps room under its last row while it stands. --fwd-dy: the
+   finger sending it away downward. */
+.fwd-chip {
+  position: fixed; z-index: 25; left: 0; right: 0; margin-inline: auto; width: fit-content;
+  max-width: min(440px, calc(100% - 32px - var(--safe-left) - var(--safe-right)));
+  top: calc(var(--app-top, 0px) + var(--app-h, 100dvh) - var(--safe-bottom) - 51px - 10px);
+  transform: translate3d(0, calc(-100% + var(--fwd-dy, 0px)), 0);
+  display: flex; align-items: center; gap: 2px; padding: 3px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent); color: var(--text);
+  border: 1px solid var(--line); border-radius: 999px;
+  backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+  animation: fwd-in 0.2s ease-out; transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+  touch-action: none;
+}
+.fwd-chip.dragging { transition: none; }
+.fwd-chip.closing { animation: fwd-out 0.16s ease-in forwards; pointer-events: none; }
+@keyframes fwd-in { from { opacity: 0; transform: translate3d(0, calc(-100% + 10px), 0); } }
+@keyframes fwd-out { to { opacity: 0; transform: translate3d(0, calc(-100% + var(--fwd-dy, 0px) + 10px), 0); } }
+.fwd-go {
+  display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 44px; padding: 0 8px 0 12px;
+  border: 0; border-radius: 999px; background: none; font-size: 14px; cursor: pointer; -webkit-touch-callout: none; user-select: none;
+}
+.fwd-go:active { background: var(--surface-2); }
+.fwd-ic { flex: none; display: flex; color: var(--muted); }
+.fwd-ic svg, .fwd-arrow svg, .fwd-x svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.fwd-ic svg.logo { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+.fwd-k { flex: none; color: var(--muted); font-size: 13px; }
+.fwd-k::after { content: '·'; margin-left: 6px; }
+.fwd-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.fwd-arrow { flex: none; display: flex; color: var(--accent); transform: scaleX(-1); }
+.fwd-x {
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 999px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+.fwd-x:active { background: var(--surface-2); }
+.fwd-chip :focus-visible { outline-offset: -3px; }
+:root.fwd-on:not(.split) #app > main.home { padding-bottom: 84px; }
+@media (prefers-reduced-motion: reduce) { .fwd-chip, .fwd-chip.closing { animation: none; transition: none; } }

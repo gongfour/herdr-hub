@@ -285,6 +285,7 @@ function render() {
   });
   markSelected();
   tickList();
+  syncChip(); // fwdchip.js: its name follows a rename; gone with the agent
 }
 
 // The list's keyed parts for host f: the hint and the offline notes, then the cards (also the
