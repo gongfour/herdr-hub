@@ -16,7 +16,7 @@ const notifyLib = require('./lib/notify');
 const { parseChoices, choicesSettled } = require('./public/choices');
 const { Push } = require('./lib/push');
 const { Peer, parsePeers, ID: HOST_ID_RULE } = require('./lib/peers');
-const { send, readJson, readRaw, serveStatic, parseHosts, hostAllowed } = require('./lib/http');
+const { send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed } = require('./lib/http');
 const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
 const { screenReader } = require('./lib/screen');
 
@@ -649,7 +649,11 @@ async function proxy(req, res, url) {
     console.error(`${new Date().toISOString()} proxy ${req.method} ${peer.id} ${raw.slice(3).join('/')}: ${err.code || err.message}`);
     return send(res, timeout ? 504 : 502, { error: timeout ? 'peer_timeout' : 'peer_unreachable', message: `${peer.label}: ${err.code || err.message}` });
   }
-  send(res, r.status, r.body, { 'Content-Type': r.type, ...(r.cache ? { 'Cache-Control': r.cache } : {}) });
+  const out = { 'Content-Type': r.type, ...(r.cache ? { 'Cache-Control': r.cache } : {}) };
+  // Came gzipped and the browser takes gzip: passed on as it is; otherwise send() decides.
+  if (r.encoded && r.encoded.encoding === 'gzip' && takesGzip(req.headers['accept-encoding']))
+    return send(res, r.status, r.encoded.bytes, { ...out, 'Content-Encoding': 'gzip' });
+  send(res, r.status, r.body, out);
 }
 
 const server = http.createServer(async (req, res) => {
