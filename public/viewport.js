@@ -38,6 +38,7 @@ function fit(e) {
   const changed = setVar('--app-h', h) | setVar('--app-top', top);
   de.classList.toggle('kb', !zoomed && de.clientHeight - vv.height > 120 && editable(document.activeElement));
   if (changed && pinned) requestAnimationFrame(() => (sc.scrollTop = sc.scrollHeight));
+  if (changed) requestAnimationFrame(placeToasts);
 }
 
 if (vv) {

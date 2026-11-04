@@ -552,8 +552,24 @@ function toast(text, { error = false, action = null, ms } = {}) {
       action.run();
     };
   toastBox.appendChild(el);
+  placeToasts();
   const all = toastBox.querySelectorAll('.toast:not(.closing)');
   for (let i = 0; i < all.length - 3; i++) all[i].remove();
   setTimeout(remove, ms || (action ? 6000 : error ? 4500 : 3200));
 }
 const toastErr = (text, action) => toast(text, { error: true, action });
+// Toasts sit just above whatever is at the bottom of the screen now: the composer with its photo
+// tray or command list (two lines tall, on the keyboard), the shell's key row and line, or the
+// tab bar. Without one, the CSS place (80px up from the bottom). Again as the screen or the
+// composer changes size while one shows (viewport.js fit, typing).
+const TOAST_ABOVE = '#d-pal:not([hidden]), #d-tray:not([hidden]), #d-form, #t-keys, #t-form, .tabbar';
+function placeToasts() {
+  if (!toastBox || !toastBox.isConnected || !toastBox.children.length) return;
+  let top = Infinity;
+  for (const el of document.querySelectorAll(TOAST_ABOVE)) {
+    const r = el.getBoundingClientRect();
+    if (r.height && r.top > innerHeight / 3) top = Math.min(top, r.top);
+  }
+  toastBox.style.top = top < Infinity ? `${Math.round(top - 8)}px` : '';
+}
+document.addEventListener('input', () => toastBox && toastBox.children.length && requestAnimationFrame(placeToasts));
