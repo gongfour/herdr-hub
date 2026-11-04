@@ -43,6 +43,7 @@
     answer: { group: '대화·터미널 화면', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)', fixed: true },
     stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', twice: true },
     terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기' },
+    closeView: { group: '대화·터미널 화면', label: '연 에이전트(또는 워크스페이스) 닫기: 확인 창에서 리턴으로 닫고 Esc 로 그만둔다' },
     mode: { group: '대화·터미널 화면', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)' },
     prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
@@ -114,6 +115,9 @@
     b('prevBlocked', 'Alt+Shift+ArrowUp', { field: true, shell: true }),
     // Alt+T is the shell's (swap words); the agent view has no shell, and it closes its own sheet.
     b('terminal', 'Alt+t', { field: true, layer: true }),
+    // Alt+W: Ctrl+W is the browser's (close the tab or the app window). Alt+W is the shell's
+    // (copy a word back), so not in the shell view; close a shell with ⋯ or exit.
+    b('closeView', 'Alt+w', { field: true }),
     // Shift+Tab is the shell's (and moves the focus back on the page): only the message box takes it
     // (KEY_ACTIONS.mode), so a field, not the shell view.
     b('mode', 'Shift+Tab', { field: true }),

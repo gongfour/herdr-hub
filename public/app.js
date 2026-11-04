@@ -547,6 +547,24 @@ const KEY_ACTIONS = {
   nextBlocked: () => stepBlocked(1), // list.js
   prevBlocked: () => stepBlocked(-1),
   terminal: () => toggleScreenSheet(), // agent.js
+  // The agent or workspace open, after the same 닫기 sheet as its menu (actions.js): Enter
+  // closes, Esc keeps it. A close that can't be undone is never one key.
+  closeView() {
+    const host = curHost();
+    if (view.name === 'agent') {
+      const a = currentAgent();
+      if (!a) return false;
+      closePane(host, a.pane, a.name || a.title, true);
+      return true;
+    }
+    if (view.name === 'ws') {
+      const w = (state.workspaces || []).find((x) => same(x, host, view.id, 'workspace_id'));
+      if (!w) return false;
+      closeWorkspace(w);
+      return true;
+    }
+    return false;
+  },
   // In the message box only: elsewhere Shift+Tab moves the focus back, as always.
   mode() {
     if (view.name !== 'agent' || document.activeElement?.id !== 'd-input') return false;

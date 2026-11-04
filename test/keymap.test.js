@@ -407,3 +407,12 @@ test('Shift+Tab: 모드 in a field (the message box decides), not in the shell v
   assert.equal(KM.refuse('mode', 'Shift+Tab'), '');
   assert.match(KM.refuse('mode', 'Tab'), /만으로는/);
 });
+
+test('Alt+W: close what is open (a sheet asks first), a field too; never in the shell view or under a sheet', () => {
+  assert.equal(act('Alt+w', {}), 'closeView');
+  assert.equal(act('Alt+w', { field: true }), 'closeView');
+  assert.equal(act('Alt+w', {}, { key: '∑', code: 'KeyW' }), 'closeView'); // a Mac's Option+W
+  assert.equal(act('Alt+w', { shell: true }), null); // the shell's alt+w
+  assert.equal(act('Alt+w', { layer: true }), null);
+  assert.match(KM.refuse('closeView', 'Ctrl+w'), /브라우저/);
+});

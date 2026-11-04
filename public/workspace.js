@@ -46,7 +46,7 @@ function renderWorkspace() {
       </div>
       ${agents.length ? `<section class="group"><h2>에이전트 · ${agents.length}</h2><div class="cards">${agents.map(card).join('')}</div></section>` : ''}
       ${terms.length ? `<section class="group"><h2>셸 · ${terms.length}</h2><div class="cards">${terms.map(termCard).join('')}</div></section>` : ''}
-      <section class="group danger-zone"><button type="button" class="btn secondary danger-text wide" id="w-close">워크스페이스 닫기</button></section>` : ''}
+      <section class="group danger-zone"><button type="button" class="btn secondary danger-text wide" id="w-close"${keyAttrs('closeView', '워크스페이스 닫기')}>워크스페이스 닫기</button></section>` : ''}
     </main>`;
   if (!w) return;
   tickList();
