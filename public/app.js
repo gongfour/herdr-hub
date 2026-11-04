@@ -189,6 +189,10 @@ function route(e, { relayout = false } = {}) {
     if (isDetail()) renderCol();
     else renderEmpty();
   }
+  if (stepFocus) {
+    stepFocus = false;
+    refocusInput(document.getElementById('d-input') || document.getElementById('t-input'));
+  }
 }
 
 // ---- split layout: the shell, the list column, the placeholder, the selected row
@@ -207,11 +211,14 @@ function relayout() {
   document.documentElement.classList.toggle('split', split);
   $app.innerHTML = split ? '<div class="col" id="list-pane"></div><div class="col" id="detail-pane"></div>' : '';
   route(null, { relayout: true });
-  const el = refocus && document.getElementById(refocus);
-  if (el) {
-    el.focus({ preventScroll: true });
-    if (el.isContentEditable) caretToEnd(el);
-  }
+  refocusInput(refocus && document.getElementById(refocus));
+}
+
+// The caret into a composer or the shell's input, at the end of what is there.
+function refocusInput(el) {
+  if (!el) return;
+  el.focus({ preventScroll: true });
+  if (el.isContentEditable) caretToEnd(el);
 }
 
 // The list column: 설정 or the list of the tab it shows.
@@ -253,6 +260,8 @@ function markSelected() {
 }
 
 // Alt+↑/↓ (or [ ]): the previous or next agent or shell in the list column, opened on the right.
+// Typing in a composer or the shell, the caret goes on into the next one's (route takes it).
+let stepFocus = false;
 function stepList(dir) {
   const main = listRoot() && listRoot().querySelector(':scope > main.home');
   if (!main) return false;
@@ -260,6 +269,8 @@ function stepList(dir) {
   const cur = main.querySelector('a[aria-current]');
   const next = Split.stepRow(links, cur && cur.getAttribute('href'), dir);
   if (!next) return true;
+  const f = document.activeElement;
+  stepFocus = Boolean(f && ['d-input', 't-input'].includes(f.id));
   location.hash = next;
   const el = [...main.querySelectorAll('a.attn-row, a.sw-front')].find((a) => a.getAttribute('href') === next);
   if (el) el.scrollIntoView({ block: 'nearest' });
