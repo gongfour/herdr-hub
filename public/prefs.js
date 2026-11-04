@@ -16,11 +16,11 @@
 //   clearOnDefault  choosing the default removes the key instead of storing it (화면 모드).
 //   hint            one line under the control: a string, or { value: line } for the chosen one.
 // Stored values: a choice as its value, a bool as '1' / '0' (as the app always stored them).
-// GROUPS give the order of the groups between 알림 (first) and 연결 · 정보 (last), hand-drawn.
+// GROUPS give the order of the groups between 알림 (first) and 키보드 · 연결 · 정보 · 이 기기 (last), hand-drawn.
 (function (root) {
   const GROUPS = [
     { id: 'input', label: '입력' },
-    { id: 'screen', label: '화면', note: '줄바꿈을 끄면 긴 줄이 한 줄로 남고 옆으로 밀어 봅니다. 표나 전체 화면 프로그램의 모양은 끈 쪽이 지켜집니다.' },
+    { id: 'screen', label: '화면' },
   ];
 
   const PREFS = [
@@ -28,8 +28,8 @@
       key: 'enter', store: 'herdr-hub.enter', group: 'input', label: '메시지 칸의 리턴 키', type: 'choice',
       options: { newline: '줄바꿈', send: '보내기' }, default: 'newline',
       hint: {
-        newline: '보내기는 ↑ 버튼이나 ⌘/Ctrl+리턴. 셸 명령 줄은 늘 리턴으로 실행합니다.',
-        send: '줄바꿈은 키보드의 Shift+리턴(iPhone 화면 키보드에는 없음). 셸 명령 줄은 늘 리턴으로 실행합니다.',
+        newline: '보내기는 ↑ 버튼이나 Ctrl+리턴(Mac 은 ⌘+리턴)입니다.',
+        send: '줄바꿈은 Shift+리턴입니다. iPhone 화면 키보드에는 없습니다.',
       },
     },
     {
@@ -48,11 +48,14 @@
     {
       key: 'edgeForward', store: 'herdr-hub.edgeForward', group: 'input', label: '오른쪽 끝에서 밀어 방금 본 대화로', type: 'bool',
       default: false, defaults: { ios: true },
-      hint: '작업공간 목록에서 화면 오른쪽 끝을 왼쪽으로 밀면 방금 나온 대화·셸이 다시 열립니다(다른 곳에서 밀면 호스트가 넘어갑니다). Android 는 시스템의 뒤로 제스처와 겹쳐 처음에 꺼져 있습니다.',
+      hint: '목록에서 화면 오른쪽 끝을 왼쪽으로 밀면 방금 본 대화·셸로 돌아갑니다. Android 는 뒤로 제스처와 겹쳐 처음엔 꺼져 있습니다.',
     },
-    { key: 'color', store: 'herdr-hub.color', group: 'screen', label: '터미널 색상', type: 'bool', default: true },
-    { key: 'wrap.term', store: 'herdr-hub.wrap.term', group: 'screen', label: '줄바꿈 · 셸', type: 'bool', default: true },
-    { key: 'wrap.agent', store: 'herdr-hub.wrap.agent', group: 'screen', label: '줄바꿈 · 에이전트 터미널 화면', type: 'bool', default: false },
+    { key: 'color', store: 'herdr-hub.color', group: 'screen', label: '터미널 색상', type: 'bool', default: true, hint: '끄면 셸과 터미널 화면을 한 가지 색으로 봅니다.' },
+    {
+      key: 'wrap.term', store: 'herdr-hub.wrap.term', group: 'screen', label: '셸 줄바꿈', type: 'bool', default: true,
+      hint: '끄면 긴 줄을 접지 않고 옆으로 밀어 봅니다. 표나 전체 화면 프로그램은 꺼야 모양이 맞습니다.',
+    },
+    { key: 'wrap.agent', store: 'herdr-hub.wrap.agent', group: 'screen', label: '에이전트 터미널 화면 줄바꿈', type: 'bool', default: false, hint: '에이전트의 「터미널 화면 보기」에서 같은 일을 합니다.' },
   ];
   const BY_KEY = new Map(PREFS.map((p) => [p.key, p]));
   const row = (key) => {

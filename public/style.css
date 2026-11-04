@@ -783,10 +783,12 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* ---- settings switch */
 .switch { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 15px; cursor: pointer; }
 .switch span { flex: 1; }
-.switch input { appearance: none; -webkit-appearance: none; flex: none; width: 51px; height: 31px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); position: relative; cursor: pointer; margin: 0; transition: background 0.15s; }
-.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 25px; height: 25px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transition: transform 0.15s; }
+/* Off: an outlined track with a small muted knob (the outline and knob hold 3:1 against the card,
+   where a pale track on a white card did not); on: filled with the accent, a large white knob. */
+.switch input { appearance: none; -webkit-appearance: none; box-sizing: border-box; flex: none; width: 51px; height: 31px; border-radius: 999px; background: var(--surface-2); border: 2px solid var(--muted); position: relative; cursor: pointer; margin: 0; transition: background 0.15s, border-color 0.15s; }
+.switch input::after { content: ""; position: absolute; top: 5px; left: 5px; width: 17px; height: 17px; border-radius: 50%; background: var(--muted); transition: transform 0.15s, width 0.15s, height 0.15s, top 0.15s, left 0.15s; }
 .switch input:checked { background: var(--accent); border-color: var(--accent); }
-.switch input:checked::after { transform: translateX(20px); }
+.switch input:checked::after { top: 2px; left: 2px; width: 23px; height: 23px; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transform: translateX(20px); }
 
 /* ---- terminal screen sheet (agent view): the same dark screen box, tall, over the chat */
 .sheet.term-sheet { height: 92%; max-width: 960px; padding: 0; gap: 0; overflow: hidden; }
@@ -825,6 +827,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* ---- 설정: groups of rows (prefs.js), a small heading above each card */
 .panel.settings { gap: 18px; }
+/* A readable column on a wide pane: a name and its control stay close (설정, 단축키, 워크스페이스). */
+.panel.settings > * { width: 100%; max-width: 720px; margin-inline: auto; }
 /* Focused as a whole when 설정 opens (settings.js): the place to start from, not a control. */
 .panel.settings:focus { outline: none; }
 .panel.settings section.pgroup { background: none; border: 0; padding: 0; }
@@ -861,7 +865,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .conn-list { list-style: none; margin: 0; padding: 6px 14px; }
 .conn-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 32px; font-size: 14px; }
 .conn-list .hdot.off { background: var(--blocked); }
-.conn-list .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
+.conn-list .tag { font-size: 12px; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
 .conn-list .cl-st { color: var(--muted); }
 .conn-list .cl-warn { flex-basis: 100%; color: var(--blocked); font-size: 12px; }
 /* A host line: the dot, then its name, status and address, then ⋯ on a hub (settings.js). */
@@ -890,7 +894,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .pref-ver .pref-info { flex: 1; min-width: 0; }
 .pref-ver button.pref-info { background: none; border: 0; color: inherit; font-family: inherit; text-align: left; cursor: default; }
 .pref-ver button.pref-info.ver-copy { cursor: copy; }
-.panel .pref-info.ver-new { color: var(--text); font-weight: 600; }
+.ver-line { display: flex; gap: 12px; align-items: baseline; }
+.ver-line .ver-k { flex: none; white-space: nowrap; font-size: 15px; color: var(--text); }
+.ver-line .ver-v { color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ver-line.ver-new .ver-v { color: var(--text); }
+.panel .pref-info.ver-new .ver-v { font-weight: 600; }
 .pref-ver .btn { flex: none; min-height: 36px; padding: 0 12px; font-size: 14px; }
 
 /* ---- polish: small pieces */

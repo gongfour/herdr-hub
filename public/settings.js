@@ -1,5 +1,5 @@
 'use strict';
-// 설정: 알림 (push.js), the settings of prefs.js's table (입력, 화면), 키보드, and 연결 · 정보.
+// 설정: 알림 (push.js), the settings of prefs.js's table (입력, 화면), 키보드, 연결, 정보 and 이 기기.
 // The page is built once and then patched: a state push redraws only the 연결 block, the push
 // lookups only the 알림 block, and a control only its own state, so the keyboard focus stays put.
 
@@ -64,11 +64,19 @@ function settingsHtml() {
         <div class="pcard"><button type="button" class="pref-link" id="s-keys"><span>단축키 보기·바꾸기</span><span class="pl-end"><kbd></kbd><span aria-hidden="true">›</span></span></button></div>
       </section>
       <section class="pgroup" aria-labelledby="g-conn">
-        <h2 id="g-conn">연결 · 정보</h2>
+        <h2 id="g-conn">연결</h2>
+        <div class="pcard"><ul class="conn-list" id="s-conn"></ul></div>
+      </section>
+      <section class="pgroup" aria-labelledby="g-info">
+        <h2 id="g-info">정보</h2>
         <div class="pcard">
-          <ul class="conn-list" id="s-conn"></ul>
-          <div class="pref-ver"><button type="button" class="pref-info ver-line" id="s-ver"></button><button type="button" class="btn secondary" id="s-reload">새로고침</button></div>
-          <p class="pref-info">${esc(location.host)}<br>설정은 모두 이 기기에만 저장됩니다.</p>
+          <div class="pref-ver"><button type="button" class="pref-info ver-line" id="s-ver"><span class="ver-k">버전</span><span class="ver-v"></span></button><button type="button" class="btn secondary" id="s-reload">새로고침</button></div>
+        </div>
+      </section>
+      <section class="pgroup" aria-labelledby="g-dev">
+        <h2 id="g-dev">이 기기</h2>
+        <div class="pcard">
+          <p class="pref-info">이 화면의 설정과 보관한 대화, 안 보낸 글은 이 기기에만 있습니다. 호스트 목록은 허브에 있어 어느 기기에서나 같습니다.</p>
           <button type="button" class="pref-link danger-text" id="s-clear"><span>이 기기 저장 데이터 지우기</span><span class="pl-end" aria-hidden="true">›</span></button>
         </div>
       </section>
@@ -218,7 +226,8 @@ function renderConn() {
       const api = apiMismatch(x);
       const warn = api ? `<span class="cl-warn">${esc(api)} — 배포가 필요합니다</span>` : '';
       const p = !x.local && manage ? adminPeer(x.id) : null;
-      const url = p ? `<span class="cl-url">${esc(p.url.replace(/^https:\/\//, ''))}</span>` : '';
+      const where = p ? p.url.replace(/^https:\/\//, '') : x.local ? location.host : '';
+      const url = where ? `<span class="cl-url">${esc(where)}</span>` : '';
       const more = p ? `<button type="button" class="icon-btn cl-more" data-host="${esc(x.id)}" aria-label="${esc(x.label)} 메뉴" title="${esc(x.label)} 메뉴">${ICON.more}</button>` : '';
       return `<li><span class="hdot${bad ? ' off' : ''}" aria-hidden="true"></span><span class="cl-main"><span class="cl-head"><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? '이 주소' : '허브'}</span>` : ''}<span class="cl-st">${status}</span></span>${url}${warn}</span>${more}</li>`;
     })
@@ -390,11 +399,20 @@ function renderVersionInfo() {
   const el = document.getElementById('s-ver');
   if (!el) return;
   const mine = Update.buildLabel(myBuild);
-  const text = !mine ? '버전 알 수 없음' : hasNew() ? `${mine} · 새 버전 ${Update.shortLabel(serverBuild)} 있음` : mine;
-  if (el.textContent !== text) el.textContent = text;
+  const text = !mine ? '알 수 없음' : hasNew() ? `${mine} · 새 버전 ${Update.shortLabel(serverBuild)} 있음` : mine;
+  const v = el.querySelector('.ver-v');
+  if (v.textContent !== text) v.textContent = text;
   el.classList.toggle('ver-new', hasNew());
-  el.title = myBuild && myBuild.sha ? `${myBuild.sha} — 눌러서 복사` : '';
-  el.classList.toggle('ver-copy', Boolean(myBuild && myBuild.sha));
+  const copy = Boolean(myBuild && myBuild.sha);
+  el.title = copy ? `${myBuild.sha} — 눌러서 복사` : '';
+  el.setAttribute('aria-label', copy ? `버전 ${text}. 누르면 커밋 해시를 복사합니다` : `버전 ${text}`);
+  el.classList.toggle('ver-copy', copy);
+  // A new build waiting: the button says so and stands out; else a quiet 새로고침.
+  const r = document.getElementById('s-reload');
+  if (r) {
+    r.textContent = hasNew() ? '새 버전 받기' : '새로고침';
+    r.classList.toggle('secondary', !hasNew());
+  }
 }
 async function copyBuildSha() {
   if (!myBuild || !myBuild.sha) return;
