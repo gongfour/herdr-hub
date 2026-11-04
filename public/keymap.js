@@ -50,8 +50,6 @@
     // Alt+↑/↓ works in the shell too: it is the way out of a shell that has every other key.
     b('prevRow', 'Alt+ArrowUp', { field: true, shell: true, split: true }),
     b('nextRow', 'Alt+ArrowDown', { field: true, shell: true, split: true }),
-    b('prevRow', '[', { split: true }),
-    b('nextRow', ']', { split: true }),
   ];
 
   // Keys handled in their own field, listed in the sheet but not dispatched from here.

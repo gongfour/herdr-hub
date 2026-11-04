@@ -318,12 +318,10 @@ function markSelected() {
   for (const el of on) if (el) el.setAttribute('aria-current', 'page');
 }
 
-// Alt+↑/↓ (or [ ]): the previous or next agent or shell in the list column, opened on the right.
-// Alt+↑/↓ (only a real keyboard has it) puts the caret in the next one's composer or shell
-// input, as does either key pressed while typing in one (route takes it). [ ] from the page keep
-// the page's focus, so they go on stepping.
+// Alt+↑/↓: the previous or next agent or shell in the list column, opened on the right, with
+// the caret in its composer or shell input (only a real keyboard has the keys; route takes it).
 let stepFocus = false;
-function stepList(dir, alt) {
+function stepList(dir) {
   // The folded sidebar on 설정: step through 작업공간 all the same (it opens there when unfolded).
   if (sideOff() && colTab === 'settings') {
     colTab = 'spaces';
@@ -335,8 +333,7 @@ function stepList(dir, alt) {
   const cur = main.querySelector('a[aria-current]');
   const next = Split.stepRow(links, cur && cur.getAttribute('href'), dir);
   if (!next) return true;
-  const f = document.activeElement;
-  stepFocus = alt || Boolean(f && ['d-input', 't-input'].includes(f.id));
+  stepFocus = true;
   location.hash = next;
   const el = [...main.querySelectorAll('a.attn-row, a.sw-front')].find((a) => a.getAttribute('href') === next);
   if (el) el.scrollIntoView({ block: 'nearest' });
@@ -402,9 +399,9 @@ const KEY_ACTIONS = {
   nextMine: () => navStep(1),
   prevHost: () => stepHostFilter(-1),
   nextHost: () => stepHostFilter(1),
-  // Alt+↑/↓ puts the caret in the next one's field; [ ] leave the focus on the page.
-  prevRow: (b) => stepList(-1, b.key.startsWith('Alt+')),
-  nextRow: (b) => stepList(1, b.key.startsWith('Alt+')),
+  // Alt+↑/↓: the caret goes into the next one's field.
+  prevRow: () => stepList(-1),
+  nextRow: () => stepList(1),
 };
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing) return;

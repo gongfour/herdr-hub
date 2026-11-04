@@ -86,10 +86,8 @@ test('rows (split only): Alt+↑/↓ anywhere, the shell included; [ ] only on t
   assert.equal(act('Alt+ArrowDown', sp), 'nextRow');
   assert.equal(act('Alt+ArrowUp', { ...sp, field: true }), 'prevRow');
   assert.equal(act('Alt+ArrowDown', { ...sp, shell: true }), 'nextRow');
-  assert.equal(act(']', sp), 'nextRow');
-  assert.equal(act('[', sp), 'prevRow');
-  assert.equal(act(']', { ...sp, field: true }), null); // typed into the composer
-  assert.equal(act(']', { ...sp, shell: true }), null);
+  assert.equal(act(']', sp), null); // [ ] are no list keys
+  assert.equal(act('[', sp), null);
   assert.equal(act('Alt+ArrowDown', { ...sp, layer: true }), null);
   assert.equal(act('Alt+ArrowDown', {}), null); // the phone: no list beside it
   assert.equal(act('Ctrl+]', sp), null);
