@@ -42,9 +42,10 @@ function renderDetail() {
     if (!input.innerText.trim()) input.textContent = ''; // a leftover <br> would hide the placeholder
     updateComposer();
     updatePalette();
+    keepDraft();
   };
   input.onkeydown = (e) => {
-    if (paletteKey(e)) return;
+    if (paletteKey(e) || recallKey(e, input)) return;
     if (Keys.enterAction(e, getEnter()) === 'send') {
       e.preventDefault();
       sendNow();
@@ -143,6 +144,7 @@ function renderDetail() {
         hidePalette();
         dropFiles();
         renderTray();
+        drafts.delete(key);
       } else for (const f of files) URL.revokeObjectURL(f.url);
       if ((drafts.get(key) || {}).files === files) drafts.delete(key);
       setTimeout(loadDetail, 600);

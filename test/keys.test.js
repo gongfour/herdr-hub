@@ -2,7 +2,7 @@
 // What a keydown means in the composer and in the shell's 키 직접 입력 (public/keys.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { enterAction, rawKeyName, withMods, tapMod } = require('../public/keys.js');
+const { enterAction, rawKeyName, withMods, tapMod, recall } = require('../public/keys.js');
 const { validKeys, PANE_KEYS } = require('../lib/validate.js');
 
 const key = (k, mods = {}) => ({ key: k, keyCode: 0, isComposing: false, ...mods });
@@ -121,4 +121,21 @@ test('queueRaw: presses merge per pane and never cross to another one', () => {
   const many = [];
   for (let i = 0; i < 10; i++) queueRaw(many, A, { key: 'down' });
   assert.deepEqual(many.map((x) => x.keys.length), [8, 2]); // herdr takes 8 keys at once
+});
+
+test('recall: ↑ on an empty field walks back through what was sent, ↓ comes forward to empty', () => {
+  const sent = ['one', 'two', 'three'];
+  assert.deepEqual(recall(sent, null, '', -1), { at: 2, text: 'three' });
+  assert.deepEqual(recall(sent, 2, 'three', -1), { at: 1, text: 'two' });
+  assert.deepEqual(recall(sent, 0, 'one', -1), { at: 0, text: 'one' });
+  assert.deepEqual(recall(sent, 1, 'two', 1), { at: 2, text: 'three' });
+  assert.deepEqual(recall(sent, 2, 'three', 1), { at: null, text: '' });
+});
+
+test('recall: typed or changed text, ↓ on an empty field and an empty history leave the key alone', () => {
+  const sent = ['one', 'two'];
+  assert.equal(recall(sent, null, 'draft', -1), null);
+  assert.equal(recall(sent, 1, 'two!', -1), null);
+  assert.equal(recall(sent, null, '', 1), null);
+  assert.equal(recall([], null, '', -1), null);
 });

@@ -91,7 +91,21 @@
     return q;
   }
 
-  const api = { enterAction, rawKeyName, withMods, tapMod, queueRaw };
+  // ↑/↓ in the agent composer: the messages sent before (sent, oldest first), as in a shell.
+  // at is the one shown (an index into sent) or null. ↑ acts on an empty field, or on a recalled
+  // message left as it was; anything typed or changed keeps the arrows for the caret. ↓ past the
+  // newest gives the empty field back. Returns { at, text }, or null to leave the key alone.
+  function recall(sent, at, text, dir) {
+    const shown = at != null && sent[at] === text;
+    if (!sent.length || !(shown || (dir < 0 && text === ''))) return null;
+    if (dir < 0) {
+      const i = shown ? Math.max(0, at - 1) : sent.length - 1;
+      return { at: i, text: sent[i] };
+    }
+    return at + 1 < sent.length ? { at: at + 1, text: sent[at + 1] } : { at: null, text: '' };
+  }
+
+  const api = { enterAction, rawKeyName, withMods, tapMod, queueRaw, recall };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keys = api;
 })(typeof self !== 'undefined' ? self : this);

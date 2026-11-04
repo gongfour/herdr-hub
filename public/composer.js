@@ -219,6 +219,27 @@ function paletteKey(e) {
   return false;
 }
 
+// ↑/↓ with the field empty: the messages sent before in this chat, from its transcript (so the
+// ones sent from another device too). A hardware keyboard's; a phone's keyboard has no arrows.
+function recallKey(e, input) {
+  if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || e.isComposing || e.keyCode === 229 || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return false;
+  const msgs = (detail.transcript && detail.transcript.messages) || [];
+  const sent = [];
+  for (const m of msgs) {
+    const text = m.role === 'user' && !m.bash ? userParts(m).text.trim() : '';
+    if (text && text !== sent[sent.length - 1]) sent.push(text);
+  }
+  const r = Keys.recall(sent, detail.recallAt, input.value, e.key === 'ArrowUp' ? -1 : 1);
+  if (!r) return false;
+  e.preventDefault();
+  detail.recallAt = r.at;
+  input.value = r.text;
+  caretToEnd(input);
+  updateComposer();
+  keepDraft();
+  return true;
+}
+
 function bindPalette(input) {
   const box = document.getElementById('d-pal');
   // Keep the caret in the field: a mouse press on a row would otherwise blur it.

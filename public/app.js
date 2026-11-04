@@ -102,8 +102,53 @@ function goBack(target) {
   }
 }
 
-// Unsent text and photos per agent (host|pane), kept while the page lives.
-const drafts = new Map();
+// Unsent text and photos per agent (host|pane). The text is also kept on the device for a week,
+// for a closed tab or an app iOS dropped in the background; photos only while the page lives.
+const DRAFTS_KEY = 'herdr-hub.drafts';
+const DRAFT_MS = 7 * 864e5;
+const drafts = (() => {
+  const live = new Map();
+  const read = () => {
+    try {
+      const all = JSON.parse(localStorage.getItem(DRAFTS_KEY)) || {};
+      for (const [k, d] of Object.entries(all)) if (!d || typeof d.text !== 'string' || !(d.at > Date.now() - DRAFT_MS)) delete all[k];
+      return all;
+    } catch {
+      return {};
+    }
+  };
+  // Read again before each write: another tab may have saved its own.
+  const write = (k, text) => {
+    const all = read();
+    if (text) all[k] = { text, at: Date.now() };
+    else if (!(k in all)) return;
+    else delete all[k];
+    try {
+      localStorage.setItem(DRAFTS_KEY, JSON.stringify(all));
+    } catch {}
+  };
+  return {
+    get(k) {
+      if (live.has(k)) return live.get(k);
+      const d = read()[k];
+      return d && { text: d.text, files: [] };
+    },
+    set(k, d) {
+      live.set(k, d);
+      write(k, d.text.trim() ? d.text : null);
+    },
+    delete(k) {
+      live.delete(k);
+      write(k, null);
+    },
+  };
+})();
+// Kept as it is typed (a moment after the last key), and when the page goes to the background.
+let draftTimer = null;
+function keepDraft() {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(stashDraft, 500);
+}
 function stashDraft() {
   if (view.name !== 'agent' || !detail.pane) return;
   const input = document.getElementById('d-input');
@@ -354,8 +399,10 @@ document.addEventListener('click', (e) => {
   if (close) close.setAttribute('href', homeHash());
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && view.name === 'agent') loadDetail();
+  if (document.visibilityState === 'hidden') stashDraft();
+  else if (view.name === 'agent') loadDetail();
 });
+window.addEventListener('pagehide', stashDraft);
 splitMq.addEventListener('change', relayout);
 connect();
 if (splitMq.matches) relayout();
