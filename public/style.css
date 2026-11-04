@@ -1145,8 +1145,12 @@ button.tool:active { filter: brightness(0.95); }
   content: attr(data-keyhint); position: absolute; z-index: 40; pointer-events: none;
   top: calc(100% + 4px); right: 0; /* lined up with the button's right edge, so one at the
   screen's right edge isn't cut off */
-  font: 600 11px/1 var(--mono); padding: 3px 5px; border-radius: 6px; white-space: nowrap;
-  background: var(--text); color: var(--bg); box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+  font: 600 11px/1 var(--mono); padding: 3px 6px; border-radius: 6px; white-space: nowrap;
+  /* A keycap in the theme's colours, as the 단축키 page draws keys: the surface, an accent edge
+     and accent letters, so it reads as the app's own in light and dark. */
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-bottom-width: 2px;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--text) 14%, transparent);
 }
 .show-keys .composer [data-keyhint]::after { top: auto; bottom: calc(100% + 4px); }
 /* 중단 sits just left of 보내기: its badge goes to its left, so the two don't overlap. */
