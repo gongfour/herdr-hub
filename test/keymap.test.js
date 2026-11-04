@@ -184,3 +184,50 @@ test('label reads as on the keycap; the sheet lists every action once with all i
   assert.deepEqual(rows.find((r) => r.label === ACTIONS.switcher.label).keys, ['Ctrl+P', 'Alt+P']);
   assert.deepEqual(rows.find((r) => r.label === ACTIONS.newWorkspace.label).keys, ['Ctrl+Shift+N', 'Alt+Shift+N']);
 });
+
+test('Alt+H/J/K/L mirror Alt+←/↓/↑/→ in the same places, by e.code too', () => {
+  const sp = { split: true };
+  for (const ctx of [{}, { field: true }]) {
+    assert.equal(act('Alt+h', ctx), 'prevHost');
+    assert.equal(act('Alt+l', ctx), 'nextHost');
+  }
+  for (const ctx of [sp, { ...sp, field: true }, { ...sp, shell: true }, { ...sp, shell: true, field: true }]) {
+    assert.equal(act('Alt+k', ctx), 'prevRow');
+    assert.equal(act('Alt+j', ctx), 'nextRow');
+  }
+  // Where the arrows are not taken, neither are the letters.
+  assert.equal(act('Alt+h', { shell: true }), null); // the shell's (as Alt+←/→)
+  assert.equal(act('Alt+l', { shell: true }), null);
+  assert.equal(act('Alt+h', { layer: true }), null);
+  assert.equal(act('Alt+j', {}), null); // the phone: no list beside it
+  assert.equal(act('Alt+k', { ...sp, layer: true }), null);
+  // A Mac's Option letters and a Korean layout: the physical key.
+  assert.equal(act('Alt+h', {}, { key: '˙', code: 'KeyH' }), 'prevHost');
+  assert.equal(act('Alt+l', {}, { key: '¬', code: 'KeyL' }), 'nextHost');
+  assert.equal(act('Alt+j', sp, { key: '∆', code: 'KeyJ' }), 'nextRow');
+  assert.equal(act('Alt+k', sp, { key: '˚', code: 'KeyK' }), 'prevRow');
+  assert.equal(act('Alt+k', sp, { key: 'ㅏ', code: 'KeyK' }), 'prevRow');
+  // Plain, Shift, Ctrl+Alt: not these.
+  assert.equal(act('h', {}), null);
+  assert.equal(act('Alt+Shift+j', sp), null);
+  assert.equal(act('Ctrl+Alt+j', sp), null);
+  // The sheet lists the letters on the arrows' rows.
+  const rows = sheetGroups().flatMap((g) => g.rows);
+  for (const [arrow, letter] of [['Alt+↑', 'Alt+K'], ['Alt+↓', 'Alt+J'], ['Alt+←', 'Alt+H'], ['Alt+→', 'Alt+L']]) {
+    const r = rows.find((x) => x.keys.includes(arrow));
+    assert.ok(r && r.keys.includes(letter), `${arrow} ${letter}`);
+  }
+});
+
+test('Ctrl+, opens and closes 설정: on the page and in a field, not in the shell or under a sheet', () => {
+  assert.equal(act('Ctrl+,', {}), 'settings');
+  assert.equal(act('Ctrl+,', { field: true }), 'settings');
+  assert.equal(act('Ctrl+,', { split: true }), 'settings');
+  assert.equal(act('Ctrl+,', {}, { key: '<', code: 'Comma' }), 'settings'); // another layout
+  assert.equal(act('Ctrl+,', { shell: true }), null);
+  assert.equal(act('Ctrl+,', { shell: true, field: true }), null);
+  assert.equal(act('Ctrl+,', { layer: true }), null);
+  assert.equal(act(',', {}), null); // a typed comma
+  assert.equal(act('Meta+,', {}), null); // the browser's own
+  assert.equal(act('Alt+,', {}), null);
+});

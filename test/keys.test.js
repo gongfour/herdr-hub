@@ -60,6 +60,14 @@ test('rawKeyName: paste chords, Alt+↑/↓ and Alt+P (the Hub\'s 빠른 이동)
   assert.equal(rawKeyName(key('p', { altKey: true, code: 'KeyP' })), null);
   assert.equal(rawKeyName(key('π', { altKey: true, code: 'KeyP' })), null); // a Mac's Option+P
   assert.equal(rawKeyName(key('p', { ctrlKey: true, code: 'KeyP' })), 'ctrl+p'); // the shell's
+  // Alt+K/J are Alt+↑/↓'s twins (the Hub's rows); Alt+H/L stay the shell's, as Alt+←/→.
+  assert.equal(rawKeyName(key('k', { altKey: true, code: 'KeyK' })), null);
+  assert.equal(rawKeyName(key('j', { altKey: true, code: 'KeyJ' })), null);
+  assert.equal(rawKeyName(key('∆', { altKey: true, code: 'KeyJ' })), null); // a Mac's Option+J
+  assert.equal(rawKeyName(key('h', { altKey: true, code: 'KeyH' })), 'alt+h');
+  assert.equal(rawKeyName(key('l', { altKey: true, code: 'KeyL' })), 'alt+l');
+  assert.equal(rawKeyName(key('k', { ctrlKey: true, code: 'KeyK' })), 'ctrl+k');
+  assert.equal(rawKeyName(key(',', { ctrlKey: true, code: 'Comma' })), null); // Ctrl+, sends nothing either way
   assert.equal(rawKeyName(key('b', { ctrlKey: true, code: 'KeyB' })), 'ctrl+b');
   assert.equal(rawKeyName(key('v', { ctrlKey: true, code: 'KeyV' })), null);
   assert.equal(rawKeyName(key('V', { ctrlKey: true, shiftKey: true, code: 'KeyV' })), null);
@@ -145,4 +153,9 @@ test('recall: typed or changed text, ↓ on an empty field and an empty history 
   assert.equal(recall(sent, 1, 'two!', -1), null);
   assert.equal(recall(sent, null, '', 1), null);
   assert.equal(recall([], null, '', -1), null);
+});
+
+test('withMods: the key row\'s sticky Alt still sends Alt+J/K to the shell', () => {
+  assert.deepEqual(withMods({ text: 'j' }, { alt: true }), { key: 'alt+j' });
+  assert.deepEqual(withMods({ text: 'k' }, { alt: true }), { key: 'alt+k' });
 });

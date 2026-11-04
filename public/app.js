@@ -374,6 +374,7 @@ const KEY_ACTIONS = {
     return true;
   },
   help: () => (openKeySheet(), true),
+  settings: () => (toggleSettings(), true),
   // The caret in the composer (or the shell's command line), at the end of what is there.
   focusInput() {
     const f = document.getElementById('d-input') || document.getElementById('t-input');
@@ -427,10 +428,15 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('#rail .rail-btn');
   if (!b) return;
   if (b.dataset.tab === 'spaces') return setSideOff(!sideOff());
-  if (view.name === 'settings') return goBack(settingsBack());
+  toggleSettings();
+});
+// 설정 open or closed (the rail's ⚙, Ctrl+,): closing goes back to what was open before it
+// (split: on the right; phone: the 작업공간 tab).
+function toggleSettings() {
+  if (view.name === 'settings') return goBack(split ? settingsBack() : '#/');
   history.pushState(null, '', '#/settings');
   route();
-});
+}
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') stashDraft();
   else if (view.name === 'agent') loadDetail();

@@ -19,6 +19,7 @@
   const ACTIONS = {
     back: { group: '어디서나', label: '시트·메뉴 닫기, 입력 칸에서 나가기, 뒤로' },
     help: { group: '어디서나', label: '단축키 보기' },
+    settings: { group: '어디서나', label: '설정 열기·닫기 (두 칸이면 오른쪽에)' },
     focusInput: { group: '어디서나', label: '입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)' },
     newAgent: { group: '어디서나', label: '새 에이전트: 지금 연 것의 작업공간에 (목록이면 새 워크스페이스)' },
     newWorkspace: { group: '어디서나', label: '새 워크스페이스' },
@@ -61,9 +62,18 @@
     b('scrollDown', 'Ctrl+j', { field: true, layer: true }), // the shell's newline
     b('prevHost', 'Alt+ArrowLeft', { field: true }), // the shell's word keys
     b('nextHost', 'Alt+ArrowRight', { field: true }),
+    // Alt+H/L as vim's h and l: the same, by e.code (a Mac's Option+H is ˙, a Korean layout ㅗ).
+    // In the shell they stay the shell's, as Alt+←/→ do.
+    b('prevHost', 'Alt+h', { field: true }),
+    b('nextHost', 'Alt+l', { field: true }),
     // Alt+↑/↓ works in the shell too: it is the way out of a shell that has every other key.
     b('prevRow', 'Alt+ArrowUp', { field: true, shell: true, split: true }),
     b('nextRow', 'Alt+ArrowDown', { field: true, shell: true, split: true }),
+    // Alt+K/J as vim's k and j: the same, the shell included (keys.js leaves them to the Hub there).
+    b('prevRow', 'Alt+k', { field: true, shell: true, split: true }),
+    b('nextRow', 'Alt+j', { field: true, shell: true, split: true }),
+    // Ctrl+, as in VS Code. Not in the shell, whose keys stay its own; it types nothing in a field.
+    b('settings', 'Ctrl+,', { field: true }),
     // Ctrl+P is the shell's (previous line): there Alt+P, which keys.js leaves to the Hub. Taken
     // under a sheet too, so the browser never prints; switcher.js decides what it means there.
     b('switcher', 'Ctrl+p', { field: true, layer: true }),
@@ -86,8 +96,8 @@
     { group: '메시지 칸', key: 'Ctrl+Enter', label: '보내기 (⌘+리턴도). 리턴 키 설정이 「보내기」면 리턴, 줄바꿈은 Shift+리턴' },
     { group: '메시지 칸', key: 'ArrowUp', label: '빈 칸에서: 전에 보낸 메시지 불러오기 (↓ 는 다음)' },
     { group: '메시지 칸', key: '/', label: '맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)' },
-    { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓' },
-    { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc. Alt+←/→·Alt+.·Alt+N 과 Ctrl+K·J·P·N·B 는 셸로 간다 (빠른 이동은 Alt+P)' },
+    { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
+    { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc. Alt+←/→·Alt+H/L·Alt+.·Alt+N 과 Ctrl+K·J·P·N·B 는 셸로 간다 (빠른 이동은 Alt+P)' },
     { group: '빠른 이동', key: 'Enter', label: '고른 것 열기 (↑↓ 로 고른다). Esc·Ctrl+[ 로 닫기' },
   ];
 
@@ -100,7 +110,7 @@
   }
   const isLetter = (s) => /^[a-z]$/i.test(s);
   const isSymbol = (s) => s.length === 1 && !isLetter(s) && !/^\d$/.test(s);
-  const CODES = { '[': 'BracketLeft', ']': 'BracketRight', '/': 'Slash', '.': 'Period' };
+  const CODES = { '[': 'BracketLeft', ']': 'BracketRight', '/': 'Slash', '.': 'Period', ',': 'Comma' };
 
   function matches(e, key) {
     const k = parse(key);
