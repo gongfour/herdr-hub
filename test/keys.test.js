@@ -143,7 +143,11 @@ test('recall: typed or changed text, ↓ on an empty field and an empty history 
   assert.equal(recall([], null, '', -1), null);
 });
 
-test('jumpKey: Ctrl+End and ⌘+↓ anywhere, End alone only outside a field', () => {
+test('jumpKey: Ctrl+↓, Ctrl+End and ⌘+↓ anywhere, End alone only outside a field', () => {
+  assert.equal(jumpKey(key('ArrowDown', { ctrlKey: true })), true);
+  assert.equal(jumpKey(key('ArrowDown', { ctrlKey: true }), { editable: true }), true);
+  assert.equal(jumpKey(key('ArrowDown', { ctrlKey: true, metaKey: true })), false);
+  assert.equal(rawKeyName(key('ArrowDown', { ctrlKey: true })), null); // not the shell's
   assert.equal(jumpKey(key('End', { ctrlKey: true })), true);
   assert.equal(jumpKey(key('End', { ctrlKey: true }), { editable: true }), true);
   assert.equal(jumpKey(key('ArrowDown', { metaKey: true }), { editable: true }), true);

@@ -387,8 +387,9 @@ document.addEventListener('keydown', (e) => {
     if (f.isContentEditable) caretToEnd(f);
     return;
   }
-  // Ctrl+End, ⌘+↓, or End outside a field: the conversation or screen to its latest line.
-  if (Keys.jumpKey(e, { editable: editable(document.activeElement) }) && jumpLatest()) return e.preventDefault();
+  // Ctrl+↓, Ctrl+End, ⌘+↓, or End outside a field: the conversation or screen to its latest
+  // line, and the caret to its field.
+  if (Keys.jumpKey(e, { editable: editable(document.activeElement) }) && jumpLatest(true)) return e.preventDefault();
   // Alt+←/→: the previous or next host in the list's segment (전체 / each machine).
   const hostDir = Split.hostKey(e, { shell: view.name === 'term', layer: Boolean(topLayer()) });
   if (hostDir && stepHostFilter(hostDir)) return e.preventDefault();

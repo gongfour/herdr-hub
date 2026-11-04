@@ -75,11 +75,7 @@ function mountScreen(body, kind, tools, topHtml = '') {
     s.touching = false;
     setTimeout(flushScreen, 60);
   };
-  s.pill.onclick = () => {
-    s.follow = true;
-    flushScreen(true);
-    body.scrollTop = body.scrollHeight;
-  };
+  s.pill.onclick = () => jumpLatest(keyboardLikely()); // agent.js; a phone's keyboard stays down
   // 색상 and 줄바꿈 live in 설정; the tools row only says what went wrong, when something did.
   if (tools) tools.innerHTML = '<span class="s-status"></span>';
   screenStatus();

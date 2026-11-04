@@ -397,7 +397,7 @@ function renderDetailBody(reset) {
         '<div class="pill-dock"><button type="button" class="new-out jump" hidden>↓ 최신 대화</button></div>';
       body._html = 'chat';
       body._seen = null;
-      body.querySelector('.jump').onclick = () => jumpLatest();
+      body.querySelector('.jump').onclick = () => jumpLatest(keyboardLikely()); // a phone's keyboard stays down
     }
     body.querySelector('.trunc').hidden = !t.truncated;
     // One element per message, replaced only when its HTML changed: a poll that brings
@@ -428,20 +428,30 @@ function updateJump(body) {
   pill.hidden = !away;
 }
 
-// The pill, Ctrl+End, ⌘+↓ or End: the open view to its latest line. The screen box (the
+// The pill, Ctrl+↓, Ctrl+End, ⌘+↓ or End: the open view to its latest line. The screen box (the
 // terminal sheet, a screen-only agent, the shell) follows its output again; the conversation
-// scrolls to its last message. False when there is nothing to jump in.
-function jumpLatest() {
+// scrolls to its last message. focus: then the caret goes to the view's field (the composer, or
+// the shell's command line), at the end of what is there; not under a sheet. False when there
+// is nothing to jump in.
+function jumpLatest(focus) {
   const top = topLayer();
   if (scr && (!top || top.el.contains(scr.body))) {
     scr.follow = true;
     flushScreen(true);
     scr.body.scrollTop = scr.body.scrollHeight;
-    return true;
+  } else {
+    const body = document.getElementById('d-body');
+    if (top || !body || body._html !== 'chat') return false;
+    // Glide a short way; a long way at once (messages arriving during a long glide would move
+    // the end away from it, and the glide would stop short of them).
+    const far = body.scrollHeight - body.scrollTop - body.clientHeight > body.clientHeight * 2;
+    body.scrollTo({ top: body.scrollHeight, behavior: far || reduced() ? 'auto' : 'smooth' });
   }
-  const body = document.getElementById('d-body');
-  if (top || !body || body._html !== 'chat') return false;
-  body.scrollTo({ top: body.scrollHeight, behavior: reduced() ? 'auto' : 'smooth' });
+  const f = !top && focus && (document.getElementById('d-input') || document.getElementById('t-input'));
+  if (f && !f.disabled && document.activeElement !== f) {
+    f.focus({ preventScroll: true });
+    if (f.isContentEditable) caretToEnd(f);
+  }
   return true;
 }
 
