@@ -41,7 +41,7 @@ async function renderForm() {
         <h2><label for="f-kind">에이전트</label></h2>
         ${isNew ? '<p class="form-note">새 폴더에서 Claude 를 처음 띄우면 폴더 신뢰 질문이 나옵니다. 에이전트 화면에 나오는 버튼으로 답하세요.</p>' : ''}
         <select class="field" id="f-kind"></select>
-        <h2><label for="f-args">인자 (선택)</label></h2>
+        <h2><label for="f-args">추가 옵션 (선택)</label></h2>
         <input class="field" id="f-args" placeholder="예: --model haiku" autocomplete="off" autocapitalize="off" spellcheck="false">
         <h2><label for="f-name">에이전트 이름 (선택)</label></h2>
         <input class="field" id="f-name" placeholder="비우면 폴더·워크스페이스 이름" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="f-name-hint">
@@ -50,12 +50,17 @@ async function renderForm() {
       <div class="row end"><button type="submit" class="btn" id="f-submit" disabled>${isNew ? '만들기' : '시작'}</button></div>
     </form>`;
   const withAgent = document.getElementById('f-with');
-  if (withAgent) withAgent.onchange = () => (document.getElementById('f-agent').hidden = !withAgent.checked);
+  if (withAgent)
+    withAgent.onchange = () => {
+      document.getElementById('f-agent').hidden = !withAgent.checked;
+      syncSubmit();
+    };
   const fname = document.getElementById('f-name');
   fname.oninput = () => {
     const hint = agentNameHint(fname.value);
     document.getElementById('f-name-hint').textContent = hint;
     fname.setAttribute('aria-invalid', String(Boolean(hint)));
+    syncSubmit();
   };
   document.getElementById('f-form').onsubmit = submitForm;
   const pick = document.getElementById('f-host');
@@ -227,8 +232,8 @@ const joinPath = (dir, name, sep) => (dir.endsWith(sep) ? dir + name : dir + sep
 // Allowed kinds and folder suggestions come from the chosen host.
 async function fillForm(host) {
   view.formHost = host;
-  const btn = document.getElementById('f-submit');
-  btn.disabled = true;
+  view.formReady = false;
+  syncSubmit();
   let info;
   try {
     info = await hostInfo(host);
@@ -238,7 +243,7 @@ async function fillForm(host) {
   if (view.name !== 'form' || view.formHost !== host) return;
   const kind = document.getElementById('f-kind');
   const prev = kind.value;
-  kind.innerHTML = info.kinds.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  kind.innerHTML = info.kinds.map((k) => `<option value="${esc(k)}">${esc(kindLabel(k))}</option>`).join('');
   if (info.kinds.includes(prev)) kind.value = prev;
   const cwd = document.getElementById('f-cwd');
   if (cwd) {
@@ -252,7 +257,23 @@ async function fillForm(host) {
     if (!cwd.value && info.recentCwds.length === 1) cwd.value = info.recentCwds[0];
     renderRecent(info.recentCwds);
   }
-  btn.disabled = false;
+  view.formReady = true;
+  syncSubmit();
+}
+
+// The agent kinds by their names (the value sent stays the id).
+const KIND_NAMES = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' };
+const kindLabel = (k) => KIND_NAMES[k] || k;
+
+// 시작 / 만들기 is off while the host's info is loading and while the agent's name can't be
+// used (its hint says why, under the field), so a tap never ends in a toast.
+function syncSubmit() {
+  const btn = document.getElementById('f-submit');
+  if (!btn) return;
+  const withAgent = document.getElementById('f-with');
+  const name = document.getElementById('f-name');
+  const bad = (!withAgent || withAgent.checked) && name && Boolean(agentNameHint(name.value.trim()));
+  btn.disabled = !view.formReady || bad;
 }
 
 async function submitForm(e) {
@@ -270,7 +291,7 @@ async function submitForm(e) {
   let started = true;
   if (view.mode === 'new') {
     if (!val('f-cwd')) {
-      btn.disabled = false;
+      syncSubmit();
       return folderMissing();
     }
     const withAgent = document.getElementById('f-with').checked;
@@ -282,7 +303,7 @@ async function submitForm(e) {
     }
   } else if (view.mode === 'ws') r = await act(hp(`/workspaces/${encodeURIComponent(view.target)}/agents`, host), agent);
   else r = await act(hp(`/panes/${encodeURIComponent(view.target)}/agent`, host), agent);
-  btn.disabled = false;
+  syncSubmit();
   if (!r) return;
   const pane = encodeURIComponent(r.pane || view.target);
   location.hash = link(host, started ? `/agent/${pane}` : `/term/${pane}`);

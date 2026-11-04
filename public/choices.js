@@ -140,7 +140,9 @@
     let question = '';
     if (qi >= 0) question = paras[qi].join(' ').replace(/\s+/g, ' ').match(/^.*?[?？](?=\s|$)/)[0];
     else if (paras.length) question = paras[(qi = paras.length - 1)].join(' ').replace(/\s+/g, ' ');
-    const context = qi > 0 ? paras.slice(0, qi).flat().slice(-6) : [];
+    // All of it (at most the 20 lines above): the app folds a long one and says so (answer.js);
+    // cutting its head would hide the start of the command being allowed.
+    const context = qi > 0 ? paras.slice(0, qi).flat() : [];
 
     const items = list.items.map(({ n, label, cursor, rows }) => {
       const { name, desc } = rows ? splitItem(rows, width) : { name: label, desc: '' };
@@ -166,6 +168,19 @@
 
   // An option that asks for your own words (AskUserQuestion's "Type something.").
   const TYPE_OWN = /^(type something|type your own|other\b|something else|직접 입력|기타)/i;
+
+  // The option that words typed into the composer answer while the prompt waits, and how they go:
+  // 'own' (AskUserQuestion's "Type something": pick it, then the words go into the question) or
+  // 'prompt' (a permission prompt's "No, and tell Claude what to do differently": pick it, then
+  // the words are the next message). Null when the prompt takes no words.
+  const TELL_CLAUDE = /tell claude what to do|다르게 하라고/i;
+  function typedChoice(ch) {
+    if (!ch) return null;
+    const own = ch.items.find((x) => TYPE_OWN.test(x.label) && choiceKeys(ch, x.n));
+    if (own) return { item: own, how: 'own' };
+    const tell = ch.items.find((x) => TELL_CLAUDE.test(x.label) && choiceKeys(ch, x.n));
+    return tell ? { item: tell, how: 'prompt' } : null;
+  }
 
   // The quick answers offered outside the detail view (the 답 필요 strip): up to three, a numbered
   // menu's first options or a Yes/No menu; never "Type something".
@@ -205,7 +220,7 @@
     return Boolean(ch && ch.items.length && /[?？]/.test(ch.question));
   }
 
-  const api = { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, TYPE_OWN };
+  const api = { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, TYPE_OWN });
+  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN });
 })(typeof self !== 'undefined' ? self : this);

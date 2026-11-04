@@ -15,10 +15,11 @@ function renderDetail() {
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기">${ICON.more}</button>
       </header>
-      <button type="button" class="activity" id="d-activity" aria-label="터미널 화면 보기"${keyAttrs('terminal', '터미널 화면 보기')} hidden></button>
+      <button type="button" class="activity" id="d-activity"${keyAttrs('terminal', '터미널 화면 보기')} hidden></button>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="d-body"></div>
       <div id="d-blocked"></div>
+      <div class="sr-only" id="d-say" role="status"></div>
       <div class="attach-tray" id="d-tray" hidden></div>
       <input type="file" id="d-file" accept="image/*" multiple hidden>
       <input type="file" id="d-cam" accept="image/*" capture="environment" hidden>
@@ -123,10 +124,30 @@ function renderDetail() {
     const pane = detail.pane;
     const key = rowKey(host, pane);
     const here = () => view.name === 'agent' && detail.pane === pane && curHost() === host;
+    // The agent waits on a question: words typed here answer it only through the option that
+    // takes words (choices.js typedChoice), picked first in the same go. Without one, say so.
+    const cur = currentAgent();
+    let via = null; // 'own' | 'prompt': the option picked just now, and how the words follow
+    if (cur && cur.status === 'blocked' && !detail.answerMode) {
+      const target = blockedTarget(cur);
+      if (!target || (target.how === 'own' && files.length)) {
+        toast(target ? '이 질문에는 사진을 보낼 수 없습니다' : '위의 선택지에서 먼저 답을 고르세요');
+        return revealChoices();
+      }
+      detail.sending = true;
+      updateComposer();
+      if (!(await answerChoice(host, cur, target.item))) {
+        detail.sending = false;
+        return updateComposer();
+      }
+      via = target.how;
+      // Claude opens the question's own text field (or goes back to its prompt) a moment later.
+      await new Promise((r) => setTimeout(r, 600));
+    }
     detail.sending = true;
     updateComposer();
     // The answer typed after a "Type something" choice: into the open question, then Enter.
-    if (detail.answerMode && !files.length) {
+    if (via === 'own' || (detail.answerMode && !files.length)) {
       try {
         await api(hp(`/agents/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ text: text.replace(/\s+/g, ' ').trim(), keys: ['enter'] }) });
         if (here()) {
@@ -154,7 +175,17 @@ function renderDetail() {
           throw Object.assign(err, { upload: true });
         }
       }
-      await api(hp(`/agents/${encodeURIComponent(pane)}/prompt`, host), { method: 'POST', body: JSON.stringify({ text: promptText(text, files.map((f) => f.path)) }) });
+      const body = JSON.stringify({ text: promptText(text, files.map((f) => f.path)) });
+      // After "No, and tell Claude …" the prompt comes back within a second or two.
+      for (let i = 0; ; i++) {
+        try {
+          await api(hp(`/agents/${encodeURIComponent(pane)}/prompt`, host), { method: 'POST', body });
+          break;
+        } catch (err) {
+          if (via !== 'prompt' || err.code !== 'agent_blocked' || i >= 6) throw err;
+          await new Promise((r) => setTimeout(r, 500));
+        }
+      }
       if (here()) {
         addPending(key, text.trim(), files.length);
         renderDetailBody(true); // to the end, where the message just sent is
@@ -212,9 +243,34 @@ function stopKey() {
   return true;
 }
 
+// The option the composer's words answer while the open agent waits on a question (null: none,
+// or not blocked). The parse is kept per screen read; this runs on every keystroke.
+function blockedTarget(a = currentAgent()) {
+  if (!a || a.status !== 'blocked' || !detail.blockedText) return null;
+  if (detail._tcFor !== detail.blockedText) {
+    detail._tcFor = detail.blockedText;
+    detail._tc = typedChoice(parseChoices(detail.blockedText));
+  }
+  return detail._tc;
+}
+// The blocked box's choices into view (an Enter that can't go while they wait).
+function revealChoices() {
+  const box = document.getElementById('d-blocked');
+  const ch = box && box.querySelector('.choices');
+  if (ch) box.scrollTop = Math.max(0, ch.offsetTop - box.offsetTop - 8);
+}
+
+// The composer says what its words would do: a message, the answer to a question, or nothing
+// until a choice is picked above.
 function setPlaceholder() {
   const input = document.getElementById('d-input');
-  if (input) input.dataset.placeholder = detail.answerMode ? '답을 적어 보내세요' : '메시지 보내기';
+  if (!input) return;
+  const a = currentAgent();
+  const blocked = a && a.status === 'blocked' && !detail.answerMode;
+  const target = blocked ? blockedTarget(a) : null;
+  input.dataset.placeholder = detail.answerMode ? '답을 적어 보내세요' : !blocked ? '메시지 보내기' : target ? `적어 보내면 ${target.item.n}번으로 답합니다` : '위에서 답을 고르세요';
+  if (blocked && !target) input.setAttribute('aria-disabled', 'true');
+  else input.removeAttribute('aria-disabled');
 }
 
 function updateComposer() {
@@ -226,13 +282,16 @@ function updateComposer() {
   const working = a && a.status === 'working';
   stop.hidden = !working;
   const files = detail.files || [];
-  // Blocked: only the answer to a "Type something" choice goes from here.
-  const blockedNow = a && a.status === 'blocked' && !detail.answerMode;
+  // Blocked: the words go only as the answer through the option that takes them (blockedTarget).
+  const target = a && a.status === 'blocked' && !detail.answerMode ? blockedTarget(a) : undefined;
+  const blockedNow = target === null || (target && target.how === 'own' && files.length > 0);
   send.disabled = !a || (!input.value.trim() && !files.length) || blockedNow || Boolean(detail.sending);
-  for (const id of ['d-attach']) {
-    const b = document.getElementById(id);
-    if (b) b.disabled = Boolean(detail.sending) || files.length >= MAX_FILES;
-  }
+  const attach = document.getElementById('d-attach');
+  if (attach) attach.disabled = !a || Boolean(detail.sending) || files.length >= MAX_FILES;
+  // Gone, or its host offline: nothing to send to (renderDetailBody says why).
+  const form = document.getElementById('d-form');
+  if (form) form.hidden = !a && detail.known;
+  setPlaceholder();
 }
 
 function renderDetailHeader() {
@@ -241,27 +300,42 @@ function renderDetailHeader() {
   if (!title) return;
   // The agent exited and left its shell behind: show that pane as a terminal. Only once the
   // agent has been seen here; just after a start the state may still list the pane as a shell.
-  if (a) detail.seen = true;
+  if (a) {
+    detail.seen = true;
+    detail.last = { workspace: a.workspace, name: a.name || a.title };
+  }
   else if (detail.seen && (state.terminals || []).some((t) => same(t, curHost(), detail.pane))) return (location.hash = link(curHost(), `/term/${encodeURIComponent(detail.pane)}`));
   if (!a) {
     // Before the first state arrives (or before a peer's first report) nothing is known yet.
     const known = state.herdr !== 'connecting' && (state.hosts || []).some((h) => h.id === curHost());
+    const was = detail.known;
+    detail.known = known;
     title._html = null;
     title.innerHTML = !known
       ? '불러오는 중…'
       : !online(curHost())
-      ? `${esc(hostLabel(curHost()))} 오프라인<span class="sub">호스트가 돌아오면 다시 보입니다</span>`
-      : `에이전트 없음<span class="sub">이 패널의 에이전트가 끝났거나 닫혔습니다</span>`;
-    document.getElementById('d-badge').innerHTML = '';
+      ? `${esc(hostLabel(curHost()))} 오프라인${detail.last ? `<span class="sub">${esc(detail.last.name)}</span>` : ''}`
+      : starting()
+      ? '에이전트를 시작하는 중…'
+      : `에이전트 없음${detail.last ? `<span class="sub">${esc(detail.last.name)}</span>` : ''}`;
+    const badge = document.getElementById('d-badge');
+    badge.innerHTML = badge._html = '';
+    document.getElementById('d-more').hidden = true; // its menu is about an agent that isn't there
+    renderMode();
+    renderBlocked();
     renderActivity();
     updateComposer();
+    if (was !== known || detail.goneShown !== goneKind()) renderDetailBody(false);
     return;
   }
+  detail.known = true;
+  document.getElementById('d-more').hidden = false;
+  if (detail.goneShown) renderDetailBody(true);
   // The status and its time sit beside the title on wide screens (#d-badge) and lead the
   // subtitle on the phone (.sub-st), where the title row is left to the name (style.css).
   const time = a.status === 'working' ? '' : timeTag(a);
   const status = esc(STATUS_LABEL[a.status] || a.status);
-  const th = `<span class="t">${esc(a.name || a.title)}</span><span class="sub"><span class="sub-st"><b class="st ${esc(a.status)}">${status}</b>${time ? ` · ${time}` : ''} · </span>${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${a.agent === 'claude' ? '' : `${esc(a.agent)} · `}${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
+  const th = `<span class="t"><span class="st-dot ${esc(a.status)}" aria-hidden="true"></span>${esc(a.name || a.title)}</span><span class="sub"><span class="sub-st"><b class="st ${esc(a.status)}">${status}</b>${time ? ` · ${time}` : ''} · </span>${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${a.agent === 'claude' ? '' : `${esc(a.agent)} · `}${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
   if (title._html !== th) {
     title._html = th;
     title.innerHTML = th;
@@ -313,6 +387,7 @@ async function loadDetail() {
       if ((currentAgent() || {}).stateSeq === seq) detail.blockedText = v.text.replace(/\s+$/, '');
       else reloadAfter = true;
       renderBlocked();
+      updateComposer(); // what the composer's words would answer (setPlaceholder)
     } else detail.blockedText = null;
     const working = a.status === 'working';
     const d = detail;
@@ -569,7 +644,35 @@ function pendingNow(key, a) {
 }
 function pendingBubble(p) {
   const pics = p.pics ? `<div class="pics"><span class="img-chip">사진 ${p.pics}장</span></div>` : '';
-  return `<div class="msg user pending">${pics}${p.text ? `<span>${esc(p.text)}</span>` : ''}<small class="wait">대기 중</small></div>`;
+  return `<div class="msg user pending">${pics}${p.text ? `<span>${esc(p.text)}</span>` : ''}<small class="wait"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>대기 중</small></div>`;
+}
+
+// The agent view with no agent: 'gone' (ended or closed), 'offline' (its host is away, the chat
+// read so far stays), or null (it is here, or nothing is known yet).
+// Just started here: the state may list the pane as a shell for a moment before its agent.
+const starting = () => !detail.seen && (state.terminals || []).some((t) => same(t, curHost(), detail.pane));
+function goneKind() {
+  if (currentAgent() || !detail.known) return null;
+  if (online(curHost())) return starting() ? null : 'gone';
+  return detail.transcript && detail.transcript.found && detail.transcript.messages.length ? null : 'offline';
+}
+function goneHtml(kind) {
+  const host = curHost();
+  const ws = detail.last && (state.workspaces || []).find((w) => same(w, host, detail.last.workspace, 'workspace_id'));
+  const home = `<a class="btn secondary" href="${homeHash()}">작업공간으로</a>`;
+  if (kind === 'offline')
+    return `<div class="empty-detail in-body" role="status">
+      <span class="ed-ic" aria-hidden="true">${ICON.panel}</span>
+      <h2>${esc(hostLabel(host))} 에 닿지 않습니다</h2>
+      <p>호스트가 돌아오면 이 대화가 다시 보입니다.</p>
+      <div class="ed-acts">${home}</div>
+    </div>`;
+  return `<div class="empty-detail in-body" role="status">
+      <span class="ed-ic" aria-hidden="true">${ICON.panel}</span>
+      <h2>이 에이전트는 끝났습니다</h2>
+      <p>끝났거나 닫혀서 더는 보낼 수 없습니다.</p>
+      <div class="ed-acts">${ws ? `<a class="btn" href="${link(host, `/start/ws/${encodeURIComponent(ws.workspace_id)}`)}">여기서 새 에이전트 시작</a>` : ''}${home}</div>
+    </div>`;
 }
 
 // Only Claude has a transcript; any other agent kind shows its terminal screen in the body.
@@ -590,6 +693,14 @@ function renderDetailBody(reset) {
     unmountScreen();
     body._html = null;
     reset = true;
+  }
+  // No agent here (gone, or its host offline): say so in the body, with ways on.
+  const gone = goneKind();
+  detail.goneShown = gone;
+  if (gone) {
+    const html = goneHtml(gone);
+    if (body._html !== html) body.innerHTML = body._html = html;
+    return;
   }
   const nearBottom = reset || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
   const t = detail.transcript;
@@ -827,11 +938,13 @@ function renderActivity() {
     return;
   }
   const act = detail.activity;
-  const tail = (act && act.tool) || transcriptTool() || (act && (act.detail || act.tokens));
+  // In Korean first: 작업 중 and the time, then what it does (the tool, else Claude's own
+  // spinner word, which says little).
+  const tail = (act && act.tool) || transcriptTool() || (act && (act.word || act.detail || act.tokens));
   box.disabled = screenBody(a); // the screen is already the body
-  box.innerHTML = `<span class="spin" aria-hidden="true"></span><b>${esc(act ? act.word : '작업 중…')}</b><span class="el"></span>${
+  box.innerHTML = `<span class="spin" aria-hidden="true"></span><b>작업 중</b><span class="el"></span>${
     tail ? `<span class="tail">${esc(tail)}</span>` : ''
-  }${box.disabled ? '' : '<span class="go" aria-hidden="true">터미널 ›</span>'}`;
+  }${box.disabled ? '' : '<span class="go" aria-hidden="true">터미널 ›</span><span class="sr-only">, 누르면 터미널 화면</span>'}`;
   box.hidden = false;
   tickActivity();
   if (!tickTimer) tickTimer = setInterval(tickActivity, 1000);
@@ -877,13 +990,14 @@ function renderMode() {
   const chip = document.getElementById('d-mode');
   const a = currentAgent();
   if (!chip) return;
-  const m = a && a.agent === 'claude' ? detail.mode : null;
+  // Hidden while a question waits: ⇧Tab then would act on the question, and a faded chip
+  // wouldn't say why.
+  const m = a && a.agent === 'claude' && a.status !== 'blocked' ? detail.mode : null;
   chip.hidden = !m;
   if (!m) return;
   chip.innerHTML = `<span class="full">${esc(MODE_LABEL[m] || m)}</span><span class="short" aria-hidden="true">${esc(MODE_SHORT[m] || MODE_LABEL[m] || m)}</span>`;
   chip.dataset.mode = m;
-  // ⇧Tab in the middle of a question would act on the question.
-  chip.disabled = a.status === 'blocked' || Boolean(detail.modeBusy);
+  chip.disabled = Boolean(detail.modeBusy);
   chip.setAttribute('aria-label', `권한 모드: ${MODE_LABEL[m] || m}. 누르면 다음 모드로 바꿉니다(⇧Tab)`);
 }
 async function cycleMode() {

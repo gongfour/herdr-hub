@@ -282,13 +282,15 @@ button:disabled { cursor: default; }
 /* Replies use the full width like a terminal transcript; only what you sent is a bubble. */
 .msg.assistant { align-self: stretch; line-height: 1.55; }
 .msg.user + .msg.assistant { margin-top: 2px; }
-/* Sent, not taken yet (Claude Code holds a prompt while it is busy). */
-.msg.user.pending { opacity: 0.65; }
+/* Sent, not taken yet (Claude Code holds a prompt while it is busy): told by its shape (a pale,
+   dashed bubble), not by fading the words. */
+.msg.user.pending { background: color-mix(in srgb, var(--bubble-me) 14%, var(--surface)); color: var(--text); border: 1px dashed var(--bubble-me); }
 /* Ctrl+↑ / Ctrl+K / Ctrl+J landed here (agent.js navStep). */
 .msg.user.lit { animation: lit 1.2s ease-out; }
 @keyframes lit { from { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent); } to { box-shadow: 0 0 0 3px transparent; } }
 @media (prefers-reduced-motion: reduce) { .msg.user.lit { animation: none; outline: 2px solid var(--accent); outline-offset: 2px; } }
-.msg.user.pending .wait { display: block; margin-top: 4px; font-size: 11px; font-weight: 600; text-align: right; opacity: 0.85; white-space: nowrap; }
+.msg.user.pending .wait { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.msg.user.pending .wait svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
 .msg.assistant + .msg.assistant { margin-top: -8px; }
 .msg .tools:first-child { margin-top: 0; }
 .msg p { margin: 0 0 8px; }
@@ -311,6 +313,9 @@ button:disabled { cursor: default; }
 .tools { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .tool { font: 12px/1.35 var(--mono); color: var(--muted); background: var(--surface-2); padding: 5px 8px; border-radius: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool b { color: var(--text); font-weight: 600; }
+/* A line with nothing to open reads as text; one that opens is a pill (button.tool, below). */
+div.tool { background: none; padding: 2px 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .note { font-size: 13px; color: var(--muted); text-align: center; margin: 4px 0 10px; }
 
 /* Pane text. Unwrapped by default: a TUI drawn 125-200 columns wide keeps its shape and scrolls
@@ -443,12 +448,27 @@ button:disabled { cursor: default; }
 .detail .scroll { min-height: 0; }
 .blocked-box .question { margin: 8px 0 0; font-size: 16px; font-weight: 600; line-height: 1.4; }
 .blocked-box .question.muted { color: var(--muted); font-weight: 400; font-size: 14px; }
-.blocked-box pre.context { max-height: 4.2em; margin: 8px 0 0; color: var(--muted); }
+/* The command asked about: 8 lines, then a fade and 「명령 전체 보기」 (answer.js foldContext). */
+.blocked-box .ctx { position: relative; margin: 8px 0 0; }
+.blocked-box pre.context { max-height: calc(8 * 1.35em + 16px); overflow: hidden; margin: 0; color: var(--text); }
+.blocked-box .ctx.open pre.context { max-height: none; }
+.blocked-box .ctx.cut pre.context { -webkit-mask-image: linear-gradient(#000 calc(100% - 2.4em), transparent); mask-image: linear-gradient(#000 calc(100% - 2.4em), transparent); }
+.ctx-more { min-height: 44px; margin-top: 2px; padding: 0 12px; border: 1px solid var(--field-line); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; }
+/* More of the box below (the last choices, the toggles): its bottom fades out. */
+#d-blocked.more { -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), rgb(0 0 0 / 0.25)); mask-image: linear-gradient(#000 calc(100% - 36px), rgb(0 0 0 / 0.25)); }
+/* The keyboard is up: the question and its choices get the room, not the chat above. */
+:root.kb #d-blocked { max-height: 62%; }
+:root.kb .blocked-box pre.context { max-height: calc(4 * 1.35em + 16px); }
+@media (max-height: 520px) {
+  #d-blocked { max-height: 62%; }
+  .blocked-box pre.context { max-height: calc(4 * 1.35em + 16px); }
+}
 .blocked-box .keys { margin-top: 10px; }
+.blocked-box .key, .blocked-box .toggle { border-color: var(--field-line); }
 .choices { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .choice {
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 10px 14px;
-  border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  border-radius: 12px; border: 1px solid var(--field-line); background: var(--surface); color: var(--text);
   font-size: 16px; font-weight: 600; text-align: left; line-height: 1.35; cursor: pointer;
 }
 .choice .name { display: block; }
@@ -485,6 +505,9 @@ button:disabled { cursor: default; }
 }
 .composer .input { overflow-y: auto; overscroll-behavior: contain; white-space: pre-wrap; cursor: text; -webkit-user-select: text; user-select: text; }
 .composer .input:empty::before { content: attr(data-placeholder); color: var(--muted); pointer-events: none; }
+/* Blocked on a question the words can't answer: the field says so and looks it (agent.js setPlaceholder). */
+.composer .input[aria-disabled="true"] { background: var(--surface-2); }
+.composer[hidden] { display: none; }
 .composer textarea:focus, .composer .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .send, .stop {
   flex: none; width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer;
@@ -820,6 +843,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* ---- terminal screen sheet (agent view): the same dark screen box, tall, over the chat */
 .sheet.term-sheet { height: 92%; max-width: 960px; padding: 0; gap: 0; overflow: hidden; }
 .term-sheet-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 14px 16px 2px; }
+/* Its ✕ takes the focus as the sheet opens: the ring stays off the sheet's corner. */
+.term-sheet-head .icon-btn { margin: -4px; }
 .term-sheet-head h2 { flex: 1; min-width: 0; }
 .term-sheet-head .sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .term-sheet .scroll { flex: 1; min-height: 0; }
@@ -941,8 +966,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .tool.asked { white-space: normal; }
 .tool .ans { color: var(--text); font-weight: 600; }
 /* The terminal sheet's own keys, under the screen. */
-.sheet-keys { flex: none; flex-wrap: nowrap; gap: 6px; padding: 8px 12px calc(8px + var(--safe-bottom)); border-top: 1px solid #2c2b28; background: var(--surface); overflow-x: auto; }
-.sheet-keys .key { flex: 1 0 auto; min-width: 44px; padding: 0 8px; font-size: 14px; }
+/* Two rows of five on a phone, every key in sight (Ctrl+C too); one row where it fits. */
+.sheet-keys { flex: none; flex-wrap: wrap; gap: 6px; padding: 8px 12px calc(8px + var(--safe-bottom)); border-top: 1px solid #2c2b28; background: var(--surface); }
+.sheet-keys .key { flex: 0 0 calc((100% - 4 * 6px) / 5); min-width: 44px; padding: 0 4px; font-size: 14px; }
+@media (min-width: 640px) { .sheet-keys .key { flex: 1 0 auto; } }
 .term-sheet .scroll.screen-mode { padding-bottom: 0; }
 
 /* Pressed states (no tap highlight). */
@@ -1043,10 +1070,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .quick .choice .num { width: 22px; height: 22px; font-size: 12px; }
 
 .tool-wrap { display: flex; flex-direction: column; }
-button.tool { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; text-align: left; cursor: pointer; min-height: 30px; }
+button.tool { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; text-align: left; cursor: pointer; min-height: 40px; }
 button.tool .tool-head { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.tool.asked .tool-head { white-space: normal; }
-button.tool .chev { flex: none; color: var(--muted); }
+button.tool .chev { flex: none; color: var(--text); font-size: 14px; }
 .tool-out .tool-cmd { color: var(--muted); }
 button.tool:active { filter: brightness(0.95); }
 .tool.failed b { color: var(--blocked); }
@@ -1221,6 +1248,11 @@ button.tool:active { filter: brightness(0.95); }
 .empty-detail .ed-ic { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
 .empty-detail .ed-ic svg { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .empty-detail h2 { margin: 0; font-size: 17px; font-weight: 600; color: var(--text); }
+/* In an agent view whose agent is gone (agent.js goneHtml). */
+.empty-detail.in-body { min-height: 100%; padding: 32px 16px; box-sizing: border-box; }
+.empty-detail p { margin: 0; font-size: 14px; line-height: 1.5; }
+.ed-acts { display: flex; flex-direction: column; gap: 8px; width: min(320px, 100%); margin-top: 8px; }
+.ed-acts .btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .ed-keys { margin: 4px 0 0; font-size: 13px; line-height: 1.6; max-width: 420px; }
 .ed-keys kbd {
   display: inline-block; min-width: 22px; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px;
@@ -1257,6 +1289,25 @@ button.tool:active { filter: brightness(0.95); }
   .mode-chip .full { display: none; }
   .mode-chip .short { display: inline; }
 }
+/* The keyboard is up (or the window is that short): the header is one line, the name only, with
+   the status as a dot before it. Shared by the agent and shell views (.detail > .bar). */
+.bar h1 .st-dot { display: none; }
+@media (max-width: 759px) {
+  :root.kb .detail > .bar { padding-top: calc(6px + var(--safe-top)); padding-bottom: 6px; }
+  :root.kb .detail > .bar h1 .t { -webkit-line-clamp: 1; }
+  :root.kb .detail > .bar h1 .sub { display: none; }
+  :root.kb .detail > .bar h1 .st-dot { display: inline-block; }
+}
+@media (max-width: 759px) and (max-height: 520px) {
+  .detail > .bar { padding-top: calc(6px + var(--safe-top)); padding-bottom: 6px; }
+  .detail > .bar h1 .t { -webkit-line-clamp: 1; }
+  .detail > .bar h1 .sub { display: none; }
+  .detail > .bar h1 .st-dot { display: inline-block; }
+}
+.bar h1 .st-dot { width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; vertical-align: 2px; background: var(--idle); }
+.bar h1 .st-dot.blocked { background: var(--blocked); }
+.bar h1 .st-dot.working { background: var(--working); }
+.bar h1 .st-dot.done { background: var(--done); }
 
 /* Ctrl or Alt held (app.js): each button with a shortcut shows its keys in a badge. A small
    button gets it just outside, as a tooltip: below in a header, above at the composer,

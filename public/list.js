@@ -57,7 +57,7 @@ const homeHash = () => '#/';
 
 // 뒤로 in a detail header. Split, the list is already beside it: a detail that leads back to
 // the list gets ✕ (닫기) at the end of the header instead, and closing it goes to the list route.
-function backLink(href, label = '목록') {
+function backLink(href, label = '작업공간') {
   if (split && href === homeHash()) return `<a class="icon-btn close-detail" href="${href}" data-back aria-label="닫기"${keyAttrs('back', '닫기')}>${ICON.x}</a>`;
   return `<a class="icon-btn" href="${href}" data-back aria-label="${label}"${keyAttrs('back', '뒤로')}>${ICON.back}</a>`;
 }

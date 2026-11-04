@@ -5,7 +5,8 @@
 // Keys an agent takes from here: the blocked box's 직접 입력, the ⋯ 키 보내기 menu and the
 // terminal sheet's key row (which adds Ctrl+C).
 const AGENT_KEYS = [['esc', 'Esc'], ['shift+tab', '⇧Tab'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['1', '1'], ['2', '2'], ['3', '3']];
-const SHEET_KEYS = [...AGENT_KEYS, ['ctrl+c', 'Ctrl+C']];
+// The sheet's row leads with the keys wanted in a hurry (Esc, Ctrl+C).
+const SHEET_KEYS = [['esc', 'Esc'], ['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['shift+tab', '⇧Tab'], ['1', '1'], ['2', '2'], ['3', '3']];
 const keyRow = (keys, cls = '') => `<div class="keys ${cls}">${keys.map(([k, label]) => `<button type="button" class="key" data-key="${k}" aria-label="${esc(label)} 키 보내기">${esc(label)}</button>`).join('')}</div>`;
 function bindKeyRow(row) {
   if (row) row.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
@@ -97,8 +98,13 @@ function renderBlocked() {
   if (!box) return;
   if (!a || a.status !== 'blocked') {
     if (box._html !== '') keepChatEnd(() => (box.innerHTML = box._html = ''));
+    box.removeAttribute('role');
+    box.removeAttribute('aria-label');
+    box.classList.remove('more');
     return;
   }
+  box.setAttribute('role', 'region');
+  box.setAttribute('aria-label', '답 필요');
   const text = detail.blockedText;
   const choices = text ? parseChoices(text) : null;
   const screen = text ? `<pre>${esc(text)}</pre>` : '';
@@ -113,9 +119,15 @@ function renderBlocked() {
   } else {
     const press = pressedOn(curHost(), a);
     const primary = primaryChoice(choices.items);
+    // What the question is about (the command to allow): folded at 8 lines, never cut silently.
+    if (detail.ctxFor !== text) Object.assign(detail, { ctxFor: text, ctxOpen: false });
+    const n = choices.context.length;
+    const ctx = n
+      ? `<div class="ctx${detail.ctxOpen ? ' open' : ''}"><pre class="context">${esc(choices.context.join('\n'))}</pre><button type="button" class="ctx-more" aria-expanded="false" hidden>명령 전체 보기 (${n}줄)</button></div>`
+      : '';
     html = `<div class="blocked-box">
         <strong class="b-title">${esc(choices.question || '답 필요')}</strong>
-        ${choices.context.length ? `<pre class="context">${esc(choices.context.join('\n'))}</pre>` : ''}
+        ${ctx}
         <div class="choices">${choices.items.map((x) => choiceButton(choices, x, { press, primary })).join('')}</div>
         <div class="toggles">
           <button type="button" class="toggle" data-toggle="showScreen" aria-expanded="${Boolean(detail.showScreen)}">화면 보기</button>
@@ -143,6 +155,46 @@ function renderBlocked() {
   // The choices sit at the bottom of the prompt; show them, not the preamble.
   const pre = box.querySelector('pre:not(.context)');
   if (pre) pre.scrollTop = pre.scrollHeight;
+  foldContext(box);
+  if (!box._fadeBound) {
+    box._fadeBound = true;
+    box.addEventListener('scroll', () => fadeBlocked(box), { passive: true });
+    addEventListener('resize', () => fadeBlocked(box));
+  }
+  fadeBlocked(box);
+  sayBlocked(a, choices);
+}
+
+// A context taller than its 8 lines shows that it is cut (a fade and 「명령 전체 보기」), and until
+// it is opened no answer is filled in: the eye shouldn't land on Yes before the whole command.
+function foldContext(box) {
+  const wrap = box.querySelector('.ctx');
+  if (!wrap || wrap.classList.contains('open')) return;
+  const pre = wrap.querySelector('pre');
+  const cut = pre.scrollHeight > pre.clientHeight + 2;
+  wrap.classList.toggle('cut', cut);
+  const more = wrap.querySelector('.ctx-more');
+  more.hidden = !cut;
+  more.onclick = () => {
+    detail.ctxOpen = true;
+    renderBlocked();
+  };
+  if (cut) box.querySelectorAll('.choice.primary').forEach((b) => b.classList.remove('primary'));
+}
+
+// The box scrolls inside itself; while more of it is below (the last choices, 화면 보기 / 직접
+// 입력), its bottom edge fades out.
+function fadeBlocked(box) {
+  box.classList.toggle('more', box.scrollHeight - box.scrollTop - box.clientHeight > 4);
+}
+
+// A screen reader hears a new question once (role=status), not each redraw.
+function sayBlocked(a, choices) {
+  const key = `${rowKey(curHost(), a.pane)}|${a.stateSeq}`;
+  if (!choices || detail.saidFor === key) return;
+  detail.saidFor = key;
+  const say = document.getElementById('d-say');
+  if (say) say.textContent = `답이 필요합니다: ${choices.question || '선택지를 고르세요'}`;
 }
 
 // Choice n of the open agent's prompt, from its button or its number key (app.js answerKey).

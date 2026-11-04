@@ -2,7 +2,7 @@
 // npm test  (node --test test/*.test.js)
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseChoices, choiceKeys } = require('../public/choices.js');
+const { parseChoices, choiceKeys, typedChoice } = require('../public/choices.js');
 
 const labels = (c) => c.items.map((x) => x.label);
 
@@ -245,4 +245,16 @@ test('choicesSettled: a half-drawn prompt is not settled', () => {
   assert.equal(choicesSettled({ question: 'Bash command', items: [{ n: 1 }] }), false);
   assert.equal(choicesSettled({ question: 'Do you want to proceed?', items: [] }), false);
   assert.equal(choicesSettled({ question: 'Do you want to proceed?', items: [{ n: 1 }] }), true);
+});
+
+test('typedChoice: the option the composer answers, and how', () => {
+  const ask = typedChoice(parseChoices(ASK));
+  assert.equal(ask.how, 'own');
+  assert.equal(ask.item.n, 4);
+  const tell = typedChoice(parseChoices(BASH));
+  assert.equal(tell.how, 'prompt');
+  assert.equal(tell.item.n, 3);
+  // A plain "No" takes no words: the composer can't answer that prompt.
+  assert.equal(typedChoice(parseChoices(BASH_NEW)), null);
+  assert.equal(typedChoice(null), null);
 });
