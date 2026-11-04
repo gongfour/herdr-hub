@@ -187,7 +187,7 @@ const tag = (id, label) => (x) => ({ ...x, host: id, hostLabel: label });
 
 // Rebuild the merged state and send it to clients if anything but the timestamp changed.
 function publish() {
-  const hosts = [{ id: HOST_ID, label: HOSTNAME, local: true, online: true, herdr: local.herdr, error: local.error, since: null, api: API_VERSION, version: BUILD.version }, ...[...peers.values()].map((p) => p.info())];
+  const hosts = [{ id: HOST_ID, label: HOSTNAME, local: true, online: true, herdr: local.herdr, error: local.error, since: null, api: API_VERSION, version: BUILD.version + (BUILD.dirty ? '+dirty' : '') }, ...[...peers.values()].map((p) => p.info())];
   const order = new Map(hosts.map((h, i) => [h.id, i]));
   const parts = [{ id: HOST_ID, label: HOSTNAME, s: local }, ...[...peers.values()].filter((p) => p.online && p.state).map((p) => ({ id: p.id, label: p.label, s: p.state }))];
   const all = (key) => parts.flatMap(({ id, label, s }) => (s[key] || []).map(tag(id, label)));

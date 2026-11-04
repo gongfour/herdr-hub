@@ -162,7 +162,7 @@ function showUpdateBanner() {
     document.body.appendChild(updateBanner);
     new ResizeObserver(() => updateBanner && document.documentElement.style.setProperty('--update-h', `${updateBanner.offsetHeight}px`)).observe(updateBanner);
   }
-  updateBanner.querySelector('.ub-t').textContent = `새 버전이 있습니다 · ${Update.shortLabel(serverBuild)}`;
+  updateBanner.querySelector('.ub-t').textContent = `새 버전 ${Update.shortLabel(serverBuild)}`;
   document.documentElement.classList.add('has-update');
 }
 function hideUpdateBanner() {
