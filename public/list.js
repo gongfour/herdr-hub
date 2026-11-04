@@ -236,6 +236,10 @@ function listModel() {
 
 let listScroll = 0; // the list's scroll position, kept while a detail view is open
 
+// The words under 작업공간 for host filter f: every host, or the one shown (tabswipe.js draws the
+// next one's during a swipe).
+const hostLineFor = (f) => (f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f));
+
 function render() {
   if (tabSwipeBusy()) return void (tabSwipe.pending = true); // the pages under a host swipe
   if (swipe.g && Date.now() - swipe.g.t0 < 10000) return void (swipe.pending = true); // after the finger lifts
@@ -243,7 +247,7 @@ function render() {
   const root = listRoot();
   const down = state.herdr !== 'up';
   const f = filter();
-  const hostLine = esc(f === 'all' ? (multi() ? hosts().map((x) => x.label).join(' · ') : state.host || '') : hostLabel(f));
+  const hostLine = esc(hostLineFor(f));
   const top = `
     <header class="bar">
       <h1>작업공간<span class="sub">${hostLine}</span></h1>
