@@ -559,10 +559,10 @@ function toast(text, { error = false, action = null, ms } = {}) {
 }
 const toastErr = (text, action) => toast(text, { error: true, action });
 // Toasts sit just above whatever is at the bottom of the screen now: the composer with its photo
-// tray or command list (two lines tall, on the keyboard), the shell's key row and line, or the
-// tab bar. Without one, the CSS place (80px up from the bottom). Again as the screen or the
-// composer changes size while one shows (viewport.js fit, typing).
-const TOAST_ABOVE = '#d-pal:not([hidden]), #d-tray:not([hidden]), #d-form, #t-keys, #t-form, .tabbar';
+// tray or command list (two lines tall, on the keyboard), the shell's key row and line, the tab
+// bar, or the 「방금 본 대화」 chip over it (fwdchip.js). Without one, the CSS place (80px up from
+// the bottom). Again as the screen or the composer changes size while one shows (viewport.js fit, typing).
+const TOAST_ABOVE = '#d-pal:not([hidden]), #d-tray:not([hidden]), #d-form, #t-keys, #t-form, .tabbar, .fwd-chip:not(.closing)';
 function placeToasts() {
   if (!toastBox || !toastBox.isConnected || !toastBox.children.length) return;
   let top = Infinity;
