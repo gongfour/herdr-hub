@@ -1,5 +1,6 @@
 'use strict';
-// Back closes the top layer (core.js openLayer): each layer opened by a tap or a key pushes one
+// Back closes the top layer (core.js openLayer). With CloseWatcher (Chrome 120+) a watcher per
+// layer does it; this is the fallback where there is none (iOS Safari): each layer opened by a tap or a key pushes one
 // history entry at the same address, state.layer = how many layer entries are under and at it.
 // Android's Back (a Galaxy Tab cover's Esc is Back, the page never sees the key), the browser's
 // back and an iOS edge swipe then pop that entry: popstate, and the layer closes; the page stays.
@@ -19,7 +20,10 @@
     return {};
   }
 
-  const api = { depthOf, onPop };
+  // CloseWatcher where the browser has it (core.js); history entries only where it does not.
+  const useWatcher = (win) => Boolean(win && typeof win.CloseWatcher === 'function');
+
+  const api = { depthOf, onPop, useWatcher };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.BackStack = api;
 })(typeof self !== 'undefined' ? self : this);

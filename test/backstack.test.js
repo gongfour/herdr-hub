@@ -2,7 +2,7 @@
 // Back closes the top layer (public/backstack.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { depthOf, onPop } = require('../public/backstack.js');
+const { depthOf, onPop, useWatcher } = require('../public/backstack.js');
 
 test('depthOf: a layer entry, else a page entry', () => {
   assert.equal(depthOf({ prev: '#/', layer: 2 }), 2);
@@ -22,4 +22,11 @@ test('onPop: a stale layer entry is stepped over; a page entry with nothing open
   assert.deepEqual(onPop(1, 0), { skip: true });
   assert.deepEqual(onPop(0, 0), {});
   assert.deepEqual(onPop(1, 1), {});
+});
+
+test('useWatcher: CloseWatcher where there is one, else history entries', () => {
+  assert.equal(useWatcher({ CloseWatcher: class {} }), true);
+  assert.equal(useWatcher({}), false);
+  assert.equal(useWatcher({ CloseWatcher: undefined }), false);
+  assert.equal(useWatcher(undefined), false);
 });

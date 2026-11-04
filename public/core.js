@@ -292,12 +292,19 @@ function syncInert() {
   $app.inert = layers.length > 0;
   layers.forEach((l, i) => (l.el.inert = i < layers.length - 1));
 }
-// Back closes the top layer (backstack.js): a layer pushes one history entry at the same address
-// as it opens (a tap or a key, so Chrome does not skip it on Back). Closed any other way (Esc,
-// ✕, the backdrop, a choice) its entry is taken back off with history.back(); what the closing
-// leads to (onClose: a menu's choice opening the next page or sheet) waits for that, so the next
-// entry never lands under the popped one. A route change keeps the entry under the new page;
-// Back steps over it there (BackStack.onPop skip).
+// Back closes the top layer. Where the browser has CloseWatcher (Chrome 120+: Android's Back, a
+// Galaxy Tab cover's Esc, which reaches the page only as Back), each layer gets a watcher: Back
+// closes the topmost one and never leaves the page, whatever user activation the page had (Chrome
+// skips history entries pushed without one on Back, which is why the entries alone were not
+// enough). Closed any other way, its watcher is destroyed. Our own Esc/Ctrl+[ keydown is always
+// taken (preventDefault), so a desktop Esc closes one layer, not ours and then the watcher's.
+// Elsewhere (iOS Safari: the edge swipe, a browser's back) the fallback is history entries
+// (backstack.js): a layer pushes one entry at the same address as it opens; closed any other way
+// (Esc, ✕, the backdrop, a choice) its entry is taken back off with history.back(); what the
+// closing leads to (onClose: a menu's choice opening the next page or sheet) waits for that, so
+// the next entry never lands under the popped one. A route change keeps the entry under the new
+// page; Back steps over it there (BackStack.onPop skip). Never both: Back would need two presses.
+const watchClose = BackStack.useWatcher(window);
 const hist = { pending: 0, after: [], timer: 0, hold: false };
 const histDepth = () => {
   for (let i = layers.length - 1; i >= 0; i--) if (layers[i].depth) return layers[i].depth;
@@ -334,10 +341,28 @@ function openLayer(el, { onClose, focus, animate = true } = {}) {
   const target = typeof focus === 'string' ? el.querySelector(focus) : focus || el.querySelector('[autofocus], input, [data-k], button');
   if (target) target.focus({ preventScroll: true });
   layer.close = (v) => closeLayer(layer, v);
-  afterHist(() => pushLayerEntry(layer));
+  if (watchClose) watchLayer(layer);
+  else afterHist(() => pushLayerEntry(layer));
   return layer;
 }
-// how: 'pop' when Back already took its entry off, 'replace' when the caller puts the next page
+function watchLayer(layer) {
+  try {
+    const w = new CloseWatcher();
+    w.onclose = () => {
+      layer.watcher = null; // spent: Back took it
+      closeLayer(layer, undefined, 'watch');
+    };
+    layer.watcher = w;
+  } catch {
+    // not fully active (a detached document): Back is simply not caught
+  }
+}
+function unwatchLayer(layer) {
+  const w = layer.watcher;
+  layer.watcher = null;
+  if (w) w.destroy(); // fires nothing
+}
+// how: 'pop' when Back already took its entry off, 'watch' when Back took its watcher, 'replace' when the caller puts the next page
 // in its entry (switcher.js), else its entry is taken back off here, if it is the current one.
 function closeLayer(layer, value, how) {
   if (!layer || layer.closed) return;
@@ -355,7 +380,8 @@ function closeLayer(layer, value, how) {
   // Back to where focus was, if that is still on the page and not under another layer.
   const back = layer.back;
   if (back && back.isConnected && !back.closest('[inert]') && typeof back.focus === 'function') back.focus({ preventScroll: true });
-  if (!how && !hist.hold && !hist.pending && BackStack.depthOf(history.state) === layer.depth) popLayerEntry();
+  unwatchLayer(layer);
+  if (!watchClose && !how && !hist.hold && !hist.pending && BackStack.depthOf(history.state) === layer.depth) popLayerEntry();
   if (layer.onClose) afterHist(() => layer.onClose(value));
 }
 // Back (Android's, the cover's Esc, the browser's, an iOS swipe) onto an entry of a lower depth.
