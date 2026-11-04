@@ -1162,7 +1162,7 @@ button.tool:active { filter: brightness(0.95); }
 .show-keys :is(.activity, .new-out, .seg.hosts)[data-keyhint]::after { top: 2px; right: 2px; }
 
 /* 단축키 page (keyspage.js), in 설정's cards: the action and where it works on the left, its keys
-   (× to take off, + 키 to add) on the right; stacked when narrow. */
+   (× to take off, + to add) on the right; stacked when narrow. */
 .keys-page .k-search { display: flex; gap: 8px; align-items: center; position: sticky; top: -16px; z-index: 2; padding: 8px 0; background: var(--bg); }
 .keys-page .k-search input { flex: 1; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 15px; }
 .keys-page .k-search input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; }
@@ -1181,7 +1181,7 @@ button.tool:active { filter: brightness(0.95); }
 .kchip .kx { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; min-width: 26px; min-height: 32px; cursor: pointer; border-radius: 6px; }
 .kchip .kx:hover { color: var(--blocked); background: var(--surface-2); }
 .k-add, .k-reset { min-height: 32px; padding: 0 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
-.k-add { border: 1px dashed var(--line); background: none; color: var(--accent); }
+.k-add { border: 1px dashed var(--line); background: none; color: var(--accent); min-width: 32px; padding: 0; font-size: 18px; line-height: 1; }
 .k-reset { border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
 .k-recnote { font-size: 12px; font-weight: 600; color: var(--accent); padding: 7px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .k-fixed, .k-none { font-size: 12px; color: var(--muted); }

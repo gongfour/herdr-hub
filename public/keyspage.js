@@ -1,7 +1,7 @@
 'use strict';
 // The 단축키 page (#/keys), as VS Code's Keyboard Shortcuts editor: every action of keymap.js
 // with its keys, where they work and whether this device changed them, a search over names and
-// keys (or by pressing the key itself), and the editing in place: × takes a key off, + 키 records
+// keys (or by pressing the key itself), and the editing in place: × takes a key off, + records
 // the next key pressed (Esc cancels), 기본값 puts an action back, 모두 기본값으로 all of them.
 // Split it opens on the right like 설정; on the phone it is a page of its own. ✕ (Esc) closes it.
 
@@ -85,7 +85,7 @@ function drawKeysList() {
     const where = Keymap.whereText(r.action);
     const tools = r.fixed
       ? '<span class="k-fixed">바꿀 수 없음</span>'
-      : `${rec ? '<span class="k-recnote" role="status">누를 키를 누르세요 · Esc 취소</span>' : '<button type="button" class="k-add" data-add>+ 키</button>'}${
+      : `${rec ? '<span class="k-recnote" role="status">누를 키를 누르세요 · Esc 취소</span>' : '<button type="button" class="k-add" data-add aria-label="키 더하기" title="키 더하기">+</button>'}${
           r.changed ? '<button type="button" class="k-reset" data-reset title="이 동작을 기본 키로">기본값</button>' : ''
         }`;
     return `<div class="k-row${r.changed ? ' changed' : ''}${rec ? ' recording' : ''}" data-action="${esc(r.action)}">
