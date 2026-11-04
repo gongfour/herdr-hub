@@ -630,6 +630,43 @@ function updateJump(body) {
 // scrolls to its last message. focus: then the caret goes to the view's field (the composer, or
 // the shell's command line), at the end of what is there; not under a sheet. False when there
 // is nothing to jump in.
+// Ctrl+↑ / Ctrl+K (prev) and Ctrl+J (next): the conversation by the messages you sent, each put
+// at the top of the view and lit for a moment. Before the first one, the top; past the last,
+// the end (jumpLatest, with the caret in the composer). A screen box (the terminal sheet, a
+// screen-only agent, the shell) has no messages: a page up or down, and the end after the last
+// page. The focus stays where it is, so the keys go on stepping. False with nothing to step.
+const NAV_GAP = 8; // px left above the message
+function navStep(dir) {
+  const top = topLayer();
+  if (scr && (!top || top.el.contains(scr.body))) {
+    const b = scr.body;
+    const left = b.scrollHeight - b.scrollTop - b.clientHeight;
+    if (dir > 0 && left <= b.clientHeight) return jumpLatest(true);
+    b.scrollTop += (dir > 0 ? 1 : -1) * Math.round(b.clientHeight * 0.9);
+    return true;
+  }
+  const body = document.getElementById('d-body');
+  if (top || !body || body._html !== 'chat') return false;
+  const base = body.getBoundingClientRect().top - body.scrollTop;
+  const mine = [...body.querySelectorAll('.msgs > .msg.user')].map((el) => ({ el, y: el.getBoundingClientRect().top - base - NAV_GAP }));
+  const at = body.scrollTop;
+  // Scrolled as far as it goes: a later message can't come to the top, so on is the end.
+  if (dir > 0 && at >= body.scrollHeight - body.clientHeight - 2) return jumpLatest(true);
+  const to = dir < 0 ? mine.filter((m) => m.y < at - 2).pop() : mine.find((m) => m.y > at + 2);
+  if (!to) {
+    if (dir > 0) return jumpLatest(true);
+    body.scrollTop = 0;
+    return true;
+  }
+  body.scrollTop = to.y; // at once: a glide would still be moving at the next press
+  to.el.classList.remove('lit');
+  void to.el.offsetWidth; // restart the light on a second press
+  to.el.classList.add('lit');
+  clearTimeout(to.el._lit);
+  to.el._lit = setTimeout(() => to.el.classList.remove('lit'), 1200);
+  return true;
+}
+
 function jumpLatest(focus) {
   const top = topLayer();
   if (scr && (!top || top.el.contains(scr.body))) {

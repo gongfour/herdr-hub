@@ -2,7 +2,7 @@
 // What a keydown means in the composer and in the shell's 키 직접 입력 (public/keys.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { enterAction, rawKeyName, withMods, tapMod, recall, jumpKey } = require('../public/keys.js');
+const { enterAction, rawKeyName, withMods, tapMod, recall, jumpKey, navKey } = require('../public/keys.js');
 const { validKeys, PANE_KEYS } = require('../lib/validate.js');
 
 const key = (k, mods = {}) => ({ key: k, keyCode: 0, isComposing: false, ...mods });
@@ -160,4 +160,20 @@ test('jumpKey: Ctrl+↓, Ctrl+End and ⌘+↓ anywhere, End alone only outside a
   // Neither chord is a key the shell's 키 직접 입력 sends, so the field leaves them to the page.
   assert.equal(rawKeyName(key('End', { ctrlKey: true })), null);
   assert.equal(rawKeyName(key('ArrowDown', { metaKey: true })), null);
+});
+
+test('navKey: Ctrl+↑ / Ctrl+K back by your messages, Ctrl+J on; J and K stay the shell\'s', () => {
+  assert.equal(navKey(key('ArrowUp', { ctrlKey: true })), 'prev');
+  assert.equal(navKey(key('k', { ctrlKey: true })), 'prev');
+  assert.equal(navKey(key('j', { ctrlKey: true })), 'next');
+  assert.equal(navKey(key('ㅏ', { ctrlKey: true, code: 'KeyK' })), 'prev'); // a Korean layout
+  assert.equal(navKey(key('ㅓ', { ctrlKey: true, code: 'KeyJ' })), 'next');
+  assert.equal(navKey(key('ArrowUp', { ctrlKey: true }), { shell: true }), 'prev');
+  assert.equal(navKey(key('k', { ctrlKey: true }), { shell: true }), null);
+  assert.equal(navKey(key('j', { ctrlKey: true }), { shell: true }), null);
+  assert.equal(navKey(key('k')), null);
+  assert.equal(navKey(key('ArrowUp')), null); // the composer's recall
+  assert.equal(navKey(key('ArrowUp', { ctrlKey: true, altKey: true })), null);
+  assert.equal(navKey(key('k', { ctrlKey: true, shiftKey: true })), null);
+  assert.equal(rawKeyName(key('ArrowUp', { ctrlKey: true })), null); // not the shell's
 });

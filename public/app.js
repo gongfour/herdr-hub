@@ -400,6 +400,9 @@ document.addEventListener('keydown', (e) => {
   // Ctrl+↓, Ctrl+End, ⌘+↓, or End outside a field: the conversation or screen to its latest
   // line, and the caret to its field.
   if (Keys.jumpKey(e, { editable: editable(document.activeElement) }) && jumpLatest(true)) return e.preventDefault();
+  // Ctrl+↑ / Ctrl+K and Ctrl+J: back and on by the messages you sent (a page in a screen box).
+  const nav = Keys.navKey(e, { shell: view.name === 'term' });
+  if (nav && navStep(nav === 'next' ? 1 : -1)) return e.preventDefault();
   // Alt+←/→: the previous or next host in the list's segment (전체 / each machine).
   const hostDir = Split.hostKey(e, { shell: view.name === 'term', layer: Boolean(topLayer()) });
   if (hostDir && stepHostFilter(hostDir)) return e.preventDefault();
