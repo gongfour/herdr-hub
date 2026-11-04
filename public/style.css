@@ -1198,3 +1198,15 @@ button.tool:active { filter: brightness(0.95); }
 .k-empty { color: var(--muted); text-align: center; margin: 24px 0; }
 @media (max-width: 560px) { .k-row { grid-template-columns: 1fr; } .k-keys { justify-content: flex-start; } }
 .keys-page .k-heard { margin: 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); font: 12px/1.5 var(--mono); color: var(--text); overflow-wrap: anywhere; }
+
+/* The workspace page (workspace.js), in 설정's cards: the two things to do first, a key-value card
+   for where it is, its panes as the list's rows (the room for the unread dot kept), and
+   the rare and destructive as quiet rows. */
+.ws-page .ws-acts .btn { margin-top: 0; }
+.ws-info .ws-kv { display: flex; align-items: baseline; gap: 12px; min-height: 44px; padding: 11px 14px; }
+.ws-info .ws-k { flex: none; width: 3.5em; font-size: 13px; color: var(--muted); }
+.ws-info .ws-v { min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.ws-info .ws-path { font: 13px/1.5 var(--mono); background: none; padding: 0; user-select: all; }
+.ws-page .pcard > .pref-link + .pref-link { border-top: 1px solid var(--line); } /* .pref-link's border: 0 would drop the card's rule */
+.ws-none { margin: 0; padding: 14px; font-size: 14px; color: var(--muted); }
+.ws-close-note { font-size: 12px; }
