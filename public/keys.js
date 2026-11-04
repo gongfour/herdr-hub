@@ -109,7 +109,16 @@
     return at + 1 < sent.length ? { at: at + 1, text: sent[at + 1] } : { at: null, text: '' };
   }
 
-  const api = { enterAction, rawKeyName, withMods, tapMod, queueRaw, recall };
+  // The key that jumps a conversation or a screen to its latest line: Ctrl+End or ⌘+↓ anywhere
+  // (the composer and the shell's field too: neither is a key the shell gets, see rawKeyName),
+  // End alone only where it would not move a caret. Never while an IME is composing.
+  function jumpKey(e, { editable = false } = {}) {
+    if (!e || e.isComposing || e.keyCode === 229 || e.altKey || e.shiftKey) return false;
+    if (e.key === 'End') return e.ctrlKey ? !e.metaKey : !e.metaKey && !editable;
+    return Boolean(e.key === 'ArrowDown' && e.metaKey && !e.ctrlKey);
+  }
+
+  const api = { enterAction, rawKeyName, withMods, tapMod, queueRaw, recall, jumpKey };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keys = api;
 })(typeof self !== 'undefined' ? self : this);

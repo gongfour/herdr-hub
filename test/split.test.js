@@ -2,7 +2,7 @@
 // The wide-screen layout's pure decisions (public/split.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { SPLIT_MIN, isSplit, stepRow, listKey } = require('../public/split.js');
+const { SPLIT_MIN, isSplit, stepRow, listKey, hostKey, stepHost } = require('../public/split.js');
 
 test('isSplit: landscape tablets and laptops split, portrait tablets and phones do not', () => {
   assert.equal(SPLIT_MIN, 1000);
@@ -49,4 +49,27 @@ test('listKey: never while a sheet is open or an IME composes; in the shell only
   assert.equal(listKey({ ...down, isComposing: true }), null);
   assert.equal(listKey({ ...down, keyCode: 229 }), null);
   assert.equal(listKey(null), null);
+});
+
+test('hostKey: Alt+←/→ anywhere but the shell view, never with other modifiers or a sheet open', () => {
+  const k = (key, mods = {}) => ({ key, keyCode: 0, isComposing: false, altKey: true, ...mods });
+  assert.equal(hostKey(k('ArrowRight')), 1);
+  assert.equal(hostKey(k('ArrowLeft')), -1);
+  assert.equal(hostKey(k('ArrowDown')), null); // the split layout's next row
+  assert.equal(hostKey(k('ArrowRight', { altKey: false })), null);
+  assert.equal(hostKey(k('ArrowRight', { ctrlKey: true })), null);
+  assert.equal(hostKey(k('ArrowRight', { shiftKey: true })), null);
+  assert.equal(hostKey(k('ArrowRight'), { shell: true }), null); // the shell's word keys
+  assert.equal(hostKey(k('ArrowRight'), { layer: true }), null);
+  assert.equal(hostKey(k('ArrowRight', { isComposing: true })), null);
+});
+
+test('stepHost: round the segment from either end; nothing with one choice', () => {
+  const ids = ['all', 'macbook', 'desktop', 'server'];
+  assert.equal(stepHost(ids, 'all', 1), 'macbook');
+  assert.equal(stepHost(ids, 'server', 1), 'all');
+  assert.equal(stepHost(ids, 'all', -1), 'server');
+  assert.equal(stepHost(ids, 'desktop', -1), 'macbook');
+  assert.equal(stepHost(ids, 'gone', 1), 'macbook'); // a host that left counts as 전체
+  assert.equal(stepHost(['all'], 'all', 1), null);
 });

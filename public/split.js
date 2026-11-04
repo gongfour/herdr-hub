@@ -32,7 +32,22 @@
     return null;
   }
 
-  const api = { SPLIT_MIN, isSplit, stepRow, listKey };
+  // The host segment (전체 / each machine): Alt+→ the next, Alt+← the one before, round from
+  // either end. 1, -1 or null for a keydown. Anywhere but the shell view, whose Alt+←/→ are the
+  // shell's word keys (keys.js rawKeyName); nothing while a sheet is open.
+  function hostKey(e, { shell = false, layer = false } = {}) {
+    if (!e || e.isComposing || e.keyCode === 229 || layer || shell) return null;
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return null;
+    return e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : null;
+  }
+  function stepHost(ids, current, dir) {
+    const list = [...new Set((ids || []).filter(Boolean))];
+    if (list.length < 2) return null;
+    const i = Math.max(0, list.indexOf(current));
+    return list[(i + (dir > 0 ? 1 : list.length - 1)) % list.length];
+  }
+
+  const api = { SPLIT_MIN, isSplit, stepRow, listKey, hostKey, stepHost };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Split = api;
 })(typeof self !== 'undefined' ? self : this);

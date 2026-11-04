@@ -86,6 +86,7 @@ function renderDetail() {
     const x = e.target.closest('[data-drop]');
     if (x) removeFile(Number(x.dataset.drop));
   };
+  document.getElementById('d-body').addEventListener('scroll', (e) => updateJump(e.currentTarget), { passive: true });
   document.getElementById('d-body').addEventListener('click', (e) => {
     const pic = e.target.closest('.pic');
     if (pic) openViewer(pic.dataset.src);
@@ -150,7 +151,7 @@ function renderDetail() {
       await api(hp(`/agents/${encodeURIComponent(pane)}/prompt`, host), { method: 'POST', body: JSON.stringify({ text: promptText(text, files.map((f) => f.path)) }) });
       if (here()) {
         addPending(key, text.trim(), files.length);
-        renderDetailBody(false);
+        renderDetailBody(true); // to the end, where the message just sent is
       }
       if (here() && detail.files === files) {
         input.value = '';
@@ -392,8 +393,11 @@ function renderDetailBody(reset) {
     if (body._html !== html) body.innerHTML = body._html = html;
   } else {
     if (body._html !== 'chat' || !body.querySelector('.msgs')) {
-      body.innerHTML = '<p class="note trunc" hidden>최근 대화만 표시합니다</p><div class="msgs"></div>';
+      body.innerHTML = '<p class="note trunc" hidden>최근 대화만 표시합니다</p><div class="msgs"></div>' +
+        '<div class="pill-dock"><button type="button" class="new-out jump" hidden>↓ 최신 대화</button></div>';
       body._html = 'chat';
+      body._seen = null;
+      body.querySelector('.jump').onclick = () => jumpLatest();
     }
     body.querySelector('.trunc').hidden = !t.truncated;
     // One element per message, replaced only when its HTML changed: a poll that brings
@@ -402,6 +406,43 @@ function renderDetailBody(reset) {
     patchList(body.querySelector('.msgs'), [...t.messages.map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting]);
   }
   if (nearBottom) body.scrollTop = body.scrollHeight;
+  updateJump(body);
+}
+
+// ---- 최신 대화: back to the end of the conversation
+
+// Scrolled up to read: a pill at the bottom of the body goes back to the latest message, with
+// how many came in meanwhile. _seen is the key of the last message seen at the bottom (keys, not
+// a count: the transcript keeps only its latest messages, so older ones drop off the top).
+const JUMP_SLACK = 80; // the same distance that still follows new messages (renderDetailBody)
+function updateJump(body) {
+  const pill = body && body._html === 'chat' && body.querySelector('.jump');
+  if (!pill) return;
+  const msgs = [...body.querySelector('.msgs').children];
+  const last = msgs.length ? msgs[msgs.length - 1].dataset.key : null;
+  const away = body.scrollHeight - body.scrollTop - body.clientHeight >= JUMP_SLACK;
+  if (!away || body._seen === undefined || body._seen === null) body._seen = last;
+  const i = msgs.findIndex((el) => el.dataset.key === body._seen);
+  const fresh = i < 0 ? 0 : msgs.length - 1 - i;
+  pill.textContent = fresh ? `↓ 새 메시지 ${fresh}` : '↓ 최신 대화';
+  pill.hidden = !away;
+}
+
+// The pill, Ctrl+End, ⌘+↓ or End: the open view to its latest line. The screen box (the
+// terminal sheet, a screen-only agent, the shell) follows its output again; the conversation
+// scrolls to its last message. False when there is nothing to jump in.
+function jumpLatest() {
+  const top = topLayer();
+  if (scr && (!top || top.el.contains(scr.body))) {
+    scr.follow = true;
+    flushScreen(true);
+    scr.body.scrollTop = scr.body.scrollHeight;
+    return true;
+  }
+  const body = document.getElementById('d-body');
+  if (top || !body || body._html !== 'chat') return false;
+  body.scrollTo({ top: body.scrollHeight, behavior: reduced() ? 'auto' : 'smooth' });
+  return true;
 }
 
 // The latest screen read, into whichever screen box is mounted (the body or the sheet).

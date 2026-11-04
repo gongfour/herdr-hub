@@ -240,6 +240,19 @@ function render() {
   tickList();
 }
 
+// Alt+←/→ (split.js hostKey): the host segment one step along, where the list shows it (the
+// list view, or the split list column on 작업공간). False when there is no segment there.
+function stepHostFilter(dir) {
+  const listShown = split ? colTab !== 'settings' : view.name === 'list';
+  if (!multi() || !listShown) return false;
+  const next = Split.stepHost(['all', ...hosts().map((h) => h.id)], filter(), dir);
+  if (!next) return false;
+  setFilter(next);
+  render();
+  if (split && !isDetail()) renderEmpty(); // its 답 필요 count follows the filter
+  return true;
+}
+
 function spacesParts(list, down, f) {
   const empty = f !== 'all' && !online(f) ? '' : down && f !== 'all' && f === localId() ? 'herdr 서버에 연결하지 못했습니다.' : '열린 워크스페이스가 없습니다.';
   return [...list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s)]), ...(!list.length && empty ? [['empty', `<p class="empty">${empty}</p>`]] : [])];

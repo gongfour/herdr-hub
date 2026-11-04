@@ -379,6 +379,11 @@ document.addEventListener('keydown', (e) => {
     if (f.isContentEditable) caretToEnd(f);
     return;
   }
+  // Ctrl+End, ⌘+↓, or End outside a field: the conversation or screen to its latest line.
+  if (Keys.jumpKey(e, { editable: editable(document.activeElement) }) && jumpLatest()) return e.preventDefault();
+  // Alt+←/→: the previous or next host in the list's segment (전체 / each machine).
+  const hostDir = Split.hostKey(e, { shell: view.name === 'term', layer: Boolean(topLayer()) });
+  if (hostDir && stepHostFilter(hostDir)) return e.preventDefault();
   // Split: Alt+↑/↓ or [ ] open the previous or next row of the list on the right (split.js
   // says which keys count; in the shell view only Alt+↑/↓).
   if (split) {

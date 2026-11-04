@@ -78,6 +78,7 @@ function mountScreen(body, kind, tools, topHtml = '') {
   s.pill.onclick = () => {
     s.follow = true;
     flushScreen(true);
+    body.scrollTop = body.scrollHeight;
   };
   // 색상 and 줄바꿈 live in 설정; the tools row only says what went wrong, when something did.
   if (tools) tools.innerHTML = '<span class="s-status"></span>';
@@ -179,7 +180,9 @@ function flushScreen(force) {
     s.loading.hidden = true;
     if (s.follow) s.body.scrollTop = s.body.scrollHeight;
   }
-  s.pill.hidden = s.pending == null || s.follow;
+  // Scrolled up: the pill goes back to the end, and says when there is new output there.
+  s.pill.textContent = s.pending != null ? '↓ 새 출력' : '↓ 맨 아래로';
+  s.pill.hidden = s.follow;
 }
 
 // Earlier lines came in above what is being read (the shell's longer scrollback): draw them now
