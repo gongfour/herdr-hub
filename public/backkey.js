@@ -7,7 +7,9 @@
 // Entries go in only after the page was touched or typed on: Chrome skips over entries a page
 // added before that.
 
-const ANDROID = /Android/i.test(navigator.userAgent);
+// Chrome on a big tablet asks for desktop sites by default and then says "Linux", not Android:
+// Linux with a touch screen is taken for Android too.
+const ANDROID = /Android/i.test(navigator.userAgent) || (/Linux/i.test(navigator.userAgent) && navigator.maxTouchPoints > 0);
 const touched = () => !navigator.userActivation || navigator.userActivation.hasBeenActive;
 const backKey = { root: false, guard: null, escAt: 0, armed: false };
 
