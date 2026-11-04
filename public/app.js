@@ -95,7 +95,7 @@ let lastHash = null;
 const normHash = (h) => String(h || '').replace(/^#/, '') || '/';
 function goBack(target) {
   const st = history.state;
-  if (st && st.prev != null && normHash(st.prev) === normHash(target)) history.go(-backSteps()); // over the shell's Esc guard too
+  if (st && st.prev != null && normHash(st.prev) === normHash(target)) history.back();
   else {
     history.replaceState({ prev: null }, '', target);
     route();

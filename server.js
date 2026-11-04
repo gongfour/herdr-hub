@@ -559,17 +559,6 @@ async function api(req, res, url) {
     }
   }
 
-  // TEMPORARY: key and Back events from the Android tablet (public/keydiag.js), one JSON line
-  // each in <data>/keys.log. The hub's own: never proxied.
-  if (method === 'POST' && parts[0] === 'debug' && parts[1] === 'keys' && !parts[2]) {
-    const body = await readJson(req, 16 * 1024);
-    try {
-      fs.appendFileSync(path.join(DATA, 'keys.log'), JSON.stringify({ at: new Date().toISOString(), ...body }) + '\n');
-    } catch {
-      /* diagnostics must never break the app */
-    }
-    return send(res, 200, { ok: true });
-  }
   if (parts[0] === 'push') {
     if (!push) return send(res, method === 'GET' ? 200 : 409, { error: 'push_disabled', disabled: true });
     if (method === 'GET' && parts[1] === 'key') return send(res, 200, { publicKey: push.publicKey });

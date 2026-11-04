@@ -187,21 +187,16 @@ function renderTerminal() {
   // With a hardware keyboard (a tablet's cover, a laptop) typing goes to the shell at once,
   // here and after Alt+↑/↓; a phone's keyboard stays down until the screen is tapped.
   if (keyboardLikely()) input.focus({ preventScroll: true });
-  escGuard();
-}
-// Esc that arrived as Android's Back (backkey.js).
-function termEscape() {
-  const input = document.getElementById('t-input');
-  if (detail.raw) rawPress({ key: 'esc' });
-  else if (input) input.focus({ preventScroll: true });
 }
 
 // ---- hardware keyboard
 
 // A key pressed with nothing to type into, or a chord or Esc, came from a real keyboard (a
-// soft keyboard only types into a field and has none of these). escGuard (backkey.js) then
-// keeps Android's Back, which a cover's Esc turns into, in the shell.
+// soft keyboard only types into a field and has none of these).
 let hardKeys = false;
+// Chrome on a big tablet asks for desktop sites by default and then says "Linux", not Android:
+// Linux with a touch screen is taken for Android too.
+const ANDROID = /Android/i.test(navigator.userAgent) || (/Linux/i.test(navigator.userAgent) && navigator.maxTouchPoints > 0);
 const keyboardLikely = () => hardKeys || matchMedia('(pointer: fine)').matches;
 document.addEventListener(
   'keydown',
