@@ -63,7 +63,7 @@ setInterval(() => document.visibilityState === 'visible' && revive('watchdog'), 
 function onState() {
   forgetGone(); // kept chats of agents that are gone (agent.js)
   if (split) {
-    renderCol();
+    render();
     if (!isDetail()) return renderEmpty();
   } else if (view.name === 'list') return render();
   if (view.name === 'ws') return renderWorkspace();
@@ -233,16 +233,13 @@ function route(e, { relayout = false } = {}) {
     renderForm();
   } else if (r.name === 'settings') {
     view = { name: 'settings' };
-    if (split) colTab = 'settings';
-    if (split && sideOff()) setSideOff(false); // 설정 lives in the sidebar
-    renderSettings();
+    renderSettings(); // split: on the right, the list stays
   } else {
     view = { name: 'list' };
-    if (split) colTab = 'spaces';
     render();
   }
   if (split) {
-    if (isDetail()) renderCol();
+    if (isDetail()) render();
     else renderEmpty();
   }
   if (stepFocus) {
@@ -264,7 +261,6 @@ function relayout() {
   stashDraft();
   split = want;
   dropTabPages();
-  colTab = split ? (view.name === 'settings' ? 'settings' : 'spaces') : null;
   document.documentElement.classList.toggle('split', split);
   $app.innerHTML = split ? '<nav class="rail" id="rail" aria-label="탭"></nav><div class="col" id="list-pane"></div><div class="col" id="detail-pane"></div>' : '';
   route(null, { relayout: true });
@@ -276,12 +272,6 @@ function refocusInput(el) {
   if (!el) return;
   el.focus({ preventScroll: true });
   if (el.isContentEditable) caretToEnd(el);
-}
-
-// The list column: 설정 or the list of the tab it shows.
-function renderCol() {
-  if (colTab === 'settings') renderSettings();
-  else render();
 }
 
 // Nothing open on the right: a calm placeholder, with a way to what is waiting.
@@ -322,11 +312,6 @@ function markSelected() {
 // the caret in its composer or shell input (only a real keyboard has the keys; route takes it).
 let stepFocus = false;
 function stepList(dir) {
-  // The folded sidebar on 설정: step through 작업공간 all the same (it opens there when unfolded).
-  if (sideOff() && colTab === 'settings') {
-    colTab = 'spaces';
-    renderCol();
-  }
   const main = listRoot() && listRoot().querySelector(':scope > main.home');
   if (!main) return false;
   const links = [...main.querySelectorAll('a.attn-row, a.sw-front')].map((a) => a.getAttribute('href'));
@@ -409,35 +394,17 @@ document.addEventListener('keydown', (e) => {
   const b = Keymap.match(e, { field: editable(document.activeElement), shell: view.name === 'term', layer: Boolean(topLayer()), split });
   if (b && KEY_ACTIONS[b.action](b)) e.preventDefault();
 });
-// Split: the list column shows tab t. With a detail open only the column changes and the
-// detail stays; with nothing open it is that tab's route (as the phone's tab bar link).
-function showCol(t) {
-  if (!isDetail()) {
-    const h = t === 'settings' ? '#/settings' : '#/';
-    if (location.hash !== h) {
-      history.pushState(null, '', h);
-      route();
-    }
-    return;
-  }
-  colTab = t;
-  renderCol();
-  // ✕ in the detail header leads to where the list column now is.
-  const close = detailRoot().querySelector('a.close-detail');
-  if (close) close.setAttribute('href', homeHash());
-}
-// The rail, as VS Code's activity bar: the tab the open sidebar shows folds it; any tab
-// while folded unfolds it on that tab; the other tab switches the sidebar to it.
+// The rail, as VS Code's activity bar: 작업공간 folds and unfolds the sidebar; ⚙ opens 설정 on
+// the right (as VS Code opens its settings in the editor), and closes it when it is open.
 document.addEventListener('click', (e) => {
   if (!split || !e.target.closest) return;
   if (e.target.closest('.ed-open')) return setSideOff(false);
   const b = e.target.closest('#rail .rail-btn');
   if (!b) return;
-  const t = b.dataset.tab;
-  if (!sideOff() && colTab === t) return setSideOff(true);
-  if (sideOff()) setSideOff(false);
-  if (colTab !== t) showCol(t);
-  renderRail();
+  if (b.dataset.tab === 'spaces') return setSideOff(!sideOff());
+  if (view.name === 'settings') return goBack(settingsBack());
+  history.pushState(null, '', '#/settings');
+  route();
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') stashDraft();

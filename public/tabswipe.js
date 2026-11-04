@@ -13,7 +13,7 @@ const TAB_SWIPE_FLICK = 0.5; // px/ms
 const tabSwipe = { g: null };
 
 function tabPageShown() {
-  return listShown() || settingsShown();
+  return !split && (listShown() || settingsShown()); // split: the sidebar has one page
 }
 // The tab content that moves with the finger: everything in the list root but the tab bar.
 const tabSwipeParts = () => [...listRoot().children].filter((el) => !el.classList.contains('tabbar'));
@@ -34,14 +34,9 @@ function tabSwipeGo(dir, next) {
   const w = listRoot().clientWidth || innerWidth;
   const out = tabSwipeParts();
   tabSwipeClear(out); // the old page is kept as it was, back in place
-  if (split) {
-    showCol(next === '#/settings' ? 'settings' : 'spaces'); // app.js: as the rail's tab, drawn at once
-    renderRail();
-  } else {
-    // The link's own navigation, but drawn now rather than on hashchange a task later.
-    history.pushState(null, '', next);
-    route();
-  }
+  // The link's own navigation, but drawn now rather than on hashchange a task later.
+  history.pushState(null, '', next);
+  route();
   if (reduced()) return;
   const parts = tabSwipeParts();
   tabSwipeStyle(parts, dir * Math.min(w * 0.3, 120), 0.4, 0);
@@ -50,7 +45,6 @@ function tabSwipeGo(dir, next) {
   setTimeout(() => tabSwipeClear(parts), TAB_IN_MS + 40);
 }
 function currentTabIndex() {
-  if (split) return colTab === 'settings' ? 1 : 0; // the rail's tabs, the sidebar's page
   const cur = listRoot().querySelector('.tabbar a.tab[aria-current="page"]');
   return cur ? TAB_ORDER.indexOf(cur.getAttribute('href')) : -1;
 }

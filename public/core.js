@@ -82,18 +82,17 @@ const ready = new Promise((r) => (resolveReady = r)); // the first state has arr
 
 // ---- wide screens: the list and the open detail side by side (split.js has the rules)
 // Narrower than Split.SPLIT_MIN, #app holds one view at a time as on the phone. Split, it holds
-// two columns: #list-pane (작업공간 / 설정 with the tab bar) and #detail-pane (agent,
-// shell, workspace, form, or a calm placeholder). The route stays the source of truth for the
-// detail; the list column shows colTab, which a tab press changes without closing the detail.
+// the rail and two columns: #list-pane (작업공간, always) and #detail-pane (agent, shell,
+// workspace, form, 설정, or a calm placeholder). The route is the source of truth for the detail.
 const splitMq = matchMedia(`(min-width: ${window.Split ? Split.SPLIT_MIN : 1000}px)`);
 let split = false;
-let colTab = null; // split only: 'spaces' | 'settings'
 const listRoot = () => (split ? document.getElementById('list-pane') : $app);
 const detailRoot = () => (split ? document.getElementById('detail-pane') : $app);
-const isDetail = () => !['list', 'settings'].includes(view.name);
-// Whether the list (or 설정) is on screen: always when split, else only as the view itself.
+// 설정 is the phone's other tab, but split it opens on the right like any detail.
+const isDetail = () => view.name !== 'list' && (split || view.name !== 'settings');
+// Whether the list (or 설정) is on screen: the list always when split, else only as the view itself.
 const listShown = () => split || view.name === 'list';
-const settingsShown = () => (split ? colTab === 'settings' : view.name === 'settings');
+const settingsShown = () => view.name === 'settings';
 
 // ------------------------------------------------------------ utilities
 

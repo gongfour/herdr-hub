@@ -31,6 +31,13 @@ const PERM_TEXT = {
   unsupported: ['지원 안 됨', '이 브라우저는 알림을 받을 수 없습니다.'],
 };
 
+// Split: where closing 설정 goes, the agent, shell or workspace it was opened over (goBack then
+// steps back in history to it), else the list.
+function settingsBack() {
+  const p = history.state && history.state.prev;
+  return p && !['/', '/settings'].includes(normHash(p)) ? p : '#/';
+}
+
 function renderSettings() {
   const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
   const off = pushInfo && pushInfo.disabled;
@@ -49,9 +56,11 @@ function renderSettings() {
   const denied = perm === 'denied';
   const subscribed = Boolean(devSub);
   const devLine = !supported || denied ? '' : devSub === undefined ? '이 기기 알림을 확인하는 중…' : subscribed ? '이 기기는 알림을 받습니다.' : '이 기기는 알림이 꺼져 있습니다.';
+  // Split, 설정 is a detail on the right: ✕ (Esc) closes it back to what was open there.
   const html = `
     <header class="bar">
       <h1>설정</h1>
+      ${split ? `<a class="icon-btn close-detail" href="${settingsBack()}" data-back aria-label="닫기" title="닫기 (Esc)">${ICON.x}</a>` : ''}
     </header>
     <main class="panel settings">
       <section>
@@ -128,8 +137,8 @@ function renderSettings() {
       </section>
     </main>`;
   // The kept page when it is the same; else built again where it was scrolled to.
-  showTab('settings');
-  const root = listRoot();
+  if (!split) showTab('settings');
+  const root = split ? detailRoot() : listRoot();
   const old = root.querySelector(':scope > main.settings');
   if (!old || old._html !== html) {
     const top = old ? old.scrollTop : 0;
@@ -140,7 +149,7 @@ function renderSettings() {
     if (top) main.scrollTop = top;
     bindSettings();
   }
-  mountTabBar('settings');
+  if (!split) mountTabBar('settings');
 }
 
 // The 단축키 sheet: keymap.js's table, so it always says what the keys do.

@@ -51,9 +51,9 @@ function wsFor(host, id) {
 }
 
 // ---- tabs: 작업공간 (the workspace cards) / 설정, as a bottom tab bar
-// Where 뒤로 from an agent, shell or workspace leads: 작업공간 (split: whatever the list column
-// shows, 설정 included).
-const homeHash = () => (split && colTab === 'settings' ? '#/settings' : '#/');
+// Where 뒤로 from an agent, shell or workspace leads: 작업공간 (split: the list is beside it, so
+// it closes the detail).
+const homeHash = () => '#/';
 
 // 뒤로 in a detail header. Split, the list is already beside it: a detail that leads back to
 // the list gets ✕ (닫기) at the end of the header instead, and closing it goes to the list route.
@@ -152,11 +152,11 @@ function renderRail() {
   const n = state.agents.filter((a) => a.status === 'blocked' && shown(a)).length;
   const open = !sideOff();
   // Finishes not opened yet, on 작업공간 while its list is out of sight.
-  const dot = (!open || colTab === 'settings') && state.agents.some((a) => shown(a) && isUnread(a));
+  const dot = !open && state.agents.some((a) => shown(a) && isUnread(a));
   const btn = (key, icon, label, extra = '') => {
-    const on = colTab === key;
-    const what = on && open ? `${label} 사이드바 접기` : `${label} 사이드바 열기`;
-    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="list-pane" aria-pressed="${on && open}"${on ? ' aria-current="page"' : ''} aria-label="${what}" title="${label}">${icon}${extra}</button>`;
+    const on = key === 'spaces' ? open : view.name === 'settings';
+    const what = key === 'spaces' ? `${label} 사이드바 ${open ? '접기' : '열기'}` : `${label} ${on ? '닫기' : '열기'}`;
+    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}" title="${label}">${icon}${extra}</button>`;
   };
   const html = `${btn('spaces', ICON.grid, '작업공간', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : dot ? '<span class="rail-dot" role="img" aria-label="새 결과"></span>' : '')}
     <span class="rail-gap"></span>
@@ -189,7 +189,7 @@ function markSeen(a) {
   const k = Inbox.seenKey({ ...a, host: a.host || localId() });
   const m = seenMap();
   if (m[k]) return;
-  if (split && colTab !== 'settings') setTimeout(render, 0);
+  if (split) setTimeout(render, 0);
   const cut = Date.now() - SEEN_DAYS * 86400000;
   for (const [key, t] of Object.entries(m)) if (t < cut) delete m[key];
   m[k] = Date.now();
@@ -238,7 +238,6 @@ let listScroll = 0; // the list's scroll position, kept while a detail view is o
 
 function render() {
   if (swipe.g && Date.now() - swipe.g.t0 < 10000) return void (swipe.pending = true); // after the finger lifts
-  if (split && colTab === 'settings') return; // the list column shows 설정
   showTab('spaces');
   const root = listRoot();
   const down = state.herdr !== 'up';
@@ -302,7 +301,6 @@ function stepHostFilter(dir) {
   setFilter(next);
   if (split) {
     if (sideOff()) setSideOff(false);
-    if (colTab === 'settings') showCol('spaces'); // draws the list with the new host
     renderRail();
   }
   render();
