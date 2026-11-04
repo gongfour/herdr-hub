@@ -61,6 +61,7 @@ window.addEventListener('online', () => revive('online'));
 setInterval(() => document.visibilityState === 'visible' && revive('watchdog'), 10000);
 
 function onState() {
+  forgetGone(); // kept chats of agents that are gone (agent.js)
   if (split) {
     renderCol();
     if (!isDetail()) return renderEmpty();
@@ -72,6 +73,12 @@ function onState() {
     if (!detail.screen) loadTerminal(); // a pane opened just now appears with this state
   }
   if (view.name === 'agent') {
+    // Opened before the first state (the app just started): its kept chat, now that the
+    // agent's conversation is known.
+    if (adoptKept()) {
+      renderDetailBody(true);
+      renderSync();
+    }
     const a = currentAgent();
     const changed = a && a.stateSeq !== detail.lastSeq;
     // The screen read for the previous state must not label buttons for the next prompt.
@@ -193,10 +200,13 @@ function route(e, { relayout = false } = {}) {
     detail = { host, pane, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: draft ? draft.files : [], sheet: null, wantSheet: r.sub === 'screen', activity: null };
     if (was && was.view.name === 'agent' && was.detail.pane === pane && (was.view.host || localId()) === curHost()) {
       const d = was.detail;
-      Object.assign(detail, { transcript: d.transcript, blockedText: d.blockedText, lastSeq: d.lastSeq, mode: d.mode, activity: d.activity, seen: d.seen, answerMode: d.answerMode, showScreen: d.showScreen, showKeys: d.showKeys, openTools: d.openTools, openShell: d.openShell, wantSheet: was.sheet });
+      Object.assign(detail, { transcript: d.transcript, stale: d.stale, blockedText: d.blockedText, lastSeq: d.lastSeq, mode: d.mode, activity: d.activity, seen: d.seen, answerMode: d.answerMode, showScreen: d.showScreen, showKeys: d.showKeys, openTools: d.openTools, openShell: d.openShell, wantSheet: was.sheet });
     }
+    // Its chat kept from an earlier visit (agent.js): drawn now, refreshed by loadDetail below.
+    adoptKept();
     if (r.sub) history.replaceState(history.state, '', location.hash.replace(/\/(?:screen|chat)$/, ''));
     renderDetail();
+    renderSync();
     if (draft) {
       document.getElementById('d-input').value = draft.text;
       renderTray();

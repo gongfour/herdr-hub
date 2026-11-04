@@ -10,6 +10,7 @@ function renderDetail() {
       <header class="bar">
         ${backLink(homeHash())}
         <h1 id="d-title"></h1>
+        <span class="sync" id="d-sync" role="img" aria-label="새로 불러오는 중" title="새로 불러오는 중" hidden></span>
         <button type="button" class="mode-chip" id="d-mode" hidden></button>
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기">${ICON.more}</button>
@@ -263,19 +264,26 @@ function renderDetailHeader() {
   updateComposer();
 }
 
-let loading = false;
+// One load at a time per opened agent (a load asked for meanwhile runs after it); a newly opened
+// agent doesn't wait for the last one's.
+let loading = null; // the detail being loaded
 let reloadAfter = false; // a load was asked for while one was running
 async function loadDetail() {
   const a = currentAgent();
   if (!a) return;
-  if (loading) return void (reloadAfter = true);
-  loading = true;
+  if (loading === detail) return void (reloadAfter = true);
+  const mine = (loading = detail);
+  reloadAfter = false;
   const pane = encodeURIComponent(a.pane);
   const host = curHost();
+  // Started first, so a blocked agent's screen read below doesn't hold the chat up.
+  const chat = screenBody(a) ? null : loadChat(detail, a, pane, host);
+  if (chat) chat.catch(() => {}); // awaited below; a failure there is reported once
   try {
     if (a.status === 'blocked') {
       const seq = a.stateSeq;
       const v = await api(hp(`/agents/${pane}/screen?source=visible&lines=30`, host));
+      if (detail !== mine) return; // another agent was opened meanwhile: its own load runs
       // Read before a state change: that screen belongs to the previous prompt.
       if ((currentAgent() || {}).stateSeq === seq) detail.blockedText = v.text.replace(/\s+$/, '');
       else reloadAfter = true;
@@ -285,19 +293,16 @@ async function loadDetail() {
     const d = detail;
     let activityText = null;
     let footer = false; // the visible screen was read this round (for the mode chip)
-    if (!screenBody(a)) {
-      // Only what changed since the copy here (?rev, ?since): an unchanged chat costs nothing.
-      const t = d.transcript;
-      const last = t && t.messages && t.messages[t.messages.length - 1];
-      const q = `${t && t.rev ? `&rev=${encodeURIComponent(t.rev)}` : ''}${last && last.id ? `&since=${encodeURIComponent(last.id)}` : ''}`;
-      const r = await api(hp(`/agents/${pane}/transcript?limit=150${q}`, host));
-      if (d === detail) d.transcript = mergeTranscript(d.transcript, r);
-    }
+    // The chat is drawn as soon as it arrives; the screen reads below (activity, mode chip) follow.
+    if (!screenBody(a)) await chat;
+    if (detail !== mine) return;
     if (screenBody(a) || detail.sheet) {
       // A working agent can't give its scrollback; Claude draws on the alternate screen anyway,
       // so what is visible is the whole picture. The server falls back to it too.
       const source = working || a.status === 'blocked' ? 'visible' : 'recent';
-      const s = (detail.screen = await api(hp(`/agents/${pane}/screen?source=${source}&lines=200${colorQuery()}`, host)));
+      const s = await api(hp(`/agents/${pane}/screen?source=${source}&lines=200${colorQuery()}`, host));
+      if (detail !== mine) return;
+      detail.screen = s;
       if (working && s.source === 'visible') activityText = s.format === 'ansi' && window.Ansi ? window.Ansi.strip(s.text) : s.text;
       if (s.source === 'visible' && a.status !== 'blocked') {
         noteMode(s.text);
@@ -306,19 +311,30 @@ async function loadDetail() {
     }
     // The activity line: what the visible screen says the agent is doing, only while working.
     if (working && activityText == null) activityText = (await api(hp(`/agents/${pane}/screen?source=visible&lines=60`, host))).text;
+    if (detail !== mine) return;
     if (working && (currentAgent() || {}).status === 'working') setActivity(activityText);
     if (activityText != null) {
       noteMode(activityText);
       footer = true;
     }
     // Idle Claude: a short read of the bottom lines for the mode chip.
-    if (!footer && !working && a.status !== 'blocked' && a.agent === 'claude' && d === detail) noteMode((await api(hp(`/agents/${pane}/screen?source=visible&lines=8`, host))).text);
+    if (!footer && !working && a.status !== 'blocked' && a.agent === 'claude') {
+      const m = (await api(hp(`/agents/${pane}/screen?source=visible&lines=8`, host))).text;
+      if (detail !== mine) return;
+      noteMode(m);
+    }
     renderMode();
     detail.lastErr = null;
     renderDetailBody(false);
     renderScreen();
     renderActivity();
+    keepChat(d, a);
   } catch (err) {
+    if (detail !== mine) return;
+    if (detail.stale) {
+      detail.stale = false;
+      renderSync();
+    }
     if (['agent_not_found', 'peer_offline'].includes(err.code)) return;
     const msg = `불러오지 못했습니다: ${errText(err)}`;
     // Polls repeat the same failure every few seconds: say it once, inline on the screen.
@@ -326,12 +342,177 @@ async function loadDetail() {
     else if (msg !== detail.lastErr) toast(msg);
     detail.lastErr = msg;
   } finally {
-    loading = false;
-    if (reloadAfter) {
-      reloadAfter = false;
-      loadDetail();
+    if (loading === mine) {
+      loading = null;
+      if (reloadAfter) {
+        reloadAfter = false;
+        loadDetail();
+      }
     }
   }
+}
+
+// The transcript into d (the detail it was asked for; it is dropped if another agent is open by
+// then), drawn the moment it arrives.
+//   a full copy here (kept from before): only what changed since (?rev, ?since), 20–35 ms.
+//   nothing yet: the latest QUICK messages and the usual window side by side; the short one is
+//   drawn if it comes first, and the window then puts the older messages above it.
+//   a short copy (the first QUICK, or one kept on the device): the window, older ones above.
+const QUICK = 20;
+async function loadChat(d, a, pane, host) {
+  const t = d.transcript;
+  const apply = (r) => {
+    if (d !== detail) return;
+    d.transcript = mergeTranscript(d.transcript, r);
+    d.stale = false;
+    renderDetailBody(false);
+    renderSync();
+    renderActivity(); // its tail may come from the transcript
+    keepChat(d, a);
+    if (!d.prefetched) {
+      d.prefetched = true;
+      prefetchNeighbours();
+    }
+  };
+  if (t && !t.partial) {
+    const last = t.messages && t.messages[t.messages.length - 1];
+    const q = `${t.rev ? `&rev=${encodeURIComponent(t.rev)}` : ''}${last && last.id ? `&since=${encodeURIComponent(last.id)}` : ''}`;
+    return apply(await api(hp(`/agents/${pane}/transcript?limit=150${q}`, host)));
+  }
+  const full = api(hp(`/agents/${pane}/transcript?limit=150`, host));
+  if (!t)
+    api(hp(`/agents/${pane}/transcript?limit=${QUICK}`, host))
+      .then((r) => {
+        if (d !== detail || d.transcript || !r.supported || !r.found) return;
+        d.transcript = { ...r, partial: true };
+        renderDetailBody(false);
+      })
+      .catch(() => {});
+  const r = await full;
+  // mergeTranscript takes a full window as it is.
+  apply(r);
+}
+
+// ---- kept chats (chatkeep.js): in memory while the page lives, the latest few on the device
+
+const chatKeep = new ChatKeep.Lru(12); // host|pane -> { session, transcript, mode, activity }
+const STORE_KEY = 'herdr-hub.chats.v1';
+let stored = null; // the device's copies, read once
+function readStored() {
+  if (stored) return stored;
+  try {
+    stored = JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+    if (typeof stored !== 'object' || Array.isArray(stored)) stored = {};
+  } catch {
+    stored = {};
+  }
+  return stored;
+}
+let storeTimer = null;
+function writeStored() {
+  clearTimeout(storeTimer);
+  storeTimer = null;
+  stored = ChatKeep.prune(readStored());
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(stored));
+  } catch {
+    /* full or blocked: the copy in memory still serves this visit */
+  }
+}
+// After a load: a moment later (polls come every few seconds), or as the page goes away.
+const writeStoredSoon = () => storeTimer || (storeTimer = setTimeout(writeStored, 2000));
+document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && storeTimer && writeStored());
+
+function keepChat(d, a) {
+  const t = d.transcript;
+  if (!t || !t.supported || !t.found || !a || !a.session || t.partial) return;
+  const key = rowKey(d.host || localId(), d.pane);
+  chatKeep.set(key, { session: a.session, transcript: t, mode: d.mode || null, activity: d.activity || null });
+  const s = readStored();
+  const old = s[key];
+  // Written again only when the chat or the mode changed, or to mark it as opened lately.
+  if (old && old.rev === t.rev && old.session === a.session && old.mode === (d.mode || null) && Date.now() - old.at < 600000) return;
+  const e = ChatKeep.entryFor(t, { session: a.session, mode: d.mode || null, at: Date.now() });
+  if (e) s[key] = e;
+  else delete s[key];
+  writeStoredSoon();
+}
+
+// The kept copy of the open agent, if it is of the conversation the pane has now: shown at once,
+// marked stale (the header's small spinner) until loadChat brings the fresh one.
+function adoptKept() {
+  const d = detail;
+  if (d.transcript || view.name !== 'agent') return false;
+  const a = currentAgent();
+  if (!a || !a.session || screenBody(a)) return false;
+  const key = rowKey(curHost(), d.pane);
+  const k = chatKeep.get(key);
+  if (k && k.session === a.session) {
+    Object.assign(d, { transcript: k.transcript, stale: true, mode: d.mode || k.mode, activity: d.activity || k.activity });
+    return true;
+  }
+  const e = readStored()[key];
+  const t = e && e.session === a.session && ChatKeep.restore(e);
+  if (!t) return false;
+  Object.assign(d, { transcript: t, stale: true, mode: d.mode || e.mode });
+  return true;
+}
+
+function renderSync() {
+  const el = document.getElementById('d-sync');
+  if (el) el.hidden = !detail.stale;
+}
+
+// Copies of agents that are gone (closed, or the pane runs another conversation) go, once their
+// host has said so; a host that is offline keeps its own.
+function forgetGone() {
+  const s = readStored();
+  const sessionOf = (k) => (s[k] ? s[k].session : chatKeep.peek(k) ? chatKeep.peek(k).session : null);
+  const keys = [...new Set([...Object.keys(s), ...chatKeep.keys()])];
+  const out = ChatKeep.gone(keys, state, (a) => rowKey(a.host, a.pane), sessionOf);
+  if (!out.length) return;
+  let changed = false;
+  for (const k of out) {
+    chatKeep.delete(k);
+    if (k in s) {
+      delete s[k];
+      changed = true;
+    }
+  }
+  if (changed) writeStored();
+}
+
+// Split, with a keyboard: Alt+↑/↓ opens the row above or below. Their chats are fetched once
+// this one has loaded, so the step lands on a kept copy. Only agents not kept at all (a kept
+// one needs just the small refresh), one at a time, a moment after the open.
+let prefetchTimer = null;
+function prefetchNeighbours() {
+  clearTimeout(prefetchTimer);
+  if (!split || view.name !== 'agent') return;
+  const d = detail;
+  prefetchTimer = setTimeout(async () => {
+    const main = listRoot() && listRoot().querySelector(':scope > main.home');
+    if (!main || d !== detail) return;
+    const links = [...main.querySelectorAll('a.attn-row, a.sw-front')].map((x) => x.getAttribute('href'));
+    const cur = main.querySelector('a[aria-current]');
+    const here = cur && cur.getAttribute('href');
+    for (const dir of [1, -1]) {
+      const href = here && Split.stepRow(links, here, dir);
+      const r = href && Route.parse(href.replace(/^#/, ''));
+      if (!r || r.name !== 'agent' || d !== detail) continue;
+      const host = r.host || localId();
+      const a = state.agents.find((x) => same(x, host, r.pane));
+      const key = rowKey(host, r.pane);
+      if (!a || !a.session || screenBody(a) || chatKeep.has(key)) continue;
+      try {
+        const t = await api(hp(`/agents/${encodeURIComponent(r.pane)}/transcript?limit=150`, host));
+        const now = state.agents.find((x) => same(x, host, r.pane));
+        if (t.supported && t.found && now && now.session === a.session && !chatKeep.has(key)) chatKeep.set(key, { session: a.session, transcript: t, mode: null, activity: null });
+      } catch {
+        /* only a head start */
+      }
+    }
+  }, 400);
 }
 
 // ---- sent, not in the transcript yet
@@ -399,14 +580,30 @@ function renderDetailBody(reset) {
       body._seen = null;
       body.querySelector('.jump').onclick = () => jumpLatest(keyboardLikely()); // a phone's keyboard stays down
     }
-    body.querySelector('.trunc').hidden = !t.truncated;
+    // A short copy (the latest few, more on the way) says nothing about older ones yet.
+    body.querySelector('.trunc').hidden = !t.truncated || Boolean(t.partial);
     // One element per message, replaced only when its HTML changed: a poll that brings
     // nothing new touches nothing, so a text selection or a press survives it.
     const waiting = pendingNow(rowKey(curHost(), detail.pane), currentAgent()).map((p) => [`wait:${p.at}`, pendingBubble(p)]);
-    patchList(body.querySelector('.msgs'), [...t.messages.map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting]);
+    const box = body.querySelector('.msgs');
+    // Scrolled up: the message at the top of the view stays where it is, whatever comes in
+    // above it (the older messages after a short first copy) or below.
+    const anchor = nearBottom ? null : topMessage(body, box);
+    patchList(box, [...t.messages.map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting]);
+    if (anchor && anchor.el.isConnected) body.scrollTop += anchor.el.getBoundingClientRect().top - anchor.top;
   }
   if (nearBottom) body.scrollTop = body.scrollHeight;
   updateJump(body);
+}
+
+// The first message whose bottom is inside the view, and where it is now.
+function topMessage(body, box) {
+  const top = body.getBoundingClientRect().top;
+  for (const el of box.children) {
+    const r = el.getBoundingClientRect();
+    if (r.bottom > top) return { el, top: r.top };
+  }
+  return null;
 }
 
 // ---- 최신 대화: back to the end of the conversation

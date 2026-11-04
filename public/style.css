@@ -257,6 +257,12 @@ button:disabled { cursor: default; }
 .activity .go { flex: none; margin-left: auto; font-weight: 600; }
 @keyframes activity-pulse { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .activity .spin { animation: none; } }
+/* A kept chat shown while the fresh one loads (agent.js renderSync): a small pulsing dot by the
+   title, only after a moment, so a quick refresh shows nothing at all. */
+.bar .sync { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: 0; animation: sync-pulse 1.2s 0.25s ease-in-out infinite; }
+.bar .sync[hidden] { display: none; }
+@keyframes sync-pulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .bar .sync { animation: sync-pulse 0s 0.25s forwards; } }
 .seg { display: flex; gap: 4px; padding: 3px; background: var(--surface-2); border-radius: 10px; margin: 10px 16px 0; }
 .seg button { flex: 1; border: 0; background: transparent; padding: 7px; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
