@@ -140,11 +140,12 @@ function renderDetail() {
       }
       detail.sending = true;
       updateComposer();
-      if (!(await answerChoice(host, cur, target.item))) {
+      if (!(await answerChoice(host, cur, target.item, parseChoices(detail.blockedText)))) {
         detail.sending = false;
         return updateComposer();
       }
       via = target.how;
+      detail.answerAfter = target.after || ['enter'];
       // Claude opens the question's own text field (or goes back to its prompt) a moment later.
       await new Promise((r) => setTimeout(r, 600));
     }
@@ -153,7 +154,7 @@ function renderDetail() {
     // The answer typed after a "Type something" choice: into the open question, then Enter.
     if (via === 'own' || (detail.answerMode && !files.length)) {
       try {
-        await api(hp(`/agents/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ text: text.replace(/\s+/g, ' ').trim(), keys: ['enter'] }) });
+        await api(hp(`/agents/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ text: text.replace(/\s+/g, ' ').trim(), keys: detail.answerAfter || ['enter'] }) });
         if (here()) {
           input.value = '';
           detail.answerMode = false;

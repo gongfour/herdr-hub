@@ -127,3 +127,12 @@ test('lastCwd: the folder of the last entry that has one, a cut first line skipp
   assert.equal(lastCwd(''), '');
   assert.equal(lastCwd(lines[0]), '');
 });
+
+test('ExitPlanMode keeps its plan, to read before the approval prompt is answered', () => {
+  const m = parse([
+    line({ type: 'assistant', message: { id: 'a1', content: [{ type: 'tool_use', id: 'tp', name: 'ExitPlanMode', input: { plan: '# Plan\n\n1. Create hi.txt\n' } }] } }),
+    line({ type: 'assistant', message: { id: 'a2', content: [{ type: 'tool_use', id: 'tb', name: 'Bash', input: { command: 'ls' } }] } }),
+  ].join('\n'));
+  assert.equal(m[0].tools[0].plan, '# Plan\n\n1. Create hi.txt');
+  assert.equal(m[1].tools[0].plan, undefined);
+});

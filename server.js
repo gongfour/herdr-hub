@@ -18,7 +18,7 @@ const uploads = require('./lib/uploads');
 const commands = require('./lib/commands');
 const times = require('./lib/times');
 const notifyLib = require('./lib/notify');
-const { parseChoices, choicesSettled } = require('./public/choices');
+const { parseChoices, choicesSettled, choicesSig, heldPrompt } = require('./public/choices');
 const { Push } = require('./lib/push');
 const { Peer, ID: HOST_ID_RULE } = require('./lib/peers');
 const hoststore = require('./lib/hoststore');
@@ -228,7 +228,7 @@ async function refresh() {
     const terminals = panes.panes.filter((p) => !p.agent && !agentPanes.has(p.pane_id)).map((p) => shapeTerminal(p, labels));
     localTimes = times.track(localTimes, list, Date.now(), (a) => a.pane);
     const b = fsq.budget(2000);
-    await Promise.all(list.map((a) => addGlance(a, b)));
+    await Promise.all([...list.map((a) => addGlance(a, b)), ...list.map((a) => holdAsk(a))]);
     if (seq < appliedSeq) return;
     appliedSeq = seq;
     notifyTransitions(HOST_ID, HOSTNAME, list);
@@ -254,6 +254,46 @@ async function refresh() {
     }
   }
 }
+
+// herdr (its Claude manifest of 2026.10.11) reads two of Claude's prompts as its input box once
+// the session has a name (the name sits in the rule under them): AskUserQuestion's last screen
+// (「Review your answers … ❯ 1. Submit answers」) and the plan approval (「Would you like to
+// proceed? ❯ 1. Yes, and use auto mode」). The agent turns idle while it still waits for an
+// answer. When a Claude agent turns idle or done, its screen is read once; if one of those
+// prompts is on it (choices.js heldPrompt), it stays blocked here until herdr's state changes
+// again (the answer sent, or Esc).
+// An answer drawn for the blocked state just before (its stateSeq is `from`) is for the same
+// prompt: answerLocal takes it.
+const askHeld = new Map(); // pane -> { seq, from }: herdr's idle/done stateSeq, the blocked one before
+const heldSeq = (pane) => (askHeld.get(pane) || {}).seq;
+async function holdAsk(a) {
+  const held = askHeld.get(a.pane);
+  if (held && held.seq !== a.stateSeq) askHeld.delete(a.pane);
+  if (a.agent !== 'claude' || (a.status !== 'idle' && a.status !== 'done')) return;
+  if (heldSeq(a.pane) === a.stateSeq) return void (a.status = 'blocked');
+  // One read per change; a refresh running meanwhile waits for that read.
+  let check = askChecked.get(a.pane);
+  if (!check || check.seq !== a.stateSeq) {
+    const was = (previous.get(HOST_ID) || new Map()).get(a.pane);
+    if (!was || was.seq === a.stateSeq) return; // seen at this state already (or the hub just started)
+    const pane = a.pane;
+    const seq = a.stateSeq;
+    const from = was.seq;
+    check = {
+      seq,
+      read: readScreen('agent.read', { target: pane }, 'visible', 30)
+        .then((r) => {
+          if (heldPrompt(String(r.text || '').replace(/\s+$/, ''))) askHeld.set(pane, { seq, from });
+        })
+        .catch(() => {}), // unread: herdr's status stands
+    };
+    askChecked.set(pane, check);
+    if (askChecked.size > 256) askChecked.delete(askChecked.keys().next().value);
+  }
+  await check.read;
+  if (heldSeq(a.pane) === a.stateSeq) a.status = 'blocked';
+}
+const askChecked = new Map(); // pane -> { seq, read } the screen read for that change
 
 // The home screen's one-liners, from a small cached transcript tail: what a working agent ran
 // last (lastTool) and the first line of a finished one's last reply (lastReply). And where a
@@ -362,7 +402,7 @@ function notifyTransitions(hostId, hostLabel, list) {
       if (kind) notify(kind, hostId, hostLabel, a).catch((err) => console.error('push error', err.message));
     }
   }
-  previous.set(hostId, new Map(list.map((a) => [a.pane, { status: a.status, completion: a.completion }])));
+  previous.set(hostId, new Map(list.map((a) => [a.pane, { status: a.status, completion: a.completion, seq: a.stateSeq }])));
 }
 
 // A peer joins: followed from now on. Leaves: its stream is closed and its items drop out.
@@ -906,30 +946,38 @@ const answerBody = (r) => (r.ok ? { ok: true, n: r.item.n, label: r.item.label }
 
 // The guard runs on fresh state: herdr is asked again, and the screen read now. A second answer
 // to the same prompt soon after (a double tap, or the app and a notification both) is refused:
-// the first one's keys may not have moved the agent on yet.
-const answered = new Map(); // pane -> { seq, at }
+// the first one's keys may not have moved the agent on yet. "The same prompt" is the same screen
+// of it (choicesSig): AskUserQuestion takes its questions one after another, and a multiSelect
+// its boxes, all while herdr's state stays the same; each new screen takes its own answer.
+const answered = new Map(); // pane -> { seq, sig, at }
 const ANSWER_HOLD_MS = 5000;
 async function answerLocal(pane, body, { allowOwn = false } = {}) {
   await refresh();
   const agent = findAgent(pane);
-  const stateSeq = Number.isInteger(body.stateSeq) ? body.stateSeq : null;
+  let stateSeq = Number.isInteger(body.stateSeq) ? body.stateSeq : null;
+  // Drawn just before herdr misread the prompt's last screen as idle (holdAsk): the same prompt.
+  const ah = askHeld.get(pane);
+  if (agent && ah && agent.stateSeq === ah.seq && stateSeq === ah.from) stateSeq = ah.seq;
   const n = Number(body.n);
   const label = typeof body.label === 'string' ? body.label : null;
-  const held = () => {
-    const last = answered.get(pane);
-    return Boolean(last && last.seq === stateSeq && Date.now() - last.at < ANSWER_HOLD_MS);
-  };
-  if (held()) return { status: 409, error: 'answered' };
   let choices = null;
   if (agent && agent.status === 'blocked' && agent.stateSeq === stateSeq)
     choices = parseChoices(String((await readScreen('agent.read', { target: pane }, 'visible', 30)).text || '').replace(/\s+$/, ''));
+  const sig = choicesSig(choices);
+  const held = () => {
+    const last = answered.get(pane);
+    return Boolean(last && last.seq === stateSeq && last.sig === sig && Date.now() - last.at < ANSWER_HOLD_MS);
+  };
+  if (held()) return { status: 409, error: 'answered' };
   const r = notifyLib.checkAnswer({ agent, stateSeq, n, label, choices, allowOwn });
   if (!r.ok) return r;
   // Checked again after the reads above, and claimed before the keys go: a request that arrived
   // meanwhile is refused.
   if (held()) return { status: 409, error: 'answered' };
-  const claim = { seq: stateSeq, at: Date.now() };
+  const claim = { seq: stateSeq, sig, at: Date.now() };
   answered.set(pane, claim);
+  // Nothing to press: the cursor is on that row already (a multiSelect's "Type something").
+  if (!r.keys.length) return r;
   try {
     await herdr.call('agent.send_keys', { target: pane, keys: r.keys });
   } catch (err) {

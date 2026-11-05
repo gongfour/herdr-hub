@@ -13,7 +13,15 @@
   const RULE = /^[\s─━═┄┅┈┉╌╍▔▁\-╭╮╰╯┌┐└┘╔╗╚╝├┤┬┴┼]+$/;
   // A dashed rule frames a part inside a dialog (the command of a Bash prompt), not its edge.
   const SOLID_RULE = /^(?=.*[─━═╭╮╰╯┌┐└┘╔╗╚╝])[\s─━═\-╭╮╰╯┌┐└┘╔╗╚╝├┤┬┴┼]+$/;
-  const NEGATIVE = /^(no\b|아니|거부|취소|reject|deny|cancel|exit|quit)|\b(tell claude what to do differently|reject|deny|cancel)\b|\(esc\)\s*$/i;
+  const NEGATIVE = /^(no\b|아니|거부|취소|reject|deny|cancel|exit|quit|chat about this)|\b(tell claude what to do differently|reject|deny|cancel)\b|\(esc\)\s*$/i;
+  // AskUserQuestion's parts (Claude Code 2.1.318, test/fixtures/ask): the tab bar over the
+  // question ("←  ☐ 색  ☒ 크기  ✔ Submit  →", or "☐ 색" alone for one question), a multiSelect
+  // option's box ("1. [✔] 사과"), the row under a multiSelect list that goes on ("Submit" or
+  // "Next", reached with the arrows), and an option's preview drawn in a box to its right.
+  const TAB_BAR = /^\s*(?:←\s+)?([☐☒✔]\s*\S.*?)(?:\s+→)?\s*$/;
+  const CHECK = /^\[([ ✔✓xX])\]\s*/;
+  const NEXT_ROW = /^\s*(?:[❯›▶►➤>]\s*)?(Submit|Next)\s*$/;
+  const PREVIEW_CUT = /\s{3,}[┌│└├╭╰┃].*$/;
   // How many non-empty lines may follow the menu (hints like "Esc to cancel", the input box).
   const MAX_AFTER = 6;
   // Cursor glyphs for menus without numbers; not ">" which also starts quotes and old prompts.
@@ -43,13 +51,19 @@
       const m = line.match(ITEM);
       if (m) {
         const n = Number(m[3]);
-        const item = { n, label: m[4], cursor: Boolean(m[2]), col: line.search(/[1-9][.)]/), rows: [{ text: m[4], len: line.length }] };
+        // An option with its preview beside it: the box is not part of its name.
+        const label = m[4].replace(PREVIEW_CUT, '');
+        const preview = label !== m[4];
+        const len = preview ? line.length - (m[4].length - label.length) : line.length;
+        const item = { n, label, cursor: Boolean(m[2]), col: line.search(/[1-9][.)]/), rows: [{ text: label, len, ind: indent(line) }] };
         if (cur && n === cur.items.length + 1 && gap <= 1) {
+          if (cur.ruled) item.afterRule = true;
+          if (preview) cur.preview = true;
           cur.items.push(item);
         } else {
           close();
           if (n !== 1) return;
-          cur = { start: i, items: [item] };
+          cur = { start: i, items: [item], preview };
         }
         cur.end = i;
         gap = 0;
@@ -57,14 +71,30 @@
       }
       if (!cur) return;
       if (!line.trim()) {
-        if (++gap > 1) close();
+        if (++gap > 1 || cur.ruled) close();
         return;
       }
+      if (cur.ruled) return close(); // only a next option may follow that rule
       const last = cur.items[cur.items.length - 1];
+      const boxed = CHECK.test(cur.items[0].label);
+      // multiSelect: the row that goes on, under the options (the cursor may be on it).
+      const nx = boxed && !cur.next && gap === 0 && line.match(NEXT_ROW);
+      if (nx) {
+        cur.next = { label: nx[1], cursor: /^\s*[❯›▶►➤>]/.test(line) };
+        cur.end = i;
+        return;
+      }
+      // One rule between the options and the last one (AskUserQuestion's "Chat about this").
+      if (RULE.test(line) && gap === 0 && !/[╌┄┈]/.test(line)) {
+        cur.ruled = true;
+        return;
+      }
+      // A preview's own lines below the options.
+      if (cur.preview && /^[┌│└├╭╰┃]/.test(line.trim())) return;
       // A wrapped option is indented past its number; anything else ends the list.
       if (gap === 0 && indent(line) > last.col && !RULE.test(line)) {
         last.label += ` ${line.trim()}`;
-        last.rows.push({ text: line.trim(), len: line.length });
+        last.rows.push({ text: line.trim(), len: line.length, ind: indent(line) });
         cur.end = i;
       } else close();
     });
@@ -133,6 +163,19 @@
       else if (para.length) paras.push(para), (para = []);
     }
     if (para.length) paras.push(para);
+    // AskUserQuestion's tab bar: the questions asked together, ☒ when answered. Not context.
+    let tabs = null;
+    let submitTab = false;
+    for (const p of paras) {
+      const at = p.findIndex((x) => TAB_BAR.test(x.text) && x.text.split(/\s{2,}/).every((t) => /^(?:←|→|[☐☒✔]\s*\S.*)$/.test(t)));
+      if (at < 0) continue;
+      const toks = p[at].text.split(/\s{2,}/).filter((t) => /^[☐☒✔]/.test(t));
+      submitTab = toks.some((t) => /^✔\s*Submit$/i.test(t));
+      tabs = toks.filter((t) => !/^✔\s*Submit$/i.test(t)).map((t) => ({ label: t.replace(/^[☐☒✔]\s*/, ''), done: /^[☒✔]/.test(t) }));
+      p.splice(at, 1);
+      break;
+    }
+    for (let i = paras.length - 1; i >= 0; i--) if (!paras[i].length) paras.splice(i, 1);
     // The question: the last paragraph with a "?", cut after its first question mark;
     // else the paragraph right above the list. What comes before it is context (a command, a path).
     let qi = -1;
@@ -146,15 +189,65 @@
     const blocks = qi > 0 ? paras.slice(0, qi) : [];
     const context = blocks.flat().map((x) => x.text);
 
-    const items = list.items.map(({ n, label, cursor, rows }) => {
+    let multi = false;
+    const items = list.items.map(({ n, label, cursor, rows, afterRule }) => {
       const { name, desc } = rows ? splitItem(rows, width) : { name: label, desc: '' };
       label = name.replace(/\s+/g, ' ').trim();
-      const item = { n, label, cursor, negative: NEGATIVE.test(label) };
+      const box = label.match(CHECK);
+      const item = { n, label: box ? label.slice(box[0].length) : label, cursor };
+      if (box) (multi = true), (item.checked = box[1] !== ' ');
+      item.negative = NEGATIVE.test(item.label);
+      if (afterRule) item.extra = true; // below the options: "Chat about this"
       if (desc.trim()) item.desc = desc.replace(/\s+/g, ' ').trim();
       return item;
     });
     const sel = items.find((x) => x.cursor);
-    return { question, context, items, cursor: sel ? sel.n : null, numbered: list.numbered, blocks, width };
+    const ch = { question, context, items, cursor: sel ? sel.n : null, numbered: list.numbered, blocks, width };
+    if (tabs) {
+      // steps: more than this one screen to go through (several questions, or a multiSelect's Submit).
+      ch.ask = { tabs, steps: tabs.length > 1 || submitTab, review: /^ready to submit your answers\?$/i.test(question) };
+    }
+    if (multi) ch.multi = true;
+    // A preview beside the options: a digit only moves the cursor there; Enter picks.
+    if (list.preview) ch.preview = true;
+    if (list.next) ch.next = list.next;
+    return ch;
+  }
+
+  // Where the cursor sits among a multiSelect list's rows: option n at n, the Next row after the
+  // options (before "Chat about this"). Null when no row shows it.
+  function cursorRow(ch) {
+    if (ch.cursor) return ch.cursor;
+    const main = ch.items.filter((x) => !x.extra).length;
+    return ch.next && ch.next.cursor ? main + 1 : null;
+  }
+  const walk = (from, to) => Array(Math.abs(to - from)).fill(to > from ? 'down' : 'up');
+
+  // The keys that go on from a multiSelect list (its Submit/Next row): walk there, then Enter.
+  function nextKeys(ch) {
+    if (!ch || !ch.multi || !ch.next) return null;
+    const main = ch.items.filter((x) => !x.extra).length;
+    const from = cursorRow(ch);
+    if (!from) return ['right']; // the tab bar's next tab is the same step
+    const keys = [...walk(from, main + 1), 'enter'];
+    return keys.length <= 8 ? keys : null;
+  }
+
+  // A prompt herdr may take for Claude's input box (server.js holdAsk): AskUserQuestion (its tab
+  // bar) or the plan approval, at the bottom of the screen with no empty input line under it.
+  // Not any numbered menu: a reply's own list sits right above the input box too.
+  function heldPrompt(text) {
+    const ch = parseChoices(text);
+    if (!ch || !(ch.ask || /written up a plan/i.test(ch.question))) return null;
+    const below = String(text).split(/\r?\n/).slice(-12);
+    return below.some((l) => /^\s*[❯>]\s*$/.test(clean(l))) ? null : ch;
+  }
+
+  // A prompt's step, for telling one screen of a prompt from the next while herdr's state stays
+  // the same (AskUserQuestion's questions one after another, a multiSelect's boxes ticked).
+  function choicesSig(ch) {
+    if (!ch) return '';
+    return [ch.question, ...ch.items.map((x) => `${x.n}${x.checked ? '+' : ''}${x.label}`)].join('|').replace(/\s+/g, ' ');
   }
 
   // What a permission prompt asks, laid out for reading: the kind of request (「셸 명령」), what it
@@ -170,6 +263,8 @@
     [/^do you want to make this edit to (.+)\?$/i, (m) => `${m[1]} — 이렇게 고칠까요?`],
     [/^do you want to create (.+)\?$/i, (m) => `${m[1]} — 만들까요?`],
     [/^do you want to allow (.+)\?$/i, (m) => `${m[1]} — 허락할까요?`],
+    [/^claude has written up a plan and is ready to execute\. would you like to proceed\?$/i, '계획대로 진행할까요?'],
+    [/^ready to submit your answers\?$/i, '이대로 답을 보낼까요?'],
   ];
   function koQuestion(q) {
     for (const [re, ko] of QUESTIONS) {
@@ -190,8 +285,11 @@
   function promptParts(ch) {
     const blocks = (ch && ch.blocks) || [];
     const first = blocks[0] && blocks[0][0];
-    const kind = first ? KINDS[first.text.toLowerCase()] || null : null;
     const question = ch ? koQuestion(ch.question) : '';
+    // AskUserQuestion and the plan approval have no kind line: they are known by their shape.
+    if (ch && ch.ask) return { kind: '질문', intent: '', body: ch.context.join('\n'), question };
+    if (ch && /written up a plan/i.test(ch.question)) return { kind: '계획', intent: '', body: ch.context.join('\n'), question };
+    const kind = first ? KINDS[first.text.toLowerCase()] || null : null;
     if (!kind) return { kind: null, intent: '', body: ch ? ch.context.join('\n') : '', question };
     const head = blocks[0].slice(1); // what shares the kind's paragraph (2.1.3xx: the description)
     let rest = blocks.slice(1);
@@ -210,7 +308,15 @@
   // The keys that pick item n. A digit picks and confirms a numbered Claude Code menu;
   // a menu without numbers is walked with the arrows from the cursor, then Enter.
   function choiceKeys(choices, n) {
-    if (!choices || !choices.items.some((x) => x.n === n)) return null;
+    const item = choices && choices.items.find((x) => x.n === n);
+    if (!item) return null;
+    // multiSelect: a digit ticks a box; "Type something" is a text row, reached with the arrows
+    // (a digit there would tick it with no words and leave the cursor away).
+    if (choices.multi && TYPE_OWN.test(item.label) && !item.extra) {
+      const from = cursorRow(choices);
+      return from ? walk(from, n) : null; // [] when it is there already
+    }
+    if (choices.preview) return [String(n), 'enter'];
     if (choices.numbered) return DIGIT_CONFIRMS ? [String(n)] : [String(n), 'enter'];
     if (!choices.cursor) return null;
     const d = n - choices.cursor;
@@ -219,7 +325,8 @@
   }
 
   // An option that asks for your own words (AskUserQuestion's "Type something.").
-  const TYPE_OWN = /^(type something|type your own|other\b|something else|직접 입력|기타)/i;
+  // ExitPlanMode's "Tell Claude what to change" works the same way: picked, it takes the words.
+  const TYPE_OWN = /^(type something|type your own|other\b|something else|tell claude what to change|직접 입력|기타)/i;
 
   // The option that words typed into the composer answer while the prompt waits, and how they go:
   // 'own' (AskUserQuestion's "Type something": pick it, then the words go into the question) or
@@ -229,7 +336,8 @@
   function typedChoice(ch) {
     if (!ch) return null;
     const own = ch.items.find((x) => TYPE_OWN.test(x.label) && choiceKeys(ch, x.n));
-    if (own) return { item: own, how: 'own' };
+    // multiSelect: the words tick the row; Enter would untick it, so the cursor steps off instead.
+    if (own) return { item: own, how: 'own', after: ch.multi ? ['up'] : ['enter'] };
     const tell = ch.items.find((x) => TELL_CLAUDE.test(x.label) && choiceKeys(ch, x.n));
     return tell ? { item: tell, how: 'prompt' } : null;
   }
@@ -238,7 +346,11 @@
   // menu's first options or a Yes/No menu; never "Type something".
   function quickChoices(ch) {
     if (!ch) return [];
-    const items = ch.items.filter((x) => !TYPE_OWN.test(x.label) && choiceKeys(ch, x.n));
+    // One tap can't answer these: boxes to tick, or more questions after this one (the review
+    // screen that ends them can be).
+    if (ch.multi || (ch.ask && ch.ask.steps && !ch.ask.review)) return [];
+    // Not "Chat about this" either: it sets the question aside, not an answer to pick in a hurry.
+    const items = ch.items.filter((x) => !x.extra && !TYPE_OWN.test(x.label) && choiceKeys(ch, x.n));
     // A permission prompt's refusal comes last (1 Yes, 2-3 Yes and …, 4 No): keep it in reach.
     const neg = items.find((x) => x.negative);
     if (ch.numbered) return neg && items.indexOf(neg) >= 3 ? [...items.slice(0, 2), neg] : items.slice(0, 3);
@@ -272,7 +384,7 @@
     return Boolean(ch && ch.items.length && /[?？]/.test(ch.question));
   }
 
-  const api = { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel };
+  const api = { heldPrompt, nextKeys, choicesSig, parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel });
+  else Object.assign(root, { heldPrompt, nextKeys, choicesSig, parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel });
 })(typeof self !== 'undefined' ? self : this);

@@ -223,7 +223,12 @@ Enter to select · ↑/↓ to navigate · Esc to cancel`;
 test('AskUserQuestion options split into name and description', () => {
   const c = parseChoices(ASK);
   assert.equal(c.question, 'Which color do you like?');
-  assert.deepEqual(labels(c), ['Red', 'Blue', 'Green', 'Type something.']);
+  // "Chat about this" sits below a rule: an option too (it sets the question aside).
+  assert.deepEqual(labels(c), ['Red', 'Blue', 'Green', 'Type something.', 'Chat about this']);
+  assert.equal(c.items[4].extra, true);
+  assert.equal(c.items[4].negative, true);
+  assert.deepEqual(c.ask, { tabs: [{ label: 'Color', done: false }], steps: false, review: false });
+  assert.deepEqual(c.context, []);
   assert.equal(c.items[0].desc, 'Choose red.');
   assert.equal(c.items[2].desc, 'A long description that goes on for a while so that it wraps across more than one line on a narrow terminal window, to test wrapping.');
   assert.equal(c.items[3].desc, undefined);

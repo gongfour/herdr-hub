@@ -82,11 +82,13 @@ function toolLine(t, key) {
   const asked = t.answers && t.answers.length ? t.answers.map((x) => `${esc(x.q)} → <span class="ans">${esc(x.a)}</span>`).join(' · ') : '';
   const head = `<b>${esc(t.name)}</b> ${asked || esc(t.summary)}`;
   const cls = `tool${asked ? ' asked' : ''}${t.error ? ' failed' : ''}`;
-  if (!t.result) return `<div class="${cls}">${head}</div>`;
+  // ExitPlanMode: the plan itself, to read before its approval prompt is answered.
+  const plan = t.plan ? `<div class="tool-plan">${Markdown.md(t.plan)}</div>` : '';
+  if (!t.result) return `<div class="${cls}">${head}</div>${plan}`;
   const open = Boolean(detail.openTools && detail.openTools.has(key));
   return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span><span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${
     open ? `<pre class="tool-out">${t.cmd ? `<span class="tool-cmd">$ ${esc(t.cmd)}</span>\n` : ''}${esc(t.result)}${t.cut ? '\n… (뒤는 잘림)' : ''}</pre>` : ''
-  }</div>`;
+  }</div>${plan}`;
 }
 
 // The agent's last reply in the transcript, as it wrote it (markdown).
