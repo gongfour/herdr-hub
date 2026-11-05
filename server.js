@@ -164,17 +164,23 @@ function readJsonFile(file) {
   }
 }
 // Written when a time changed (and hourly, so savedAt stays fresh), not on every refresh.
+// Asynchronous (it runs on refresh's path) and one write at a time: the newest dump, taken when
+// that write starts, goes to a temp file then is renamed over the old one.
+let timesWrite = Promise.resolve();
 function saveTimes() {
   const body = JSON.stringify(times.dump({ local: localTimes, merged: mergedTimes }, 0).maps);
-  if (body === timesSaved.body && Date.now() - timesSaved.at < 3600e3) return;
+  if (body === timesSaved.body && Date.now() - timesSaved.at < 3600e3) return timesWrite;
   timesSaved = { body, at: Date.now() };
-  try {
-    fs.mkdirSync(DATA, { recursive: true });
-    fs.writeFileSync(TIMES_FILE + '.tmp', JSON.stringify(times.dump({ local: localTimes, merged: mergedTimes }, Date.now())));
-    fs.renameSync(TIMES_FILE + '.tmp', TIMES_FILE);
-  } catch (err) {
-    console.error('times save failed:', err.message);
-  }
+  timesWrite = timesWrite.then(async () => {
+    try {
+      await fs.promises.mkdir(DATA, { recursive: true });
+      await fs.promises.writeFile(TIMES_FILE + '.tmp', JSON.stringify(times.dump({ local: localTimes, merged: mergedTimes }, Date.now())));
+      await fs.promises.rename(TIMES_FILE + '.tmp', TIMES_FILE);
+    } catch (err) {
+      console.error('times save failed:', err.message);
+    }
+  });
+  return timesWrite;
 }
 
 // title: the pane's own name when one was given (herdr pane rename — what an agent calls its pane,
@@ -228,11 +234,15 @@ async function refresh() {
       .sort((x, y) => (STATUS_RANK[x.status] ?? 9) - (STATUS_RANK[y.status] ?? 9) || y.stateSeq - x.stateSeq);
     const agentPanes = new Set(list.map((a) => a.pane));
     const terminals = panes.panes.filter((p) => !p.agent && !agentPanes.has(p.pane_id)).map((p) => shapeTerminal(p, labels));
-    localTimes = times.track(localTimes, list, Date.now(), (a) => a.pane);
+    // The times this read makes (put on the agents now: addGlance reads doneAt), kept only if
+    // this refresh is applied: an older one that ends late would otherwise set them back to what
+    // it read, and the next refresh would see working -> idle again (a second 완료).
+    const nextTimes = times.track(localTimes, list, Date.now(), (a) => a.pane);
     const b = fsq.budget(2000);
     await Promise.all([...list.map((a) => addGlance(a, b)), ...list.map((a) => holdAsk(a))]);
     if (seq < appliedSeq) return;
     appliedSeq = seq;
+    localTimes = nextTimes;
     notifyTransitions(HOST_ID, HOSTNAME, list);
     // Not against a list read before the last set (a workspace created meanwhile): the next one.
     const r = gen === wsDirsGen ? wsdirs.reconcile(wsDirs, workspaces.workspaces, wsSeen) : { changed: false };

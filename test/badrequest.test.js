@@ -106,3 +106,28 @@ test('bad request paths: 400, and the server keeps serving', async (t) => {
   const r = await req(port, 'GET', '/api/state');
   assert.equal(r.status, 200);
 });
+
+test('overlapping refreshes: one that ends late does not set the times back', async (t) => {
+  const agent = { pane_id: 'w1-p5', workspace_id: 'w1', tab_id: 't1', agent: 'codex', agent_status: 'working', cwd: '/' };
+  const { port, herdr } = await start(t, (h) => h.agents.push(agent));
+  const doneAt = async () => (await req(port, 'GET', '/api/state')).body.agents.find((a) => a.pane === 'w1-p5').doneAt;
+  const touch = () => req(port, 'POST', '/api/workspaces/w1/rename', { label: 'proj' });
+  await touch();
+  assert.equal(await doneAt(), null);
+
+  // R1 reads "working", and herdr's answer comes late.
+  const lists = () => herdr.calls.filter((c) => c.method === 'agent.list').length;
+  const n = lists();
+  herdr.hold['agent.list'] = 800;
+  const r1 = touch();
+  while (lists() === n) await new Promise((r) => setTimeout(r, 5));
+  // Meanwhile the turn ends and R2 sees it.
+  herdr.agents[0].agent_status = 'idle';
+  await touch();
+  const first = await doneAt();
+  assert.equal(typeof first, 'number');
+  await r1; // R1 ends now, after R2: dropped
+  await new Promise((r) => setTimeout(r, 20));
+  await touch(); // R3 still sees idle: the turn ended once
+  assert.equal(await doneAt(), first);
+});

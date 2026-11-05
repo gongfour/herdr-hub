@@ -3,6 +3,8 @@
 // like the real one. Every request is kept in `calls`; events.subscribe stays open and quiet.
 // `workspaces` is the list herdr gives (a test may change it); workspace.create adds one.
 // `agents`: what agent.list gives (none unless a test adds one).
+// `hold`: method -> ms; the next call of that method is answered with what was true when it came,
+// but that much later (a slow read that ends after a newer one). Used once, then removed.
 const net = require('net');
 
 function fakeHerdr(socketPath) {
@@ -12,6 +14,7 @@ function fakeHerdr(socketPath) {
   let tabs = 0;
   // The shell pane's screen: what pane.read gives; typed text lands on its last line.
   const shell = { screen: '$ ' };
+  const hold = {};
   const answer = (method, params) => {
     switch (method) {
       case 'agent.list':
@@ -56,10 +59,14 @@ function fakeHerdr(socketPath) {
       buf = buf.slice(nl + 1);
       calls.push({ method: msg.method, params: msg.params });
       if (msg.method === 'events.subscribe') return conn.write(JSON.stringify({ id: msg.id, result: { ok: true } }) + '\n');
-      conn.end(JSON.stringify({ id: msg.id, result: answer(msg.method, msg.params) }) + '\n');
+      const line = JSON.stringify({ id: msg.id, result: answer(msg.method, msg.params) }) + '\n';
+      const ms = hold[msg.method];
+      if (ms == null) return conn.end(line);
+      delete hold[msg.method];
+      setTimeout(() => conn.end(line), ms);
     });
   });
-  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, workspaces, agents, close: () => server.close() })));
+  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, workspaces, agents, hold, close: () => server.close() })));
 }
 
 module.exports = { fakeHerdr };
