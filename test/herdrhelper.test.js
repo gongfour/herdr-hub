@@ -15,10 +15,10 @@ const hasPython = process.platform !== 'win32' && spawnSync(PYTHON, ['-c', '1'])
 const skip = hasPython ? false : 'no python3 here';
 const quiet = { log() {}, error() {} };
 
-function sleepy(t) {
+function sleepy(t, fixture = 'sleepyherdr.py') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hh-'));
   const sock = path.join(dir, 's.sock');
-  const p = spawn(PYTHON, ['-I', '-u', path.join(__dirname, 'fixtures', 'sleepyherdr.py'), sock], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const p = spawn(PYTHON, ['-I', '-u', path.join(__dirname, 'fixtures', fixture), sock], { stdio: ['ignore', 'pipe', 'inherit'] });
   t.after(() => {
     p.kill('SIGKILL');
     fs.rmSync(dir, { recursive: true, force: true });
@@ -108,6 +108,27 @@ test('helper crash: calls in flight fail, the Node way meanwhile, then it comes 
   await until(() => herdr.helperState().ready);
   assert.equal(herdr.helperState().starts, 2);
   assert.deepEqual(await herdr.call('ping', {}, { socketPath: sock }), { type: 'pong' });
+});
+
+test('a connection herdr resets fails that call only: the helper and the calls beside it go on', { skip }, async (t) => {
+  const sock = await sleepy(t);
+  const rst = await sleepy(t, 'resetherdr.py');
+  await helperOn(t);
+  const pid = herdr.helperState().pid;
+  const hang = herdr.call('hang', {}, { socketPath: sock, timeoutMs: 3000 }).catch((e) => e);
+  // A request bigger than the socket buffer (EPIPE on send) and small ones (reset on read).
+  const big = 'x'.repeat(300000);
+  const rs = await Promise.allSettled([big, '', ''].map((pad) => herdr.call('ping', { pad }, { socketPath: rst, timeoutMs: 2000 })));
+  for (const r of rs) {
+    assert.equal(r.status, 'rejected');
+    assert.notEqual(r.reason.code, 'helper_lost');
+    assert.notEqual(r.reason.code, 'timeout');
+  }
+  assert.equal(herdr.helperState().ready, true);
+  assert.equal(herdr.helperState().pid, pid);
+  assert.equal(herdr.helperState().exits, 0);
+  assert.deepEqual(await herdr.call('ping', {}, { socketPath: sock }), { type: 'pong' });
+  assert.equal((await hang).code, 'timeout'); // the call beside them was not dropped
 });
 
 test('no python: the Node way, and it keeps retrying quietly', { skip: process.platform === 'win32' }, async (t) => {

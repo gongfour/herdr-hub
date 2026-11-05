@@ -60,6 +60,9 @@ class Call:
             k = self.sock.send(self.out)
         except (BlockingIOError, InterruptedError):
             k = 0
+        except OSError as e:
+            # herdr closed this connection (EPIPE, ECONNRESET): this call fails, not the helper.
+            return self.fail("unreachable", "herdr socket %s: %s" % (self.path, e.strerror or e))
         self.out = self.out[k:]
         events = selectors.EVENT_WRITE if self.out else selectors.EVENT_READ
         try:
@@ -77,6 +80,10 @@ class Call:
             chunk = self.sock.recv(65536)
         except (BlockingIOError, InterruptedError):
             return
+        except OSError as e:
+            if self.buf.strip():
+                return self.done({"n": self.n, "line": self.buf.decode("utf-8", "replace")})
+            return self.fail("empty_response", "herdr socket %s: %s" % (self.path, e.strerror or e))
         if not chunk:
             if self.buf.strip():
                 return self.done({"n": self.n, "line": self.buf.decode("utf-8", "replace")})
@@ -143,7 +150,12 @@ def main():
                     if line.strip():
                         take(line)
             else:
-                key.data.ready(events)
+                c = key.data
+                try:
+                    c.ready(events)
+                except Exception as e:  # one call's trouble ends that call, never the others
+                    if c.sock is not None:
+                        c.fail("helper", repr(e))
         now = time.monotonic()
         for c in [c for c in calls.values() if c.deadline <= now]:
             c.fail("timeout", "timed out after %d ms" % c.t)
