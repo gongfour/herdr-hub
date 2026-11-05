@@ -616,7 +616,7 @@ async function startAgent(pane, spec) {
 }
 
 async function api(req, res, url) {
-  const parts = url.pathname.split('/').filter(Boolean).slice(1).map(decodeURIComponent); // drop "api"
+  const parts = url.pathname.split('/').filter(Boolean).slice(1).map(decodePart); // drop "api"
   const method = req.method;
 
   // Mutations must carry a custom header: a cross-site form cannot set it.
@@ -1002,7 +1002,7 @@ const PROXIED = new Set(['host', 'dirs', 'agents', 'panes', 'workspaces', 'uploa
 
 async function proxy(req, res, url) {
   const raw = url.pathname.split('/').filter(Boolean); // api, peers, <host>, ...rest (still encoded)
-  const peer = peers.get(decodeURIComponent(raw[2]));
+  const peer = peers.get(decodePart(raw[2]));
   if (!peer) return send(res, 404, { error: 'unknown_host' });
   if (!PROXIED.has(raw[3])) return send(res, 404, { error: 'not_found' });
   if (!peer.online) return send(res, 503, { error: 'peer_offline', message: `${peer.shown()} 오프라인` });
@@ -1037,8 +1037,26 @@ function timeRequest(req, res, url) {
   });
 }
 
+// A request line new URL() refuses (`GET //a:99999/x`) or a path with a broken %-escape is a 400,
+// not a throw: on the request path it would take the whole process (every device's connection) down.
+function requestUrl(raw) {
+  try {
+    return new URL(raw, 'http://herdr-hub.local');
+  } catch {
+    return null;
+  }
+}
+function decodePart(s) {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    throw Object.assign(new Error('bad path'), { status: 400, code: 'bad_path' });
+  }
+}
+
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://herdr-hub.local');
+  const url = requestUrl(req.url);
+  if (!url) return send(res, 400, { error: 'bad_url' });
   timeRequest(req, res, url);
   if (!hostAllowed(req.headers.host, HOST_RULE)) return send(res, 403, { error: 'bad_host' });
   if (!identity(req)) return send(res, 403, { error: 'forbidden' }, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -1187,14 +1205,20 @@ async function livePeer(req, socket, head, hostId, encodedPane, url) {
 
 server.on('upgrade', (req, socket, head) => {
   socket.on('error', () => {});
-  const url = new URL(req.url, 'http://herdr-hub.local');
+  const url = requestUrl(req.url);
+  if (!url) return ws.refuse(socket, 400, 'bad_url');
   if (!hostAllowed(req.headers.host, HOST_RULE)) return ws.refuse(socket, 403, 'bad_host');
   if (!identity(req)) return ws.refuse(socket, 403, 'forbidden');
   if (!liveOrigin(req)) return ws.refuse(socket, 403, 'bad_origin');
   if (!ws.upgradeKey(req)) return ws.refuse(socket, 400, 'not_websocket');
   let m;
-  if ((m = LIVE.exec(url.pathname))) return liveLocal(req, socket, head, decodeURIComponent(m[1]), url);
-  if ((m = PEER_LIVE.exec(url.pathname))) return livePeer(req, socket, head, decodeURIComponent(m[1]), m[2], url).catch(() => ws.refuse(socket, 500, 'error'));
+  try {
+    if ((m = LIVE.exec(url.pathname))) return liveLocal(req, socket, head, decodePart(m[1]), url);
+    if ((m = PEER_LIVE.exec(url.pathname))) return livePeer(req, socket, head, decodePart(m[1]), m[2], url).catch(() => ws.refuse(socket, 500, 'error'));
+  } catch (err) {
+    if (err.status === 400) return ws.refuse(socket, 400, 'bad_path');
+    throw err;
+  }
   ws.refuse(socket, 404, 'not_found');
 });
 
@@ -1213,6 +1237,19 @@ server.listen(PORT, HOST, () => {
   console.log(`hosts: ${[...HOST_RULE.allowed, ...HOST_RULE.suffixes.map((x) => `*${x}`)].join(', ')}`);
   console.log(`build ${BUILD.version}${BUILD.dirty ? '+dirty' : ''} ${BUILD.commit} (${BUILD.from}); API ${API_VERSION}`);
   console.log(`host ${HOST_ID} (${HOSTNAME}); push ${push ? 'on' : 'off'}${PUSH_MUTE.length ? ` (muted: ${PUSH_MUTE.join(', ')})` : ''}; peers (${peerStore.from}${peerStore.manageable ? '' : ', not a hub'}): ${[...peers.values()].map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);
+});
+
+// A promise nobody awaited that fails (a stray async callback): logged with its stack and the hub
+// keeps serving: the request it came from, if any, has already been answered or timed out, and no
+// state is left half-written by a rejection. A thrown exception is different: it can stop a
+// function midway through changing state, so it is logged and the process exits (code 1) for
+// launchd / run.cmd's loop to start it again, as Node would have done, only now with a time stamp.
+process.on('unhandledRejection', (err) => {
+  console.error(`${new Date().toISOString()} unhandled rejection:`, err && err.stack ? err.stack : err);
+});
+process.on('uncaughtException', (err) => {
+  console.error(`${new Date().toISOString()} uncaught exception, exiting:`, err && err.stack ? err.stack : err);
+  process.exit(1);
 });
 
 for (const sig of ['SIGINT', 'SIGTERM'])
