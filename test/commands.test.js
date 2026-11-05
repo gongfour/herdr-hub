@@ -103,3 +103,13 @@ test('files: folder listing, name search, prefix before substring, cap', async (
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('files: the home folder and what holds it are never walked', async () => {
+  const home = os.homedir();
+  assert.equal(commands.tooWide('/'), true);
+  assert.equal(commands.tooWide(home), true);
+  assert.equal(commands.tooWide(path.dirname(home)), true);
+  assert.equal(commands.tooWide(path.join(home, 'Project')), false);
+  assert.equal(commands.tooWide(os.tmpdir()), false);
+  assert.deepEqual((await commands.files('/', '')).files, []);
+});
