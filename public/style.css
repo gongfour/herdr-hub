@@ -1387,12 +1387,12 @@ button.tool:active { filter: brightness(0.95); }
    activity line, the messages (and the 최신 대화 pill), the answer box, the photos, the command
    suggestions and the composer. Rules and backgrounds still run edge to edge; only the contents
    keep to the column (--gut, from the view's own width). Tables and code reach wider.
-   The column follows 설정 → 대화 폭 (prefs.js chatW): 자동 grows with the view (760px on a laptop's
-   split, up to 1200px on a monitor), 좁게 stays 760, 넓게 takes about three quarters, 꽉 차게 all.
+   The column follows 설정 → 대화 폭 (prefs.js chatW): 자동 takes the view less 64px a side, within
+   760–1280px; 좁게 stays 760; 넓게 less 32px a side, up to 1680px; 꽉 차게 all.
    The chat's text grows a little with the screen too (16px on a laptop, up to 18px on a monitor). */
-.split .detail.chat { container-type: inline-size; --col: clamp(760px, 60cqw, 1200px); --gut: max(16px, (100cqw - var(--col)) / 2); }
+.split .detail.chat { container-type: inline-size; --col: clamp(760px, 100cqw - 128px, 1280px); --gut: max(16px, (100cqw - var(--col)) / 2); }
 :root[data-chatw="narrow"] .detail.chat { --col: 760px; }
-:root[data-chatw="wide"] .detail.chat { --col: clamp(760px, 75cqw, 1500px); }
+:root[data-chatw="wide"] .detail.chat { --col: clamp(760px, 100cqw - 64px, 1680px); }
 :root[data-chatw="full"] .detail.chat { --col: 100cqw; }
 .split .detail.chat .msgs { font-size: clamp(16px, 0.25vw + 12.4px, 18px); }
 .split .detail.chat .msg pre { font-size: clamp(13px, 0.15vw + 10.8px, 15px); }
