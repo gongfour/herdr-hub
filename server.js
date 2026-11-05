@@ -31,7 +31,9 @@ const watchdog = require('./lib/watchdog');
 const fsq = require('./lib/fsq');
 const awake = require('./lib/awake');
 const ws = require('./lib/ws');
-const { liveSession, hedge, idleFromEnv, IDLE_POLL_MS } = require('./lib/live');
+const { liveSession, resumeBook, hedge, idleFromEnv, IDLE_POLL_MS } = require('./lib/live');
+// Keys a dropped channel left: what each page's keys reached on each pane (lib/live resume).
+const liveBook = resumeBook();
 const wsdirs = require('./lib/wsdirs');
 // The live channel's read pace while nothing moves (lib/live: the Mac's herdr needs the quick one).
 const LIVE_IDLE_MS = idleFromEnv(process.env.HERDR_HUB_LIVE_IDLE_MS, herdr.helperOn() ? IDLE_POLL_MS : undefined);
@@ -1109,7 +1111,7 @@ function liveLocal(req, socket, head, pane, url) {
     conn.send(JSON.stringify(m));
     if (m.t === 'gone') conn.close(1000, 'gone');
   };
-  const session = liveSession({ io, send, pane, shape: liveShape(url), api: API_VERSION, idlePollMs: LIVE_IDLE_MS });
+  const session = liveSession({ io, send, pane, shape: liveShape(url), api: API_VERSION, book: liveBook, idlePollMs: LIVE_IDLE_MS });
   conn.on('message', (text) => {
     let m;
     try {

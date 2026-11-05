@@ -48,7 +48,14 @@
   const acked = (sent, s) => sent.filter((x) => x.s > s);
   const failed = (sent, from, to) => ({ lost: sent.filter((x) => x.s >= from && x.s <= to), left: sent.filter((x) => x.s < from || x.s > to) });
 
-  const api = { API, RETRY_MS, FAILS_MAX, DROPS_MAX, DROPS_WINDOW_MS, OFF_MS, SILENT_MS, usable, ended, screenFrame, acked, failed };
+  // Keys held after a channel dropped (or the page hid) with no ack: how long they wait for a
+  // channel to say what got there (resume) before they show as not sent.
+  const RESUME_WAIT_MS = 10000;
+  // The host's answer to resume: the keys it applied (up to s) are done, the rest go again in
+  // order. s null (it doesn't know this page: a restart, or too long): none can be told apart.
+  const resumeSplit = (held, s) => (s == null ? { lost: held, resend: [] } : { lost: [], resend: held.filter((x) => x.s > s) });
+
+  const api = { RESUME_WAIT_MS, resumeSplit, API, RETRY_MS, FAILS_MAX, DROPS_MAX, DROPS_WINDOW_MS, OFF_MS, SILENT_MS, usable, ended, screenFrame, acked, failed };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Live = api;
 })(typeof self !== 'undefined' ? self : this);

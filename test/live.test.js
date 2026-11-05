@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { liveSession, hedge, idleFromEnv, POLL_MS, IDLE_POLL_MS, ACTIVE_MS, HEARTBEAT_MS } = require('../lib/live');
+const { liveSession, resumeBook, RESUME_TTL_MS, hedge, idleFromEnv, POLL_MS, IDLE_POLL_MS, ACTIVE_MS, HEARTBEAT_MS } = require('../lib/live');
 const ScreenDiff = require('../public/screendiff');
 const Live = require('../public/live');
 
@@ -40,9 +40,8 @@ function clock() {
 }
 
 // A shell whose screen is `screen`; typed text lands on its last line. Records herdr calls.
-function rig({ callMs = 1, inputFails = null, shape = { lines: 200, format: 'ansi' } } = {}) {
-  const c = clock();
-  const sh = { screen: 'out\n❯ ', calls: [], buffered: 0 };
+function rig({ callMs = 1, inputFails = null, shape = { lines: 200, format: 'ansi' }, book = null, c = clock(), sh: sh0 = null } = {}) {
+  const sh = sh0 || { screen: 'out\n❯ ', calls: [], buffered: 0 };
   const wait = (ms) => new Promise((r) => c.setTimeout(r, ms));
   const io = {
     now: c.now,
@@ -80,7 +79,7 @@ function rig({ callMs = 1, inputFails = null, shape = { lines: 200, format: 'ans
       page.screens.push(f.screen.text);
     } else if (f && f.full) page.full = true;
   };
-  const s = liveSession({ io, send, pane: 'w1:p1', shape, api: 2 });
+  const s = liveSession({ io, send, pane: 'w1:p1', shape, api: 2, book });
   return { c, sh, out, page, s, kinds: () => out.map((m) => m.t) };
 }
 
@@ -409,4 +408,105 @@ test('a traced key (tr: 1) gets its group’s trace; untraced keys get none', as
   for (const k of ['q', 'in', 'echo', 'at']) assert.equal(typeof tr[k], 'number', k);
   assert.equal(tr.pushed, true);
   r.s.stop();
+});
+
+// ---- resume: keys a dropped channel left
+
+const PAGE = 'page-abc123';
+test('resume: a new page is not known (null); an older host never says resume', async () => {
+  const r0 = rig();
+  await r0.c.advance(10);
+  assert.equal(r0.out[0].resume, undefined);
+  r0.s.message({ t: 'resume', c: PAGE, s: 0 });
+  await r0.c.advance(10);
+  assert.ok(!r0.out.some((m) => m.t === 'resumed'));
+  r0.s.stop();
+  const r = rig({ book: resumeBook() });
+  await r.c.advance(10);
+  assert.equal(r.out[0].resume, true);
+  r.s.message({ t: 'resume', c: PAGE, s: 0 });
+  await r.c.advance(10);
+  assert.deepEqual(r.out.find((m) => m.t === 'resumed'), { t: 'resumed', s: null });
+  r.s.stop();
+});
+
+test('resume: the next channel hears what the dropped one applied, and takes only the rest', async () => {
+  const c = clock();
+  const book = resumeBook({ now: () => 1.7e12 + c.now() }); // its own clock, not the session's
+  const r1 = rig({ book, c });
+  await r1.c.advance(10);
+  r1.s.message({ t: 'resume', c: PAGE, s: 0 });
+  r1.s.message({ t: 'k', s: 1, x: 'a', y: [] });
+  r1.s.message({ t: 'k', s: 2, x: 'b', y: [] });
+  await c.advance(50);
+  r1.s.stop(); // the page never heard the ack for 2, say
+  const r2 = rig({ book, c, sh: r1.sh });
+  await c.advance(5);
+  r2.s.message({ t: 'resume', c: PAGE, s: 3 });
+  await c.advance(5);
+  assert.deepEqual(r2.out.find((m) => m.t === 'resumed'), { t: 'resumed', s: 2 });
+  // The page sends again only 3; a stray 2 would be dropped.
+  r2.s.message({ t: 'k', s: 2, x: 'b', y: [] });
+  r2.s.message({ t: 'k', s: 3, x: 'c', y: [] });
+  await c.advance(50);
+  assert.equal(r1.sh.calls.filter((x) => x[0] === 'input').map((x) => x[2]).join(''), 'abc');
+  assert.equal(r1.sh.screen.endsWith('abc'), true);
+  assert.equal((r1.sh.screen.match(/b/g) || []).length, 1);
+  r2.s.stop();
+  // Another page on the same pane is its own.
+  const r3 = rig({ book, c, sh: r1.sh });
+  r3.s.message({ t: 'resume', c: 'other-page-1', s: 0 });
+  await c.advance(5);
+  assert.deepEqual(r3.out.find((m) => m.t === 'resumed'), { t: 'resumed', s: null });
+  r3.s.stop();
+});
+
+test('resume: a key call still out when the channel dropped is waited for, not guessed', async () => {
+  const c = clock();
+  const book = resumeBook({ now: c.now });
+  const r1 = rig({ book, c, callMs: 80 });
+  await c.advance(200); // the first read is done
+  r1.s.message({ t: 'resume', c: PAGE, s: 0 });
+  r1.s.message({ t: 'k', s: 1, x: 'x', y: [] });
+  await c.advance(10); // the call is out
+  r1.s.stop();
+  const r2 = rig({ book, c, sh: r1.sh, callMs: 80 });
+  r2.s.message({ t: 'resume', c: PAGE, s: 1 });
+  await c.advance(20);
+  assert.ok(!r2.out.some((m) => m.t === 'resumed')); // still out
+  await c.advance(100);
+  assert.deepEqual(r2.out.find((m) => m.t === 'resumed'), { t: 'resumed', s: 1 });
+  r2.s.stop();
+});
+
+test("resume: forgotten a minute after the page's last channel ended", async () => {
+  const c = clock();
+  const book = resumeBook({ now: c.now });
+  const r1 = rig({ book, c });
+  r1.s.message({ t: 'resume', c: PAGE, s: 0 });
+  r1.s.message({ t: 'k', s: 1, x: 'a', y: [] });
+  await c.advance(50);
+  await c.advance(RESUME_TTL_MS); // open: kept
+  assert.equal(book.size(), 1);
+  r1.s.stop();
+  await c.advance(RESUME_TTL_MS + 1);
+  const r2 = rig({ book, c, sh: r1.sh });
+  r2.s.message({ t: 'resume', c: PAGE, s: 1 });
+  await c.advance(5);
+  assert.deepEqual(r2.out.find((m) => m.t === 'resumed'), { t: 'resumed', s: null });
+  r2.s.stop();
+  // A bad page id is ignored.
+  const r3 = rig({ book, c, sh: r1.sh });
+  r3.s.message({ t: 'resume', c: 'x', s: 0 });
+  await c.advance(5);
+  assert.ok(!r3.out.some((m) => m.t === 'resumed'));
+  r3.s.stop();
+});
+
+test('resumeSplit: what the host applied is done, the rest goes again in order; unknown is lost', () => {
+  const held = [{ s: 4 }, { s: 5 }, { s: 6 }];
+  assert.deepEqual(Live.resumeSplit(held, 4), { lost: [], resend: [{ s: 5 }, { s: 6 }] });
+  assert.deepEqual(Live.resumeSplit(held, 6), { lost: [], resend: [] });
+  assert.deepEqual(Live.resumeSplit(held, 0), { lost: [], resend: held });
+  assert.deepEqual(Live.resumeSplit(held, null), { lost: held, resend: [] });
 });

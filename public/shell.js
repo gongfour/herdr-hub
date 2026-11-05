@@ -524,6 +524,12 @@ function rawSend(press) {
   followTerm();
   const host = curHost();
   const pane = detail.pane;
+  // Keys held from a channel that dropped wait for the next one to resume them: these go after.
+  if (liveHeldFor(host, pane)) {
+    liveHeld.later.push({ text: press.text || '', keys: press.key ? [press.key] : [] });
+    drawSending();
+    return;
+  }
   // Over the live channel when it is open and nothing for this shell is still on the HTTP way
   // (which would be overtaken).
   if (liveFeeds(host, pane) && ![rawInFlight, ...rawQ].some((x) => x && x.host === host && x.pane === pane)) {
@@ -558,7 +564,7 @@ function drawSending() {
     chip.hidden = false;
     return;
   }
-  const items = [rawInFlight, ...rawQ, ...liveSent()].filter(here);
+  const items = [rawInFlight, ...rawQ, ...liveSent(), ...liveHeldItems()].filter(here);
   if (!detail.raw || !items.length) {
     clearTimeout(sendingTimer);
     sendingTimer = null;
@@ -572,7 +578,7 @@ function drawSending() {
     sendingTimer = setTimeout(() => {
       sendingTimer = null;
       const c = document.getElementById('t-sending');
-      if (c && [rawInFlight, ...rawQ, ...liveSent()].some(here)) c.hidden = false;
+      if (c && [rawInFlight, ...rawQ, ...liveSent(), ...liveHeldItems()].some(here)) c.hidden = false;
     }, SENDING_MS);
 }
 async function pumpRaw() {
@@ -688,7 +694,7 @@ function termScrolled() {
 // pushes the screen whenever it changed (a line change after the first whole one). The HTTP way
 // (POST /keys, GET /screen every 300 ms) stays for hosts without it (API before 2), while the
 // channel opens or is down, and for a while after it failed to open or kept dropping.
-let liveCh = null; // { ws, host, pane, open, cur, sent, seq, heardAt, shape, gone }
+let liveCh = null; // { ws, host, pane, open, resume, cur, sent, heardAt, shape, gone }
 const liveLog = {}; // host → { fails, drops } (live.js ended)
 const liveOff = {}; // host → until when it reads over HTTP
 let liveRetry = null;
@@ -697,6 +703,55 @@ const liveFeeds = (host = curHost(), pane = detail.pane) => Boolean(liveCh && li
 const liveShapeNow = () => ({ lines: termLines(), format: getColor() ? 'ansi' : 'text' });
 // The keys sent on the channel and not yet with the shell, as the 「보내는 중」 chip lists them.
 const liveSent = () => (liveCh ? liveCh.sent.map((x) => ({ host: liveCh.host, pane: liveCh.pane, text: x.text, keys: x.keys })) : []);
+
+// Keys left unacknowledged when a channel dropped or the page hid: the next channel to the shell
+// asks the host what got there (resume: this page's id and the last number it sent there) and
+// sends again only the rest, in order; keys typed meanwhile wait behind them. Key numbers go on
+// rising per shell across channels, so the host can tell them apart. A host that does not
+// resume, or no answer within Live.RESUME_WAIT_MS: they show as not sent, as before.
+const liveCid = String((self.crypto && crypto.randomUUID && crypto.randomUUID()) || `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+const liveSeqs = new Map(); // host + pane → the last key number sent there
+const liveSeqKey = (host, pane) => `${host}\u0000${pane}`;
+const liveNextSeq = (host, pane) => {
+  const s = (liveSeqs.get(liveSeqKey(host, pane)) || 0) + 1;
+  liveSeqs.set(liveSeqKey(host, pane), s);
+  return s;
+};
+let liveHeld = null; // { host, pane, keys: [{ s, text, keys }], later: [{ text, keys }], timer }
+const liveHeldFor = (host, pane) => Boolean(liveHeld && liveHeld.host === host && liveHeld.pane === pane);
+const liveHeldItems = () => (liveHeld ? [...liveHeld.keys, ...liveHeld.later].map((x) => ({ host: liveHeld.host, pane: liveHeld.pane, text: x.text, keys: x.keys })) : []);
+function liveHold(ch) {
+  if (!ch.resume || !ch.sent.length) return false;
+  if (liveHeld && !liveHeldFor(ch.host, ch.pane)) liveGiveUp('연결이 끊겼습니다');
+  if (!liveHeld) liveHeld = { host: ch.host, pane: ch.pane, keys: [], later: [], timer: setTimeout(() => liveGiveUp('연결이 끊겼습니다'), Live.RESUME_WAIT_MS) };
+  liveHeld.keys.push(...ch.sent);
+  ch.sent = [];
+  return true;
+}
+// No channel to resume them: the held keys may or may not have arrived (the chip says so); the
+// ones typed after them never went, so they go the HTTP way now.
+function liveGiveUp(why) {
+  const h = liveHeld;
+  if (!h) return;
+  liveHeld = null;
+  clearTimeout(h.timer);
+  liveLost({ host: h.host, pane: h.pane }, h.keys, why);
+  for (const x of h.later) Keys.queueRaw(rawQ, { host: h.host, pane: h.pane }, x.keys.length ? { key: x.keys[0] } : { text: x.text });
+  drawSending();
+  pumpRaw();
+}
+// The host said what it applied: the rest again, in order, then what was typed meanwhile.
+function liveResumed(ch, applied) {
+  const h = liveHeld;
+  if (!liveHeldFor(ch.host, ch.pane)) return;
+  liveHeld = null;
+  clearTimeout(h.timer);
+  const r = Live.resumeSplit(h.keys, applied);
+  liveLost(ch, r.lost, '연결이 끊겼습니다');
+  for (const it of r.resend) liveSendKey(ch, it);
+  for (const x of h.later) liveKey(x.keys.length ? { key: x.keys[0] } : { text: x.text });
+  drawSending();
+}
 
 function liveEnsure() {
   if (view.name !== 'term' || document.visibilityState !== 'visible' || !currentTerminal()) return;
@@ -714,7 +769,7 @@ function liveEnsure() {
   } catch {
     return;
   }
-  const ch = { ws: sock, host, pane, open: false, cur: null, sent: [], seq: 0, heardAt: Date.now(), shape, gone: false };
+  const ch = { ws: sock, host, pane, open: false, resume: false, cur: null, sent: [], heardAt: Date.now(), shape, gone: false };
   liveCh = ch;
   sock.onmessage = (e) => liveMessage(ch, e.data);
   sock.onclose = () => liveClosed(ch);
@@ -736,6 +791,7 @@ function liveStop() {
   const ch = liveCh;
   liveCh = null;
   if (ch) {
+    liveHold(ch); // hidden with keys unacknowledged: they resume when it is back
     try {
       ch.ws.close(1000);
     } catch {}
@@ -755,7 +811,9 @@ function liveSyncShape() {
 const liveTracing = () => Array.isArray(window.liveTrace) && window.liveTrace.length < 5000;
 function liveKey(press) {
   const ch = liveCh;
-  const it = { s: ++ch.seq, text: press.text || '', keys: press.key ? [press.key] : [] };
+  liveSendKey(ch, { s: liveNextSeq(ch.host, ch.pane), text: press.text || '', keys: press.key ? [press.key] : [] });
+}
+function liveSendKey(ch, it) {
   ch.sent.push(it);
   const tr = liveTracing();
   if (tr) window.liveTrace.push({ e: 'k', s: it.s, t: performance.now(), x: it.text });
@@ -765,7 +823,7 @@ function liveKey(press) {
 // Keys that did not reach the shell (a failure, or the channel dropped before they were
 // acknowledged: they may or may not have arrived) stay in the chip, as on the HTTP way.
 function liveLost(ch, lost, why) {
-  if (!lost.length || !termHere(ch.host, ch.pane)) return;
+  if (!lost || !lost.length || !termHere(ch.host, ch.pane)) return;
   rawFailed = { host: ch.host, pane: ch.pane, text: Keys.describeRaw(lost), why };
 }
 
@@ -786,8 +844,15 @@ function liveMessage(ch, data) {
   }
   if (m.t === 'hello') {
     ch.open = true;
+    ch.resume = Boolean(m.resume);
     liveLog[ch.host] = { ...(liveLog[ch.host] || {}), fails: 0 };
+    if (ch.resume) ch.ws.send(JSON.stringify({ t: 'resume', c: liveCid, s: liveSeqs.get(liveSeqKey(ch.host, ch.pane)) || 0 }));
+    else if (liveHeldFor(ch.host, ch.pane)) liveGiveUp('연결이 끊겼습니다');
     return drawSending();
+  }
+  if (m.t === 'resumed') {
+    liveResumed(ch, Number.isInteger(m.s) ? m.s : null);
+    return;
   }
   if (m.t === 'ack') {
     ch.sent = Live.acked(ch.sent, m.s);
@@ -828,12 +893,13 @@ function liveClosed(ch) {
   if (ch !== liveCh) return; // stopped on purpose, or replaced
   liveCh = null;
   clearInterval(liveWatch);
-  liveLost(ch, ch.sent, '연결이 끊겼습니다');
+  if (ch.gone || !liveHold(ch)) liveLost(ch, ch.sent, '연결이 끊겼습니다');
   drawSending();
-  if (ch.gone) return; // the shell closed: its state says so
+  if (ch.gone) return liveHeldFor(ch.host, ch.pane) && liveGiveUp('셸이 닫혔습니다'); // the shell closed: its state says so
   const r = Live.ended(liveLog[ch.host] || {}, { opened: ch.open, now: Date.now() });
   liveLog[ch.host] = r.log;
   if (r.off) {
+    if (liveHeldFor(ch.host, ch.pane)) liveGiveUp('연결이 끊겼습니다');
     liveOff[ch.host] = Date.now() + Live.OFF_MS;
     console.warn(`[live] ${ch.host}: the channel ${ch.open ? 'keeps dropping' : 'does not open'}; reading over HTTP for now`);
   } else
