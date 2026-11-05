@@ -138,14 +138,18 @@ function saveTimes() {
   }
 }
 
-function shapeAgent(a, labels) {
+// title: the pane's own name when one was given (herdr pane rename — what an agent calls its pane,
+// the same name the shell rows show), else the title the agent writes into its terminal.
+function shapeAgent(a, labels, paneLabels = new Map()) {
+  const label = paneLabels.get(a.pane_id) || null;
   return {
     pane: a.pane_id,
     workspace: a.workspace_id,
     workspaceLabel: labels.get(a.workspace_id) || a.workspace_id,
     agent: a.agent,
     name: a.name || null,
-    title: a.terminal_title_stripped || a.terminal_title || a.agent,
+    title: label || a.terminal_title_stripped || a.terminal_title || a.agent,
+    label,
     status: a.agent_status,
     cwd: a.foreground_cwd || a.cwd || '',
     session: a.agent_session && a.agent_session.kind === 'id' ? a.agent_session.value : null,
@@ -173,8 +177,9 @@ async function refresh() {
   try {
     const [agents, workspaces, panes] = await Promise.all([herdr.call('agent.list'), herdr.call('workspace.list'), herdr.call('pane.list')]);
     const labels = new Map(workspaces.workspaces.map((w) => [w.workspace_id, w.label]));
+    const paneLabels = new Map(panes.panes.filter((p) => p.label).map((p) => [p.pane_id, p.label]));
     const list = agents.agents
-      .map((a) => shapeAgent(a, labels))
+      .map((a) => shapeAgent(a, labels, paneLabels))
       .sort((x, y) => (STATUS_RANK[x.status] ?? 9) - (STATUS_RANK[y.status] ?? 9) || y.stateSeq - x.stateSeq);
     const agentPanes = new Set(list.map((a) => a.pane));
     const terminals = panes.panes.filter((p) => !p.agent && !agentPanes.has(p.pane_id)).map((p) => shapeTerminal(p, labels));
