@@ -256,10 +256,13 @@ async function refresh() {
 }
 
 // The home screen's one-liners, from a small cached transcript tail: what a working agent ran
-// last (lastTool) and the first line of a finished one's last reply (lastReply).
+// last (lastTool) and the first line of a finished one's last reply (lastReply). And where a
+// Claude agent works: the folder its transcript says (it follows a cd; herdr only knows the
+// folder claude was started in), when that folder is still there — a removed worktree falls
+// back to the pane's. paneCwd: herdr's, kept when they differ.
 async function addGlance(a, b) {
   const finished = a.status === 'done' || (a.status === 'idle' && a.doneAt);
-  if (a.agent !== 'claude' || !a.session || !(finished || a.status === 'working')) return;
+  if (a.agent !== 'claude' || !a.session) return;
   let g = null;
   try {
     g = await transcript.glance(a.session, b);
@@ -269,6 +272,23 @@ async function addGlance(a, b) {
   if (!g) return;
   if (a.status === 'working' && g.lastTool) a.lastTool = g.lastTool;
   if (finished && g.lastReply) a.lastReply = g.lastReply;
+  if (g.cwd && g.cwd !== a.cwd && (await dirThere(g.cwd, b))) {
+    a.paneCwd = a.cwd;
+    a.cwd = g.cwd;
+  }
+}
+// Whether a folder is there, asked at most every 30 s per folder (a refresh runs every 4 s); an
+// answer the budget cut short isn't kept.
+const dirsThere = new Map(); // path -> { ok, at }
+async function dirThere(p, b) {
+  const hit = dirsThere.get(p);
+  if (hit && Date.now() - hit.at < 30e3) return hit.ok;
+  const ok = await fsq.isDir(b, p);
+  if (!ok && b.partial) return false;
+  dirsThere.delete(p);
+  dirsThere.set(p, { ok, at: Date.now() });
+  if (dirsThere.size > 128) dirsThere.delete(dirsThere.keys().next().value);
+  return ok;
 }
 
 const tag = (id, label) => (x) => ({ ...x, host: id, hostLabel: label });

@@ -2,18 +2,20 @@
 // A stand-in herdr API socket for server tests: one workspace, no agents, newline-delimited JSON
 // like the real one. Every request is kept in `calls`; events.subscribe stays open and quiet.
 // `workspaces` is the list herdr gives (a test may change it); workspace.create adds one.
+// `agents`: what agent.list gives (none unless a test adds one).
 const net = require('net');
 
 function fakeHerdr(socketPath) {
   const calls = [];
   const workspaces = [{ workspace_id: 'w1', label: 'proj' }];
+  const agents = [];
   let tabs = 0;
   // The shell pane's screen: what pane.read gives; typed text lands on its last line.
   const shell = { screen: '$ ' };
   const answer = (method, params) => {
     switch (method) {
       case 'agent.list':
-        return { agents: [] };
+        return { agents: agents.map((a) => ({ ...a })) };
       case 'workspace.list':
         return { workspaces: workspaces.map((w) => ({ ...w })) };
       case 'workspace.create': {
@@ -57,7 +59,7 @@ function fakeHerdr(socketPath) {
       conn.end(JSON.stringify({ id: msg.id, result: answer(msg.method, msg.params) }) + '\n');
     });
   });
-  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, workspaces, close: () => server.close() })));
+  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, workspaces, agents, close: () => server.close() })));
 }
 
 module.exports = { fakeHerdr };

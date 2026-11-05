@@ -113,3 +113,17 @@ test('bash mode: the "!" line and its output', () => {
     ]
   );
 });
+
+test('lastCwd: the folder of the last entry that has one, a cut first line skipped', () => {
+  const { lastCwd } = require('../lib/transcript');
+  const lines = [
+    '"cwd":"/cut", "half a line',
+    JSON.stringify({ type: 'user', cwd: '/a' }),
+    JSON.stringify({ type: 'assistant', cwd: '/b' }),
+    JSON.stringify({ type: 'assistant', cwd: '/side', isSidechain: true }),
+    JSON.stringify({ type: 'summary' }),
+  ];
+  assert.equal(lastCwd(lines.join('\n')), '/b');
+  assert.equal(lastCwd(''), '');
+  assert.equal(lastCwd(lines[0]), '');
+});

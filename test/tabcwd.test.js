@@ -14,7 +14,7 @@ const { fakeHerdr } = require('./fixtures/fakeherdr');
 
 const ROOT = path.join(__dirname, '..');
 
-async function start(t, { data = null } = {}) {
+async function start(t, { data = null, before = null } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-tabcwd-'));
   if (data) {
     fs.mkdirSync(path.join(tmp, 'data'));
@@ -22,6 +22,7 @@ async function start(t, { data = null } = {}) {
   }
   const sock = path.join(tmp, 'h.sock');
   const herdr = await fakeHerdr(sock);
+  if (before) before(herdr, tmp);
   const port = 20000 + Math.floor(Math.random() * 20000);
   const child = spawn(process.execPath, ['server.js'], {
     cwd: ROOT,
@@ -191,4 +192,29 @@ test('기본 폴더: one saved under another label (its id given to a new worksp
 test('기본 폴더: kept across a Hub restart when the workspace is the same', async (t) => {
   const { port } = await start(t, { data: { 'wsdirs.json': (d) => ({ w1: { cwd: fs.realpathSync(d), label: 'proj' } }) } });
   assert.ok(await defaultOf(port, 'w1'));
+});
+
+test('a Claude agent\'s folder is where its transcript says it works, if that folder is there', async (t) => {
+  const SID = '0123abcd-0000-4000-8000-000000000001';
+  const SID2 = '0123abcd-0000-4000-8000-000000000002';
+  const { port, tmp } = await start(t, {
+    before: (herdr, tmp) => {
+      const real = fs.realpathSync(tmp);
+      fs.mkdirSync(path.join(real, 'work'));
+      const proj = path.join(real, 'claude', 'projects', '-x');
+      fs.mkdirSync(proj, { recursive: true });
+      const line = (cwd) => JSON.stringify({ type: 'user', cwd, message: { role: 'user', content: 'hi' } });
+      fs.writeFileSync(path.join(proj, `${SID}.jsonl`), [line(real), line(path.join(real, 'work'))].join('\n') + '\n');
+      fs.writeFileSync(path.join(proj, `${SID2}.jsonl`), line(path.join(real, 'removed-worktree')) + '\n');
+      const agent = (pane, sid) => ({ pane_id: pane, workspace_id: 'w1', tab_id: 't1', agent: 'claude', agent_status: 'idle', cwd: real, agent_session: { kind: 'id', value: sid } });
+      herdr.agents.push(agent('w1-p8', SID), agent('w1-p9', SID2));
+    },
+  });
+  const real = fs.realpathSync(tmp);
+  const agents = (await get(port, '/api/state')).agents;
+  const by = (p) => agents.find((a) => a.pane === p);
+  assert.equal(by('w1-p8').cwd, path.join(real, 'work'));
+  assert.equal(by('w1-p8').paneCwd, real);
+  assert.equal(by('w1-p9').cwd, real, 'a folder that is gone: the pane\'s');
+  assert.equal(by('w1-p9').paneCwd, undefined);
 });
