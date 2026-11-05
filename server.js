@@ -1067,11 +1067,15 @@ function liveOrigin(req) {
 }
 const liveShape = (url) => ({ lines: Math.min(Math.floor(Number(url.searchParams.get('lines'))) || 200, 400), format: url.searchParams.get('format') === 'ansi' ? 'ansi' : 'text' });
 const liveConns = new Set();
+// Each end of a channel is pinged; one that answers nothing for LIVE_DEAD_MS is closed (lib/ws keepalive).
+const LIVE_PING_MS = Number(process.env.HERDR_HUB_LIVE_PING_MS) || 15000;
+const LIVE_DEAD_MS = LIVE_PING_MS * 3;
 
 function liveLocal(req, socket, head, pane, url) {
   if (!findTerminal(pane)) return ws.refuse(socket, 404, 'pane_not_found');
   const conn = ws.accept(req, socket, head);
   if (!conn) return;
+  conn.keepalive(LIVE_PING_MS, LIVE_DEAD_MS);
   liveConns.add(conn);
   const io = {
     // Reads and the echo wait are sent again when herdr holds them (lib/live hedge); keys never.
@@ -1147,6 +1151,8 @@ async function livePeer(req, socket, head, hostId, encodedPane, url) {
   if (socket.destroyed) return up.close(1001);
   const down = ws.accept(req, socket, head);
   if (!down) return up.close(1001);
+  up.keepalive(LIVE_PING_MS, LIVE_DEAD_MS);
+  down.keepalive(LIVE_PING_MS, LIVE_DEAD_MS);
   liveConns.add(down);
   // A traced key (lib/live tr): the hub adds how long the peer took from where it stands (hub.rt,
   // from passing the key on to its group's trace coming back). Untraced messages pass untouched.

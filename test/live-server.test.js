@@ -124,3 +124,24 @@ test(`live channel: checks, the screen, keys (connect helper ${helper})`, { skip
   assert.ok(sends.length >= 1 && sends.length <= 2);
   c.close();
 });
+
+test('a page that went silent (no pong, no close) is dropped and its reads stop', { timeout: 15000 }, async (t) => {
+  const { port, herdr } = await start(t, { HERDR_HUB_LIVE_PING_MS: '100', HERDR_HUB_HERDR_HELPER: '0' });
+  // A client that does the handshake and then never answers anything: a link that died.
+  const net = require('net');
+  const sock = net.connect(port, '127.0.0.1');
+  await new Promise((r) => sock.once('connect', r));
+  sock.write(`GET /api/panes/w1-p1/live?lines=20 HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nOrigin: http://127.0.0.1:${port}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n`);
+  let got = '';
+  const ended = new Promise((r) => sock.on('end', r).on('close', r));
+  sock.on('data', (d) => (got += d.toString('latin1')));
+  t.after(() => sock.destroy());
+  const reads = () => herdr.calls.filter((c) => c.method === 'pane.read').length;
+  const t0 = Date.now();
+  await ended;
+  assert.ok(got.startsWith('HTTP/1.1 101'), got.slice(0, 40));
+  assert.ok(Date.now() - t0 < 2000, `closed after ${Date.now() - t0} ms`);
+  const n = reads();
+  await new Promise((r) => setTimeout(r, 400));
+  assert.ok(reads() <= n + 1, `reads went on: ${n} → ${reads()}`);
+});
