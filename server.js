@@ -2,6 +2,11 @@
 // Herdr Hub: serves the web app and a small JSON API over the local herdr server.
 // Listens on loopback only; `tailscale serve` provides HTTPS and identity.
 
+// Filesystem calls on request paths are asynchronous (lib/fsq.js) and each may hold a libuv pool
+// thread while a guarded or dead folder keeps it waiting; 16 threads, not 4, so a few stuck ones
+// leave room for the rest. Read when the pool first starts; the launchers set it too.
+process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '16';
+
 const http = require('http');
 const fs = require('fs');
 const os = require('os');
@@ -21,6 +26,8 @@ const { indexPage, send, readJson, readRaw, serveStatic, takesGzip, parseHosts, 
 const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
 const { screenReader } = require('./lib/screen');
 const { readBuild, describe, decorator } = require('./lib/build');
+const watchdog = require('./lib/watchdog');
+const fsq = require('./lib/fsq');
 
 // The contract between this server and its pages, and between a hub and its peers. Bumped by
 // hand when either changes (AGENTS.md); 설정 → 연결 shows a peer whose number differs from the hub's.
@@ -173,7 +180,12 @@ function shapeTerminal(p, labels) {
   };
 }
 
+// Refreshes may overlap (the poll, events, after a change); one that ends after a newer one has
+// been applied is dropped.
+let refreshSeq = 0;
+let appliedSeq = 0;
 async function refresh() {
+  const seq = ++refreshSeq;
   try {
     const [agents, workspaces, panes] = await Promise.all([herdr.call('agent.list'), herdr.call('workspace.list'), herdr.call('pane.list')]);
     const labels = new Map(workspaces.workspaces.map((w) => [w.workspace_id, w.label]));
@@ -184,7 +196,10 @@ async function refresh() {
     const agentPanes = new Set(list.map((a) => a.pane));
     const terminals = panes.panes.filter((p) => !p.agent && !agentPanes.has(p.pane_id)).map((p) => shapeTerminal(p, labels));
     localTimes = times.track(localTimes, list, Date.now(), (a) => a.pane);
-    for (const a of list) addGlance(a);
+    const b = fsq.budget(2000);
+    await Promise.all(list.map((a) => addGlance(a, b)));
+    if (seq < appliedSeq) return;
+    appliedSeq = seq;
     notifyTransitions(HOST_ID, HOSTNAME, list);
     local = { herdr: 'up', error: null, agents: list, terminals, workspaces: workspaces.workspaces };
     publish();
@@ -199,12 +214,12 @@ async function refresh() {
 
 // The home screen's one-liners, from a small cached transcript tail: what a working agent ran
 // last (lastTool) and the first line of a finished one's last reply (lastReply).
-function addGlance(a) {
+async function addGlance(a, b) {
   const finished = a.status === 'done' || (a.status === 'idle' && a.doneAt);
   if (a.agent !== 'claude' || !a.session || !(finished || a.status === 'working')) return;
   let g = null;
   try {
-    g = transcript.glance(a.session);
+    g = await transcript.glance(a.session, b);
   } catch {
     /* an unreadable transcript only means no summary */
   }
@@ -458,24 +473,24 @@ async function api(req, res, url) {
   if (parts[0] === 'hosts') return hostsApi(req, res, parts);
 
   if (method === 'GET' && parts[0] === 'host')
-    return send(res, 200, { id: HOST_ID, label: HOSTNAME, herdr: local.herdr, api: API_VERSION, build: { version: BUILD.version, commit: BUILD.commit, time: BUILD.time, dirty: BUILD.dirty }, platform: process.platform, home: os.homedir(), kinds: KINDS, recentCwds: recentCwds(), places: dirs.places() });
+    return send(res, 200, { id: HOST_ID, label: HOSTNAME, herdr: local.herdr, api: API_VERSION, build: { version: BUILD.version, commit: BUILD.commit, time: BUILD.time, dirty: BUILD.dirty }, platform: process.platform, home: os.homedir(), kinds: KINDS, recentCwds: recentCwds(), places: await dirs.places() });
 
   // Folder browser: subfolders of ?path= (home when empty), or the drive letters on Windows.
   if (method === 'GET' && parts[0] === 'dirs' && !parts[1]) {
     const p = url.searchParams.get('path') || '';
     if (url.searchParams.get('drives') === '1' || p === dirs.DRIVES) return send(res, 200, await dirs.drives());
-    return send(res, 200, await dirs.list(p ? cleanCwd(p) : os.homedir()));
+    return send(res, 200, await dirs.list(p ? await cleanCwd(p) : os.homedir()));
   }
 
   if (method === 'POST' && parts[0] === 'dirs' && !parts[1]) {
     const body = await readJson(req);
-    const parent = cleanCwd(body.parent);
-    return send(res, 200, { ok: true, path: dirs.create(parent, body.name) });
+    const parent = await cleanCwd(body.parent);
+    return send(res, 200, { ok: true, path: await dirs.create(parent, body.name) });
   }
 
   if (method === 'POST' && parts[0] === 'workspaces' && !parts[1]) {
     const body = await readJson(req);
-    const cwd = cleanCwd(body.cwd);
+    const cwd = await cleanCwd(body.cwd);
     const label = cleanLabel(body.label);
     const spec = body.agent ? cleanAgentSpec(body.agent, [label, path.basename(cwd)]) : null;
     const r = await herdr.call('workspace.create', { cwd, label: label || path.basename(cwd) || cwd, focus: false });
@@ -569,7 +584,10 @@ async function api(req, res, url) {
     // What the composer offers after "/" and "@": Claude agents only, read on this host.
     if (method === 'GET' && (parts[2] === 'commands' || parts[2] === 'files') && !parts[3]) {
       if (agent.agent !== 'claude' || !agent.cwd) return send(res, 200, { supported: false, commands: [], files: [] });
-      if (parts[2] === 'commands') return send(res, 200, { supported: true, cwd: agent.cwd, commands: commands.list(agent.cwd) });
+      if (parts[2] === 'commands') {
+        const r = await commands.list(agent.cwd);
+        return send(res, 200, { supported: true, cwd: agent.cwd, commands: r.commands, ...(r.partial ? { partial: true } : {}) });
+      }
       const q = (url.searchParams.get('q') || '').slice(0, 300);
       return send(res, 200, { supported: true, ...(await commands.files(agent.cwd, q)) });
     }
@@ -577,7 +595,7 @@ async function api(req, res, url) {
       if (agent.agent !== 'claude' || !agent.session) return send(res, 200, { supported: false, messages: [] });
       const limit = Math.min(Number(url.searchParams.get('limit')) || 120, 500);
       const opts = { since: url.searchParams.get('since') || null, rev: url.searchParams.get('rev') || null };
-      return send(res, 200, { supported: true, ...transcript.read(agent.session, limit, opts) });
+      return send(res, 200, { supported: true, ...(await transcript.read(agent.session, limit, opts)) });
     }
     if (method === 'POST' && parts[2] === 'prompt') {
       const { text } = await readJson(req);
@@ -640,10 +658,10 @@ async function api(req, res, url) {
   if (parts[0] === 'uploads') {
     if (method === 'POST' && !parts[1]) {
       const body = await readRaw(req, uploads.MAX_BYTES);
-      return send(res, 200, uploads.save(req.headers['content-type'], body));
+      return send(res, 200, await uploads.save(req.headers['content-type'], body));
     }
     if (method === 'GET' && parts[1] && !parts[2]) {
-      const f = uploads.find(parts[1]);
+      const f = await uploads.find(parts[1]);
       if (!f) return send(res, 404, { error: 'not_found' });
       // Names are never reused, so the phone may keep a copy.
       return fs.readFile(f.file, (err, data) =>
@@ -783,8 +801,22 @@ async function proxy(req, res, url) {
   send(res, r.status, r.body, out);
 }
 
+// A request slower than SLOW_REQUEST_MS gets a log line (method and path only: no query, no body).
+// The event stream stays open by design.
+const SLOW_REQUEST_MS = 3000;
+const LONG = /^\/api\/stream$/;
+function timeRequest(req, res, url) {
+  const started = Date.now();
+  watchdog.request(`${req.method} ${url.pathname}`);
+  res.on('close', () => {
+    const ms = Date.now() - started;
+    if (ms > SLOW_REQUEST_MS && !LONG.test(url.pathname)) console.error(`${new Date().toISOString()} slow request ${req.method} ${url.pathname} ${ms}ms -> ${res.statusCode}`);
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://herdr-hub.local');
+  timeRequest(req, res, url);
   if (!hostAllowed(req.headers.host, HOST_RULE)) return send(res, 403, { error: 'bad_host' });
   if (!identity(req)) return send(res, 403, { error: 'forbidden' }, { 'Content-Type': 'text/plain; charset=utf-8' });
   try {
@@ -801,6 +833,11 @@ const server = http.createServer(async (req, res) => {
 // Old photos go at start and once a day.
 uploads.sweep();
 setInterval(() => uploads.sweep(), 24 * 3600 * 1000).unref();
+
+// A main thread that stops running JavaScript (a synchronous call that never returns) cannot
+// answer anything, and the supervisor (launchd KeepAlive, run.cmd's loop) only restarts a process
+// that exited: the watchdog thread kills it then (lib/watchdog.js).
+watchdog.start({ ms: process.env.HERDR_HUB_WATCHDOG_MS == null ? undefined : Number(process.env.HERDR_HUB_WATCHDOG_MS) });
 
 server.listen(PORT, HOST, () => {
   console.log(`herdr-hub on http://${HOST}:${PORT} (herdr socket ${herdr.defaultSocketPath()})`);

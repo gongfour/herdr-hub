@@ -24,14 +24,14 @@ test('list returns sorted visible subfolders; create refuses an existing name', 
     assert.deepEqual(r.dirs, ['Alpha', 'beta', 'gamma9', 'gamma10']);
     assert.equal(r.parent, path.dirname(root));
     assert.equal(r.crumbs.at(-1).path, root);
-    assert.equal(dirs.create(root, 'new'), path.join(root, 'new'));
-    assert.throws(() => dirs.create(root, 'new'), { code: 'dir_exists', status: 409 });
+    assert.equal(await dirs.create(root, 'new'), path.join(root, 'new'));
+    await assert.rejects(() => dirs.create(root, 'new'), { code: 'dir_exists', status: 409 });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('places starts with home', () => {
-  const p = dirs.places();
+test('places starts with home', async () => {
+  const p = await dirs.places();
   assert.equal(p[0].path, os.homedir());
 });

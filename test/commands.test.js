@@ -21,7 +21,7 @@ test('frontmatter: plain, quoted and folded values', () => {
   assert.deepEqual(commands.frontmatter('no frontmatter').meta, {});
 });
 
-test('collect: every source, namespaces, hiding, precedence and order', () => {
+test('collect: every source, namespaces, hiding, precedence and order', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-cmds-'));
   try {
     const home = path.join(root, 'home');
@@ -51,7 +51,7 @@ test('collect: every source, namespaces, hiding, precedence and order', () => {
     write(path.join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'pa@m': [{ scope: 'user', installPath: pa }], 'pb@m': [{ scope: 'user', installPath: pb }] } }));
     write(path.join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'pa@m': true, 'pb@m': false }, skillOverrides: { off: 'off' } }));
 
-    const list = commands.collect(cwd, home);
+    const list = await commands.collect(cwd, home);
     const by = Object.fromEntries(list.map((c) => [c.name, c]));
     assert.equal(by.hello.source, 'project');
     assert.equal(by.hello.desc, 'Say hello');

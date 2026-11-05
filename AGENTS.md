@@ -25,6 +25,11 @@
 - 피어를 더하면 허브가 사람이 적은 주소로 요청을 보낸다. 그 요청은 `hoststore` 의 규칙(http(s) 출처만, 리다이렉트 안 따름, 짧은 제한)을 지키고, 피어 프록시(`PROXIED`) 밖으로 넘기는 경로를 새로 만들지 않는다. CORS 는 `/api/version` 한 곳뿐이다.
 - 시험할 때 실제 허브(desktop)의 피어를 더하거나 빼지 않는다. 로컬 한 쌍(허브 8797, 피어 8798, 각자 `HERDR_HUB_DATA`)에서 한다.
 
+## 파일 시스템 (멈추지 않기)
+
+- 요청을 받는 길(요청 처리, `refresh`)에서 `fs.*Sync` 를 쓰지 않는다. 남의 폴더(에이전트 cwd, `~/.claude`, 대화 기록, 사람이 고른 경로)는 `lib/fsq.js`(`fsq.budget(ms)` 를 만들어 `readdir`·`stat`·`readPart` …에 넘긴다)로만 읽고, 예산이 다하면 찾은 것까지 `partial` 로 돌려준다. 걷기는 cwd 하나에 하나만 돈다. Hub 자기 파일(`data/`, `public/`, 사진 폴더)은 그대로 둬도 되지만 요청 길이면 비동기로 한다. 시작 때 읽는 설정·`build.json` 은 동기여도 된다.
+- 감시 스레드(`lib/watchdog.js`, `HERDR_HUB_WATCHDOG_MS`, 0 = 끔)가 30 초 멈춘 프로세스를 죽이고 launchd·`run.cmd` 의 반복이 다시 띄운다. 그 반복이나 KeepAlive 를 없애지 않는다. 시험: `test/nohang.test.js`(서버를 띄워 메인 스레드를 막고, `readdir` 을 막는다 — `test/fixtures/stall.js`).
+
 ## 버전
 
 - 파일 주소의 `?v=` 는 서버가 내용 해시로 붙인다(`lib/http.js` `indexPage`). `index.html` 에 `?v=` 를 적거나 올리지 않는다 — 새 파일도 `<script src="/x.js" defer>` 그대로 넣는다. 배포만 하면 바뀐 파일만 새로 받고, 설치된 앱은 빌드가 달라진 것을 알아본다.

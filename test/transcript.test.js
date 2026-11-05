@@ -52,15 +52,15 @@ test('tool results attach to their tool; AskUserQuestion keeps the answer', () =
   assert.deepEqual(m[3].tools[0].answers, [{ q: 'Size?', a: 'Large' }]);
 });
 
-test('the parse is cached by size and mtime; since and rev send only what changed', (t) => {
+test('the parse is cached by size and mtime; since and rev send only what changed', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-tr-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 's.jsonl');
   const u = (id, text) => line({ type: 'user', uuid: id, message: { role: 'user', content: text } });
   const a = (id, text) => line({ type: 'assistant', uuid: `x${id}`, message: { id, content: [{ type: 'text', text }] } });
   fs.writeFileSync(file, [u('u1', 'hi'), a('m1', 'hello')].join('\n') + '\n');
-  const p1 = parsed(file);
-  assert.equal(parsed(file), p1); // same size and mtime: the same parse, not read again
+  const p1 = await parsed(file);
+  assert.equal(await parsed(file), p1); // same size and mtime: the same parse, not read again
   assert.deepEqual(p1.messages.map((m) => m.id), ['u1', 'm1']);
   assert.deepEqual(windowOf(p1, 10, { rev: p1.rev }), { found: true, rev: p1.rev, truncated: false, size: p1.size, unchanged: true, messages: [] });
 
@@ -68,7 +68,7 @@ test('the parse is cached by size and mtime; since and rev send only what change
   fs.appendFileSync(file, [a('m1', 'more'), u('u2', 'again')].join('\n') + '\n');
   const later = Date.now() / 1000 + 5;
   fs.utimesSync(file, later, later);
-  const p2 = parsed(file);
+  const p2 = await parsed(file);
   assert.notEqual(p2, p1);
   const w = windowOf(p2, 10, { since: 'm1', rev: p1.rev });
   assert.equal(w.since, 'm1');

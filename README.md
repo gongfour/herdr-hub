@@ -9,7 +9,7 @@ herdr 에이전트를 휴대폰에서 보고 답하는 웹앱(PWA). herdr가 도
 - 서버: `server.js` — herdr API 소켓(Windows 는 named pipe)에 직접 붙는다. SSH·셸을 거치지 않는다.
 - 화면: `public/` — 빌드 없는 바닐라 JS. 목록, 에이전트 보기(대화 + 작업 줄 + 터미널 화면 시트), 응답 키, 보내기, 중단(Esc), 웹 푸시 알림.
   - 파일: 번들러 없이 `index.html` 이 `<script defer>` 로 차례대로 읽고, 모두 한 전역 범위를 나눠 쓴다. 먼저 순수 함수 파일(`choices` `ansi` `activity` `mode` `inbox` `rowtext` `split` `keys` `keymap` `prefs` `route` `markdown` `update` `conn` `motion` `forward` `quick`, 시험은 `npm test`), 그다음 `core.js`(상태·api()·설정값 이름·시트·메뉴·단축키 시트·알림 줄), 화면별 파일 `list` `rows` `tabswipe` `backswipe` `fwdchip` `answer` `chat` `composer` `agent` `actions` `shell` `screen` `workspace` `forms` `switcher` `push` `settings` `keyspage` `viewport`, 맨 끝에 `app.js`(실시간 연결·주소·두 칸 배치·시작). 맨 위 코드는 리스너 등록과 정의만 하고, 그리는 일은 `app.js` 에서 시작한다. 새 파일은 `index.html` 에 `?v=` 없이 그냥 넣는다(서버가 붙인다, 아래 정적 파일).
-  - 서버 쪽 도움 모듈: `lib/http.js`(응답·본문·정적 파일·Host 검사), `lib/tools.js`(도구 한 줄 요약), `lib/validate.js`(키·글·이름·폴더·에이전트 검사), `lib/screen.js`(패널 읽기와 herdr 대체 경로).
+  - 서버 쪽 도움 모듈: `lib/http.js`(응답·본문·정적 파일·Host 검사), `lib/tools.js`(도구 한 줄 요약), `lib/validate.js`(키·글·이름·폴더·에이전트 검사), `lib/screen.js`(패널 읽기와 herdr 대체 경로), `lib/fsq.js`(요청 길의 파일 읽기: 비동기·시간 예산·막힌 경로 건너뛰기), `lib/watchdog.js`(멈춘 프로세스를 죽이는 감시 스레드).
 - 탭: 아래 탭 막대 「작업공간 / 설정」(`#/`, `#/settings`). 앱은 작업공간으로 열린다. 예전 홈 탭은 없앴다: 예전 주소 `#/spaces`(`#/h/<host>/spaces`)는 `#/` 로 바뀌고, 마지막 탭을 적어 두던 `herdr-hub.tab` 은 처음 열 때 지운다. 에이전트·셸·워크스페이스 화면의 뒤로는 작업공간으로 간다. 목록의 스크롤 위치를 기억한다. 호스트 선택·+ 는 작업공간 머리글에 있다. 작업공간 카드 맨 위의 이름(과 폴더)을 누르면 그 워크스페이스 화면(`#/ws/<id>`, 두 칸이면 오른쪽)이 열리고, 옆의 ⋯ 는 그 메뉴다. 작업공간 탭에는 답 필요 수가 뜬다.
 - 넓은 화면(폭 1000px 이상: 가로로 둔 Galaxy Tab S7+, 노트북)은 두 칸이다(`public/split.js`, 시험은 `npm test`). 맨 왼쪽은 VS Code 처럼 활동 막대(52px: 위에 작업공간, 아래 끝에 설정), 그 옆 사이드바는 늘 작업공간 목록과 호스트 선택·+, 오른쪽은 연 에이전트·셸·워크스페이스·새 워크스페이스·설정 화면. 아무것도 열지 않았으면 「왼쪽에서 에이전트를 고르세요」와 이 기기의 단축키 세 가지(빠른 이동·목록 옮기기·모든 단축키; 나머지는 단축키 페이지에. 키와 설명 한 묶음은 줄에서 갈라지지 않는다). 접혀 있으면 「목록 펴기」와 「작업공간 목록 열기」(Ctrl+B 툴팁). 워크스페이스가 하나도 없으면 오른쪽이 「아직 워크스페이스가 없습니다」와 큰 「새 워크스페이스」 단추를 보이고(왼쪽은 짧은 한 줄), herdr·피어에 닿지 못하면 그 까닭과 「연결 상태 보기」. 세로 태블릿(876)·화면 분할의 반쪽·휴대폰은 전과 같은 한 칸이다.
   - 두 칸의 대화 화면은 한 열이다: 머리글 안쪽(제목·배지·⋯·✕), 작업 줄, 메시지와 「↓ 최신 대화」 알약, 답 필요 상자, 사진 미리보기, 명령 제안, 입력 칸이 모두 같은 왼쪽·오른쪽 선을 쓴다. 가로줄과 바탕만 칸 끝까지 간다. 열 폭은 설정 → 화면 → 「대화 폭」(`herdr-hub.chatW`)을 따른다: 자동(기본)은 칸 폭에서 양옆 24px 씩(목록·설정 카드·시트의 16–24px 와 같은 여백)을 뺀 폭을 760–1280px 안에서 쓰고(1512 노트북의 두 칸은 약 1080px), 좁게는 760px, 넓게는 양옆 16px 씩만 빼고 최대 1680px, 꽉 차게는 칸 전체. 대화 글자도 화면 폭에 따라 16px(노트북)에서 18px(큰 모니터)까지 조금씩 커진다(코드는 13–15px). 대답의 표와 코드 블록도 글과 같은 왼쪽·오른쪽 선을 쓴다: 열 밖으로 나가지 않는다(넓은 표는 그 안에서 옆으로 민다; `style.css` `.detail.chat` 의 `--col`·`--gut`, 칸 폭에서 셈한다). 휴대폰은 그대로다.
@@ -173,19 +173,28 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 | `HERDR_HUB_PEERS` | 허브로 만든다: `id=url` 을 쉼표로. 예 `server=https://server.uaru-monster.ts.net:8443`. `data/peers.json` 이 없을 때 한 번만 쓰는 씨앗이고, 그 뒤 목록은 설정 → 연결에서 고친다(위) |
 | `HERDR_HUB_PUSH` | `0` 이면 알림을 보내지 않는다(피어용) |
 | `HERDR_HUB_PUSH_MUTE` | 알리지 않을 폴더·워크스페이스 이름 앞글자(쉼표). 시험 워크스페이스용 |
+| `HERDR_HUB_WATCHDOG_MS` | 메인 스레드가 이만큼(기본 30000 ms) 멈춰 있으면 감시 스레드가 프로세스를 죽여 다시 뜨게 한다(아래 「멈추지 않기」). `0` 이면 끈다 |
 | `HERDR_HUB_VAPID_SUBJECT`, `HERDR_HUB_DATA`, `PORT`, `HOST` | 전과 같음 |
+
+### 멈추지 않기
+
+2026-11-05 server 에서 Hub 가 0% CPU 로 아무것도 답하지 않았다: `@` 파일 제안이 `/` 부터 동기 `readdir` 로 걷다가 macOS 가 지키는 폴더에서 영영 멈췄고, 프로세스는 살아 있어서 launchd 가 다시 띄우지 않았다. 그래서:
+
+- 요청을 받는 길에서 남의 폴더(에이전트 cwd, `~/.claude`, 대화 기록, 폴더 찾아보기)는 `lib/fsq.js` 로만 읽는다: 비동기, 요청마다 시간 예산(`@` 파일 2 초, 명령 목록 3 초, 폴더 4 초 …). 예산이 다하면 그때까지 찾은 것을 `partial: true` 로 돌려준다(폴더 찾아보기는 `denied`·`slow`). 1.5 초 넘게 안 끝나는 호출은 「막힘」으로 치고 그 경로는 끝날 때까지 건너뛴다. 동시에 4 개, 막힌 것은 8 개까지(각각 libuv 스레드 하나를 잡는다; 스레드 수 `UV_THREADPOOL_SIZE=16` 은 `server.js`·`mac/run.sh`·`run.cmd` 가 정한다). `/`·홈·그 위 폴더는 아예 걷지 않는다(`tooWide`).
+- 감시 스레드(`lib/watchdog.js`): 메인 스레드가 1 초마다 심장박동을 남기고, 30 초 동안 없으면 마지막으로 시작한 요청(메서드·경로)을 로그에 한 줄 남기고 SIGKILL. server 는 launchd KeepAlive 가, desktop 은 `run.cmd` 의 반복(종료 코드 0·2 가 아니면 10 초 뒤 다시)이 다시 띄운다 — 예약 작업의 「실패 시 다시 시작」은 0 이 아닌 종료 코드로는 움직이지 않는다.
+- 로그: `fs stuck: <경로>`, `@-files: not walking <cwd>`, `@-files: walk of <cwd> partial`, 3 초 넘은 요청 `slow request <메서드> <경로> <ms>`(쿼리·본문 없음), `watchdog: main thread silent …`.
 
 ## 운영 — desktop (허브)
 
 - 위치: `C:\Users\kangw\src\herdr-hub`, 로그는 `data\herdr-hub.log`, VAPID 키·구독은 `data\`.
-- 시작: 로그온 때 예약 작업 `HerdrHub` 가 `conhost.exe --headless run.cmd` 로 창 없이 띄운다(127.0.0.1:8787). 콘솔 창으로 띄우면 그 창을 닫거나 Ctrl+C 가 눌리는 순간 서버가 꺼진다(종료 코드 0xC000013A). 호스트 id 와 피어 목록의 씨앗도 `run.cmd` 에 있다(피어 목록은 `data\peers.json`, 설정 → 연결에서 고친다). `run.cmd` 는 CRLF 로 둔다(LF 면 cmd 가 `set` 줄을 빠뜨린다).
+- 시작: 로그온 때 예약 작업 `HerdrHub` 가 `conhost.exe --headless run.cmd` 로 창 없이 띄운다(127.0.0.1:8787). 콘솔 창으로 띄우면 그 창을 닫거나 Ctrl+C 가 눌리는 순간 서버가 꺼진다(종료 코드 0xC000013A). node 가 죽으면(멈춰서 감시 스레드가 죽인 것도) `run.cmd` 가 10 초 뒤 다시 띄운다(종료 코드 0·2 면 끝). 호스트 id 와 피어 목록의 씨앗도 `run.cmd` 에 있다(피어 목록은 `data\peers.json`, 설정 → 연결에서 고친다). `run.cmd` 는 CRLF 로 둔다(LF 면 cmd 가 `set` 줄을 빠뜨린다).
 - 공개: `tailscale serve --bg 8787` → `https://desktop.uaru-monster.ts.net` (tailnet 전용).
 - 배포: 맥에서 `./deploy.sh` (또는 `./deploy.sh desktop`).
 
 ## 운영 — server (이 맥북, 피어)
 
 - 위치: `~/.local/share/herdr-hub` (저장소 밖 배포본), 로그는 `~/.local/share/herdr-hub/data/herdr-hub.log`.
-- 시작: LaunchAgent `local.herdr-hub` (`~/Library/LaunchAgents/local.herdr-hub.plist`) 가 `mac/run.sh` 를 띄운다(127.0.0.1:8787, 로그인 때 시작, 죽으면 다시 띄움). 원본은 저장소의 `mac/`.
+- 시작: LaunchAgent `local.herdr-hub` (`~/Library/LaunchAgents/local.herdr-hub.plist`) 가 `mac/run.sh` 를 띄운다(127.0.0.1:8787, 로그인 때 시작, 죽으면 다시 띄움 — 멈추면 감시 스레드가 죽인다). 원본은 저장소의 `mac/`.
 - 공개: `tailscale serve --bg --https=8443 http://127.0.0.1:8787` → `https://server.uaru-monster.ts.net:8443`. 443 은 이미 다른 것(`/` → 127.0.0.1:18789)이 쓰고 있어서 건드리지 않았다.
 - 배포: `./deploy.sh server` (둘 다는 `./deploy.sh all`). 어느 쪽이든 먼저 `build.json` 을 찍어 함께 보내고 끝나면 지운다. 배포본을 rsync 하고 `npm ci` 후 LaunchAgent 를 다시 올리며, 8443 serve 가 없으면 만든다.
 - 노트북이 잠들면 허브에 server 가 오프라인으로 보이고, 깨면 저절로 돌아온다.

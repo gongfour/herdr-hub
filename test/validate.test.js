@@ -16,6 +16,15 @@ const code = (fn) => {
   }
   return null;
 };
+const codeAsync = async (fn) => {
+  try {
+    await fn();
+  } catch (err) {
+    assert.equal(err.status, 400);
+    return err.code;
+  }
+  return null;
+};
 
 test('validKeys: agent keys by default, the wider pane set when asked, 1 to 8 of them', () => {
   assert.equal(v.validKeys(['esc', 'shift+tab', '1']), true);
@@ -46,17 +55,17 @@ test('cleanLabel: trimmed, 60 characters, required when asked', () => {
   assert.equal(code(() => v.cleanLabel('a\tb')), 'bad_label');
 });
 
-test('cleanCwd: an existing absolute folder on this host', () => {
+test('cleanCwd: an existing absolute folder on this host', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-validate-'));
   const file = path.join(dir, 'f.txt');
   fs.writeFileSync(file, '');
   try {
-    assert.equal(v.cleanCwd(` ${dir}${path.sep} `), path.resolve(dir));
-    assert.equal(code(() => v.cleanCwd('relative/dir')), 'cwd_not_absolute');
-    assert.equal(code(() => v.cleanCwd(path.join(dir, 'gone'))), 'cwd_not_found');
-    assert.equal(code(() => v.cleanCwd(file)), 'cwd_not_directory');
-    assert.equal(code(() => v.cleanCwd('')), 'bad_cwd');
-    assert.equal(code(() => v.cleanCwd(`${dir}\n`)), 'bad_cwd');
+    assert.equal(await v.cleanCwd(` ${dir}${path.sep} `), path.resolve(dir));
+    assert.equal(await codeAsync(() => v.cleanCwd('relative/dir')), 'cwd_not_absolute');
+    assert.equal(await codeAsync(() => v.cleanCwd(path.join(dir, 'gone'))), 'cwd_not_found');
+    assert.equal(await codeAsync(() => v.cleanCwd(file)), 'cwd_not_directory');
+    assert.equal(await codeAsync(() => v.cleanCwd('')), 'bad_cwd');
+    assert.equal(await codeAsync(() => v.cleanCwd(`${dir}\n`)), 'bad_cwd');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
