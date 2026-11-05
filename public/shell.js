@@ -613,7 +613,7 @@ async function pumpRaw() {
         // On this shell's screen the chip says what was lost; elsewhere only the notice can.
         if (termHere(host, pane)) {
           rawFailed = { host, pane, text: Keys.describeRaw(lost), why: errReason(err) };
-        } else toastErr(`키를 보내지 못했습니다: ${errText(err)}`);
+        } else lostElsewhere(host, pane, errText(err));
       } finally {
         rawInFlight = null;
         drawSending();
@@ -834,8 +834,14 @@ function liveSendKey(ch, it) {
 // Keys that did not reach the shell (a failure, or the channel dropped before they were
 // acknowledged: they may or may not have arrived) stay in the chip, as on the HTTP way.
 function liveLost(ch, lost, why) {
-  if (!lost || !lost.length || !termHere(ch.host, ch.pane)) return;
+  if (!lost || !lost.length) return;
+  if (!termHere(ch.host, ch.pane)) return lostElsewhere(ch.host, ch.pane, why);
   rawFailed = { host: ch.host, pane: ch.pane, text: Keys.describeRaw(lost), why };
+}
+// Keys lost on a shell no longer on screen: only a notice can say so, naming that shell.
+function lostElsewhere(host, pane, why) {
+  const t = (state.terminals || []).find((x) => same(x, host, pane));
+  toastErr(`「${t ? termTitle(t) : pane}」 셸에 키를 보내지 못했습니다: ${why}`);
 }
 
 function liveMessage(ch, data) {
