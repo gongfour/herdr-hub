@@ -55,7 +55,7 @@ function connect() {
     lastHeard = Date.now();
     retryDelay = 1000;
     live = true;
-    state = JSON.parse(e.data);
+    state = hideClosing(JSON.parse(e.data)); // actions.js: a close sent just now
     hubUp();
 
     resolveReady();

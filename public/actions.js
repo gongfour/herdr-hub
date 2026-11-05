@@ -50,8 +50,7 @@ function unusedAgent(host, pane) {
 // the keymap's words and the toasts (닫기 alone is 대화창 닫기, leaving the view: keymap.js leaveView).
 async function closePane(host, pane, label, isAgent) {
   if (isAgent && unusedAgent(host, pane)) {
-    if ((await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '새 대화를 끝냈습니다', '에이전트를 끝내지 못했습니다')) && leaveFor(host, pane)) goBack(homeHash());
-    return;
+    return closeNow(host, 'pane', pane, '새 대화를 끝냈습니다', '에이전트를 끝내지 못했습니다');
   }
   const ok = await sheet({
     subject: label,
@@ -61,7 +60,48 @@ async function closePane(host, pane, label, isAgent) {
     danger: true,
     key: 'closeView',
   });
-  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, isAgent ? '에이전트를 끝냈습니다' : '셸을 끝냈습니다', isAgent ? '에이전트를 끝내지 못했습니다' : '셸을 끝내지 못했습니다')) && leaveFor(host, pane)) goBack(homeHash());
+  if (ok) closeNow(host, 'pane', pane, isAgent ? '에이전트를 끝냈습니다' : '셸을 끝냈습니다', isAgent ? '에이전트를 끝내지 못했습니다' : '셸을 끝내지 못했습니다');
+}
+
+// A close feels instant: what it ends drops out of the page at once (and out of every state that
+// arrives meanwhile: app.js runs each through hideClosing), the view goes back, and the close is
+// sent behind it. herdr takes 0.2–0.3 s to close and refresh, more through a peer. A refusal
+// brings it back, with the error.
+const closing = new Map(); // `${host}|pane|${id}` or `${host}|workspace|${id}` → until when (ms)
+const CLOSING_MS = 15000;
+function hideClosing(s) {
+  const now = Date.now();
+  for (const [k, until] of closing) if (until < now) closing.delete(k);
+  if (!closing.size) return s;
+  const gone = (x, key) => closing.has(`${x.host || s.hostId || ''}|${key}|${x[key]}`);
+  const keep = (x) => !gone(x, 'pane') && !gone(x, 'workspace');
+  return {
+    ...s,
+    agents: (s.agents || []).filter(keep),
+    terminals: (s.terminals || []).filter(keep),
+    workspaces: (s.workspaces || []).filter((w) => !closing.has(`${w.host || s.hostId || ''}|workspace|${w.workspace_id}`)),
+  };
+}
+
+// key: 'pane' or 'workspace'.
+async function closeNow(host, key, id, okText, failText) {
+  const leave = key === 'pane' ? leaveFor(host, id) : leaveFor(host, null, id);
+  const k = `${host || ''}|${key}|${id}`;
+  closing.set(k, Date.now() + CLOSING_MS);
+  state = hideClosing(state);
+  if (leave) goBack(homeHash());
+  onState();
+  toast(okText);
+  try {
+    await api(hp(`/${key === 'pane' ? 'panes' : 'workspaces'}/${encodeURIComponent(id)}/close`, host), { method: 'POST', body: '{}' });
+  } catch (err) {
+    closing.delete(k);
+    toastErr(`${failText}: ${errText(err)}`);
+    try {
+      state = hideClosing(await api('/state'));
+      onState();
+    } catch {}
+  }
 }
 
 // After closing a pane or workspace: back to the list when that was open. On the phone the list
@@ -104,7 +144,7 @@ async function closeWorkspace(w, key = 'closeView') {
     danger: true,
     key,
   });
-  if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다', '워크스페이스를 닫지 못했습니다')) && leaveFor(host, null, w.workspace_id)) goBack(homeHash());
+  if (ok) closeNow(host, 'workspace', w.workspace_id, '워크스페이스를 닫았습니다', '워크스페이스를 닫지 못했습니다');
 }
 
 async function newTab(w) {
