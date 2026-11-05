@@ -15,7 +15,7 @@ const Live = require('../public/live');
 
 const ROOT = path.join(__dirname, '..');
 
-async function start(t) {
+async function start(t, env = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-live-'));
   const sock = path.join(tmp, 'h.sock');
   const herdr = await fakeHerdr(sock);
@@ -36,6 +36,7 @@ async function start(t) {
       CLAUDE_CONFIG_DIR: path.join(tmp, 'claude'),
       HERDR_SOCKET: sock,
       HERDR_HUB_WATCHDOG_MS: '0',
+      ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -48,7 +49,7 @@ async function start(t) {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
   const end = Date.now() + 8000;
-  while (!out.includes('herdr-hub on http')) {
+  while (!out.includes('herdr-hub on http') || (env.HERDR_HUB_HERDR_HELPER === '1' && !out.includes('herdr helper: ready'))) {
     if (Date.now() > end) throw new Error(`server did not start:\n${out}`);
     await new Promise((r) => setTimeout(r, 50));
   }
@@ -70,8 +71,12 @@ function upgradeStatus(port, p, headers) {
   });
 }
 
-test('live channel: checks, the screen, keys', async (t) => {
-  const { port, herdr } = await start(t);
+const hasPython = process.platform !== 'win32' && require('child_process').spawnSync('/usr/bin/python3', ['-c', '1']).status === 0;
+// helper 0: herdr calls the Node way (desktop; the Mac without lib/herdr's connect helper);
+// helper 1: through the helper (the Mac's default), where the workarounds for held calls rest.
+for (const helper of ['0', '1'])
+test(`live channel: checks, the screen, keys (connect helper ${helper})`, { skip: helper === '1' && !hasPython && 'no python3' }, async (t) => {
+  const { port, herdr } = await start(t, { HERDR_HUB_HERDR_HELPER: helper });
   const p = '/api/panes/w1-p1/live?lines=200&format=text';
   // A browser page of another origin (a WebSocket is not held back by CORS), and a client with
   // neither an Origin nor the hub's header.
@@ -110,9 +115,11 @@ test('live channel: checks, the screen, keys', async (t) => {
   assert.deepEqual(msgs.find((m) => m.t === 'kerr'), { t: 'kerr', from: 3, to: 3, error: 'bad_keys', message: 'bad_keys' });
   await until(() => cur.screen.text === '$ ls\n$ ');
   assert.ok(msgs.filter((m) => m.t === 'f').length === 1, 'one whole screen, then changes');
-  // herdr kept awake here (the default): each key call comes right after a ping.
+  // The Node way, herdr kept awake (the default): each key call comes right after a ping. Through
+  // the helper herdr does not hold calls: no ping before the key, none to keep it awake.
   const i = herdr.calls.findIndex((x) => /send_(text|keys|input)/.test(x.method));
-  assert.equal(herdr.calls.slice(0, i).reverse().find((x) => x.method !== 'pane.read')?.method, 'ping');
+  if (helper === '0') assert.equal(herdr.calls.slice(0, i).reverse().find((x) => x.method !== 'pane.read')?.method, 'ping');
+  else assert.equal(herdr.calls.filter((x) => x.method === 'ping').length, 0);
   const sends = herdr.calls.filter((x) => /send_(text|keys|input)/.test(x.method));
   assert.ok(sends.length >= 1 && sends.length <= 2);
   c.close();

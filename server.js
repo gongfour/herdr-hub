@@ -31,10 +31,10 @@ const watchdog = require('./lib/watchdog');
 const fsq = require('./lib/fsq');
 const awake = require('./lib/awake');
 const ws = require('./lib/ws');
-const { liveSession, hedge, idleFromEnv } = require('./lib/live');
+const { liveSession, hedge, idleFromEnv, IDLE_POLL_MS } = require('./lib/live');
 const wsdirs = require('./lib/wsdirs');
 // The live channel's read pace while nothing moves (lib/live: the Mac's herdr needs the quick one).
-const LIVE_IDLE_MS = idleFromEnv(process.env.HERDR_HUB_LIVE_IDLE_MS);
+const LIVE_IDLE_MS = idleFromEnv(process.env.HERDR_HUB_LIVE_IDLE_MS, herdr.helperOn() ? IDLE_POLL_MS : undefined);
 
 // The contract between this server and its pages, and between a hub and its peers. Bumped by
 // hand when either changes (AGENTS.md); 설정 → 연결 shows a peer whose number differs from the hub's.
@@ -521,12 +521,17 @@ async function sendPaneKeys(pane, keys) {
 }
 // Text, then keys: one herdr call (pane.send_input) when every key has a herdr name, else as above.
 let sendInputOk = true;
-// herdr 0.9.3 (server) holds ~half of the key calls ~105 ms, but almost never one that comes 3 ms
-// after another call (measured: 13–15/30 → 2–3/30; one sent at the same moment is always held).
-// So on a host whose herdr is kept awake (HERDR_HUB_AWAKE_MS, off on desktop) a ping goes first.
+// herdr on the Mac holds ~half of the key calls that go the Node way ~105 ms, but almost never one
+// that comes 3 ms after another call (measured: 13–15/30 → 2–3/30; one sent at the same moment is
+// always held). So on a host whose herdr is kept awake (HERDR_HUB_AWAKE_MS, off on desktop) a ping
+// goes first — unless the connect helper carries the calls (lib/herdr), which herdr never holds.
 const PRIME_MS = 3;
+// herdr may hold this call: it goes the Node way (lib/herdr: the connect helper is off, or not up).
+// The workarounds below (the ping before a key, keep-awake, hedged reads) are for that case only.
+const herdrHolds = () => !herdr.direct();
+const maybeHedge = (fn) => (herdrHolds() ? hedge(fn) : fn());
 async function primeHerdr() {
-  if (!(awake.intervalFromEnv(process.env.HERDR_HUB_AWAKE_MS) > 0)) return;
+  if (!herdrHolds() || !(awake.intervalFromEnv(process.env.HERDR_HUB_AWAKE_MS) > 0)) return;
   herdr.call('ping', {}, { timeoutMs: 2000 }).catch(() => {});
   await new Promise((r) => setTimeout(r, PRIME_MS));
 }
@@ -537,7 +542,7 @@ function waitOutput(pane, lines, pattern, ms, { hedged = false, info = null } = 
   const call = () => herdr.call('pane.wait_for_output', { pane_id: pane, source: 'recent_unwrapped', lines, match: { type: 'regex', value: pattern }, timeout_ms: ms });
   let timer;
   return Promise.race([
-    (hedged ? hedge(call) : call()).then(
+    (hedged ? maybeHedge(call) : call()).then(
       () => true,
       (err) => {
         if (info) info.werr = err.code;
@@ -568,6 +573,7 @@ async function sendPaneInput(pane, text, keys, info) {
 // herdr kept awake while a shell here is in use (lib/awake): keys and the shell view's reads touch it.
 // Requests proxied from the hub land here too, so each host keeps its own herdr awake.
 const herdrAwake = awake.keepAwake({ ping: () => herdr.call('ping', {}, { timeoutMs: 2000 }), intervalMs: awake.intervalFromEnv(process.env.HERDR_HUB_AWAKE_MS) });
+const touchAwake = () => herdrHolds() && herdrAwake.touch();
 
 // The last screen read per shell pane (lib/echo): what a key's echo is compared against.
 const paneScreens = echo.lastScreens();
@@ -711,7 +717,7 @@ async function api(req, res, url) {
     if (!term && !(parts[2] === 'close' && findAgent(pane))) return send(res, 404, { error: 'pane_not_found' });
 
     if (method === 'GET' && parts[2] === 'screen') {
-      herdrAwake.touch();
+      touchAwake();
       const lines = Math.min(Number(url.searchParams.get('lines')) || 120, 400);
       return send(res, 200, await readPane(pane, url.searchParams.get('source'), lines, url.searchParams.get('format')));
     }
@@ -721,7 +727,7 @@ async function api(req, res, url) {
       // input: one command line, the text then Enter (empty text just presses Enter).
       // keys: optional text typed first without Enter, so "Get-Ch" + tab completes.
       if (parts[2] === 'input' || parts[2] === 'keys') {
-        herdrAwake.touch();
+        touchAwake();
         const { text = '' } = body;
         const keys = parts[2] === 'input' ? ['enter'] : body.keys;
         if (badText(text)) return send(res, 400, { error: 'bad_text' });
@@ -1069,7 +1075,7 @@ function liveLocal(req, socket, head, pane, url) {
   liveConns.add(conn);
   const io = {
     // Reads and the echo wait are sent again when herdr holds them (lib/live hedge); keys never.
-    read: (shape) => hedge(() => readPane(pane, 'recent_unwrapped', shape.lines, shape.format)),
+    read: (shape) => maybeHedge(() => readPane(pane, 'recent_unwrapped', shape.lines, shape.format)),
     input: async (text, keys, info) => {
       await sendPaneInput(pane, text, keys, info);
       if (keys.includes('enter')) refreshAfterKeys();
@@ -1078,7 +1084,7 @@ function liveLocal(req, socket, head, pane, url) {
       const r = await echo.waitEcho(
           {
             waitFor: (pattern, ms) => waitOutput(pane, shape.lines, pattern, ms, { hedged: true, info }),
-            read: () => hedge(() => readPane(pane, 'recent_unwrapped', shape.lines, shape.format)),
+            read: () => maybeHedge(() => readPane(pane, 'recent_unwrapped', shape.lines, shape.format)),
             sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
             now: () => performance.now(),
           },
@@ -1088,7 +1094,7 @@ function liveLocal(req, socket, head, pane, url) {
       info.reads = r.reads;
       return r.screen;
     },
-    touch: () => herdrAwake.touch(),
+    touch: () => touchAwake(),
     now: () => performance.now(),
     setTimeout: (f, ms) => setTimeout(f, ms),
     clearTimeout: (t) => clearTimeout(t),
