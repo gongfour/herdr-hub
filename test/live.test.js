@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { liveSession, POLL_MS, IDLE_POLL_MS, ACTIVE_MS, HEARTBEAT_MS } = require('../lib/live');
+const { liveSession, hedge, idleFromEnv, POLL_MS, IDLE_POLL_MS, ACTIVE_MS, HEARTBEAT_MS } = require('../lib/live');
 const ScreenDiff = require('../public/screendiff');
 const Live = require('../public/live');
 
@@ -280,4 +280,71 @@ test('page rules (live.js): which hosts, retries, giving up', () => {
   const sent = [{ s: 1 }, { s: 2 }, { s: 3 }];
   assert.deepEqual(Live.acked(sent, 2), [{ s: 3 }]);
   assert.deepEqual(Live.failed(sent, 2, 3), { lost: [{ s: 2 }, { s: 3 }], left: [{ s: 1 }] });
+});
+
+test('hedge: a read held by herdr goes out again, the first answer wins; failures', async () => {
+  const c = clock();
+  const opts = { setTimeout: c.setTimeout, clearTimeout: c.clearTimeout };
+  // The first try is held 105 ms, the second answers in 2.
+  const takes = [105, 2, 2];
+  let tries = 0;
+  const fn = () => {
+    const n = tries++;
+    return new Promise((r) => c.setTimeout(() => r(`try ${n}`), takes[n]));
+  };
+  let got = null;
+  hedge(fn, opts).then((v) => (got = [v, c.now()]));
+  await c.advance(200);
+  assert.deepEqual(got, ['try 1', 17]);
+  assert.equal(tries, 2); // the third was not needed
+  // A quick answer: one try only.
+  tries = 0;
+  takes[0] = 3;
+  got = null;
+  hedge(fn, opts).then((v) => (got = [v, c.now() - 200]));
+  await c.advance(100);
+  assert.deepEqual(got, ['try 0', 3]);
+  assert.equal(tries, 1);
+  // A try that fails while none other is out: the error at once.
+  let err = null;
+  hedge(() => Promise.reject(Object.assign(new Error('x'), { code: 'pane_not_found' })), opts).catch((e) => (err = e.code));
+  await c.advance(1);
+  assert.equal(err, 'pane_not_found');
+  assert.equal(idleFromEnv(undefined), POLL_MS);
+  assert.equal(idleFromEnv('150'), 150);
+  assert.equal(idleFromEnv('x'), POLL_MS);
+});
+
+test('a key does not wait for a read herdr is holding, and that read is not pushed', async () => {
+  // A rig whose reads after the first are held.
+  const c = clock();
+  const calls = [];
+  let screen = '❯ ';
+  let n = 0;
+  const out = [];
+  const s = liveSession({
+    io: {
+      now: c.now, setTimeout: c.setTimeout, clearTimeout: c.clearTimeout, touch() {},
+      read: (shape) => {
+        const at = c.now(); const text = screen; const ms = n++ ? 105 : 1;
+        calls.push(['read', at]);
+        return new Promise((res) => c.setTimeout(() => res({ text, format: 'text', source: 's' }), ms));
+      },
+      input: (text) => (calls.push(['input', c.now()]), new Promise((res) => c.setTimeout(() => ((screen += text), res()), 1))),
+      echo: () => new Promise((res) => c.setTimeout(() => res({ text: screen, format: 'text', source: 's' }), 1)),
+    },
+    send: (m) => out.push([c.now(), m]),
+    pane: 'p', shape: { lines: 200, format: 'text' }, api: 2,
+  });
+  await c.advance(50); // the first read is out and held
+  const t0 = c.now();
+  s.message({ t: 'k', s: 1, x: 'a', y: [] });
+  await c.advance(10);
+  const input = calls.find((x) => x[0] === 'input');
+  assert.ok(input && input[1] - t0 <= 1, `the key went at ${input && input[1] - t0}`);
+  await c.advance(200);
+  // The held read (from before the key, showing '❯ ') did not overwrite the echo.
+  const last = out.filter(([, m]) => m.t === 'd').at(-1)[1];
+  assert.deepEqual(last.a, ['❯ a']);
+  s.stop();
 });

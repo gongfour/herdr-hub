@@ -19,6 +19,7 @@ rem Pool threads for filesystem calls that may hang (lib/fsq.js).
 set UV_THREADPOOL_SIZE=16
 rem This herdr (0.9.4-preview) does not stall when idle, so no keep-awake pings (lib/awake.js).
 set HERDR_HUB_AWAKE_MS=0
+set HERDR_HUB_LIVE_IDLE_MS=150
 rem A node that died (or that its watchdog killed when it froze, lib/watchdog.js) is started again
 rem here: the task itself does not restart an action that exited. Exit 0 (stopped on purpose) and
 rem 2 (bad settings) end the loop. deploy.sh stops this cmd before its node.

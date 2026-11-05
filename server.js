@@ -31,8 +31,10 @@ const watchdog = require('./lib/watchdog');
 const fsq = require('./lib/fsq');
 const awake = require('./lib/awake');
 const ws = require('./lib/ws');
-const { liveSession } = require('./lib/live');
+const { liveSession, hedge, idleFromEnv } = require('./lib/live');
 const wsdirs = require('./lib/wsdirs');
+// The live channel's read pace while nothing moves (lib/live: the Mac's herdr needs the quick one).
+const LIVE_IDLE_MS = idleFromEnv(process.env.HERDR_HUB_LIVE_IDLE_MS);
 
 // The contract between this server and its pages, and between a hub and its peers. Bumped by
 // hand when either changes (AGENTS.md); 설정 → 연결 shows a peer whose number differs from the hub's.
@@ -960,7 +962,8 @@ function liveLocal(req, socket, head, pane, url) {
   if (!conn) return;
   liveConns.add(conn);
   const io = {
-    read: (shape) => readPane(pane, 'recent_unwrapped', shape.lines, shape.format),
+    // Reads and the echo wait are sent again when herdr holds them (lib/live hedge); keys never.
+    read: (shape) => hedge(() => readPane(pane, 'recent_unwrapped', shape.lines, shape.format)),
     input: async (text, keys) => {
       await sendPaneInput(pane, text, keys);
       if (keys.includes('enter')) refreshAfterKeys();
@@ -970,11 +973,11 @@ function liveLocal(req, socket, head, pane, url) {
         await echo.waitEcho(
           {
             waitFor: (pattern, ms) =>
-              herdr.call('pane.wait_for_output', { pane_id: pane, source: 'recent_unwrapped', lines: shape.lines, match: { type: 'regex', value: pattern }, timeout_ms: ms }).then(
+              hedge(() => herdr.call('pane.wait_for_output', { pane_id: pane, source: 'recent_unwrapped', lines: shape.lines, match: { type: 'regex', value: pattern }, timeout_ms: ms })).then(
                 () => true,
                 () => false
               ),
-            read: () => readPane(pane, 'recent_unwrapped', shape.lines, shape.format),
+            read: () => hedge(() => readPane(pane, 'recent_unwrapped', shape.lines, shape.format)),
             sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
             now: () => performance.now(),
           },
@@ -992,7 +995,7 @@ function liveLocal(req, socket, head, pane, url) {
     conn.send(JSON.stringify(m));
     if (m.t === 'gone') conn.close(1000, 'gone');
   };
-  const session = liveSession({ io, send, pane, shape: liveShape(url), api: API_VERSION });
+  const session = liveSession({ io, send, pane, shape: liveShape(url), api: API_VERSION, idlePollMs: LIVE_IDLE_MS });
   conn.on('message', (text) => {
     let m;
     try {
