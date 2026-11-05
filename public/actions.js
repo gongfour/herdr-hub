@@ -66,36 +66,23 @@ async function closePane(host, pane, label, isAgent) {
 // A close feels instant: what it ends drops out of the page at once (and out of every state that
 // arrives meanwhile: app.js runs each through hideClosing), the view goes back, and the close is
 // sent behind it. herdr takes 0.2–0.3 s to close and refresh, more through a peer. A refusal
-// brings it back, with the error.
-const closing = new Map(); // `${host}|pane|${id}` or `${host}|workspace|${id}` → until when (ms)
-const CLOSING_MS = 15000;
-function hideClosing(s) {
-  const now = Date.now();
-  for (const [k, until] of closing) if (until < now) closing.delete(k);
-  if (!closing.size) return s;
-  const gone = (x, key) => closing.has(`${x.host || s.hostId || ''}|${key}|${x[key]}`);
-  const keep = (x) => !gone(x, 'pane') && !gone(x, 'workspace');
-  return {
-    ...s,
-    agents: (s.agents || []).filter(keep),
-    terminals: (s.terminals || []).filter(keep),
-    workspaces: (s.workspaces || []).filter((w) => !closing.has(`${w.host || s.hostId || ''}|workspace|${w.workspace_id}`)),
-  };
-}
+// brings it back, with the error; once landed, an id that comes again is a new one and shows.
+const closing = Closing.create(15000); // closing.js: until the close has landed
+const hideClosing = (s) => closing.filter(s);
 
 // key: 'pane' or 'workspace'.
 async function closeNow(host, key, id, okText, failText) {
   const leave = key === 'pane' ? leaveFor(host, id) : leaveFor(host, null, id);
-  const k = `${host || ''}|${key}|${id}`;
-  closing.set(k, Date.now() + CLOSING_MS);
-  state = hideClosing(state);
+  const k = closing.start(host, key, id);
+  state = closing.filter(state, { fresh: false });
   if (leave) goBack(homeHash());
   onState();
   toast(okText);
   try {
     await api(hp(`/${key === 'pane' ? 'panes' : 'workspaces'}/${encodeURIComponent(id)}/close`, host), { method: 'POST', body: '{}' });
+    closing.landed(k);
   } catch (err) {
-    closing.delete(k);
+    closing.drop(k);
     toastErr(`${failText}: ${errText(err)}`);
     try {
       state = hideClosing(await api('/state'));
