@@ -205,8 +205,15 @@
   }
 
   // The binding a keydown means here, or null. ctx: { field, shell, layer, split }.
+  // An input method at work (Android's with a keyboard cover, Korean on any system) sends its
+  // keys as keyCode 229 / isComposing with e.key "Process": then only a chord (Ctrl, Alt or ⌘
+  // held) can be a shortcut, read by e.code alone, so a key the IME is composing never is one.
   function match(e, ctx = {}) {
-    if (!e || e.isComposing || e.keyCode === 229) return null;
+    if (!e) return null;
+    if (e.isComposing || e.keyCode === 229) {
+      if (!(e.ctrlKey || e.altKey || e.metaKey) || !e.code) return null;
+      e = { code: e.code, key: '', ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey };
+    }
     for (const x of active) {
       if ((ctx.field && !x.field) || (ctx.shell && !x.shell) || (ctx.layer && !x.layer) || (x.split && !ctx.split)) continue;
       if (matches(e, x.key)) return x;

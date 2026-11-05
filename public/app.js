@@ -944,12 +944,32 @@ function keyContext() {
   return { field: editable(a) && !rawShell, shell: view.name === 'term', layer: Boolean(topLayer()), split };
 }
 document.addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || e.isComposing) return;
+  if (e.defaultPrevented) return;
   if (termStrayKey(e)) return e.preventDefault();
   const b = Keymap.match(e, keyContext());
-  if (b && KEY_ACTIONS[b.action](b, e)) return e.preventDefault();
+  if (b && KEY_ACTIONS[b.action](b, e)) {
+    e.preventDefault();
+    // An IME or a dead key (Option+` on a Mac) may still type the chord's character into the field
+    // the action left focused (Alt+` there typed a `): drop text that comes right after it.
+    if (e.keyCode === 229 || e.isComposing || e.key === 'Dead') swallowTextUntil = Date.now() + 400;
+    return;
+  }
+  if (e.isComposing) return;
   chatStrayKey(e);
 });
+let swallowTextUntil = 0;
+document.addEventListener('beforeinput', (e) => {
+  if (Date.now() > swallowTextUntil || !/^insert(Text|CompositionText)$/.test(e.inputType) || !e.data || e.data.length !== 1) return;
+  if (e.cancelable) e.preventDefault();
+  else { // a composition can't be cancelled: take the character out once it is in
+    const t = e.target;
+    t.addEventListener('input', () => {
+      const v = t.value, at = t.selectionStart;
+      if (typeof v === 'string' && at > 0 && v[at - 1] === e.data) { t.value = v.slice(0, at - 1) + v.slice(at); t.setSelectionRange(at - 1, at - 1); }
+    }, { once: true });
+  }
+  swallowTextUntil = 0;
+}, true);
 // The agent view, a character typed with the focus on the page (not a shortcut: the keymap had
 // its turn): the caret goes to the composer and the character lands there, as in the shell view.
 // The key is left alone, so the browser (and an IME) puts it into the field that now has the

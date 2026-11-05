@@ -92,6 +92,15 @@ test('jumpEnd / jumpTop: Ctrl+Shift+↓/↑, Ctrl+End and ⌘+↓ anywhere, End 
   assert.equal(act('Ctrl+End', {}, { keyCode: 229 }), null);
 });
 
+test('an IME at work: a chord still matches by code, a plain key or e.key alone never', () => {
+  // Android with a keyboard cover and Korean on: Alt+` in the message box comes as keyCode 229.
+  assert.equal(act('Alt+`', { field: true }, { key: 'Process', code: 'Backquote', keyCode: 229 }), 'lastView');
+  assert.equal(act('Alt+`', { field: true }, { key: 'Process', code: '', keyCode: 229 }), null);
+  assert.equal(act('1', {}, { key: 'Process', code: 'Digit1', keyCode: 229 }), null);
+  // A syllable still being composed when Ctrl+Enter is pressed: e.key says Enter, which is the IME's.
+  assert.equal(act('Ctrl+Enter', { field: true }, { isComposing: true, code: '' }), null);
+});
+
 test('prevMine / nextMine: Ctrl+↑ and Ctrl+↓ anywhere, the shell and a sheet included', () => {
   for (const ctx of [{}, { field: true }, { shell: true }, { layer: true }]) {
     assert.equal(act('Ctrl+ArrowUp', ctx), 'prevMine');
