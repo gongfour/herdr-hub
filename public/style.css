@@ -569,31 +569,26 @@ div.tool { background: none; padding: 2px 8px; }
 .btn.secondary { background: var(--surface-2); color: var(--text); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* A new version (app.js): a calm bar at the very top. The app shell moves down under it, so it
+/* A server on another API than this page (app.js; any other new build is only a dot on 설정): a bar at the very top. The app shell moves down under it, so it
    covers none of the header's controls; the bar takes the notch's inset and the header drops its own. */
 .update-bar {
   position: fixed; left: 0; right: 0; top: var(--app-top, 0px); z-index: 20;
-  display: flex; align-items: center; justify-content: center; gap: 12px;
-  padding: calc(4px + var(--safe-top)) calc(52px + var(--safe-right)) 4px calc(52px + var(--safe-left));
+  display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 4px 12px;
+  padding: calc(4px + var(--safe-top)) calc(16px + var(--safe-right)) 4px calc(16px + var(--safe-left));
   background: var(--bg); color: var(--text); border-bottom: 1px solid var(--line); font-size: 14px;
 }
-/* The page's own colours (the header's --bg), a small accent dot, and the action as quiet as a toast's.
-   What it says and its button sit together in the middle (read as one: 「● 새 버전이 있습니다 [새로고침]」),
-   on any width; ✕ keeps to the far right. */
+/* Only when the server speaks another API (app.js showUpdateBanner): the words at the start of the
+   line like the header's title, the one way out right after them, no ✕ (it can't be put off). The
+   dot is --working's amber: something to do, not the hub being down (.hub-down's red). */
 .update-bar .ub-t { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; line-height: 1.35; }
-.update-bar .ub-t::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.update-bar .ub-t::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--working); }
 .update-bar .ub-go {
-  flex: none; min-height: 36px; padding: 0 12px; border: 0; border-radius: 10px;
+  flex: none; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px;
   background: var(--surface-2); color: var(--accent); font: inherit; font-weight: 700; cursor: pointer;
 }
 .update-bar .ub-go:active { background: color-mix(in srgb, var(--text) 10%, var(--surface-2)); }
-.update-bar .ub-x {
-  position: absolute; right: calc(4px + var(--safe-right)); bottom: 0;
-  flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 10px;
-  background: none; color: var(--muted); cursor: pointer;
-}
-.update-bar .ub-x svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.update-bar .ub-x:active { background: var(--surface-2); }
+/* A phone: the first sentence only, so 새로고침 stays on its line (the button says the rest). */
+@media (max-width: 560px) { .update-bar .ub-more { display: none; } }
 :root.has-update #app { top: calc(var(--app-top, 0px) + var(--update-h, 0px)); height: calc(var(--app-h, 100%) - var(--update-h, 0px)); --safe-top: 0px; }
 
 /* The hub can't be reached (app.js, conn.js): a calm full-width notice at the top, with the likeliest
@@ -1033,8 +1028,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .ver-line { display: flex; gap: 12px; align-items: baseline; }
 .ver-line .ver-k { flex: none; white-space: nowrap; font-size: 15px; color: var(--text); }
 .ver-line .ver-v { color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.ver-line.ver-new .ver-v { color: var(--text); }
-.panel .pref-info.ver-new .ver-v { font-weight: 600; }
 .pref-ver .btn { flex: none; min-height: 36px; padding: 0 12px; font-size: 14px; }
 
 /* ---- polish: small pieces */
@@ -1348,6 +1341,8 @@ button.tool:active { filter: brightness(0.95); }
 .rail-btn:focus-visible { outline-offset: 1px; }
 .rail-btn .tab-badge { top: -2px; left: auto; right: -5px; }
 .rail-dot { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--surface-2) 45%, var(--bg)); }
+/* A new build waiting (list.js updateDot): the same dot on 설정, by the icon in the tab bar too. */
+.tab .rail-dot { top: 4px; right: auto; left: calc(50% + 7px); box-shadow: 0 0 0 2px var(--bg); }
 @media (hover: hover) { .rail-btn:hover { color: var(--text); background: color-mix(in srgb, var(--surface-2) 80%, transparent); } .rail-btn[aria-pressed="true"]:hover { color: var(--accent); } }
 :root.split.side-off #app > #list-pane { display: none; }
 :root.split body { background: var(--bg); }

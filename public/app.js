@@ -199,12 +199,16 @@ setInterval(() => document.visibilityState === 'visible' && revive('watchdog'), 
 // code. The server says which build it serves (the first message of every stream, and
 // /api/version when the app comes back to the foreground); when that is another build than the
 // one this page came with, the page loads again by itself if that loses nothing
-// (Update.safeToReload), else a banner offers 새로고침.
+// (Update.safeToReload): coming back to the app, or away from it (Update.away). Deploys come many
+// times a day and the old page keeps working with its own files, so until then 설정 only gets a
+// dot (rail, tab bar) and 설정 → 정보 says when. Only a server on another API version
+// (Update.mustReload) doesn't wait for that: it reloads as soon as nothing would be lost, and
+// meanwhile a bar at the top says the page needs it.
 const myBuild = pageBuild(); // settings.js: the build this page was served with
 let serverBuild = null;
 let returnedAt = 0; // when the app last came back to the foreground
+let touchedAt = Date.now(); // the last key, tap, click or wheel on this page
 const RELOAD_KEY = 'herdr-hub.reloadedFor'; // { v: build id, t }: this tab's last try (sessionStorage)
-const DISMISS_KEY = 'herdr-hub.updateDismissed'; // the build id whose banner was closed
 const session = {
   get(k) {
     try {
@@ -219,7 +223,11 @@ const session = {
     } catch {}
   },
 };
-const returning = () => document.visibilityState === 'hidden' || Date.now() - returnedAt < 5000;
+for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart']) document.addEventListener(type, () => (touchedAt = Date.now()), { capture: true, passive: true });
+const returning = () =>
+  document.visibilityState === 'hidden' ||
+  Date.now() - returnedAt < 5000 ||
+  Update.away({ visible: document.visibilityState === 'visible', focused: document.hasFocus(), idleMs: Date.now() - touchedAt });
 function reloadState() {
   const input = document.getElementById('d-input');
   return {
@@ -232,6 +240,7 @@ function reloadState() {
   };
 }
 const hasNew = () => Update.differs(myBuild, serverBuild);
+const mustReload = () => Update.mustReload(myBuild, serverBuild);
 function checkVersion(b) {
   if (!b || !b.id) return;
   if (serverBuild && b.id === serverBuild.id) {
@@ -239,15 +248,20 @@ function checkVersion(b) {
     return;
   }
   serverBuild = b;
-  if (view.name === 'settings') renderVersionInfo();
-  if (!hasNew()) return hideUpdateBanner();
+  if (!hasNew()) return markUpdate();
   offerUpdate();
 }
-// Reload when that is safe and this version wasn't just tried; else the banner.
+// Reload when that is safe and this version wasn't just tried; else the dot (and, for another
+// API, the bar).
 function offerUpdate() {
-  if (Update.safeToReload(reloadState()) && Update.mayTry(session.get(RELOAD_KEY), serverBuild.id, Date.now())) return void reloadToNew({ auto: true });
-  showUpdateBanner();
+  const s = reloadState();
+  if (mustReload()) s.returning = true; // no waiting for the app to come back
+  if (Update.safeToReload(s) && Update.mayTry(session.get(RELOAD_KEY), serverBuild.id, Date.now())) return void reloadToNew({ auto: true });
+  markUpdate();
 }
+// A new build not taken yet: looked at again now and then, as being away is a time, not an event
+// (and a send finishing or a sheet closing can make a reload safe).
+setInterval(() => hasNew() && offerUpdate(), 30000);
 async function checkServerVersion() {
   try {
     const r = await fetch('/api/version', { cache: 'no-store' });
@@ -264,36 +278,42 @@ async function reloadToNew({ auto = false } = {}) {
   try {
     const r = await fetch('/', { cache: 'reload', credentials: 'same-origin' });
     const got = Update.buildOf(await r.text());
-    if (auto && !Update.differs(myBuild, got)) return showUpdateBanner();
+    if (auto && !Update.differs(myBuild, got)) return markUpdate();
   } catch {
-    if (auto) return showUpdateBanner();
+    if (auto) return markUpdate();
   }
-  if (auto && !Update.safeToReload({ ...reloadState(), returning: true })) return showUpdateBanner(); // changed meanwhile
+  if (auto && !Update.safeToReload({ ...reloadState(), returning: true })) return markUpdate(); // changed meanwhile
   stashDraft();
   location.reload();
 }
+// What shows that a new build waits (updateReady, core.js): the dot on 설정 (list.js
+// renderUpdateDot), 설정 → 정보, and the bar only when this page can't go on (mustReload).
+function markUpdate() {
+  const now = hasNew();
+  if (now !== updateReady) {
+    updateReady = now;
+    renderUpdateDot();
+  }
+  if (view.name === 'settings') renderVersionInfo();
+  if (now && mustReload()) showUpdateBanner();
+  else hideUpdateBanner();
+}
+// The bar: what is wrong and the one way out, at the start of the line; no ✕, it can't be put off
+// (and it goes by itself with the reload as soon as that is safe).
 let updateBanner = null;
 function showUpdateBanner() {
-  if (!hasNew() || session.get(DISMISS_KEY) === serverBuild.id || downBar) return;
+  if (!mustReload() || downBar) return;
   if (!updateBanner) {
     updateBanner = document.createElement('div');
     updateBanner.className = 'update-bar';
     updateBanner.setAttribute('role', 'status');
-    updateBanner.innerHTML = `<span class="ub-t"></span>
-      <button type="button" class="ub-go">새로고침</button>
-      <button type="button" class="ub-x" aria-label="닫기" title="닫기">${ICON.x}</button>`;
+    updateBanner.innerHTML = `<span class="ub-t">이 화면이 서버와 맞지 않습니다<span class="ub-more">. 새로고침하면 고쳐집니다</span></span>
+      <button type="button" class="ub-go">새로고침</button>`;
     updateBanner.querySelector('.ub-go').onclick = () => reloadToNew();
-    updateBanner.querySelector('.ub-x').onclick = () => {
-      session.set(DISMISS_KEY, serverBuild.id);
-      hideUpdateBanner();
-    };
     document.body.appendChild(updateBanner);
     new ResizeObserver(() => updateBanner && document.documentElement.style.setProperty('--update-h', `${updateBanner.offsetHeight}px`)).observe(updateBanner);
   }
-  // What to do, not the number (설정 → 정보 has that; here it is the tooltip).
-  const t = updateBanner.querySelector('.ub-t');
-  t.textContent = '새 버전이 있습니다';
-  t.title = `새 버전 ${Update.shortLabel(serverBuild)}`;
+  updateBanner.querySelector('.ub-t').title = `새 버전 ${Update.shortLabel(serverBuild)} · API ${serverBuild.api} (이 화면은 ${myBuild.api})`;
   document.documentElement.classList.add('has-update');
 }
 function hideUpdateBanner() {

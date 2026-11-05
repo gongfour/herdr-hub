@@ -2,7 +2,8 @@
 // A new deploy: an installed app (iPhone home screen, Galaxy Tab Chrome app) is resumed from
 // memory for days instead of loading the page again, so it compares the build it was served with
 // (index.html's <meta name="herdr-hub-build">, which the server writes in) with the one the
-// server now serves, and reloads by itself when nothing would be lost, else offers a banner.
+// server now serves, and reloads by itself when nothing would be lost; else a dot on 설정 waits for
+// the next safe moment, and only an API change (mustReload) puts a bar at the top.
 // These are the pure parts; app.js does the wiring.
 // Pure: loaded as a plain script in the page (window.Update), required by the tests.
 (function (root) {
@@ -57,6 +58,23 @@
     return Boolean(s.returning) && !s.layer && !s.typing && !s.composer && !s.sending && !s.answering;
   }
 
+  // Away from the page without hiding it: on screen but another window has the focus (Hub left on
+  // a monitor while the person works elsewhere), and nothing touched here for a minute. As good as
+  // coming back for a reload: no one is reading or typing here. A focused page that is only still
+  // (a long output being read) is not away.
+  const AWAY_MS = 60 * 1000;
+  function away(s) {
+    return Boolean(s.visible) && !s.focused && Number(s.idleMs) >= AWAY_MS;
+  }
+
+  // Whether this page can't go on as it is: the server speaks another API version (server.js
+  // API_VERSION) than the one this page was written for, so its requests may be wrong. Then the
+  // reload doesn't wait for the app to come back, and a bar says so. Any other new build is
+  // only a dot on 설정 until the next safe moment. Unknown on either side: no.
+  function mustReload(mine, theirs) {
+    return differs(mine, theirs) && Number.isInteger(mine.api) && Number.isInteger(theirs.api) && mine.api !== theirs.api;
+  }
+
   // The loop guard: once a build has been tried, not again for a while (a reload that came back
   // on the old page, a cached index.html, would otherwise go round).
   const RETRY_MS = 10 * 60 * 1000;
@@ -71,7 +89,7 @@
     return `API ${host.api || '없음'} (허브는 ${hub.api})`;
   }
 
-  const api = { apiNote, parseBuild, buildOf, differs, when, buildLabel, shortLabel, safeToReload, mayTry, RETRY_MS };
+  const api = { apiNote, parseBuild, buildOf, differs, when, buildLabel, shortLabel, safeToReload, away, AWAY_MS, mustReload, mayTry, RETRY_MS };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Update = api;
 })(typeof self !== 'undefined' ? self : this);

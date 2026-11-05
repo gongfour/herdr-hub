@@ -81,6 +81,7 @@ let state = { agents: [], terminals: [], workspaces: [], hosts: [], herdr: 'conn
 let view = { name: 'list' };
 let detail = { host: null, pane: null, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: [], sheet: null, activity: null };
 const hostCache = new Map(); // host id -> { kinds, recentCwds, platform, home } from that host's /api/host
+let updateReady = false; // the server serves another build than this page's (app.js markUpdate): a dot on 설정
 let pollTimer = null;
 let tickTimer = null; // the activity line's clock, once a second while working
 let resolveReady;

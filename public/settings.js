@@ -72,6 +72,7 @@ function settingsHtml() {
         <h2 id="g-info">정보</h2>
         <div class="pcard">
           <div class="pref-ver"><button type="button" class="pref-info ver-line" id="s-ver"><span class="ver-k">버전</span><span class="ver-v"></span></button><button type="button" class="btn secondary" id="s-reload">새로고침</button></div>
+          <p class="pref-hint ver-next" id="s-ver-next" hidden></p>
         </div>
       </section>
       <section class="pgroup" aria-labelledby="g-dev">
@@ -409,18 +410,24 @@ function renderVersionInfo() {
   const el = document.getElementById('s-ver');
   if (!el) return;
   const mine = Update.buildLabel(myBuild);
-  const text = !mine ? '알 수 없음' : hasNew() ? `${mine} · 새 버전 ${Update.shortLabel(serverBuild)} 있음` : mine;
+  const text = mine || '알 수 없음';
   const v = el.querySelector('.ver-v');
   if (v.textContent !== text) v.textContent = text;
-  el.classList.toggle('ver-new', hasNew());
   const copy = Boolean(myBuild && myBuild.sha);
   el.title = copy ? `${myBuild.sha} — 눌러서 복사` : '';
   el.setAttribute('aria-label', copy ? `버전 ${text}. 누르면 커밋 해시를 복사합니다` : `버전 ${text}`);
   el.classList.toggle('ver-copy', copy);
-  // A new build waiting: the button says so and stands out; else a quiet 새로고침.
+  // A new build waiting: the line under says which and that nothing needs doing (it comes by
+  // itself the next time the app comes back), and the button stands out; else a quiet 새로고침.
+  const next = document.getElementById('s-ver-next');
+  if (next) {
+    const say = !hasNew() ? '' : mustReload() ? '이 화면이 서버와 맞지 않습니다. 새로고침하면 고쳐집니다' : `새 버전 ${Update.shortLabel(serverBuild)} — 다음에 돌아올 때 저절로 바뀝니다`;
+    if (next.textContent !== say) next.textContent = say;
+    next.hidden = !say;
+  }
   const r = document.getElementById('s-reload');
   if (r) {
-    r.textContent = hasNew() ? '새 버전 받기' : '새로고침';
+    r.textContent = hasNew() ? '지금 새로고침' : '새로고침';
     r.classList.toggle('secondary', !hasNew());
   }
 }

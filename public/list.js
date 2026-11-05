@@ -63,13 +63,21 @@ function backLink(href, label = '작업공간', close = split && href === homeHa
   return `<a class="icon-btn" href="${href}" data-back aria-label="${label}"${keyAttrs('back', '뒤로')}>${ICON.back}</a>`;
 }
 
+// A new build waiting (app.js markUpdate): a dot on 설정, as VS Code's on its gear. No number (a
+// count of deploys means nothing) and not the app icon's badge (that is for 답 필요).
+const updateDot = () => (updateReady ? '<span class="rail-dot" role="img" aria-label="새 버전 있음"></span>' : '');
+function renderUpdateDot() {
+  if (split) return renderRail();
+  const bar = listRoot().querySelector(':scope > .tabbar');
+  if (bar) mountTabBar(bar.querySelector('.tab[aria-current="page"][href="#/settings"]') ? 'settings' : 'spaces');
+}
 function tabBar(active) {
   const n = state.agents.filter((a) => a.status === 'blocked' && shown(a)).length;
   const tab = (key, href, icon, label, extra = '') =>
     `<a class="tab" href="${href}"${active === key ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${extra}</a>`;
   return `<nav class="tabbar" aria-label="탭">
     ${tab('spaces', '#/', ICON.grid, '작업공간', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : '')}
-    ${tab('settings', '#/settings', ICON.gear, '설정')}
+    ${tab('settings', '#/settings', ICON.gear, '설정', updateDot())}
   </nav>`;
 }
 // Each tab's page is kept once drawn: switching puts the other tab's tree back as it was (its
@@ -157,12 +165,12 @@ function renderRail() {
   const dot = !open && state.agents.some((a) => shown(a) && isUnread(a));
   const btn = (key, icon, label, extra = '') => {
     const on = key === 'spaces' ? open : view.name === 'settings';
-    const what = key === 'spaces' ? `${label} 사이드바 ${open ? '접기' : '열기'}` : `${label} ${on ? '닫기' : '열기'}`;
-    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}"${keyAttrs(key === 'spaces' ? 'toggleSide' : 'settings', label)}>${icon}${extra}</button>`;
+    const what = key === 'spaces' ? `${label} 사이드바 ${open ? '접기' : '열기'}` : `${label} ${on ? '닫기' : '열기'}${updateReady ? ' — 새 버전 있음' : ''}`;
+    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}"${keyAttrs(key === 'spaces' ? 'toggleSide' : 'settings', key === 'settings' && updateReady ? `${label} — 새 버전 있음` : label)}>${icon}${extra}</button>`;
   };
   const html = `${btn('spaces', ICON.grid, '작업공간', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : dot ? '<span class="rail-dot" role="img" aria-label="새 결과"></span>' : '')}
     <span class="rail-gap"></span>
-    ${btn('settings', ICON.gear, '설정')}`;
+    ${btn('settings', ICON.gear, '설정', updateDot())}`;
   if (rail._html === html) return;
   rail.innerHTML = rail._html = html;
 }

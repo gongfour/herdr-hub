@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { parseBuild, buildOf, differs, when, buildLabel, shortLabel, apiNote, safeToReload, mayTry, RETRY_MS } = require('../public/update.js');
+const { parseBuild, buildOf, differs, when, buildLabel, shortLabel, apiNote, safeToReload, away, AWAY_MS, mustReload, mayTry, RETRY_MS } = require('../public/update.js');
 
 const b523 = { version: '1.0.523', commit: 'ae7dc0a', sha: 'ae7dc0a'.padEnd(40, '0'), time: '2026-11-05T00:58:00+09:00', dirty: false, api: 1, id: 'aaaaaaaaaaaa' };
 const b524 = { ...b523, version: '1.0.524', commit: 'bb12345', time: '2026-11-05T01:30:00+09:00', id: 'bbbbbbbbbbbb' };
@@ -76,4 +76,22 @@ test('the loop guard: a build tried a moment ago is not tried again', () => {
   assert.equal(mayTry({ v: 'bbbb', t: now - RETRY_MS - 1 }, 'bbbb', now), true);
   assert.equal(mayTry({ v: 'aaaa', t: now - 1000 }, 'bbbb', now), true); // another one since
   assert.equal(mayTry({ v: 'bbbb' }, 'bbbb', now), true); // no time: as never tried
+});
+
+test('away: on screen, another window focused, nothing touched here for a minute', () => {
+  const at = { visible: true, focused: false, idleMs: AWAY_MS };
+  assert.equal(away(at), true);
+  assert.equal(away({ ...at, idleMs: AWAY_MS - 1 }), false); // touched a moment ago
+  assert.equal(away({ ...at, focused: true }), false); // still, but being read
+  assert.equal(away({ ...at, visible: false }), false); // hidden is returning's case, not this
+  assert.equal(away({ visible: true, focused: false }), false); // no idle time known
+});
+
+test('mustReload: only another API version, not any new build', () => {
+  assert.equal(mustReload(b523, b524), false); // a new build on the same API: the dot, no bar
+  assert.equal(mustReload(b523, { ...b524, api: 2 }), true);
+  assert.equal(mustReload(b523, { ...b523, api: 2 }), false); // same id: nothing new (can't happen)
+  assert.equal(mustReload({ ...b523, api: undefined }, { ...b524, api: 2 }), false); // unknown: no
+  assert.equal(mustReload(b523, { ...b524, api: null }), false);
+  assert.equal(mustReload(null, { ...b524, api: 2 }), false);
 });
