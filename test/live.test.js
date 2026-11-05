@@ -348,3 +348,54 @@ test('a key does not wait for a read herdr is holding, and that read is not push
   assert.deepEqual(last.a, ['❯ a']);
   s.stop();
 });
+
+test('a burst: while herdr holds a later key, a read beside it shows the keys already in', async () => {
+  const c = clock();
+  let screen = '❯ ';
+  let n = 0;
+  const out = [];
+  const page = { cur: null, at: [] };
+  const s = liveSession({
+    io: {
+      now: c.now, setTimeout: c.setTimeout, clearTimeout: c.clearTimeout, touch() {},
+      read: () => { const text = screen; return new Promise((res) => c.setTimeout(() => res({ text, format: 'text', source: 's' }), 2)); },
+      // The second key call is held 105 ms (herdr 0.9.3); it lands when the hold ends.
+      input: (text) => new Promise((res) => c.setTimeout(() => ((screen += text), res()), n++ === 1 ? 105 : 2)),
+      echo: () => new Promise((res) => c.setTimeout(() => res({ text: screen, format: 'text', source: 's' }), 2)),
+    },
+    send: (m) => {
+      out.push(m);
+      const f = Live.screenFrame(page.cur, m, ScreenDiff);
+      if (f && !f.full) (page.cur = f), page.at.push([c.now(), f.screen.text]);
+    },
+    pane: 'p', shape: { lines: 200, format: 'text' }, api: 2,
+  });
+  await c.advance(50);
+  const t0 = c.now();
+  s.message({ t: 'k', s: 1, x: 'a', y: [] });
+  s.message({ t: 'k', s: 2, x: '', y: ['left'] }); // a key: its own group after 'a'
+  s.message({ t: 'k', s: 3, x: 'b', y: [] });
+  await c.advance(300);
+  // 'a' showed long before the held call ended, not after the burst.
+  const shownA = page.at.find(([, t]) => t.includes('a'));
+  assert.ok(shownA && shownA[0] - t0 < 20, `a shown at ${shownA && shownA[0] - t0}`);
+  assert.equal(page.at.at(-1)[1], '❯ ab');
+  assert.ok(s.stats.side >= 1);
+  s.stop();
+});
+
+test('a traced key (tr: 1) gets its group’s trace; untraced keys get none', async () => {
+  const r = rig();
+  await r.c.advance(50);
+  r.s.message({ t: 'k', s: 1, x: 'a', y: [] });
+  await r.c.advance(50);
+  assert.ok(!r.out.some((m) => m.t === 'tr'));
+  r.s.message({ t: 'k', s: 2, x: 'b', y: [], tr: 1 });
+  await r.c.advance(50);
+  const tr = r.out.find((m) => m.t === 'tr');
+  assert.equal(tr.from, 2);
+  assert.equal(tr.to, 2);
+  for (const k of ['q', 'in', 'echo', 'at']) assert.equal(typeof tr[k], 'number', k);
+  assert.equal(tr.pushed, true);
+  r.s.stop();
+});

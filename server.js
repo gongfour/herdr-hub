@@ -490,8 +490,29 @@ async function primeHerdr() {
   herdr.call('ping', {}, { timeoutMs: 2000 }).catch(() => {});
   await new Promise((r) => setTimeout(r, PRIME_MS));
 }
-async function sendPaneInput(pane, text, keys) {
+// herdr's pane.wait_for_output for the echo (lib/echo): true when the pattern is on screen. It
+// ends here at ms whatever herdr does: herdr 0.9.3 answers a 40 ms timeout after ~105–210 ms.
+// hedged: sent again when herdr holds it (lib/live hedge), as the live channel does.
+function waitOutput(pane, lines, pattern, ms, { hedged = false, info = null } = {}) {
+  const call = () => herdr.call('pane.wait_for_output', { pane_id: pane, source: 'recent_unwrapped', lines, match: { type: 'regex', value: pattern }, timeout_ms: ms });
+  let timer;
+  return Promise.race([
+    (hedged ? hedge(call) : call()).then(
+      () => true,
+      (err) => {
+        if (info) info.werr = err.code;
+        return false;
+      }
+    ),
+    new Promise((r) => (timer = setTimeout(() => r(false), ms))),
+  ]).finally(() => clearTimeout(timer));
+}
+
+// info (optional): the live channel's trace of this call (lib/live), the ping's wait in ms.
+async function sendPaneInput(pane, text, keys, info) {
+  const t0 = performance.now();
   await primeHerdr();
+  if (info) info.prime = performance.now() - t0;
   if (text && keys.length && sendInputOk && !keys.some((k) => SEQ_KEYS[k])) {
     try {
       return await herdr.call('pane.send_input', { pane_id: pane, text, keys });
@@ -681,11 +702,7 @@ async function api(req, res, url) {
           const shape = { source: 'recent_unwrapped', format: body.echo.format, lines };
           const { screen } = await echo.waitEcho(
             {
-              waitFor: (pattern, ms) =>
-                herdr.call('pane.wait_for_output', { pane_id: pane, source: 'recent_unwrapped', lines, match: { type: 'regex', value: pattern }, timeout_ms: ms }).then(
-                  () => true,
-                  () => false
-                ),
+              waitFor: (pattern, ms) => waitOutput(pane, lines, pattern, ms),
               read: () => readPane(pane, shape.source, lines, shape.format),
               sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
               now: () => performance.now(),
@@ -1005,26 +1022,24 @@ function liveLocal(req, socket, head, pane, url) {
   const io = {
     // Reads and the echo wait are sent again when herdr holds them (lib/live hedge); keys never.
     read: (shape) => hedge(() => readPane(pane, 'recent_unwrapped', shape.lines, shape.format)),
-    input: async (text, keys) => {
-      await sendPaneInput(pane, text, keys);
+    input: async (text, keys, info) => {
+      await sendPaneInput(pane, text, keys, info);
       if (keys.includes('enter')) refreshAfterKeys();
     },
-    echo: async ({ text, before }, shape) =>
-      (
-        await echo.waitEcho(
+    echo: async ({ text, before }, shape, info = {}) => {
+      const r = await echo.waitEcho(
           {
-            waitFor: (pattern, ms) =>
-              hedge(() => herdr.call('pane.wait_for_output', { pane_id: pane, source: 'recent_unwrapped', lines: shape.lines, match: { type: 'regex', value: pattern }, timeout_ms: ms })).then(
-                () => true,
-                () => false
-              ),
+            waitFor: (pattern, ms) => waitOutput(pane, shape.lines, pattern, ms, { hedged: true, info }),
             read: () => hedge(() => readPane(pane, 'recent_unwrapped', shape.lines, shape.format)),
             sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
             now: () => performance.now(),
           },
           { text, before }
-        )
-      ).screen,
+        );
+      info.how = r.how;
+      info.reads = r.reads;
+      return r.screen;
+    },
     touch: () => herdrAwake.touch(),
     now: () => performance.now(),
     setTimeout: (f, ms) => setTimeout(f, ms),
@@ -1050,7 +1065,7 @@ function liveLocal(req, socket, head, pane, url) {
       const y = Array.isArray(m.y) ? m.y : [];
       const bad = badText(x) ? 'bad_text' : y.length ? (validKeys(y, PANE_KEYS) ? null : 'bad_keys') : x ? null : 'bad_keys';
       if (bad) return conn.send(JSON.stringify({ t: 'kerr', from: m.s, to: m.s, error: bad, message: bad }));
-      m = { t: 'k', s: m.s, x, y };
+      m = { t: 'k', s: m.s, x, y, ...(m.tr ? { tr: 1 } : {}) };
     }
     session.message(m);
   });
@@ -1079,8 +1094,27 @@ async function livePeer(req, socket, head, hostId, encodedPane, url) {
   const down = ws.accept(req, socket, head);
   if (!down) return up.close(1001);
   liveConns.add(down);
-  up.on('message', (t) => down.send(t));
-  down.on('message', (t) => up.send(t));
+  // A traced key (lib/live tr): the hub adds how long the peer took from where it stands (hub.rt,
+  // from passing the key on to its group's trace coming back). Untraced messages pass untouched.
+  const tracedAt = new Map();
+  up.on('message', (t) => {
+    if (tracedAt.size && t.startsWith('{"t":"tr"')) {
+      try {
+        const m = JSON.parse(t);
+        const at = tracedAt.get(m.from);
+        for (const s of tracedAt.keys()) if (s <= m.to) tracedAt.delete(s);
+        if (at != null) t = JSON.stringify({ ...m, hub: Math.round((performance.now() - at) * 10) / 10 });
+      } catch {}
+    }
+    down.send(t);
+  });
+  down.on('message', (t) => {
+    if (t.includes('"tr":1') && tracedAt.size < 256) {
+      const s = /"s":(\d+)/.exec(t);
+      if (s) tracedAt.set(Number(s[1]), performance.now());
+    }
+    up.send(t);
+  });
   up.on('close', (code) => down.close(code === 1006 || code === 1005 ? 1011 : code, 'peer'));
   down.on('close', () => {
     liveConns.delete(down);

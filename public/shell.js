@@ -738,11 +738,16 @@ function liveSyncShape() {
   ch.ws.send(JSON.stringify({ t: 'shape', ...want }));
 }
 
+// A debug aid, off unless set from the console or a test (window.liveTrace = []): each key is
+// traced by the host (lib/live tr), and the page notes when it sent, heard and drew.
+const liveTracing = () => Array.isArray(window.liveTrace) && window.liveTrace.length < 5000;
 function liveKey(press) {
   const ch = liveCh;
   const it = { s: ++ch.seq, text: press.text || '', keys: press.key ? [press.key] : [] };
   ch.sent.push(it);
-  ch.ws.send(JSON.stringify({ t: 'k', s: it.s, x: it.text, y: it.keys }));
+  const tr = liveTracing();
+  if (tr) window.liveTrace.push({ e: 'k', s: it.s, t: performance.now(), x: it.text });
+  ch.ws.send(JSON.stringify({ t: 'k', s: it.s, x: it.text, y: it.keys, ...(tr ? { tr: 1 } : {}) }));
 }
 
 // Keys that did not reach the shell (a failure, or the channel dropped before they were
@@ -761,6 +766,12 @@ function liveMessage(ch, data) {
     return;
   }
   ch.heardAt = Date.now();
+  const tr = liveTracing() && { e: m.t, t: performance.now() };
+  if (tr) {
+    if (m.t === 'ack') tr.s = m.s;
+    if (m.t === 'tr') tr.m = m;
+    window.liveTrace.push(tr);
+  }
   if (m.t === 'hello') {
     ch.open = true;
     liveLog[ch.host] = { ...(liveLog[ch.host] || {}), fails: 0 };
@@ -793,7 +804,12 @@ function liveMessage(ch, data) {
   }
   ch.cur = f;
   // A whole screen read with the longer scrollback is the one that goes on above (drawTerminal).
-  if (termHere(ch.host, ch.pane)) drawTerminal(f.screen, ++termReads, m.t === 'f' && ch.shape.lines === TERM_LINES_DEEP);
+  if (!termHere(ch.host, ch.pane)) return;
+  drawTerminal(f.screen, ++termReads, m.t === 'f' && ch.shape.lines === TERM_LINES_DEEP);
+  if (tr) {
+    tr.drawn = performance.now();
+    requestAnimationFrame(() => (tr.frame = performance.now()));
+  }
 }
 
 function liveClosed(ch) {

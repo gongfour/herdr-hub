@@ -133,3 +133,13 @@ test('lastScreens: per pane and per kind of read; the oldest panes go first', ()
   m.drop('w1:p3');
   assert.equal(m.get('w1:p3', ansi), null);
 });
+
+test('waitEcho: the wait’s timeout is whole ms even on a fractional clock (herdr refuses a fraction)', async () => {
+  const f = fakeHerdr({ before: '❯ zq', after: '❯ zqk', echoAt: 4 });
+  const now = f.io.now;
+  let ticks = 0;
+  f.io.now = () => now() + 0.3725 * ticks++; // performance.now(): time passes between the reads
+  await waitEcho(f.io, { text: 'k', before: { text: '❯ zq' } });
+  const ms = f.calls.find((c) => c[0] === 'wait')[3];
+  assert.ok(Number.isInteger(ms) && ms >= 1 && ms <= CAP_MS, `timeout_ms ${ms}`);
+});
