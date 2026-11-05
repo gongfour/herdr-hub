@@ -619,14 +619,31 @@ function prefetchNeighbours() {
 
 // Claude Code holds a prompt that comes while it is busy and writes it down only when it takes
 // it (between tool calls, or once the turn ends): a bubble marked 대기 중 shows it meanwhile.
-// Per agent while the page lives. One goes when a user message with its text turns up after
-// the point it was sent at, or when the agent has been idle a minute since (taken, or dropped).
-const pendingSent = new Map(); // host|pane -> [{ text, after, at, pics }]
+// Per agent, kept in this tab's sessionStorage so a reload (a new version, 새로고침) keeps the
+// bubbles. One goes when a user message with its text turns up after the point it was sent at,
+// or when the agent has been idle a minute since (taken, or dropped).
+const PENDING_KEY = 'herdr-hub.pending'; // { host|pane: [{ text, after, at, pics }] }
+const pendingSent = new Map(
+  (() => {
+    try {
+      return Object.entries(JSON.parse(sessionStorage.getItem(PENDING_KEY)) || {}).filter(([, v]) => Array.isArray(v));
+    } catch {
+      return [];
+    }
+  })()
+);
+function savePending() {
+  try {
+    if (pendingSent.size) sessionStorage.setItem(PENDING_KEY, JSON.stringify(Object.fromEntries(pendingSent)));
+    else sessionStorage.removeItem(PENDING_KEY);
+  } catch {}
+}
 const sameText = (s) => String(s).replace(/\s+/g, ' ').trim();
 function addPending(key, text, pics) {
   const msgs = (detail.transcript && detail.transcript.messages) || [];
   const last = msgs[msgs.length - 1];
   pendingSent.set(key, [...(pendingSent.get(key) || []), { text, after: last ? last.id : null, at: Date.now(), pics }]);
+  savePending();
 }
 function pendingNow(key, a) {
   const list = pendingSent.get(key);
@@ -638,8 +655,11 @@ function pendingNow(key, a) {
     const from = p.after ? msgs.findIndex((m) => m.id === p.after) + 1 : 0;
     return !msgs.slice(from).some((m) => m.role === 'user' && !m.bash && sameText(userParts(m).text) === sameText(p.text));
   });
-  if (keep.length) pendingSent.set(key, keep);
-  else pendingSent.delete(key);
+  if (keep.length !== list.length) {
+    if (keep.length) pendingSent.set(key, keep);
+    else pendingSent.delete(key);
+    savePending();
+  }
   return keep;
 }
 function pendingBubble(p) {
