@@ -214,3 +214,13 @@ test('corsOrigin: this tailnet over https, loopback with ALLOW_LOCAL, nothing el
   assert.equal(corsOrigin('http://127.0.0.1:8797', { ...rule, local: true }), 'http://127.0.0.1:8797');
   assert.equal(corsOrigin('http://localhost:8797', { ...rule, local: true }), 'http://localhost:8797');
 });
+
+test('readJson: an object, {} when empty; null, a list or a number is a 400, not a TypeError later', async () => {
+  const { readJson } = require('../lib/http');
+  const { Readable } = require('stream');
+  const body = (text) => readJson(Readable.from(text ? [Buffer.from(text)] : []));
+  assert.deepEqual(await body('{"a":1}'), { a: 1 });
+  assert.deepEqual(await body(''), {});
+  for (const t of ['null', '[1]', '3', '"x"', 'true']) await assert.rejects(body(t), { status: 400, code: 'bad_body' }, t);
+  await assert.rejects(body('{'), { status: 400 });
+});
