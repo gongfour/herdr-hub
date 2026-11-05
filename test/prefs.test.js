@@ -44,6 +44,7 @@ test('storage keys are the ones the app always used', () => {
     'wrap.agent': 'herdr-hub.wrap.agent',
     termFont: 'herdr-hub.termFont',
     edgeForward: 'herdr-hub.edgeForward',
+    listW: 'herdr-hub.listW',
   });
   // index.html applies the theme before any script: it reads this key and these values.
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
@@ -62,6 +63,7 @@ test('values written by the old code read the same (and unknown or missing ones 
     'wrap.agent': (s) => (s === '1' || s === '0' ? s === '1' : false),
     edgeForward: (s) => (s === '1' || s === '0' ? s === '1' : false), // new: off unless iOS
     termFont: (s) => (['11', '12', '14'].includes(s) ? s : '12'), // new
+    listW: () => 'auto', // new: no sample is one of its values
   };
   const samples = [null, '', 'send', 'newline', 'line', 'raw', 'light', 'dark', 'system', '1', '0', 'true', 'x', '11', '12', '14', '13'];
   for (const p of PREFS)
@@ -257,4 +259,27 @@ test('pushView: unsupported, still looking, and a peer that leaves push to its h
     assert.match(off.lines[0], /허브\(desktop\)에서 켜세요/);
   }
   assert.match(pv({ off: true, hub: '' }).lines[0], /^알림은 허브에서 켜세요/);
+});
+
+test('목록 칸 폭: a named width or a dragged one (a whole number in range); 자동 removes the key', () => {
+  const { listWidth, isFree, row } = require('../public/prefs.js');
+  const p = row('listW');
+  const st = fakeStorage();
+  const store = createStore(() => st);
+  assert.equal(store.get('listW'), 'auto');
+  store.set('listW', '312');
+  assert.equal(st.m.get('herdr-hub.listW'), '312');
+  assert.equal(store.get('listW'), '312');
+  assert.equal(listWidth('312'), 312);
+  assert.equal(listWidth('narrow'), 264);
+  assert.equal(listWidth('wide'), 400);
+  assert.equal(listWidth('auto'), null);
+  assert.match(hintOf(p, '312'), /312px/);
+  store.set('listW', 'auto');
+  assert.equal(st.m.has('herdr-hub.listW'), false);
+  for (const bad of ['10', '9999', '300.5', '-300', 'x', 300]) {
+    assert.equal(isFree(p, bad), false, String(bad));
+    assert.throws(() => store.set('listW', bad));
+  }
+  for (const raw of ['10', '9999', 'x']) assert.equal(decode(p, raw), 'auto', raw);
 });

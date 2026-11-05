@@ -76,6 +76,9 @@ async function renderForm() {
     const cwd = document.getElementById('f-cwd');
     cwd.oninput = () => showPicked();
     document.getElementById('f-browse').onclick = () => browseDirs(view.formHost || host);
+    // Opened from the keyboard (+'s key, Tab and Enter on +): the focus into the form, not
+    // left on the page behind the list's many stops.
+    if (lastInput === 'key') (document.getElementById('f-host') || document.getElementById('f-browse')).focus({ preventScroll: true });
   }
   if (isNew || ws || term) fillForm(host);
   // Opened from a keyboard (Ctrl+N): straight into the form, its first field.

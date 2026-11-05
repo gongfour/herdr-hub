@@ -144,6 +144,7 @@ function setSideOff(off) {
   document.documentElement.classList.toggle('side-off', off);
   if (!split) return;
   renderRail();
+  syncGrip(); // app.js: its width again, now that the list shows (or doesn't)
   if (!isDetail()) renderEmpty(); // its words say where the list is
 }
 
@@ -157,7 +158,7 @@ function renderRail() {
   const btn = (key, icon, label, extra = '') => {
     const on = key === 'spaces' ? open : view.name === 'settings';
     const what = key === 'spaces' ? `${label} 사이드바 ${open ? '접기' : '열기'}` : `${label} ${on ? '닫기' : '열기'}`;
-    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}"${key === 'spaces' ? keyAttrs('toggleSide', label) : ` title="${label}"`}>${icon}${extra}</button>`;
+    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}"${keyAttrs(key === 'spaces' ? 'toggleSide' : 'settings', label)}>${icon}${extra}</button>`;
   };
   const html = `${btn('spaces', ICON.grid, '작업공간', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : dot ? '<span class="rail-dot" role="img" aria-label="새 결과"></span>' : '')}
     <span class="rail-gap"></span>
@@ -260,13 +261,33 @@ function hostSeg(f) {
 function showChosenHost(nav, left = 0) {
   if (!nav) return;
   nav.scrollLeft = left;
-  if (nav.scrollWidth <= nav.clientWidth) return;
   const b = nav.querySelector('button[aria-pressed="true"]');
-  if (!b) return;
   const pad = 12;
-  if (b.offsetLeft - pad < nav.scrollLeft) nav.scrollLeft = b.offsetLeft - pad;
-  else if (b.offsetLeft + b.offsetWidth + pad > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = b.offsetLeft + b.offsetWidth + pad - nav.clientWidth;
+  if (b && nav.scrollWidth > nav.clientWidth) {
+    if (b.offsetLeft - pad < nav.scrollLeft) nav.scrollLeft = b.offsetLeft - pad;
+    else if (b.offsetLeft + b.offsetWidth + pad > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = b.offsetLeft + b.offsetWidth + pad - nav.clientWidth;
+  }
+  hostSegEdges(nav);
 }
+// The segment says there is more past an edge by fading it (style.css .more-l / .more-r).
+function hostSegEdges(nav = listRoot() && listRoot().querySelector(':scope > .seg.hosts')) {
+  if (!nav) return;
+  const max = nav.scrollWidth - nav.clientWidth;
+  nav.classList.toggle('more-l', max > 1 && nav.scrollLeft > 1);
+  nav.classList.toggle('more-r', max > 1 && nav.scrollLeft < max - 1);
+}
+document.addEventListener('scroll', (e) => e.target.matches && e.target.matches('.seg.hosts') && hostSegEdges(e.target), true);
+// A mouse wheel has no sideways: over a segment that scrolls, it scrolls the segment.
+document.addEventListener(
+  'wheel',
+  (e) => {
+    const nav = e.target.closest && e.target.closest('.seg.hosts');
+    if (!nav || e.ctrlKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY) || nav.scrollWidth <= nav.clientWidth) return;
+    nav.scrollLeft += e.deltaY;
+    e.preventDefault();
+  },
+  { passive: false },
+);
 
 function render() {
   if (tabSwipeBusy()) return void (tabSwipe.pending = true); // the pages under a host swipe
@@ -297,6 +318,12 @@ function render() {
   main._top = top;
   showChosenHost(root.querySelector(':scope > .seg.hosts'), segLeft);
   patchList(main, parts);
+  // The live stream down: what is listed may be old (style.css main.home.stale, tickList).
+  main.classList.toggle('stale', !live && state.herdr !== 'connecting');
+  // #/new open on the right: the + is marked as what is open.
+  const plus = root.querySelector(':scope > .bar a[href$="/new"]');
+  if (plus) plus.toggleAttribute('aria-current', split && view.name === 'form' && view.mode === 'new');
+  if (plus && plus.hasAttribute('aria-current')) plus.setAttribute('aria-current', 'page');
   mountTabBar('spaces');
   // Back from an agent: where the list was left.
   if (fresh && listScroll) main.scrollTop = listScroll;
@@ -377,6 +404,8 @@ function spacesParts(list, down, f) {
     const where = hostLabel(localId()) || state.host || '이 기기';
     return [['empty', `<div class="empty" role="status"><p class="empty-t">${esc(where)} 의 herdr 에 연결하지 못했습니다</p><p>그 기기에서 herdr 가 실행 중인지 확인하세요.</p>${connLink('연결 상태 보기')}</div>`]];
   }
+  // Split: the right column says it in full, with the button; here a short line.
+  if (split) return [['empty', '<div class="empty"><p class="empty-t">워크스페이스가 없습니다</p><p>머리글의 + 로 새로 시작합니다.</p></div>']];
   const href = f === 'all' ? '#/new' : link(f, '/new');
   return [['empty', `<div class="empty"><p class="empty-t">워크스페이스가 없습니다</p><p>폴더를 고르면 에이전트까지 바로 시작합니다.</p><a class="btn" href="${href}"${keyAttrs('newWorkspace', '새 워크스페이스')}>새 워크스페이스</a></div>`]];
 }
@@ -436,7 +465,8 @@ function patchList(box, parts) {
 // Times on the list and the workspace page, filled in here so the cards' HTML stays the same.
 let listTimer = null;
 function tickList() {
-  const box = split || ['list', 'ws'].includes(view.name) ? $app : null;
+  // The live stream down: the times stop where they were (the statuses they count are old).
+  const box = live && (split || ['list', 'ws'].includes(view.name)) ? $app : null;
   const els = box ? box.querySelectorAll('.el[data-since], .el[data-ago]') : [];
   if (box) fillTimes(box);
   if (els.length && !listTimer) listTimer = setInterval(tickList, 1000);

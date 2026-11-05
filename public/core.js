@@ -257,12 +257,22 @@ const PREF_EFFECTS = {
   shellInput(v) {
     if (view.name === 'term' && detail.setRaw) detail.setRaw(v === 'raw');
   },
+  listW() {
+    applyListWidth();
+    if (split) syncGrip(), hostSegEdges(); // app.js, list.js
+  },
 };
 // 셸 글자 크기: the shell view's screen box (style.css .screen.term) reads --term-font.
 function applyTermFont(v = Prefs.get('termFont')) {
   document.documentElement.style.setProperty('--term-font', `${Number(v) || 12}px`);
 }
 applyTermFont();
+// 목록 칸 폭 (prefs.js listW): a set width overrides style.css's 자동 (--list-w-set).
+function applyListWidth(px = Prefs.listWidth(Prefs.get('listW'))) {
+  const st = document.documentElement.style;
+  if (px) st.setProperty('--list-w-set', `${Math.round(px)}px`);
+  else st.removeProperty('--list-w-set');
+}
 function setPref(key, v) {
   Prefs.set(key, v);
   if (PREF_EFFECTS[key]) PREF_EFFECTS[key](v);

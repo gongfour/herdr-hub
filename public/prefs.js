@@ -14,6 +14,8 @@
 //   defaults        per platform ('ios' | 'android' | 'desktop', push.js platformOf), in place of
 //                   default on that platform: { ios: true } is on for an iPhone, default elsewhere.
 //   clearOnDefault  choosing the default removes the key instead of storing it (화면 모드).
+//   free            choice: { min, max, hint }: a whole number in min..max is a value too, one no
+//                   option names (목록 칸 폭 set by dragging); hint says it ('{}' is the number).
 //   hint            one line under the control: a string, or { value: line } for the chosen one.
 // Stored values: a choice as its value, a bool as '1' / '0' (as the app always stored them).
 // GROUPS give the order of the groups between 알림 (first) and 키보드 · 연결 · 정보 · 이 기기 (last), hand-drawn.
@@ -61,7 +63,19 @@
       hint: { 11: '표가 넓을 때: 한 줄에 더 많이 들어갑니다.', 12: '', 14: '넓은 화면에서 읽기 편합니다.' },
     },
     { key: 'wrap.agent', store: 'herdr-hub.wrap.agent', group: 'screen', label: '에이전트 터미널 화면 줄바꿈', type: 'bool', default: false, hint: '에이전트의 「터미널 화면 보기」에서 같은 일을 합니다.' },
+    {
+      key: 'listW', store: 'herdr-hub.listW', group: 'screen', label: '목록 칸 폭', type: 'choice',
+      options: { auto: '자동', narrow: '좁게', wide: '넓게' }, default: 'auto', clearOnDefault: true,
+      free: { min: 240, max: 480, hint: '목록 칸 가장자리를 끌어 {}px 로 맞췄습니다. 두 번 누르면 자동으로 돌아갑니다.' },
+      hint: {
+        auto: '두 칸 화면(가로 태블릿·노트북)의 왼쪽 목록 폭입니다. 가장자리를 끌어도 바뀝니다.',
+        narrow: '대화 칸을 넓게 씁니다. 긴 제목은 두 줄로 꺾입니다.',
+        wide: '긴 제목을 한 줄에 더 보입니다.',
+      },
+    },
   ];
+  // The px each named width is (core.js applyListWidth); auto is style.css's, per pointer.
+  const LIST_WIDTHS = { narrow: 264, wide: 400 };
   const BY_KEY = new Map(PREFS.map((p) => [p.key, p]));
   const row = (key) => {
     const p = BY_KEY.get(key);
@@ -72,10 +86,12 @@
   // The default on this platform.
   const defaultOf = (p, platform) => (p.defaults && platform && Object.prototype.hasOwnProperty.call(p.defaults, platform) ? p.defaults[platform] : p.default);
   // The stored string -> the value; anything unknown (or missing) is the default.
+  // A free value (a whole number in range), as the string it is stored as.
+  const isFree = (p, v) => Boolean(p.free) && typeof v === 'string' && /^\d{1,4}$/.test(v) && Number(v) >= p.free.min && Number(v) <= p.free.max;
   function decode(p, raw, platform) {
     const d = defaultOf(p, platform);
     if (p.type === 'bool') return raw === '1' ? true : raw === '0' ? false : d;
-    return raw != null && Object.prototype.hasOwnProperty.call(p.options, raw) ? raw : d;
+    return raw != null && (Object.prototype.hasOwnProperty.call(p.options, raw) || isFree(p, raw)) ? raw : d;
   }
   // The value -> the string to store, or null to remove the key.
   function encode(p, v) {
@@ -83,8 +99,10 @@
     if (p.clearOnDefault && v === p.default) return null;
     return String(v);
   }
-  const valid = (p, v) => (p.type === 'bool' ? typeof v === 'boolean' : Object.prototype.hasOwnProperty.call(p.options, v));
-  const hintOf = (p, v) => (typeof p.hint === 'string' ? p.hint : (p.hint && p.hint[v]) || '');
+  const valid = (p, v) => (p.type === 'bool' ? typeof v === 'boolean' : Object.prototype.hasOwnProperty.call(p.options, v) || isFree(p, v));
+  const hintOf = (p, v) => (isFree(p, v) ? p.free.hint.replace('{}', v) : typeof p.hint === 'string' ? p.hint : (p.hint && p.hint[v]) || '');
+  // 목록 칸 폭's value in px, or null for 자동 (style.css decides by the pointer).
+  const listWidth = (v) => (isFree(BY_KEY.get('listW'), v) ? Number(v) : LIST_WIDTHS[v] || null);
 
   // A store over storage() (localStorage in the page; it may throw in private mode or with site
   // data blocked). A choice made while storage fails lasts in memory until the page reloads.
@@ -122,7 +140,7 @@
     return /Android/.test(ua) ? 'android' : 'desktop';
   }
 
-  const api = { GROUPS, PREFS, row, defaultOf, decode, encode, valid, hintOf, createStore, platformOf };
+  const api = { GROUPS, PREFS, row, defaultOf, decode, encode, valid, isFree, hintOf, listWidth, createStore, platformOf };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else {
     const nav = root.navigator || {};

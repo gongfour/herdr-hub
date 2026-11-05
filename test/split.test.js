@@ -36,3 +36,19 @@ test('stepHost: round the segment from either end; nothing with one choice', () 
   assert.equal(stepHost(ids, 'gone', 1), 'macbook'); // a host that left counts as 전체
   assert.equal(stepHost(['all'], 'all', 1), null);
 });
+
+test('stepRow: a workspace open steps from its card; a step never lands on a card head', () => {
+  // card W1 (rows a, b), card W2 (rows c, d), card W3 (no rows), card W4 (row e)
+  const hrefs = ['#w1', '#a', '#b', '#w2', '#c', '#d', '#w3', '#w4', '#e'];
+  const heads = ['#w1', '#w2', '#w3', '#w4'];
+  assert.equal(stepRow(hrefs, '#w2', 1, heads), '#c'); // its first row, not the top of the list
+  assert.equal(stepRow(hrefs, '#w2', -1, heads), '#b'); // the card before's last row
+  assert.equal(stepRow(hrefs, '#w4', -1, heads), '#d'); // past an empty card
+  assert.equal(stepRow(hrefs, '#w3', 1, heads), '#e');
+  assert.equal(stepRow(hrefs, '#w1', -1, heads), null); // nothing above
+  assert.equal(stepRow(hrefs, '#b', 1, heads), '#c'); // rows step over the heads
+  assert.equal(stepRow(hrefs, '#c', -1, heads), '#b');
+  assert.equal(stepRow(hrefs, null, 1, heads), '#a');
+  assert.equal(stepRow(hrefs, null, -1, heads), '#e');
+  assert.equal(stepRow(['#w1'], '#w1', 1, ['#w1']), null);
+});

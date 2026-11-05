@@ -59,6 +59,8 @@
     prevRow: { group: '목록', label: '두 칸: 목록의 이전 에이전트·셸 열기' },
     nextRow: { group: '목록', label: '두 칸: 목록의 다음 에이전트·셸 열기' },
     toggleSide: { group: '목록', label: '두 칸: 사이드바 접기·펴기 (입력 칸에서도)' },
+    nextPane: { group: '목록', label: '두 칸: 다음 칸으로 포커스 (활동 막대 → 목록의 고른 줄 → 오른쪽의 입력 칸, VS Code 의 F6)' },
+    prevPane: { group: '목록', label: '두 칸: 이전 칸으로 포커스' },
   };
 
   const b = (action, key, o = {}) => ({ action, key, field: false, shell: false, layer: false, split: false, ...o });
@@ -113,6 +115,10 @@
     // Alt+B in the shell view too, taken from the shell (its back-a-word is also Alt+←); Ctrl+B
     // there stays the shell's.
     b('toggleSide', 'Alt+b', { field: true, shell: true, split: true }),
+    // F6 / Shift+F6 as VS Code's: the focus to the next (previous) column, past the list's many
+    // Tab stops. Taken from the shell too (its F6 is rarely anything): the way out to the list.
+    b('nextPane', 'F6', { field: true, shell: true, split: true }),
+    b('prevPane', 'Shift+F6', { field: true, shell: true, split: true }),
     b('stop', 'Alt+.', { field: true }),
     // Ctrl+N is the shell's (next line) and Alt+N readline's; Chrome may keep Ctrl+N (and
     // Ctrl+Shift+N) for a new window, so each has an Alt twin.
@@ -159,6 +165,7 @@
     { group: '셸', key: 'Escape', label: '한 줄 입력: 한 번이면 칸에서 나가고, 두 번이면 뒤로 (대화 화면과 같다)' },
     { group: '셸', key: '', label: '단축키 페이지에서 「셸 화면 Hub」인 키만 Hub 가 쓰고, 나머지는 모두 셸로 간다. 키 줄의 Alt·Ctrl 을 누르고 친 키는 언제나 셸로 (Alt 다음 B 는 셸의 alt+b)' },
     { group: '폼', key: 'Ctrl+Enter', label: '에이전트 시작·새 워크스페이스: 시작 / 만들기 (⌘+리턴도, 어느 칸에서나)' },
+    { group: '목록 칸 폭', key: 'ArrowRight', label: '두 칸: 목록 칸 가장자리에 포커스가 있을 때 ←/→ 로 16px 씩 좁히고 넓힌다. 리턴(두 번 누르기)은 자동으로' },
     { group: '빠른 이동', key: 'Enter', label: '고른 것 열기. Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
     { group: '빠른 이동', key: 'Ctrl+j', follows: 'scrollDown', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞; 아래로 스크롤의 키)' },
     { group: '빠른 이동', key: 'Ctrl+k', follows: 'scrollUp', label: '이전 것 고르기 (↑ 와 같다; 위로 스크롤의 키)' },

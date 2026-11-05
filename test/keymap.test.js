@@ -41,6 +41,8 @@ test('the shell keys the defaults take are exactly this list', () => {
     'Alt+j nextRow',
     'Alt+p switcher', // Ctrl+P stays the shell's
     'Alt+b toggleSide', // the split layout only; Alt+← is the shell's back-a-word too
+    'F6 nextPane', // the split layout only: the focus to the next column, out of the shell too
+    'Shift+F6 prevPane',
   ]);
 });
 
@@ -583,4 +585,16 @@ test('wrap: Alt+Z as VS Code, in a field too; in the shell view Ctrl+Alt+Z, Alt+
   for (const ctx of [{}, { field: true }, { shell: true, field: true }]) assert.equal(act('Ctrl+Alt+z', ctx), 'wrap');
   assert.equal(rawKeyName(ev('Ctrl+Alt+z')), null);
   assert.equal(act('Alt+z', { layer: true }), null);
+});
+
+test('F6 / Shift+F6: the focus to the next / previous column, split only; a field, the shell view too, not under a sheet', () => {
+  for (const ctx of [{ split: true }, { split: true, field: true }, { split: true, shell: true }]) {
+    assert.equal(act('F6', ctx), 'nextPane', JSON.stringify(ctx));
+    assert.equal(act('Shift+F6', ctx), 'prevPane', JSON.stringify(ctx));
+  }
+  assert.equal(act('F6', {}), null); // the phone: one column
+  assert.equal(act('F6', { split: true, layer: true }), null);
+  assert.equal(KM0.shellKey(ev('F6'), { shell: true, split: true }), null); // the Hub's in the shell
+  assert.equal(KM0.shellKey(ev('F6'), { shell: true }), 'f6'); // the phone: the shell's
+  assert.equal(act('Ctrl+F6', { split: true }), null);
 });

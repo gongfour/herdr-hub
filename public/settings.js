@@ -127,11 +127,14 @@ function syncPrefs(main) {
       el.querySelector('input').checked = v;
       continue;
     }
-    for (const b of el.querySelectorAll('[role=radio]')) {
+    const radios = [...el.querySelectorAll('[role=radio]')];
+    for (const b of radios) {
       const on = b.dataset.v === v;
       b.setAttribute('aria-checked', String(on));
       b.tabIndex = on ? 0 : -1;
     }
+    // A free value (목록 칸 폭 dragged to a width) checks none: the first is the Tab stop.
+    if (!radios.some((b) => b.tabIndex === 0) && radios[0]) radios[0].tabIndex = 0;
     const hint = Prefs.hintOf(p, v);
     const h = el.querySelector('.pref-hint');
     h.textContent = hint;

@@ -553,7 +553,10 @@ function relayout() {
   split = want;
   dropTabPages();
   document.documentElement.classList.toggle('split', split);
-  $app.innerHTML = split ? '<nav class="rail" id="rail" aria-label="탭"></nav><div class="col" id="list-pane"></div><div class="col" id="detail-pane"></div>' : '';
+  $app.innerHTML = split
+    ? `<nav class="rail" id="rail" aria-label="탭"></nav><div class="col" id="list-pane"></div><div class="list-grip" role="separator" aria-orientation="vertical" aria-controls="list-pane" aria-label="목록 칸 폭" tabindex="0" title="끌어서 목록 칸 폭 바꾸기 · 두 번 누르면 자동"></div><div class="col" id="detail-pane"></div>`
+    : '';
+  syncGrip();
   route(null, { relayout: true });
   refocusInput(refocus && document.getElementById(refocus));
 }
@@ -576,21 +579,135 @@ function renderEmpty() {
   root.firstElementChild._html = html;
 }
 // Also what a back swipe shows behind the page it closes (backswipe.js).
+// An empty list says what to do instead: start a workspace, or why there is nothing (herdr down).
 function emptyDetailHtml() {
   const off = sideOff();
-  // The keys as this device has them (keymap.js), only those it has.
+  // The keys as this device has them (keymap.js), only those it has; each pair kept on one line.
   const k = (action, words) => {
     const h = Keymap.hint(action);
-    return h ? `<kbd>${esc(h)}</kbd> ${words}` : '';
+    return h ? `<span class="ed-k"><kbd>${esc(h)}</kbd> ${words}</span>` : '';
   };
-  const keys = [k('switcher', '찾아 열기'), k('nextRow', '목록 옮겨 다니기'), k('nextBlocked', '다음 답 필요'), k('toggleSide', '사이드바 접기')].filter(Boolean);
-  const html = `<div class="empty-detail">
-      <span class="ed-ic" aria-hidden="true">${ICON.panel}</span>
-      <h2>${off ? '목록을 열어 에이전트를 고르세요' : '왼쪽에서 에이전트를 고르세요'}</h2>
-      ${off ? '<button type="button" class="btn secondary ed-open" aria-controls="list-pane">작업공간 목록 열기</button>' : ''}
-      ${keys.length ? `<p class="ed-keys">${keys.join(' · ')}</p>` : ''}
+  const keyLine = (keys) => (keys.filter(Boolean).length ? `<p class="ed-keys">${keys.filter(Boolean).join('<span class="ed-sep" aria-hidden="true"> · </span>')}</p>` : '');
+  const icon = `<span class="ed-ic" aria-hidden="true">${ICON.panel}</span>`;
+  const f = filter();
+  if (live && !listModel().list.length) {
+    const down = state.herdr !== 'up' && (f === localId() || (f === 'all' && !multi()));
+    const peer = f !== 'all' && f !== localId() ? hostOf(f) : null;
+    if (down || (peer && (!peer.online || peer.herdr !== 'up'))) {
+      const where = peer ? peer.label : hostLabel(localId()) || state.host || '이 기기';
+      return `<div class="empty-detail">
+      ${icon}
+      <h2>${esc(where)} 의 에이전트를 볼 수 없습니다</h2>
+      <p>${peer && !peer.online ? '그 기기가 잠들었거나 Herdr Hub 가 꺼져 있습니다.' : '그 기기에서 herdr 가 실행 중인지 확인하세요.'}</p>
+      <div class="ed-acts">${connLink('연결 상태 보기')}</div>
     </div>`;
-  return html;
+    }
+    const href = f === 'all' ? '#/new' : link(f, '/new');
+    return `<div class="empty-detail">
+      ${icon}
+      <h2>아직 워크스페이스가 없습니다</h2>
+      <p>폴더를 고르면 에이전트까지 바로 시작합니다.</p>
+      <div class="ed-acts"><a class="btn" href="${href}"${keyAttrs('newWorkspace', '새 워크스페이스')}>새 워크스페이스</a></div>
+      ${keyLine([k('newWorkspace', '새 워크스페이스'), k('switcher', '찾아 열기')])}
+    </div>`;
+  }
+  const keys = [k('switcher', '찾아 열기'), k('nextRow', '목록 옮겨 다니기'), k('nextBlocked', '다음 답 필요'), k('nextPane', '칸 옮기기'), k('toggleSide', off ? '목록 펴기' : '사이드바 접기')];
+  return `<div class="empty-detail">
+      ${icon}
+      <h2>${off ? '목록을 열어 에이전트를 고르세요' : '왼쪽에서 에이전트를 고르세요'}</h2>
+      ${off ? `<button type="button" class="btn secondary ed-open" aria-controls="list-pane"${keyAttrs('toggleSide', '작업공간 목록 열기')}>작업공간 목록 열기</button>` : ''}
+      ${keyLine(keys)}
+    </div>`;
+}
+
+// ---- the sidebar's width: its edge (.list-grip) dragged, or ←/→ with the focus on it (16px a
+// press), double-click (or Enter) for 자동. Kept as 설정 → 목록 칸 폭 (prefs.js listW).
+const LIST_W = { min: 240, max: 480, step: 16 };
+const listPaneWidth = () => {
+  const el = document.getElementById('list-pane');
+  return el ? Math.round(el.getBoundingClientRect().width) : 0;
+};
+const clampListW = (px) => Math.round(Math.min(LIST_W.max, Math.max(LIST_W.min, px, 0)));
+function syncGrip() {
+  const g = $app.querySelector('.list-grip');
+  if (!g) return;
+  const w = listPaneWidth();
+  g.setAttribute('aria-valuemin', LIST_W.min);
+  g.setAttribute('aria-valuemax', LIST_W.max);
+  if (w) {
+    g.setAttribute('aria-valuenow', w);
+    g.setAttribute('aria-valuetext', `${w}px${Prefs.get('listW') === 'auto' ? ' (자동)' : ''}`);
+  }
+}
+function setListWidth(v) {
+  setPref('listW', v); // core.js applyListWidth
+  syncGrip();
+  hostSegEdges();
+}
+$app.addEventListener('pointerdown', (e) => {
+  const g = e.target.closest && e.target.closest('.list-grip');
+  if (!g || e.button) return;
+  e.preventDefault();
+  g.setPointerCapture(e.pointerId);
+  const left = document.getElementById('list-pane').getBoundingClientRect().left;
+  let px = null;
+  g.classList.add('dragging');
+  document.documentElement.classList.add('list-dragging');
+  const move = (ev) => {
+    px = clampListW(ev.clientX - left);
+    applyListWidth(px); // live; stored when the finger or button lets go
+  };
+  const end = () => {
+    g.removeEventListener('pointermove', move);
+    g.removeEventListener('pointerup', end);
+    g.removeEventListener('pointercancel', end);
+    g.classList.remove('dragging');
+    document.documentElement.classList.remove('list-dragging');
+    if (px != null) setListWidth(String(px));
+  };
+  g.addEventListener('pointermove', move);
+  g.addEventListener('pointerup', end);
+  g.addEventListener('pointercancel', end);
+});
+$app.addEventListener('dblclick', (e) => e.target.closest && e.target.closest('.list-grip') && setListWidth('auto'));
+// The separator's own keys (as any splitter's), not shortcuts: listed in keymap.js LOCAL.
+$app.addEventListener('keydown', (e) => {
+  const g = e.target.closest && e.target.closest('.list-grip');
+  if (!g || e.ctrlKey || e.altKey || e.metaKey) return;
+  const w = listPaneWidth();
+  const to = { ArrowLeft: w - LIST_W.step, ArrowRight: w + LIST_W.step, Home: LIST_W.min, End: LIST_W.max }[e.key];
+  if (to != null) setListWidth(String(clampListW(to)));
+  else if (e.key === 'Enter') setListWidth('auto');
+  else return;
+  e.preventDefault();
+});
+window.addEventListener('resize', () => split && syncGrip());
+
+// F6 / Shift+F6 (keymap.js nextPane / prevPane): the focus to the next or previous column, as
+// VS Code's: the rail, the list (its selected row), the right (its field, else its page).
+function focusPane(dir) {
+  if (!split) return false;
+  const panes = ['rail', ...(sideOff() ? [] : ['list-pane']), 'detail-pane'].map((id) => document.getElementById(id)).filter(Boolean);
+  const a = document.activeElement;
+  const i = panes.findIndex((p) => p.contains(a));
+  const next = panes[i < 0 ? (dir > 0 ? 0 : panes.length - 1) : (i + (dir > 0 ? 1 : panes.length - 1)) % panes.length];
+  let to = null;
+  if (next.id === 'rail') to = next.querySelector('.rail-btn[aria-pressed="true"]') || next.querySelector('.rail-btn');
+  else if (next.id === 'list-pane') {
+    const on = next.querySelector('main.home [aria-current]');
+    to = (on && (on.matches('a') ? on : on.querySelector('a'))) || next.querySelector('main.home a.sw-front, main.home a.ws-main') || next.querySelector('.bar a, .bar button');
+  } else {
+    const field = document.getElementById('d-input') || document.getElementById('t-input');
+    if (field && !field.disabled && field.offsetParent) return refocusInput(field), true;
+    to = next.querySelector('main[tabindex], form.panel[tabindex]') || next.querySelector('.empty-detail a, .empty-detail button, main a[href], main button, form input, form select, form button, .bar a, .bar button');
+  }
+  if (!to) {
+    next.tabIndex = -1;
+    to = next;
+  }
+  to.focus({ preventScroll: true });
+  if (to.scrollIntoView && next.id === 'list-pane') to.scrollIntoView({ block: 'nearest' });
+  return true;
 }
 
 // The row of what is open on the right, marked in the list (aria-current) so it stands out.
@@ -613,9 +730,12 @@ let stepFocus = false;
 function stepList(dir) {
   const main = listRoot() && listRoot().querySelector(':scope > main.home');
   if (!main) return false;
-  const links = [...main.querySelectorAll('a.sw-front')].map((a) => a.getAttribute('href'));
-  const cur = main.querySelector('a[aria-current]');
-  const next = Split.stepRow(links, cur && cur.getAttribute('href'), dir);
+  // The cards' heads count where they stand: with a workspace open, the step starts at its card.
+  const links = [...main.querySelectorAll('a.sw-front, .ws-head a.ws-main')].map((a) => a.getAttribute('href'));
+  const heads = [...main.querySelectorAll('.ws-head a.ws-main')].map((a) => a.getAttribute('href'));
+  const on = main.querySelector('[aria-current]');
+  const cur = on && (on.matches('a') ? on : on.querySelector('a.ws-main'));
+  const next = Split.stepRow(links, cur && cur.getAttribute('href'), dir, heads);
   if (!next) return true;
   stepFocus = true;
   location.hash = next;
@@ -753,6 +873,8 @@ const KEY_ACTIONS = {
   },
   answer: (b) => answerKey(Number(b.key)), // answer.js
   toggleSide: () => (setSideOff(!sideOff()), true), // as the rail's 작업공간
+  nextPane: () => focusPane(1),
+  prevPane: () => focusPane(-1),
   stop: () => stopKey(), // agent.js
   // 에이전트 시작 in the workspace of what is open (a new tab there); else a new workspace.
   newAgent() {
@@ -843,6 +965,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', stashDraft);
 splitMq.addEventListener('change', relayout);
 document.documentElement.classList.toggle('side-off', sideOff());
+applyListWidth();
 connect();
 hubLost(); // until the first state: a hub that never answers shows the notice too
 if (splitMq.matches) relayout();

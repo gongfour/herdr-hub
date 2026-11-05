@@ -774,6 +774,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    a long name ends in …, never breaks between letters. */
 .seg.hosts { margin: 10px 16px 0; position: relative; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
 .seg.hosts::-webkit-scrollbar { display: none; }
+/* More hosts past an edge (list.js hostSegEdges): that edge fades, as the shell's key row does.
+   Not while the key badges are up: the mask would fade the segment's badge with it. */
+:root:not(.show-keys) .seg.hosts.more-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+:root:not(.show-keys) .seg.hosts.more-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+:root:not(.show-keys) .seg.hosts.more-l.more-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
 .seg.hosts button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; max-width: 40vw; white-space: nowrap; }
 .seg.hosts .hl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .hdot { width: 7px; height: 7px; border-radius: 50%; background: var(--done); flex: none; }
@@ -1298,13 +1303,31 @@ button.tool:active { filter: brightness(0.95); }
    At the far left the activity rail (작업공간 / 설정, as VS Code's); then the sidebar (the list
    column, its own header and scroll); the detail fills the rest. Folded (.side-off), the
    sidebar is hidden and the detail takes its width. */
-:root { --list-w: clamp(340px, 28vw, 380px); --rail-w: 52px; --side-w: calc(var(--rail-w) + var(--list-w)); }
+/* The sidebar's width: a mouse needs less than a finger (a laptop's detail is the main thing).
+   설정 → 목록 칸 폭 (prefs.js listW) or dragging its edge (.list-grip) sets --list-w-set, which
+   wins here; core.js applyListWidth. */
+:root { --list-w-auto: clamp(288px, 22vw, 340px); --rail-w: 52px; }
+@media (pointer: coarse) { :root { --list-w-auto: clamp(320px, 27vw, 360px); } }
+:root { --list-w: min(var(--list-w-set, var(--list-w-auto)), 45vw); --side-w: calc(var(--rail-w) + var(--list-w)); }
 :root.side-off { --side-w: var(--rail-w); }
+/* Every header in the split layout is this tall, whatever it holds (a title alone, or a title
+   and its subtitle), so the line under them runs straight across the rail, the list and the
+   detail. The promise that keeps it: in the split layout a header is one title line and at most
+   one subtitle line (the two-line title is the phone's, max-width: 759px). */
+:root { --bar-h: 58px; }
+.split .bar {
+  box-sizing: border-box; height: calc(var(--bar-h) + var(--safe-top)); min-height: 0;
+  padding-top: calc(8px + var(--safe-top)); padding-bottom: 8px;
+}
+.split .bar h1 { line-height: 1.2; }
+.split .bar .sub { line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .split #rail {
-  flex: none; width: var(--rail-w); display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: calc(10px + var(--safe-top)) 0 calc(10px + var(--safe-bottom));
+  position: relative; flex: none; width: var(--rail-w); display: flex; flex-direction: column; align-items: center; gap: 6px;
+  /* The first button in the middle of the header's height, the header's line drawn across. */
+  padding: calc((var(--bar-h) - 40px) / 2 + var(--safe-top)) 0 calc(10px + var(--safe-bottom));
   background: color-mix(in srgb, var(--surface-2) 45%, var(--bg)); border-right: 1px solid var(--line);
 }
+.split #rail::before { content: ''; position: absolute; left: 0; right: 0; top: calc(var(--bar-h) + var(--safe-top) - 1px); height: 1px; background: var(--line); pointer-events: none; }
 .rail-gap { flex: 1; }
 .rail-btn {
   position: relative; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 10px;
@@ -1328,8 +1351,30 @@ button.tool:active { filter: brightness(0.95); }
 .split #app > .col { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .split #list-pane { flex: none; width: var(--list-w); border-right: 1px solid var(--line); }
 .split #detail-pane { flex: 1; }
-.split #list-pane .list, .split #list-pane .panel { padding-left: 14px; padding-right: 14px; }
-.split #list-pane .seg.hosts { margin-inline: 14px; }
+.split #list-pane .list, .split #list-pane .panel { padding-left: 8px; padding-right: 8px; }
+.split #list-pane .seg.hosts { margin-inline: 8px; }
+/* The sidebar is narrower than the phone's screen: less padding around the title, so it keeps
+   its width. The status is coloured words; only 답 필요 keeps its pill, to stand out. */
+.split #list-pane .pane-row { gap: 8px; padding-left: 14px; padding-right: 10px; }
+.split #list-pane .ws-front { padding-left: 14px; }
+.split #list-pane .pane-ic { width: 24px; height: 24px; border-radius: 7px; }
+.split #list-pane .pane-ic svg { width: 16px; height: 16px; }
+.split #list-pane .unread-dot { left: 3px; }
+.split #list-pane .pane-row .badge:not(.blocked) { background: none; padding-inline: 0; }
+.split #list-pane .pane-row .badge.blocked { padding-inline: 7px; }
+/* The sidebar's edge: drag it (or ←/→ with the focus on it) to set the width, double-click for
+   자동 (app.js listGrip). As wide as a finger on a touch screen, a thin line for a mouse. */
+.list-grip { display: none; }
+.split .list-grip {
+  display: block; flex: none; width: 0; position: relative; z-index: 6; touch-action: none; outline: none;
+}
+.split .list-grip::before { content: ''; position: absolute; top: 0; bottom: 0; left: -3px; width: 6px; cursor: col-resize; }
+@media (pointer: coarse) { .split .list-grip::before { left: -6px; width: 12px; } }
+.split .list-grip::after { content: ''; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: transparent; transition: background-color .15s; pointer-events: none; }
+.split .list-grip:hover::after, .split .list-grip.dragging::after { background: color-mix(in srgb, var(--accent) 55%, transparent); }
+.split .list-grip:focus-visible::after { background: var(--accent); }
+:root.list-dragging, :root.list-dragging * { cursor: col-resize !important; user-select: none !important; }
+:root.split.side-off .list-grip { display: none; }
 /* Forms and the workspace page keep a readable measure in the wide column; so does the chat. */
 .split #detail-pane > .panel, .split #detail-pane > main.list { padding-inline: max(24px, calc((100% - 760px) / 2)); }
 /* The chat, split: one column of about 760px for everything in it — the header's contents, the
@@ -1358,6 +1403,15 @@ button.tool:active { filter: brightness(0.95); }
 }
 .split main.home .attn-row[aria-current="page"] { background: color-mix(in srgb, var(--blocked) 13%, transparent); box-shadow: inset 3px 0 0 var(--blocked); }
 .split main.home .ws-head .sw-front[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent); }
+/* The icon's tint and the 답 필요 pill are the selection's colour family: on the selected row
+   they take the surface, so they still read as shapes. */
+.split main.home .sw-front[aria-current="page"] .pane-ic { background: var(--surface); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+.split main.home .sw-front[aria-current="page"] .badge.blocked { background: var(--surface); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blocked) 35%, transparent); }
+/* #/new open: the list's + is what is open, as the rail marks 설정. */
+.split #list-pane .bar .icon-btn[aria-current="page"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+/* The live stream down: the list's statuses and times may be old. They stay, quieter, and the
+   times stop (list.js tickList); the header's chip says why. */
+main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 
 /* Nothing open on the right. */
 .empty-detail {
@@ -1372,7 +1426,9 @@ button.tool:active { filter: brightness(0.95); }
 .empty-detail p { margin: 0; font-size: 14px; line-height: 1.5; }
 .ed-acts { display: flex; flex-direction: column; gap: 8px; width: min(320px, 100%); margin-top: 8px; }
 .ed-acts .btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
-.ed-keys { margin: 4px 0 0; font-size: 13px; line-height: 1.6; max-width: 420px; }
+.ed-keys { margin: 4px 0 0; font-size: 13px; line-height: 1.9; max-width: 520px; }
+.ed-k { white-space: nowrap; } /* a key and its words never part */
+.empty-detail .ed-acts .go-conn { justify-content: center; }
 .ed-keys kbd {
   display: inline-block; min-width: 22px; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px;
   background: var(--surface); color: var(--text); font: 600 12px/18px var(--mono); text-align: center;
