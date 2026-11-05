@@ -70,9 +70,9 @@
       key: 'chatW', store: 'herdr-hub.chatW', group: 'screen', label: '대화 폭', type: 'choice',
       options: { auto: '자동', narrow: '좁게', wide: '넓게', full: '꽉 차게' }, default: 'auto', clearOnDefault: true,
       hint: {
-        auto: '두 칸 화면의 대화 글 폭: 칸을 거의 다 쓰되 양옆에 여백을 두고(760–1280px), 큰 화면에서는 글자도 조금 커집니다.',
+        auto: '두 칸 화면의 대화 글 폭: 칸을 거의 다 쓰되 양옆에 24px 여백을 두고(760–1280px), 큰 화면에서는 글자도 조금 커집니다.',
         narrow: '760px 로 둡니다. 한 줄이 짧아 읽기 편합니다.',
-        wide: '양옆 여백을 줄여 더 넓게 씁니다(최대 1680px).',
+        wide: '양옆 여백을 16px 로 줄여 더 넓게 씁니다(최대 1680px).',
         full: '칸 끝에서 끝까지 씁니다.',
       },
     },
