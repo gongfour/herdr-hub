@@ -46,6 +46,7 @@ test('storage keys are the ones the app always used', () => {
     termFont: 'herdr-hub.termFont',
     edgeForward: 'herdr-hub.edgeForward',
     listW: 'herdr-hub.listW',
+    paletteOrder: 'herdr-hub.paletteOrder',
   });
   // index.html applies the theme before any script: it reads this key and these values.
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
@@ -65,6 +66,7 @@ test('values written by the old code read the same (and unknown or missing ones 
     edgeForward: (s) => (s === '1' || s === '0' ? s === '1' : false), // new: off unless iOS
     termFont: (s) => (['11', '12', '14'].includes(s) ? s : '12'), // new
     listW: () => 'auto', // new: no sample is one of its values
+    paletteOrder: () => 'done', // new: no sample is one of its values
   };
   const samples = [null, '', 'send', 'newline', 'line', 'raw', 'light', 'dark', 'system', '1', '0', 'true', 'x', '11', '12', '14', '13'];
   for (const p of PREFS)
@@ -290,4 +292,14 @@ test('a touch gesture\'s setting shows only with a touch screen; the rest everyw
   assert.equal(shownOn(edge, { touch: true }), true);
   assert.equal(shownOn(edge, { touch: false }), false);
   for (const p of PREFS.filter((x) => x.key !== 'edgeForward')) assert.equal(shownOn(p, { touch: false }), true, p.key);
+});
+
+test('빠른 이동의 순서: 완료 먼저 by default, the default stored as nothing', () => {
+  const st = fakeStorage();
+  const store = createStore(() => st);
+  assert.equal(store.get('paletteOrder'), 'done');
+  store.set('paletteOrder', 'working');
+  assert.equal(st.m.get('herdr-hub.paletteOrder'), 'working');
+  store.set('paletteOrder', 'done');
+  assert.equal(st.m.has('herdr-hub.paletteOrder'), false);
 });

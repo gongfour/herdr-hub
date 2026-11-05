@@ -2,9 +2,9 @@
 // 빠른 이동 (Ctrl+P; Alt+P, also in the shell, keymap.js): a small palette over the page. Type to
 // find an agent or a shell on any host by its name, workspace or host; ↑↓ (Ctrl+J/K) move, Enter opens it as
 // a tap on its row would (split: on the right, with the caret in its field, as Alt+↑/↓ does).
-// Esc / Ctrl+[ close it like any layer. With nothing typed, what wants you first: 답 필요, then a
-// new result (a finished agent not yet read), then 작업 중, then the rest; each by when it was
-// last opened here, under a small heading where the order changes (기다림 · 작업 중 · 그 밖); the
+// Esc / Ctrl+[ close it like any layer. With nothing typed, in the order 설정 → 빠른 이동의 순서
+// picks (switcherPlace: by default 답 필요 · 완료 · 작업 중 · 쉬는 중 · 셸), each group by when it
+// was last opened here, under a small heading where the order changes; the
 // one open now last, dimmed (Enter on the first row never opens it again). Typed: the name's match
 // first, then that same order. Each row is the list's own (list.js agentRow / termRow: its icon,
 // title, name and time, status and unread dot), with where it is under it; split, the palette sits
@@ -62,10 +62,19 @@ function switcherRows() {
 // Lower case, one space: Korean is matched as typed (each word of the query a substring).
 const fold = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-// What wants you first: 답 필요, a new result, 작업 중, the rest.
-const switcherOrder = (r) => (r.status === 'blocked' ? 0 : r.unread ? 1 : r.status === 'working' ? 2 : 3);
+// What wants you first, as 설정 → 빠른 이동의 순서 says (prefs.js paletteOrder): 답 필요 always
+// leads; then 완료 (finished, or a result not yet read) and 작업 중 in the chosen order, 쉬는 중,
+// shells last — or, 「최근 연 순」, everything after 답 필요 by recency alone.
+const SWITCH_ORDERS = {
+  done: { blocked: [0, '답 필요'], done: [1, '완료'], working: [2, '작업 중'], idle: [3, '쉬는 중'], term: [4, '셸'] },
+  working: { blocked: [0, '답 필요'], working: [1, '작업 중'], done: [2, '완료'], idle: [3, '쉬는 중'], term: [4, '셸'] },
+  recent: { blocked: [0, '답 필요'], done: [1, '최근'], working: [1, '최근'], idle: [1, '최근'], term: [1, '최근'] },
+};
+const switcherKind = (r) => (r.status === 'blocked' ? 'blocked' : r.kind === 'term' ? 'term' : r.unread || r.status === 'done' ? 'done' : r.status === 'working' ? 'working' : 'idle');
+const switcherPlace = (r) => (SWITCH_ORDERS[Prefs.get('paletteOrder')] || SWITCH_ORDERS.done)[switcherKind(r)];
+const switcherOrder = (r) => switcherPlace(r)[0];
 // The heading a row goes under with nothing typed.
-const switcherGroup = (r) => (r.here ? '지금 보는 중' : ['기다림', '기다림', '작업 중', '그 밖'][switcherOrder(r)]);
+const switcherGroup = (r) => (r.here ? '지금 보는 중' : switcherPlace(r)[1]);
 
 function switcherFilter(rows, query) {
   const words = fold(query).split(' ').filter(Boolean);

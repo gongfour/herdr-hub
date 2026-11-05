@@ -25,6 +25,7 @@
   const GROUPS = [
     { id: 'input', label: '입력' },
     { id: 'screen', label: '화면' },
+    { id: 'switch', label: '빠른 이동' },
   ];
 
   const PREFS = [
@@ -73,6 +74,15 @@
         auto: '두 칸 화면(가로 태블릿·노트북)의 왼쪽 목록 폭입니다. 가장자리를 끌어도 바뀝니다.',
         narrow: '대화 칸을 넓게 씁니다. 긴 제목은 두 줄로 꺾입니다.',
         wide: '긴 제목을 한 줄에 더 보입니다.',
+      },
+    },
+    {
+      key: 'paletteOrder', store: 'herdr-hub.paletteOrder', group: 'switch', label: '빠른 이동의 순서', type: 'choice',
+      options: { done: '완료 먼저', working: '작업 중 먼저', recent: '최근 연 순' }, default: 'done', clearOnDefault: true,
+      hint: {
+        done: '답 필요 → 완료 → 작업 중 → 쉬는 중 → 셸. 같은 무리 안에서는 최근에 연 순서입니다.',
+        working: '답 필요 → 작업 중 → 완료 → 쉬는 중 → 셸. 같은 무리 안에서는 최근에 연 순서입니다.',
+        recent: '답 필요 다음은 상태와 상관없이 최근에 연 순서입니다.',
       },
     },
   ];
