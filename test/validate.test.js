@@ -82,3 +82,17 @@ test('cleanAgentSpec: kind, args and name checked; a missing name comes from the
   assert.match(a.name, /^[a-z][a-z0-9_-]*$/);
   assert.notEqual(a.name, b.name);
 });
+
+test('cleanLines: a whole number from 1 to 400, the fallback for none, 0 or not a number', () => {
+  const { cleanLines } = require('../lib/validate');
+  assert.equal(cleanLines('200', 80), 200);
+  assert.equal(cleanLines(null, 80), 80);
+  assert.equal(cleanLines('', 120), 120);
+  assert.equal(cleanLines('abc', 120), 120);
+  assert.equal(cleanLines('0', 120), 120);
+  assert.equal(cleanLines('-5', 120), 1);
+  assert.equal(cleanLines('-0.5', 120), 1);
+  assert.equal(cleanLines('2.7', 120), 2);
+  assert.equal(cleanLines('9999', 120), 400);
+  assert.equal(cleanLines('Infinity', 120), 400);
+});

@@ -184,6 +184,17 @@ test('shape: a new size or format sends the whole screen again; full asks for it
   r.s.stop();
 });
 
+test('shape: lines below 1 are read as 1, not passed on to herdr', async () => {
+  const r = rig();
+  await r.c.advance(100);
+  r.s.message({ t: 'shape', lines: -5, format: 'ansi' });
+  await r.c.advance(100);
+  const reads = r.sh.calls.filter((x) => x[0] === 'read').map((x) => x[2]);
+  assert.ok(reads.every((n) => n >= 1), String(reads));
+  assert.ok(reads.includes(1));
+  r.s.stop();
+});
+
 test('a socket that is not keeping up: changes wait, the next one carries them', async () => {
   const r = rig();
   await r.c.advance(50);

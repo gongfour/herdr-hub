@@ -23,7 +23,7 @@ const { Push } = require('./lib/push');
 const { Peer, ID: HOST_ID_RULE } = require('./lib/peers');
 const hoststore = require('./lib/hoststore');
 const { indexPage, send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed, corsOrigin } = require('./lib/http');
-const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
+const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLines, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
 const { screenReader } = require('./lib/screen');
 const echo = require('./lib/echo');
 const { readBuild, describe, decorator } = require('./lib/build');
@@ -718,7 +718,7 @@ async function api(req, res, url) {
 
     if (method === 'GET' && parts[2] === 'screen') {
       touchAwake();
-      const lines = Math.min(Number(url.searchParams.get('lines')) || 120, 400);
+      const lines = cleanLines(url.searchParams.get('lines'), 120);
       return send(res, 200, await readPane(pane, url.searchParams.get('source'), lines, url.searchParams.get('format')));
     }
     if (method === 'POST') {
@@ -744,7 +744,7 @@ async function api(req, res, url) {
           // soon as it is on screen (lib/echo). lines: as many as the page reads (200 for a
           // page from before it said, 400 at most).
           if (!body.echo || typeof body.echo !== 'object') return send(res, 200, result);
-          const lines = Math.min(Math.floor(Number(body.echo.lines)) || 200, 400);
+          const lines = cleanLines(body.echo.lines, 200);
           const shape = { source: 'recent_unwrapped', format: body.echo.format, lines };
           const { screen } = await echo.waitEcho(
             {
@@ -780,7 +780,7 @@ async function api(req, res, url) {
     if (!agent) return send(res, 404, { error: 'agent_not_found' });
 
     if (method === 'GET' && parts[2] === 'screen') {
-      const lines = Math.min(Number(url.searchParams.get('lines')) || 80, 400);
+      const lines = cleanLines(url.searchParams.get('lines'), 80);
       return send(res, 200, await readScreen('agent.read', { target: pane }, url.searchParams.get('source'), lines, url.searchParams.get('format')));
     }
     // What the composer offers after "/" and "@": Claude agents only, read on this host.
@@ -1065,7 +1065,7 @@ function liveOrigin(req) {
   const host = req.headers.host || '';
   return origin === `https://${host}` || (ALLOW_LOCAL && origin === `http://${host}`);
 }
-const liveShape = (url) => ({ lines: Math.min(Math.floor(Number(url.searchParams.get('lines'))) || 200, 400), format: url.searchParams.get('format') === 'ansi' ? 'ansi' : 'text' });
+const liveShape = (url) => ({ lines: cleanLines(url.searchParams.get('lines'), 200), format: url.searchParams.get('format') === 'ansi' ? 'ansi' : 'text' });
 const liveConns = new Set();
 // Each end of a channel is pinged; one that answers nothing for LIVE_DEAD_MS is closed (lib/ws keepalive).
 const LIVE_PING_MS = Number(process.env.HERDR_HUB_LIVE_PING_MS) || 15000;

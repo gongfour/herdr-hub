@@ -145,3 +145,18 @@ test('a page that went silent (no pong, no close) is dropped and its reads stop'
   await new Promise((r) => setTimeout(r, 400));
   assert.ok(reads() <= n + 1, `reads went on: ${n} → ${reads()}`);
 });
+
+test('lines below 1 on the live channel and GET /screen reach herdr as 1', { timeout: 15000 }, async (t) => {
+  const { port, herdr } = await start(t, { HERDR_HUB_HERDR_HELPER: '0' });
+  const res = await new Promise((resolve, reject) =>
+    http.get({ host: '127.0.0.1', port, path: '/api/panes/w1-p1/screen?lines=-5', headers: { Host: `127.0.0.1:${port}` } }, resolve).on('error', reject)
+  );
+  res.resume();
+  assert.equal(res.statusCode, 200);
+  const c = await ws.connect(`ws://127.0.0.1:${port}/api/panes/w1-p1/live?lines=-5`, { headers: { 'X-Herdr-Hub': '1' } });
+  t.after(() => c.close());
+  const end = Date.now() + 3000;
+  while (herdr.calls.filter((x) => x.method === 'pane.read').length < 2 && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
+  const lines = herdr.calls.filter((x) => x.method === 'pane.read').map((x) => x.params.lines);
+  assert.ok(lines.length >= 2 && lines.every((n) => n >= 1), JSON.stringify(lines));
+});
