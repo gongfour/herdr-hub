@@ -782,6 +782,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .seg.hosts.more-l.more-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
 .seg.hosts button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; max-width: 40vw; white-space: nowrap; }
 .seg.hosts .hl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* With a mouse the host picker needs no finger-sized buttons: 32px, as the other controls of a
+   laptop's list (a touch screen keeps 44px). */
+@media (hover: hover) and (pointer: fine) { .seg.hosts button { min-height: 32px; padding: 4px 12px; font-size: 13px; } }
 .hdot { width: 7px; height: 7px; border-radius: 50%; background: var(--done); flex: none; }
 .seg.hosts button.off { color: var(--muted); }
 /* Offline: a hollow ring, not only another colour. */
