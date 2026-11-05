@@ -64,7 +64,8 @@
   // a: an agent of the hub's state.agents; isSeen(key) -> boolean. Unread: it has stopped
   // (not working or blocked) within recentMs, or herdr calls it done, and this finish was not opened.
   function unread(a, { now = Date.now(), isSeen = () => false, recentMs = RECENT_MS } = {}) {
-    if (!a || a.status === 'blocked' || a.status === 'working') return false;
+    // A ghost (its host offline, lib/peers.js staleView) is not news: it is what was there.
+    if (!a || a.stale || a.status === 'blocked' || a.status === 'working' || a.status === 'stale') return false;
     const fresh = a.doneAt ? now - a.doneAt <= recentMs : a.status === 'done';
     return fresh && !isSeen(seenKey(a));
   }

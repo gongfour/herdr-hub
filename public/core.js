@@ -4,7 +4,7 @@
 // api(), and the layers: sheets, menus, the 단축키 sheet and toasts.
 
 const $app = document.getElementById('app');
-const STATUS_LABEL = { blocked: '답 필요', done: '완료', working: '작업 중', idle: '쉬는 중', unknown: '알 수 없음' };
+const STATUS_LABEL = { blocked: '답 필요', done: '완료', working: '작업 중', idle: '쉬는 중', unknown: '알 수 없음', stale: '오프라인' };
 const ICON = {
   // Lucide (ISC, lucide.dev) throughout, so stroke, corners and proportions match.
   back: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg>', // chevron-left
@@ -622,9 +622,11 @@ function menu(title, items, { sub = '', anchor = null } = {}) {
     const ctx = hintCtx();
     const at = menuAnchor(anchor);
     const pop = Boolean(split && at && !(lastInput === 'pointer' && lastPointer.type === 'touch'));
-    const row = ([key, label, danger, note, action]) => {
-      const k = kbd && action ? Keymap.hint(action, ctx) : '';
-      return `<button class="action ${danger ? 'danger' : ''}" data-k="${esc(key)}"><span class="act-main">${esc(label)}${note ? `<span class="sub">${esc(note)}</span>` : ''}</span>${k ? `<kbd class="act-key">${esc(k)}</kbd>` : ''}</button>`;
+    // off: why the item can't be used now (an offline host's ghost, actions.js ghostOff), said in its place.
+    const row = ([key, label, danger, note, action, off]) => {
+      const k = kbd && action && !off ? Keymap.hint(action, ctx) : '';
+      const sub = off || note;
+      return `<button class="action ${danger ? 'danger' : ''}" data-k="${esc(key)}"${off ? ' disabled' : ''}><span class="act-main">${esc(label)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</span>${k ? `<kbd class="act-key">${esc(k)}</kbd>` : ''}</button>`;
     };
     const blocks = [[]];
     for (const x of items.filter(Boolean)) {
@@ -694,7 +696,7 @@ function placePop(box, a) {
 // ↑↓ (and the scroll keys, Ctrl+J/K) through a menu's items, round at the ends; Home/End.
 function menuKey(e, el) {
   if (e.isComposing || e.altKey || e.metaKey) return;
-  const acts = [...el.querySelectorAll('.action')];
+  const acts = [...el.querySelectorAll('.action:not(:disabled)')];
   if (!acts.length) return;
   const i = acts.indexOf(document.activeElement);
   const has = (action) => Keymap.keysFor(action).some((k) => Keymap.matches(e, k));

@@ -15,6 +15,7 @@ function renderDetail() {
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기" aria-haspopup="dialog"${keyAttrs('menu', '더 보기')}>${ICON.more}</button>
       </header>
+      <div class="ghost-bar" id="d-ghost" role="status" hidden></div>
       <button type="button" class="activity" id="d-activity"${keyAttrs('terminal', '터미널 화면 보기')} hidden></button>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="d-body"></div>
@@ -123,6 +124,7 @@ function renderDetail() {
     const text = input.value.replace(/\s+$/, '');
     const files = detail.files;
     if (detail.sending || (!text.trim() && !files.length)) return;
+    if (ghostRefuse(currentAgent())) return; // actions.js: its host is offline
     if (files.some((f) => !f.blob)) return toast('사진을 준비하는 중입니다. 잠시 뒤에 보내 주세요.');
     const host = curHost();
     const pane = detail.pane;
@@ -298,6 +300,34 @@ function updateComposer() {
   const form = document.getElementById('d-form');
   if (form) form.hidden = !a && detail.known;
   setPlaceholder();
+  renderGhost(a, input, send, attach, stop);
+}
+
+// An offline host's ghost (lib/peers.js staleView): its last chat, read-only. A bar under the
+// header says so and since when; the composer stays where it is, shut, saying why in its place.
+function renderGhost(a, input, send, attach, stop) {
+  const ghost = Boolean(a && a.stale);
+  // Back: the live agent replaces the ghost in place; what it said meanwhile is fetched now.
+  if (detail.ghost && a && !ghost) setTimeout(() => currentAgent() === a && loadDetail(), 0);
+  detail.ghost = ghost;
+  const bar = document.getElementById('d-ghost');
+  const form = document.getElementById('d-form');
+  if (form) form.classList.toggle('ghost', ghost);
+  if (bar) {
+    const html = ghost ? `<b>${esc(hostLabel(curHost()))} 오프라인</b> · ${esc(RowText.asOf(a.stale))} 마지막 모습입니다. 읽기만 할 수 있습니다.` : '';
+    if (bar._html !== html) bar.innerHTML = bar._html = html;
+    bar.hidden = !ghost;
+  }
+  if (!ghost) {
+    if (input.getAttribute('contenteditable') === 'false') input.setAttribute('contenteditable', 'plaintext-only');
+    return;
+  }
+  input.setAttribute('contenteditable', 'false');
+  input.setAttribute('aria-disabled', 'true');
+  input.dataset.placeholder = `${hostLabel(curHost())} 가 돌아오면 보낼 수 있습니다`;
+  send.disabled = true;
+  if (attach) attach.disabled = true;
+  stop.hidden = true;
 }
 
 function renderDetailHeader() {
@@ -417,6 +447,12 @@ async function loadDetail() {
     // The chat is drawn as soon as it arrives; the screen reads below (activity, mode chip) follow.
     if (!screenBody(a)) await chat;
     if (detail !== mine) return;
+    // A ghost (its host offline): the last chat is all there is; no screen to read.
+    if (a.stale) {
+      detail.lastErr = null;
+      renderDetailBody(false);
+      return;
+    }
     if (screenBody(a) || detail.sheet) {
       // A working agent can't give its scrollback; Claude draws on the alternate screen anyway,
       // so what is visible is the whole picture. The server falls back to it too.
@@ -482,8 +518,14 @@ async function loadDetail() {
 const QUICK = 20;
 async function loadChat(d, a, pane, host) {
   const t = d.transcript;
+  // A ghost (its host offline): a copy kept here is its last chat; else the hub's, if it has one.
+  if (a.stale && t) return;
   const apply = (r) => {
     if (d !== detail) return;
+    if (r.ghostless) {
+      d.noGhostChat = true; // neither this device nor the hub has its last chat
+      return renderDetailBody(false);
+    }
     d.transcript = mergeTranscript(d.transcript, r);
     d.stale = false;
     renderDetailBody(false);
@@ -501,7 +543,7 @@ async function loadChat(d, a, pane, host) {
     return apply(await api(hp(`/agents/${pane}/transcript?limit=150${q}`, host)));
   }
   const full = api(hp(`/agents/${pane}/transcript?limit=150`, host));
-  if (!t)
+  if (!t && !a.stale)
     api(hp(`/agents/${pane}/transcript?limit=${QUICK}`, host))
       .then((r) => {
         if (d !== detail || d.transcript || !r.supported || !r.found) return;
@@ -624,7 +666,7 @@ function prefetchNeighbours() {
       const host = r.host || localId();
       const a = state.agents.find((x) => same(x, host, r.pane));
       const key = rowKey(host, r.pane);
-      if (!a || !a.session || screenBody(a) || chatKeep.has(key)) continue;
+      if (!a || a.stale || !a.session || screenBody(a) || chatKeep.has(key)) continue;
       try {
         const t = await api(hp(`/agents/${encodeURIComponent(r.pane)}/transcript?limit=150`, host));
         const now = state.agents.find((x) => same(x, host, r.pane));
@@ -795,7 +837,8 @@ function renderDetailBody(reset) {
   const t = detail.transcript;
   const waiting = t ? pendingNow(rowKey(curHost(), detail.pane), currentAgent()) : [];
   const fresh = t && (!t.found || !t.messages.length) && !waiting.length; // nothing said yet
-  const note = !t ? '불러오는 중…' : !t.supported ? (currentAgent()?.agent ? '아직 대화 기록이 없습니다.' : '에이전트를 시작하는 중…') : fresh ? '아직 대화 기록이 없습니다.' : '';
+  const ghostless = !t && detail.noGhostChat && currentAgent()?.stale;
+  const note = ghostless ? '이 대화는 이 기기에도 허브에도 남아 있지 않습니다. 호스트가 돌아오면 보입니다.' : !t ? '불러오는 중…' : !t.supported ? (currentAgent()?.agent ? '아직 대화 기록이 없습니다.' : '에이전트를 시작하는 중…') : fresh ? '아직 대화 기록이 없습니다.' : '';
   if (note) {
     // A new chat (Ctrl+N starts it as last time): the start form for its workspace, to pick
     // another kind or options there. It starts another agent; this one stays until closed.
@@ -1091,7 +1134,7 @@ function renderMode() {
   if (!chip) return;
   // Hidden while a question waits: ⇧Tab then would act on the question, and a faded chip
   // wouldn't say why.
-  const m = a && a.agent === 'claude' && a.status !== 'blocked' ? detail.mode : null;
+  const m = a && a.agent === 'claude' && a.status !== 'blocked' && !a.stale ? detail.mode : null;
   chip.hidden = !m;
   if (!m) return;
   chip.innerHTML = `<span class="full">${esc(MODE_LABEL[m] || m)}</span><span class="short" aria-hidden="true">${esc(MODE_SHORT[m] || MODE_LABEL[m] || m)}</span>`;

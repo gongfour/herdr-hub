@@ -16,8 +16,21 @@ const agentNameHint = (v) => {
 };
 const labelHint = (v) => (v.trim().length > 60 ? `60자까지입니다(지금 ${v.trim().length}자).` : '');
 
+// An offline peer's ghost (lib/peers.js staleView: x.stale) is only to look at: what would act on
+// it says why it can't (the menus, ghostOff) or refuses with a toast (a key, a command).
+const ghostWhy = (x) => `${hostLabel(x.host || localId())} 오프라인 — 돌아오면 할 수 있습니다`;
+function ghostRefuse(x) {
+  if (!x || !x.stale) return false;
+  toast(ghostWhy(x));
+  return true;
+}
+// Menu items of a ghost: what only looks or opens stays, the rest is shown off with the reason.
+const LOOKS = new Set(['open', 'ws', 'copy', 'wrap', 'input', 'color']);
+const ghostOff = (items, x) => (x && x.stale ? items.map((it) => (Array.isArray(it) && !LOOKS.has(it[0]) ? [it[0], it[1], it[2], it[3], it[4], ghostWhy(x)] : it)) : items);
+
 // A mistake keeps the sheet (and what was typed) with the error in it, like 새 폴더.
 async function renamePane(x, isAgent) {
+  if (ghostRefuse(x)) return;
   const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
   const r = isAgent
     ? await askLoop(
@@ -49,6 +62,7 @@ function unusedAgent(host, pane) {
 // 끝내기 (an agent, a shell) and 워크스페이스 닫기: one verb each, the same in the sheet, the ⋯ menu,
 // the keymap's words and the toasts (닫기 alone is 대화창 닫기, leaving the view: keymap.js leaveView).
 async function closePane(host, pane, label, isAgent) {
+  if (ghostRefuse(state.agents.concat(state.terminals || []).find((x) => same(x, host, pane)))) return;
   if (isAgent && unusedAgent(host, pane)) {
     return closeNow(host, 'pane', pane, '새 대화를 끝냈습니다', '에이전트를 끝내지 못했습니다');
   }
@@ -103,6 +117,7 @@ function leaveFor(host, pane, wsId) {
 }
 
 async function renameWorkspace(w) {
+  if (ghostRefuse(w)) return;
   const r = await askLoop({ title: '워크스페이스 이름', input: { value: w.label }, ok: '바꾸기', validate: (v) => (!v.trim() ? '이름을 적어 주세요.' : labelHint(v)) }, (label) =>
     api(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/rename`, w.host), { method: 'POST', body: JSON.stringify({ label }) })
   );
@@ -120,6 +135,7 @@ function wsEnds(agents, panes) {
 // key: the action that asked (closeView: Alt+W in the workspace view; closeWorkspace: Alt+Shift+W),
 // which confirms when pressed again.
 async function closeWorkspace(w, key = 'closeView') {
+  if (ghostRefuse(w)) return;
   const host = w.host || localId();
   const agents = state.agents.filter((a) => same(a, host, w.workspace_id, 'workspace')).length;
   const panes = w.pane_count || agents + (state.terminals || []).filter((t) => same(t, host, w.workspace_id, 'workspace')).length;
@@ -135,6 +151,7 @@ async function closeWorkspace(w, key = 'closeView') {
 }
 
 async function newTab(w) {
+  if (ghostRefuse(w)) return;
   const host = w.host || localId();
   // Where Ctrl+N would start (app.js startFolderFor): the open one's folder, else the 기본 폴더 …
   const cwd = startFolderFor(host, w.workspace_id);
@@ -163,6 +180,9 @@ async function act(path, body, okText, failText = '하지 못했습니다') {
 // The items of a pane's menu (also 명령's 「지금 연 것」 rows, switcher.js).
 function paneMenuItems(kind, x, { fromRow = false, here = false } = {}) {
   const agent = kind === 'agent';
+  return ghostOff(paneItems(kind, agent, x, fromRow, here), x);
+}
+function paneItems(kind, agent, x, fromRow, here) {
   return agent
     ? [
         fromRow ? ['open', '대화 열기'] : null,
@@ -215,6 +235,7 @@ async function paneAction(kind, x, k, { here = false } = {}) {
   const host = x.host || localId();
   const pane = encodeURIComponent(x.pane);
   const agent = kind === 'agent';
+  if (!LOOKS.has(k) && ghostRefuse(x)) return;
   if (k === 'open') location.hash = link(x.host, `/${agent ? 'agent' : 'term'}/${pane}`);
   if (k === 'ws') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace)}`);
   if (k === 'stop') confirmStop(x); // agent.js
@@ -244,6 +265,9 @@ async function paneAction(kind, x, k, { here = false } = {}) {
 }
 
 function wsMenuItems(w, { fromRow = false, here = false } = {}) {
+  return ghostOff(wsItems(w, fromRow, here), w);
+}
+function wsItems(w, fromRow, here) {
   return [
     fromRow ? ['open', '워크스페이스 보기'] : null,
     fromRow ? '-' : null,
@@ -265,6 +289,7 @@ async function wsMenu(w, { fromRow = false, anchor = null } = {}) {
 
 function wsAction(w, k) {
   const id = encodeURIComponent(w.workspace_id);
+  if (!LOOKS.has(k) && ghostRefuse(w)) return;
   if (k === 'open') location.hash = link(w.host, `/ws/${id}`);
   if (k === 'agent') location.hash = link(w.host, `/start/ws/${id}`);
   if (k === 'tab') newTab(w);

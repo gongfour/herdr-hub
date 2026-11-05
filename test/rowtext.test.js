@@ -84,3 +84,15 @@ test('the first-visit hint: the host swipe only with hosts, three starts or ✕'
   assert.equal(hintNext('2'), '3');
   assert.equal(hintNext('3'), '3');
 });
+
+test('asOf: a ghost\'s time as 「오후 10:47 기준」, yesterday and older with the day', () => {
+  const { asOf, lastStatus } = require('../public/rowtext.js');
+  const now = new Date(2026, 10, 5, 9, 30).getTime();
+  assert.equal(asOf(new Date(2026, 10, 5, 8, 1).getTime(), now), '오전 08:01 기준');
+  assert.equal(asOf(new Date(2026, 10, 4, 22, 47).getTime(), now), '어제 오후 10:47 기준');
+  assert.equal(asOf(new Date(2026, 10, 2, 22, 47).getTime(), now), '11월 2일 오후 10:47 기준');
+  assert.equal(asOf(null, now), '');
+  assert.equal(lastStatus({ lastStatus: 'working' }), '마지막: 작업 중');
+  assert.equal(lastStatus({ lastStatus: 'blocked' }), '마지막: 답 필요');
+  assert.equal(lastStatus({ lastStatus: 'unknown' }), '마지막 모습');
+});

@@ -20,7 +20,7 @@ const times = require('./lib/times');
 const notifyLib = require('./lib/notify');
 const { parseChoices, choicesSettled, choicesSig, heldPrompt } = require('./public/choices');
 const { Push } = require('./lib/push');
-const { Peer, ID: HOST_ID_RULE } = require('./lib/peers');
+const { Peer, ID: HOST_ID_RULE, dumpGhosts, loadGhosts } = require('./lib/peers');
 const hoststore = require('./lib/hoststore');
 const { indexPage, send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed, corsOrigin } = require('./lib/http');
 const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLines, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
@@ -349,13 +349,18 @@ const tag = (id, label) => (x) => ({ ...x, host: id, hostLabel: label });
 function publish() {
   const hosts = [{ id: HOST_ID, label: HOSTNAME, local: true, online: true, herdr: local.herdr, error: local.error, since: null, api: API_VERSION, version: BUILD.version + (BUILD.dirty ? '+dirty' : '') }, ...[...peers.values()].map((p) => p.info())];
   const order = new Map(hosts.map((h, i) => [h.id, i]));
-  const parts = [{ id: HOST_ID, label: HOSTNAME, s: local }, ...[...peers.values()].filter((p) => p.online && p.state).map((p) => ({ id: p.id, label: p.shown(), s: p.state }))];
+  // An offline peer is listed as its ghost (lib/peers.js staleView), until its stream is back.
+  const parts = [{ id: HOST_ID, label: HOSTNAME, s: local }, ...[...peers.values()].map((p) => ({ id: p.id, label: p.shown(), s: p.view() })).filter((x) => x.s)];
   const all = (key) => parts.flatMap(({ id, label, s }) => (s[key] || []).map(tag(id, label)));
   const agents = all('agents').sort(
     (x, y) => (STATUS_RANK[x.status] ?? 9) - (STATUS_RANK[y.status] ?? 9) || order.get(x.host) - order.get(y.host) || y.stateSeq - x.stateSeq
   );
-  // Peers on this version bring their own times; for an older peer the hub tracks them here.
-  mergedTimes = times.track(mergedTimes, agents, Date.now(), (a) => `${a.host}|${a.pane}`);
+  // Peers on this version bring their own times; for an older peer the hub tracks them here. A
+  // ghost's are kept as they were: it is not a transition, and they go on when it comes back.
+  const key = (a) => `${a.host}|${a.pane}`;
+  const before = mergedTimes;
+  mergedTimes = times.track(before, agents.filter((a) => !a.stale), Date.now(), key);
+  for (const a of agents) if (a.stale && before.has(key(a))) mergedTimes.set(key(a), before.get(key(a)));
   saveTimes();
   const next = {
     host: HOSTNAME, // kept for older clients
@@ -424,6 +429,7 @@ function startPeer(p) {
     if (peers.get(peer.id) !== peer) return; // removed or replaced meanwhile
     if (peer.online && peer.state) notifyTransitions(peer.id, peer.shown(), peer.state.agents);
     publish();
+    saveGhostsSoon();
   });
   peers.set(peer.id, peer);
   peer.start();
@@ -435,8 +441,30 @@ function stopPeer(id) {
   peers.delete(id);
   peer.stop();
   previous.delete(id);
+  for (const k of [...lastChats.keys()]) if (k.startsWith(`${id}|`)) lastChats.delete(k);
 }
 for (const p of peerList) startPeer(p);
+
+// The peers' last states (lib/peers.js dumpGhosts), so a hub restarted while a peer sleeps (a
+// deploy at night) still lists that peer's agents greyed. Written at most every 30 s, off the
+// request path; read once at start.
+const GHOSTS_FILE = path.join(DATA, 'peer-ghosts.json');
+loadGhosts(readJsonFile(GHOSTS_FILE), [...peers.values()], Date.now());
+let ghostTimer = null;
+function saveGhostsSoon() {
+  if (ghostTimer) return;
+  ghostTimer = setTimeout(async () => {
+    ghostTimer = null;
+    try {
+      await fs.promises.mkdir(DATA, { recursive: true });
+      await fs.promises.writeFile(GHOSTS_FILE + '.tmp', JSON.stringify(dumpGhosts([...peers.values()])));
+      await fs.promises.rename(GHOSTS_FILE + '.tmp', GHOSTS_FILE);
+    } catch (err) {
+      console.error('peer ghosts save failed:', err.message);
+    }
+  }, 30e3);
+  ghostTimer.unref();
+}
 
 // 설정 → 연결 changes the list: saved first, then the connections follow, without a restart.
 function setPeerList(next) {
@@ -1010,12 +1038,31 @@ async function answerLocal(pane, body, { allowOwn = false } = {}) {
 // state and push stay with the hub. The X-Herdr-Hub check has already run above.
 const PROXIED = new Set(['host', 'dirs', 'agents', 'panes', 'workspaces', 'uploads']);
 
+// A peer agent's last full chat window (a transcript GET without since/rev), kept as it passed by,
+// so that peer's ghost (offline) still opens to its last chat on a device that had no copy of
+// its own. Read-only, for the few dozen agents opened last; a request that asks only for what
+// changed since (it has a copy) is not answered from here.
+const lastChats = new Map(); // peer|pane -> { body, type }
+const LAST_CHATS = 32;
+const LAST_CHAT_BYTES = 4 << 20;
+function chatWindow(rest, url) {
+  return rest.length === 3 && rest[0] === 'agents' && rest[2] === 'transcript' && !url.searchParams.has('since') && !url.searchParams.has('rev');
+}
+
 async function proxy(req, res, url) {
   const raw = url.pathname.split('/').filter(Boolean); // api, peers, <host>, ...rest (still encoded)
   const peer = peers.get(decodePart(raw[2]));
   if (!peer) return send(res, 404, { error: 'unknown_host' });
   if (!PROXIED.has(raw[3])) return send(res, 404, { error: 'not_found' });
-  if (!peer.online) return send(res, 503, { error: 'peer_offline', message: `${peer.shown()} 오프라인` });
+  const rest = raw.slice(3).map(decodeURIComponent);
+  const chatKey = req.method === 'GET' && chatWindow(rest, url) ? `${peer.id}|${rest[1]}` : null;
+  if (!peer.online) {
+    const kept = chatKey && lastChats.get(chatKey);
+    if (kept) return send(res, 200, kept.body, { 'Content-Type': kept.type, 'Cache-Control': 'no-store' });
+    // No copy here either: said as an answer (the page says so), not as an error to retry.
+    if (chatKey) return send(res, 200, { supported: true, found: false, messages: [], ghostless: true }, { 'Cache-Control': 'no-store' });
+    return send(res, 503, { error: 'peer_offline', message: `${peer.shown()} 오프라인` });
+  }
   // Photo uploads are raw image bytes; everything else is JSON. Bodies stay Buffers both ways.
   const body = req.method === 'GET' ? null : await readRaw(req, raw[3] === 'uploads' ? uploads.MAX_BYTES : undefined);
   const headers = req.method === 'GET' ? {} : { 'Content-Type': req.headers['content-type'] || 'application/json', 'X-Herdr-Hub': '1' };
@@ -1026,6 +1073,11 @@ async function proxy(req, res, url) {
     const timeout = Boolean(err.timeout);
     console.error(`${new Date().toISOString()} proxy ${req.method} ${peer.id} ${raw.slice(3).join('/')}: ${err.code || err.message}`);
     return send(res, timeout ? 504 : 502, { error: timeout ? 'peer_timeout' : 'peer_unreachable', message: `${peer.shown()}: ${err.code || err.message}` });
+  }
+  if (chatKey && r.status === 200 && r.body.length <= LAST_CHAT_BYTES) {
+    lastChats.delete(chatKey);
+    lastChats.set(chatKey, { body: r.body, type: r.type });
+    if (lastChats.size > LAST_CHATS) lastChats.delete(lastChats.keys().next().value);
   }
   const out = { 'Content-Type': r.type, ...(r.cache ? { 'Cache-Control': r.cache } : {}) };
   // Came gzipped and the browser takes gzip: passed on as it is; otherwise send() decides.

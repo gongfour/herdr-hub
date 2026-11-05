@@ -376,7 +376,7 @@ function homeParts(f = filter()) {
   const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
   return [
     ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>${RowText.hintText(multi())}</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
-    ...trouble.map((x) => [`off|${x.id}`, `<div class="offline" role="status"><p><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김 — 그 기기에서 herdr 가 실행 중인지 확인하세요' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다`}</p>${connLink('연결 상태 보기')}</div>`]),
+    ...trouble.map((x) => [`off|${x.id}`, `<div class="offline" role="status"><p><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김 — 그 기기에서 herdr 가 실행 중인지 확인하세요' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다${x.staleAt ? `. 아래 흐린 줄은 ${esc(RowText.asOf(x.staleAt))} 모습입니다` : ''}`}</p>${connLink('연결 상태 보기')}</div>`]),
     ...spacesParts(list, down, f),
   ];
 }
@@ -508,10 +508,14 @@ const rowData = (kind, host, id) => `data-kind="${kind}" data-host="${esc(host |
 
 // A card's head: its name, then the host (전체). No folder: a herdr workspace has none (each tab
 // opens where it is told), so each row shows its own (paneDir).
+// An offline peer's card (a ghost, lib/peers.js staleView) is drawn greyed with when it was so
+// (「오후 10:47 기준」); its rows open read-only and its menus only look (actions.js).
 function wsSection({ w, agents, terms }) {
   const rows = [...agents.map(agentRow), ...terms.map(termRow)].join('');
-  const chip = filter() === 'all' ? hostChip(w) : '';
-  return `<section class="ws">
+  const at = ghostAt(w, agents, terms);
+  const asof = at ? `<span class="ws-asof">${esc(RowText.asOf(at))}</span>` : '';
+  const chip = [filter() === 'all' ? hostChip(w) : '', asof].filter(Boolean).join('');
+  return `<section class="ws${at ? ' ghost' : ''}">
     <div class="sw ws-head" ${rowData('ws', w.host, w.workspace_id)}>
       <div class="sw-front ws-front">
         <a class="ws-main" href="${link(w.host, `/ws/${encodeURIComponent(w.workspace_id)}`)}">
@@ -533,13 +537,14 @@ function wsSection({ w, agents, terms }) {
 // chat's blocked box). A finish not opened yet: a dot before the icon and a bolder title, like an
 // unread message.
 function agentRow(a) {
-  const unread = isUnread(a);
-  const blocked = a.status === 'blocked';
-  const end = blocked ? `<span class="badge blocked">${esc(STATUS_LABEL.blocked)}</span>` : timeTag(a);
-  const st = blocked ? '' : `<span class="st ${esc(a.status)}"><i class="st-dot" aria-hidden="true"></i>${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
+  const ghost = Boolean(a.stale);
+  const unread = !ghost && isUnread(a);
+  const blocked = !ghost && a.status === 'blocked';
+  const end = blocked ? `<span class="badge blocked">${esc(STATUS_LABEL.blocked)}</span>` : ghost ? '' : timeTag(a);
+  const st = blocked ? '' : ghost ? `<span class="st stale"><i class="st-dot" aria-hidden="true"></i>${esc(RowText.lastStatus(a))}</span>` : `<span class="st ${esc(a.status)}"><i class="st-dot" aria-hidden="true"></i>${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
   const name = RowText.metaName(a.name, a.title);
   const meta = [st, name ? `<span>${esc(name)}</span>` : '', paneDir(a, a.name)].filter(Boolean).join('<span class="sep"> · </span>');
-  return `<div class="sw" ${rowData('agent', a.host, a.pane)}>
+  return `<div class="sw${ghost ? ' ghost' : ''}" ${rowData('agent', a.host, a.pane)}>
     <a class="sw-front pane-row agent${unread ? ' unread' : ''}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
       ${unread ? '<span class="unread-dot" role="img" aria-label="새 결과"></span>' : ''}<span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
       <span class="pane-main"><span class="pane-title">${esc(a.title || a.name || a.agent || a.pane)}</span>${meta ? `<span class="pane-meta">${meta}</span>` : ''}</span>
@@ -548,6 +553,9 @@ function agentRow(a) {
     ${rowMore(a.title || a.name || a.pane)}
   </div>`;
 }
+
+// When a card is a ghost's: its workspace's (or, one herdr hadn't listed, its rows').
+const ghostAt = (w, agents = [], terms = []) => (w && w.stale) || [...agents, ...terms].reduce((t, x) => t || x.stale || 0, 0) || 0;
 
 // A row's ⋯, shown while the pointer is over the row (style.css): the same menu as a right-click or
 // a long press (rows.js). Out of the Tab order: Alt+M opens the focused row's menu.
@@ -562,7 +570,7 @@ function paneDir(x, name) {
 
 function termRow(t) {
   const dir = paneDir(t, termTitle(t));
-  return `<div class="sw" ${rowData('term', t.host, t.pane)}>
+  return `<div class="sw${t.stale ? ' ghost' : ''}" ${rowData('term', t.host, t.pane)}>
     <a class="sw-front pane-row term" href="${link(t.host, `/term/${encodeURIComponent(t.pane)}`)}">
       <span class="pane-ic" aria-hidden="true">${ICON.term}</span>
       <span class="pane-main"><span class="pane-title">${esc(termTitle(t))}</span>${dir ? `<span class="pane-meta">${dir}</span>` : ''}</span>

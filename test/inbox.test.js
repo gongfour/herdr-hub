@@ -59,3 +59,10 @@ test('unread: stopped recently (or herdr says done) and this finish not opened',
   assert.equal(seenKey(agents[6]), 'desktop|p7|done');
   assert.equal(unread(null), false);
 });
+
+test('unread: an offline peer\'s ghost is never news, whatever it last was', () => {
+  const now = 1e12;
+  assert.equal(unread({ host: 'server', pane: 'p1', status: 'done', doneAt: now - 1000 }, { now }), true);
+  assert.equal(unread({ host: 'server', pane: 'p1', status: 'stale', lastStatus: 'done', doneAt: now - 1000, stale: now - 500 }, { now }), false);
+  assert.equal(unread({ host: 'server', pane: 'p1', status: 'done', stale: now - 500 }, { now }), false);
+});

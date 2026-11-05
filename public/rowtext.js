@@ -79,6 +79,22 @@
     return h.herdr === 'up' ? 'up' : 'herdr';
   }
 
+  // An offline peer's ghost (lib/peers.js staleView) is "as of" when it was last heard:
+  // 「오후 10:47 기준」 today, 「어제 오후 10:47 기준」, else 「11월 4일 오후 10:47 기준」.
+  function asOf(at, now = Date.now()) {
+    if (!at) return '';
+    const d = new Date(at);
+    const t = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const n = new Date(now);
+    const days = Math.round((day(n) - day(d)) / 86400000);
+    const when = days <= 0 ? '' : days === 1 ? '어제 ' : `${d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} `;
+    return `${when}${t} 기준`;
+  }
+  // A ghost agent's small line: the status it last had, said as past (「마지막: 작업 중」).
+  const LAST = { blocked: '답 필요', done: '완료', working: '작업 중', idle: '쉬는 중' };
+  const lastStatus = (a) => (LAST[a && a.lastStatus] ? `마지막: ${LAST[a.lastStatus]}` : '마지막 모습');
+
   // The first-visit hint: the host swipe only when there is a host to swipe to.
   const hintText = (multi) => (multi ? '옆으로 밀어 기기 바꾸기 · 길게 눌러 메뉴' : '줄을 길게 누르면 메뉴가 나옵니다');
   // Seen this many times (one count per app start), or closed with ✕ ('x'), it stays away.
@@ -86,7 +102,7 @@
   const hintDue = (stored) => stored !== 'x' && (Number(stored) || 0) < HINT_TIMES;
   const hintNext = (stored) => String(Math.min(HINT_TIMES, (Number(stored) || 0) + 1));
 
-  const api = { shortPath, rowDir, metaName, homePath, termName, hostAria, hostState, hintText, hintDue, hintNext, HINT_TIMES };
+  const api = { shortPath, rowDir, metaName, homePath, termName, hostAria, hostState, asOf, lastStatus, hintText, hintDue, hintNext, HINT_TIMES };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RowText = api;
 })(typeof self !== 'undefined' ? self : this);

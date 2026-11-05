@@ -185,14 +185,15 @@ const COMMAND_CAN = {
   jumpEnd: (o) => Boolean(o && o.kind !== 'ws'),
   jumpTop: (o) => Boolean(o && o.kind !== 'ws'),
   stop: (o) => Boolean(o && o.kind === 'agent' && o.x.status === 'working'),
+  // An offline host's ghost (o.x.stale): only to look at (actions.js ghostOff).
   wrap: () => Boolean(scr),
-  terminal: (o) => Boolean(o && o.kind === 'agent'),
+  terminal: (o) => Boolean(o && o.kind === 'agent' && !o.x.stale),
   termFontUp: (o) => Boolean(scr || (o && o.kind === 'term')),
   termFontDown: (o) => Boolean(scr || (o && o.kind === 'term')),
   // In a workspace's own view 워크스페이스 닫기 is the one (끝내기 there closes it too).
-  closeView: (o) => Boolean(o && o.kind !== 'ws'),
-  closeWorkspace: () => Boolean(workspaceHere()), // app.js
-  mode: (o) => Boolean(o && o.kind === 'agent' && visible('d-mode')),
+  closeView: (o) => Boolean(o && o.kind !== 'ws' && !o.x.stale),
+  closeWorkspace: () => Boolean(workspaceHere() && !workspaceHere().stale), // app.js
+  mode: (o) => Boolean(o && o.kind === 'agent' && !o.x.stale && visible('d-mode')),
   prevHost: () => multi() && listShown(),
   nextHost: () => multi() && listShown(),
   prevRow: () => split,
@@ -236,7 +237,7 @@ function switcherCommands() {
     const items = o.kind === 'ws' ? wsMenuItems(o.x, { here: true }) : paneMenuItems(o.kind, o.x, { here: true });
     const group = `${o.kind === 'agent' ? '이 에이전트' : o.kind === 'term' ? '이 셸' : '이 워크스페이스'}: ${rowLabel(o.kind, o.x)}`;
     for (const it of items) {
-      if (!Array.isArray(it) || it[4] || it[0] === 'close') continue; // an action's own command says it, with its key
+      if (!Array.isArray(it) || it[4] || it[5] || it[0] === 'close') continue; // an action's own command says it, with its key; it[5]: can't now (a ghost)
       const [k, name, , note] = it;
       const run = () => (o.kind === 'ws' ? wsAction(o.x, k) : paneAction(o.kind, o.x, k, { here: true }));
       cmds.push({ id: `menu:${k}`, name, sub: note || '', group, keys: '', hay: `${name} ${note || ''} ${group}`, run });
