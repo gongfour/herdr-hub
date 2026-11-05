@@ -238,7 +238,17 @@ function renderTerminal() {
   input.addEventListener('keydown', (e) => {
     if (!detail.raw || e.isComposing || e.keyCode === 229) return;
     const k = shellKeyName(e);
-    if (!k) return;
+    if (!k) {
+      // A Mac keyboard: a letter goes from its keydown, not beforeinput. Held down in a text
+      // field, macOS opens its accent picker (ð ď) instead of repeating; a keydown the page takes
+      // never reaches the text system, so the key repeats as in a terminal. Not a touch device
+      // (its keyboard composes), not with ⌥ (it types ∫ and its dead keys as text) or a dead key.
+      if (HOLD_REPEATS && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        rawPress({ text: e.key });
+      }
+      return;
+    }
     e.preventDefault();
     rawPress({ key: k });
   });
@@ -347,6 +357,8 @@ document.addEventListener(
 // gives it to the Hub, Esc for 뒤로's keys (the shell's Esc), else its rawKeyName (null: typed
 // text, which beforeinput sends, or a key the shell never gets).
 const shellKeyName = (e) => Keymap.shellKey(e, keyContext()); // app.js
+// A Mac with a keyboard and no touch screen, where holding a letter would open the accent picker.
+const HOLD_REPEATS = KEY_MAC && !navigator.maxTouchPoints; // core.js
 
 // The shell view, a key pressed while the focus is on the page (before the screen was tapped,
 // or after ⌨ put the keyboard away): it goes to the shell, and its field takes the focus for
