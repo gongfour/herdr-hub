@@ -1639,6 +1639,9 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
   .kchip .ksh { min-width: 52px; min-height: 44px; padding: 0 10px; margin: 0 6px; }
   .kchip .ksh::after { content: ""; position: absolute; inset: -6px -2px; }
   .k-reset { min-height: 44px; }
+  /* 설정 → 정보's 새로고침·지금 바꾸기, the answer box's toggles, the shell's 더 보기, the hub-down
+     notice's fold: smaller with a mouse, 44px under a finger (Apple 44pt, Material 48dp). */
+  .pref-ver .btn, .toggle, .blocked-box .b-head .toggle, .shell-more, .hd-more > summary { min-height: 44px; }
 }
 
 /* 「방금 본 대화」 (fwdchip.js): a calm chip above the tab bar after an agent or shell is left for
