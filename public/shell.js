@@ -181,6 +181,17 @@ function renderTerminal() {
     e.preventDefault();
     pressKey(tab);
   });
+  // 한 줄 입력: Ctrl+W deletes the word before the caret, as the shell's own does; in the
+  // installed app the key would otherwise close the window (a tab's browser keeps it anyway).
+  // A key the keymap gives the Hub here stays the Hub's.
+  input.addEventListener('keydown', (e) => {
+    if (detail.raw || e.isComposing || e.keyCode === 229 || !Keymap.matches(e, 'Ctrl+w') || Keymap.match(e, keyContext())) return;
+    e.preventDefault();
+    const at = input.selectionStart;
+    const end = input.selectionEnd;
+    const from = at !== end ? at : input.value.slice(0, at).replace(/\S*\s*$/, '').length;
+    input.setRangeText('', from, end, 'end');
+  });
   // Raw mode: typed characters go as text, editing keys as keys; the field stays empty.
   // A Korean (IME) syllable goes once it is composed. Everything passes the sticky Ctrl/Alt
   // (rawPress). A word deleted at once (Alt+Backspace, the keyboard's word delete) is Ctrl+W.

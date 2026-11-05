@@ -820,6 +820,20 @@ const KEY_ACTIONS = {
     }
     return true;
   },
+  // Ctrl+W / ⌘W in the installed app, as a window's tab: the top sheet, else out of what is open
+  // (the agent keeps running), as ‹ does, from a field too. Nothing left to close: the key is
+  // left to the browser, which closes the app window as ⌘W does anywhere. A held key closes one
+  // thing only and never the window.
+  leaveView(b, e) {
+    if (e && e.repeat) return true;
+    const top = topLayer();
+    if (top) return closeLayer(top), true;
+    if (view.name === 'settings') return toggleSettings(), true;
+    const back = view.name !== 'list' && $app.querySelector('a[data-back]');
+    if (!back) return false;
+    goBack(back.getAttribute('href'));
+    return true;
+  },
   help: () => (toggleKeys(), true), // keyspage.js
   settings: () => (toggleSettings(), true),
   // The caret in the composer (or the shell's command line), at the end of what is there.

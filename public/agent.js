@@ -28,7 +28,7 @@ function renderDetail() {
         <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">${ICON.photo}</button>
         <div id="d-input" class="input" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="메시지" data-placeholder="메시지 보내기" enterkeyhint="${getEnter() === 'send' ? 'send' : 'enter'}" autocapitalize="sentences"></div>
         <button type="button" class="stop" id="d-stop" aria-label="중단"${keyAttrs('stop', '중단')} hidden>${ICON.stop}</button>
-        <button type="button" class="send" id="d-send" aria-label="보내기"${keyAttrs(null, '보내기', Keymap.label('Ctrl+Enter'))} disabled>${ICON.send}</button>
+        <button type="button" class="send" id="d-send" aria-label="보내기"${keyAttrs(null, '보내기', Keymap.label(Keymap.deviceKey('Ctrl+Enter')))} disabled>${ICON.send}</button>
       </div>
     </div>`;
   document.getElementById('d-activity').onclick = openScreenSheet;

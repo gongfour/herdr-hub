@@ -108,8 +108,13 @@ function drawKeysList() {
   };
   const local = Keymap.LOCAL.filter((x) => keysMatch({ label: `${x.group} ${x.label}`, keys: Keymap.localKeys(x) }, q));
   const changed = Object.keys(keyOverrides).length > 0;
+  // Which keys this window gets: the installed app has the browser's tab and window keys.
+  const w = Keymap.env.mac ? '⌘W·⌘N' : 'Ctrl+W·Ctrl+N';
+  const winNote = Keymap.env.app
+    ? `설치한 앱이라 브라우저의 탭·창 키(${w} 등)도 Hub 가 씁니다. 앱을 끝내는 키(${Keymap.env.mac ? '⌘Q' : 'Alt+F4'})는 쓸 수 없습니다.`
+    : `브라우저 탭에서는 ${w} 같은 탭·창 키를 브라우저가 가져갑니다. 설치한 앱으로 열면 Hub 가 씁니다 (대화창 닫기 등).`;
   const html = `
-    <p class="pnote k-note">바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만 동작합니다. 키 옆의 단추는 셸 화면에서 그 키가 가는 곳입니다: <span class="ksh-demo" aria-hidden="true">Hub</span>면 셸 화면에서도 Hub 가 쓰고, <span class="ksh-demo off" aria-hidden="true">셸로</span>면 셸이 받습니다. 눌러서 바꿉니다.</p>
+    <p class="pnote k-note">${esc(winNote)} 바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만 동작합니다. 키 옆의 단추는 셸 화면에서 그 키가 가는 곳입니다: <span class="ksh-demo" aria-hidden="true">Hub</span>면 셸 화면에서도 Hub 가 쓰고, <span class="ksh-demo off" aria-hidden="true">셸로</span>면 셸이 받습니다. 눌러서 바꿉니다.</p>
     ${[...groups]
       .map(([g, rows]) => `<section class="pgroup"><h2>${esc(g)}</h2><div class="pcard">${rows.map(row).join('')}</div></section>`)
       .join('')}

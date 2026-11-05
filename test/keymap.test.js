@@ -205,7 +205,7 @@ test('stop: Alt+. on the page and in a field; never in the shell (its last-argum
   assert.equal(act('Ctrl+.', {}), null);
 });
 
-test('new agent / workspace: Ctrl or Alt + N (Shift for a workspace), never in the shell or under a sheet', () => {
+test('new agent / workspace (a tab, not a Mac): Ctrl or Alt + N (Shift for a workspace), never in the shell or under a sheet', () => {
   for (const ctx of [{}, { field: true }, { split: true }]) {
     assert.equal(act('Ctrl+n', ctx), 'newAgent');
     assert.equal(act('Alt+n', ctx), 'newAgent');
@@ -227,12 +227,13 @@ test('label reads as on the keycap; the sheet lists every action once with all i
   assert.equal(label('Escape'), 'Esc');
   const groups = sheetGroups();
   const rows = groups.flatMap((g) => g.rows);
-  for (const a of Object.values(ACTIONS)) assert.equal(rows.filter((r) => r.label === a.label).length, 1, a.label);
+  // Every action with a key here (대화창 닫기 has none in a tab).
+  for (const [name, a] of Object.entries(ACTIONS)) assert.equal(rows.filter((r) => r.label === a.label).length, name === 'leaveView' ? 0 : 1, a.label);
   const jump = rows.find((r) => r.label === ACTIONS.jumpEnd.label);
   assert.deepEqual(jump.keys, ['Ctrl+Shift+↓', 'Ctrl+End', '⌘+↓', 'End']);
   assert.deepEqual(rows.find((r) => r.label === ACTIONS.answer.label).keys, ['1–9']);
   assert.deepEqual(rows.find((r) => r.label === ACTIONS.switcher.label).keys, ['Ctrl+P', 'Alt+P']);
-  assert.deepEqual(rows.find((r) => r.label === ACTIONS.newWorkspace.label).keys, ['Ctrl+Shift+N', 'Alt+Shift+N']);
+  assert.deepEqual(rows.find((r) => r.label === ACTIONS.newWorkspace.label).keys, ['Alt+Shift+N', 'Ctrl+Shift+N']); // a tab: Chrome keeps Ctrl+Shift+N
 });
 
 test('Alt+H/J/K/L mirror Alt+←/↓/↑/→ in the same places, by e.code too', () => {
@@ -391,10 +392,11 @@ test('a changed key never takes a typed character or a shell key', () => {
 });
 
 test('setOverrides keeps only what can stand: no unknown action, no refused key, a key once, 뒤로 with Esc', () => {
-  const kept = KM.setOverrides({ nope: ['Ctrl+g'], answer: ['Ctrl+g'], jumpEnd: ['Ctrl+w', 'Ctrl+g'], jumpTop: ['Ctrl+g'], back: ['Ctrl+q2'] });
+  // Ctrl+W stays though a tab refuses it: the same storage serves the installed app, which has it.
+  const kept = KM.setOverrides({ nope: ['Ctrl+g'], answer: ['Ctrl+g'], jumpEnd: ['Meta+q', 'Ctrl+w', 'Ctrl+g'], jumpTop: ['Ctrl+g'], back: ['Ctrl+q2'] });
   try {
     assert.deepEqual(Object.keys(kept).sort(), ['back', 'jumpEnd', 'jumpTop']);
-    assert.deepEqual(kept.jumpEnd, ['Ctrl+g']);
+    assert.deepEqual(kept.jumpEnd, ['Ctrl+w', 'Ctrl+g']); // ⌘Q never
     assert.deepEqual(kept.jumpTop, []); // Ctrl+g went to jumpEnd first
     assert.deepEqual(kept.back, ['Escape']);
   } finally {
@@ -462,7 +464,7 @@ test('Alt+W: close what is open (a sheet asks first), a field too; never in the 
   assert.equal(act('Alt+w', {}, { key: '∑', code: 'KeyW' }), 'closeView'); // a Mac's Option+W
   assert.equal(act('Alt+w', { shell: true }), null); // the shell's alt+w
   assert.equal(act('Alt+w', { layer: true }), null);
-  assert.match(KM.refuse('closeView', 'Ctrl+w'), /브라우저/);
+  assert.match(KM.refuse('closeView', 'Ctrl+w'), /브라우저/); // a tab
 });
 
 test('Ctrl+Alt+W: the same close, the shell view included (no shell key)', () => {
@@ -513,7 +515,7 @@ test('a new key: the switch on takes it in the shell view, off (or left alone) l
     assert.equal(act('Alt+s', { field: true }), 'newAgent'); // still in a field
   });
   over = KM.setShell(over, 'newAgent', 'Alt+s', true);
-  assert.deepEqual(over.newAgent, ['Ctrl+n', 'Alt+n', { key: 'Alt+s', shell: true }]);
+  assert.deepEqual(over.newAgent, ['Alt+n', 'Ctrl+n', { key: 'Alt+s', shell: true }]);
   withKeys(over, () => {
     assert.equal(KM.shellFor('newAgent', 'Alt+s'), true);
     assert.equal(KM.shellKey(ev('Alt+s'), sp), null);
@@ -524,7 +526,7 @@ test('a new key: the switch on takes it in the shell view, off (or left alone) l
     assert.deepEqual(row.shells.find((x) => x.key === 'Alt+s'), { key: 'Alt+s', can: true, on: true, loses: '셸이 이 키(alt+s)를 받지 못합니다' });
   });
   over = KM.setShell(over, 'newAgent', 'Alt+s', false); // back to automatic: the plain key
-  assert.deepEqual(over.newAgent, ['Ctrl+n', 'Alt+n', 'Alt+s']);
+  assert.deepEqual(over.newAgent, ['Alt+n', 'Ctrl+n', 'Alt+s']);
   withKeys(over, () => assert.equal(KM.shellKey(ev('Alt+s'), sp), 'alt+s'));
 });
 
@@ -645,4 +647,171 @@ test('the sheet lists the menu keys and the confirm key', () => {
   const g = sheetGroups().find((x) => x.group === '메뉴·확인 창');
   const keys = g.rows.flatMap((r) => r.keys);
   for (const k of ['↓', 'Ctrl+J', 'Ctrl+K', 'Home', 'Ctrl+리턴']) assert.ok(keys.includes(k), k);
+});
+
+// ---- the device: the Mac (⌘) and the installed app (the browser's tab and window keys are the
+// page's). Each test puts the default device (not a Mac, a tab) back.
+const onDevice = (env, fn) => {
+  try {
+    KM.setEnv(env);
+    fn();
+  } finally {
+    KM.setEnv({});
+  }
+};
+const DEVICES = [
+  { mac: false, app: false },
+  { mac: false, app: true },
+  { mac: true, app: false },
+  { mac: true, app: true },
+];
+const name = (d) => `${d.mac ? 'Mac' : 'other'} ${d.app ? 'app' : 'tab'}`;
+
+test('every device: no key bound twice, every binding an action, and the shell keys taken are the same list', () => {
+  const base = KM.BINDINGS.filter((x) => x.shell && rawKeyName(ev(x.key)) != null).map((x) => `${x.key} ${x.action}`);
+  for (const d of DEVICES)
+    onDevice(d, () => {
+      const seen = new Map();
+      for (const x of KM.BINDINGS) {
+        assert.ok(ACTIONS[x.action], x.action);
+        const k = JSON.stringify(parse(x.key));
+        assert.ok(!seen.has(k), `${name(d)} ${x.key}: ${seen.get(k)} and ${x.action}`);
+        seen.set(k, x.action);
+      }
+      // ⌘ never reaches the shell: the Mac's ⌘ keys in the shell view take nothing from it.
+      assert.deepEqual(KM.BINDINGS.filter((x) => x.shell && rawKeyName(ev(x.key)) != null).map((x) => `${x.key} ${x.action}`), base, name(d));
+    });
+});
+
+test('대화창 닫기: Ctrl+W (⌘W on the Mac) only in the installed app; a tab leaves them to the browser', () => {
+  const leave = (key, ctx, extra) => (KM.match(ev(key, extra), ctx) || {}).action || null;
+  onDevice({ mac: false, app: true }, () => {
+    for (const ctx of [{}, { field: true }, { layer: true }, { split: true }]) assert.equal(leave('Ctrl+w', ctx), 'leaveView');
+    assert.equal(leave('Ctrl+w', {}, { key: 'ㅈ', code: 'KeyW' }), 'leaveView'); // keyboard set to Korean
+    assert.equal(leave('Ctrl+w', { shell: true }), null); // the shell's delete-a-word
+    assert.equal(KM.shellKey(ev('Ctrl+w'), { shell: true }), 'ctrl+w');
+    assert.equal(leave('Meta+w', {}), null);
+    assert.equal(KM.refuse('jumpEnd', 'Ctrl+w'), ''); // the app's to give
+    assert.equal(KM.refuse('jumpEnd', 'Ctrl+t'), '');
+    assert.match(KM.refuse('jumpEnd', 'Alt+F4'), /시스템/);
+    assert.equal(KM.hint('leaveView'), 'Ctrl+W');
+  });
+  onDevice({ mac: true, app: true }, () => {
+    for (const ctx of [{}, { field: true }, { layer: true }, { shell: true }, { shell: true, field: true }]) assert.equal(leave('Meta+w', ctx), 'leaveView');
+    assert.equal(KM.shellKey(ev('Meta+w'), { shell: true }), null); // never the shell's
+    assert.equal(leave('Ctrl+w', {}), null);
+    assert.equal(KM.refuse('jumpEnd', 'Meta+w'), '');
+    assert.equal(KM.hint('leaveView'), '⌘+W');
+    assert.equal(KM.hint('leaveView', { shell: true }), '⌘+W');
+  });
+  for (const mac of [false, true])
+    onDevice({ mac, app: false }, () => {
+      assert.equal(leave('Ctrl+w', {}), null);
+      assert.equal(leave('Meta+w', {}), null);
+      assert.deepEqual(KM.keysFor('leaveView'), []);
+      assert.equal(KM.hint('leaveView'), '');
+      assert.match(KM.refuse('leaveView', 'Ctrl+w'), /브라우저/);
+      assert.match(KM.refuse('leaveView', 'Meta+w'), /브라우저/);
+      assert.match(KM.refuse('leaveView', mac ? 'Meta+n' : 'Ctrl+Shift+t'), /브라우저/);
+      assert.equal(KM.refuse('leaveView', 'Alt+q'), ''); // a key of one's own still
+    });
+  // The quit and system keys never, app or tab.
+  for (const d of DEVICES)
+    onDevice(d, () => {
+      for (const k of ['Meta+q', 'Meta+h', 'Meta+m', 'Meta+Tab', 'Meta+`', 'Alt+F4', 'Ctrl+Shift+q']) assert.match(KM.refuse('leaveView', k), /시스템/, `${name(d)} ${k}`);
+    });
+});
+
+test('대화 종료 stays Alt+W (Option+W), Ctrl+Alt+W in the shell view, on every device', () => {
+  for (const d of DEVICES)
+    onDevice(d, () => {
+      assert.deepEqual(KM.keysFor('closeView'), ['Alt+w', 'Ctrl+Alt+w'], name(d));
+      assert.equal((KM.match(ev('Alt+w', { key: '∑', code: 'KeyW' }), {}) || {}).action, 'closeView');
+      assert.equal((KM.match(ev('Ctrl+Alt+w'), { shell: true }) || {}).action, 'closeView');
+    });
+});
+
+test('the Mac: the ⌘ form first (what hints and the 단축키 page show), the Ctrl form kept', () => {
+  onDevice({ mac: true, app: true }, () => {
+    const sp = { split: true };
+    const at = (key, ctx, extra) => (KM.match(ev(key, extra), ctx) || {}).action || null;
+    assert.equal(KM.hint('newAgent'), '⌘+N');
+    assert.equal(KM.hint('newWorkspace'), '⌘+Shift+N');
+    assert.equal(KM.hint('switcher'), '⌘+P');
+    assert.equal(KM.hint('toggleSide', sp), '⌘+B');
+    assert.equal(KM.hint('settings'), '⌘+,');
+    assert.equal(KM.hint('help'), '⌘+?');
+    // In the shell view too: ⌘ is never the shell's.
+    assert.equal(KM.hint('switcher', { shell: true }), '⌘+P');
+    assert.equal(KM.hint('newAgent', { shell: true }), '⌘+N');
+    assert.equal(KM.hint('settings', { shell: true }), '⌘+,');
+    for (const ctx of [{}, { field: true }, { shell: true }]) {
+      assert.equal(at('Meta+n', ctx), 'newAgent');
+      assert.equal(at('Meta+Shift+n', ctx, { key: 'N' }), 'newWorkspace');
+      assert.equal(at('Meta+p', ctx), 'switcher');
+      assert.equal(at('Meta+,', ctx), 'settings');
+      assert.equal(at('Meta+?', ctx, { shiftKey: true, code: 'Slash' }), 'help');
+      assert.equal(at('Meta+b', { ...ctx, split: true }), 'toggleSide');
+    }
+    assert.equal(at('Meta+n', {}, { key: 'ㅜ', code: 'KeyN' }), 'newAgent'); // keyboard set to Korean
+    // The Ctrl forms as before; in the shell view still the shell's.
+    assert.equal(at('Ctrl+n', {}), 'newAgent');
+    assert.equal(at('Ctrl+p', { field: true }), 'switcher');
+    assert.equal(at('Ctrl+p', { shell: true }), null);
+    assert.equal(KM.shellKey(ev('Ctrl+n'), { shell: true }), 'ctrl+n');
+    // No Alt twins in the app: Ctrl+N and ⌘N come to the page; Alt+N is readline's again.
+    assert.equal(at('Alt+n', {}), null);
+    assert.equal(at('Alt+Shift+n', {}, { key: 'N' }), null);
+    // The 단축키 page reads ⌘ first.
+    const row = (a) => KM.actionRows().find((r) => r.action === a);
+    assert.deepEqual(row('newAgent').keys.map(label), ['⌘+N', 'Ctrl+N']);
+    assert.deepEqual(row('leaveView').keys.map(label), ['⌘+W']);
+    assert.deepEqual(row('switcher').keys.map(label), ['⌘+P', 'Ctrl+P', 'Alt+P']);
+    const send = KM.LOCAL.find((x) => x.group === '메시지 칸' && x.key === 'Ctrl+Enter');
+    assert.deepEqual(KM.localKeys(send).map(label), ['⌘+리턴', 'Ctrl+리턴']);
+    assert.equal(KM.deviceKey('Ctrl+Enter'), 'Meta+Enter');
+  });
+  onDevice({ mac: true, app: false }, () => {
+    // A tab: Chrome keeps ⌘N and ⌘⇧N (a new window), not Ctrl+N; ⌘P, ⌘B, ⌘, come to the page.
+    assert.equal(KM.hint('newAgent'), 'Ctrl+N');
+    assert.equal(KM.hint('newWorkspace'), 'Ctrl+Shift+N');
+    assert.equal(KM.hint('switcher'), '⌘+P');
+    assert.equal((KM.match(ev('Meta+n'), {}) || {}).action, undefined);
+    assert.equal((KM.match(ev('Alt+n'), {}) || {}).action, undefined);
+  });
+  onDevice({ mac: false, app: false }, () => {
+    assert.equal(KM.hint('switcher'), 'Ctrl+P');
+    assert.equal(KM.hint('newAgent'), 'Alt+N'); // Chrome keeps Ctrl+N in a tab
+    assert.equal((KM.match(ev('Meta+p'), {}) || {}).action, undefined);
+    assert.equal(KM.deviceKey('Ctrl+Enter'), 'Ctrl+Enter');
+  });
+  onDevice({ mac: false, app: true }, () => {
+    assert.equal(KM.hint('newAgent'), 'Ctrl+N');
+    assert.equal(KM.hint('newWorkspace'), 'Ctrl+Shift+N');
+    assert.equal((KM.match(ev('Alt+n'), {}) || {}).action, undefined);
+  });
+});
+
+test('changed keys survive the device: a stored app key kept in a tab, the defaults of the device below', () => {
+  // A key given in the app (Ctrl+W to something else) is kept by a tab sharing the storage.
+  onDevice({ mac: false, app: true }, () => {
+    const over = KM.assign({}, 'menu', 'Ctrl+w').overrides;
+    assert.deepEqual(over.leaveView, []); // taken from 대화창 닫기
+    KM.setOverrides(over);
+    assert.equal((KM.match(ev('Ctrl+w'), {}) || {}).action, 'menu');
+    KM.setEnv({ mac: false, app: false });
+    assert.deepEqual(KM.keysFor('menu'), ['Alt+m', 'Ctrl+Alt+m', 'Ctrl+w']);
+    KM.setOverrides({});
+  });
+  // setEnv lays the device's changes over the new defaults.
+  KM.setOverrides({ help: ['F1'] });
+  try {
+    onDevice({ mac: true, app: true }, () => {
+      assert.deepEqual(KM.keysFor('help'), ['F1']);
+      assert.equal(KM.hint('switcher'), '⌘+P');
+    });
+    assert.deepEqual(KM.keysFor('help'), ['F1']);
+  } finally {
+    KM.setOverrides({});
+  }
 });

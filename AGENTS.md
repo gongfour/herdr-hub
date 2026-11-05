@@ -11,6 +11,7 @@
 - 셸 화면에서 Hub 가 어떤 키를 쓰는지는 **표의 `shell` 한 곳**이 정한다. 셸의 키 직접 입력 칸은 키를 먼저 표에 묻고(`Keymap.shellKey`), `shell` 인 바인딩이 맞으면 Hub 가 쓰고, 아니면 `keys.js` 의 `rawKeyName` 이 이름 붙인 대로 셸로 보낸다(뒤로의 키는 셸의 Esc, ACTIONS 의 `shellEsc`). `rawKeyName` 에 「이 키는 Hub 것」 같은 예외를 다시 넣지 않는다: 그것은 셸이 받을 키를 말할 뿐이다. 그래서 사람이 키를 빼면 그 키는 셸로 돌아가고, 단축키 페이지의 키마다 「셸」 스위치(「셸 화면에서도」, `setShell`)로 셸이 쓰는 키도 Hub 에 줄 수 있다. 셸 화면에서 쓸 일이 없는 동작은 ACTIONS 에 `noShell: true` 를 둔다(스위치가 없다).
 - `npm test` 의 `test/keymap.test.js` 가 같은 키가 두 번 묶였는지, 기본 표가 셸 화면에서 셸한테서 가져가는 키가 정해 둔 목록(「the shell keys the defaults take」)과 같은지 검사한다. 기본 바인딩에 `shell` 을 켜서 셸이 쓰는 키를 가져가게 하면 그 목록과 README 를 함께 고친다. 새 단축키를 넣으면 그 키가 어디서 되고 어디서 안 되는지 시험도 더한다.
 - 키를 고를 때: 입력 칸에서 글자를 치는 키(맨 글자, 기호)는 입력 칸 밖에서만. 셸 화면에서 Ctrl+글자·Alt+글자·Alt+←/→ 는 셸 몫이다. Galaxy Tab 키보드 덮개의 Esc 는 웹에 오지 않으므로 Esc 만 되는 동작은 Ctrl+[ 도 된다(이미 `back`).
+- 기기마다 표가 다르다: `keymap.js` 의 `table({ mac, app })` 이 표를 만들고, 페이지는 `Keymap.setEnv` 로 그 기기를 넘긴다(`core.js`; 표 안에서 `navigator`·`matchMedia` 를 읽지 않는다). **설치한 앱**에서는 브라우저의 탭·창 키(Ctrl+W·Ctrl+N·Ctrl+T·⌘W·⌘N …)가 Hub 의 것이니 써도 된다. 브라우저 탭에서는 브라우저 것이라 묶지 않는다(`BROWSER`). 앱을 끝내거나 시스템이 쓰는 키(⌘Q·⌘H·⌘M·⌘Tab·⌘Space·⌘`·Alt+F4·Ctrl+Shift+Q, `SYSTEM`)는 어디서도 쓰지 않는다. **Mac** 에서는 Hub 의 Ctrl+글자·기호 키에 ⌘ 짝을 먼저 두고(`when(mac, …)` 을 Ctrl 줄 앞에) Ctrl 짝도 남긴다. ⌘ 조합은 셸로 가지 않으니 ⌘ 키는 `shell: true` 여도 셸 키를 뺏지 않는다. 기기에 따라 키를 더하거나 빼면 `test/keymap.test.js` 의 기기별 시험(네 기기 모두 같은 키 두 번 없음, 셸에서 가져가는 키 목록이 같음)을 함께 고친다.
 
 ## 설정
 

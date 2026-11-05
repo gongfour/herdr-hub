@@ -28,9 +28,15 @@
 // takes a typed character (no Ctrl/Alt/⌘: not in a field) or a key the shell uses (keys.js
 // rawKeyName: not in the shell view). The 단축키 page's 「셸 화면에서도」 switch overrides the
 // shell part for one key: an entry { key, shell } in place of the key string (shellFor).
+//
+// The device (setEnv): mac, where ⌘ is the user's key, and app, the installed app (display-mode
+// standalone): there the browser's tab and window keys (Ctrl+W, Ctrl+N, ⌘W, ⌘N …) come to the
+// page first, as VS Code for the Web takes them; in a plain tab the browser keeps them. The
+// table is built for the device; the keys that quit or are the system's stay refused anywhere.
 (function (root) {
   const ACTIONS = {
     back: { group: '어디서나', label: '시트·메뉴 닫기, 입력 칸에서 나가기, 뒤로 (셸의 키 직접 입력에서는 셸의 Esc)', shellEsc: true },
+    leaveView: { group: '어디서나', label: '대화창 닫기: 연 에이전트·셸·워크스페이스(또는 시트, 설정)에서 나온다. 에이전트는 그대로 돈다 (Ctrl+W·⌘W 는 설치한 앱에서만; 닫을 것이 없으면 앱 창이 닫힌다)' },
     help: { group: '어디서나', label: '단축키 보기' },
     settings: { group: '어디서나', label: '설정 열기·닫기 (두 칸이면 오른쪽에)' },
     focusInput: { group: '어디서나', label: '입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)', noShell: true },
@@ -53,7 +59,7 @@
     terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기', noShell: true },
     termFontUp: { group: '대화·터미널 화면', label: '셸 글자 키우기 (설정 → 셸 글자 크기)' },
     termFontDown: { group: '대화·터미널 화면', label: '셸 글자 줄이기' },
-    closeView: { group: '대화·터미널 화면', label: '연 에이전트·셸(또는 워크스페이스) 닫기: 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 닫고, 리턴·Esc 로 그만둔다' },
+    closeView: { group: '대화·터미널 화면', label: '대화 종료: 연 에이전트·셸(또는 워크스페이스)을 끝낸다. 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 끝내고, 리턴·Esc 로 그만둔다' },
     mode: { group: '대화·터미널 화면', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)', noShell: true },
     prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
@@ -65,111 +71,133 @@
   };
 
   const b = (action, key, o = {}) => ({ action, key, field: false, shell: false, layer: false, split: false, ...o });
-  const BINDINGS = [
-    // Always taken (app.js): Android turns an Esc the page leaves alone into Back, which closes
-    // the app. Ctrl+[ is the terminal's Esc, for a keyboard cover whose Esc the system keeps.
-    // In the shell's 키 직접 입력 they are the shell's Esc (shellEsc): the field sends it.
-    b('back', 'Escape', { field: true, shell: true, layer: true }),
-    b('back', 'Ctrl+[', { field: true, shell: true, layer: true }),
-    // Scroll Lock: a key with no text and no system meaning, for a key remapper to turn the
-    // cover's Esc into (Key Mapper sends no Ctrl with a key it injects, and its own Esc is taken).
-    b('back', 'ScrollLock', { field: true, shell: true, layer: true }),
-    // Ctrl+? (Ctrl+Shift+/ on the key): the 단축키 page from anywhere, a field and the shell view
-    // too (no shell key); a bare ? is typed. Not Ctrl+/ (no Shift).
-    b('help', 'Ctrl+?', { field: true, shell: true }),
-    b('focusInput', '/'),
-    // Ctrl+Shift+↑/↓: Ctrl+↑/↓ (by your messages) all the way. Easy on a keyboard cover, where
-    // End is Fn+→ and ⌘ may belong to the system.
-    b('jumpEnd', 'Ctrl+Shift+ArrowDown', { field: true, shell: true, layer: true }),
-    b('jumpTop', 'Ctrl+Shift+ArrowUp', { field: true, shell: true, layer: true }),
-    b('jumpEnd', 'Ctrl+End', { field: true, shell: true, layer: true }),
-    b('jumpEnd', 'Meta+ArrowDown', { field: true, shell: true, layer: true }),
-    b('jumpEnd', 'End', { layer: true }), // in a field End is the caret's
-    // Ctrl+↑/↓ step by the messages you sent; Ctrl+K/J (as vim's k and j) just scroll.
-    b('prevMine', 'Ctrl+ArrowUp', { field: true, shell: true, layer: true }),
-    b('nextMine', 'Ctrl+ArrowDown', { field: true, shell: true, layer: true }),
-    b('scrollUp', 'Ctrl+k', { field: true, layer: true }), // the shell's kill-to-end
-    b('scrollDown', 'Ctrl+j', { field: true, layer: true }), // the shell's newline
-    b('prevHost', 'Alt+ArrowLeft', { field: true }), // the shell's word keys
-    b('nextHost', 'Alt+ArrowRight', { field: true }),
-    // Alt+H/L as vim's h and l: the same, by e.code (a Mac's Option+H is ˙, a Korean layout ㅗ).
-    // In the shell they stay the shell's, as Alt+←/→ do.
-    b('prevHost', 'Alt+h', { field: true }),
-    b('nextHost', 'Alt+l', { field: true }),
-    // Alt+↑/↓ works in the shell too: it is the way out of a shell that has every other key.
-    b('prevRow', 'Alt+ArrowUp', { field: true, shell: true, split: true }),
-    b('nextRow', 'Alt+ArrowDown', { field: true, shell: true, split: true }),
-    // Alt+K/J as vim's k and j: the same, the shell included (taken from the shell there).
-    b('prevRow', 'Alt+k', { field: true, shell: true, split: true }),
-    b('nextRow', 'Alt+j', { field: true, shell: true, split: true }),
-    // Ctrl+, as in VS Code. Not in the shell, whose keys stay its own; it types nothing in a field.
-    b('settings', 'Ctrl+,', { field: true }),
-    // Ctrl+P is the shell's (previous line): there Alt+P, taken from the shell (its rarely used
-    // history search by prefix). Taken
-    // under a sheet too, so the browser never prints; switcher.js decides what it means there.
-    b('switcher', 'Ctrl+p', { field: true, layer: true }),
-    b('switcher', 'Alt+p', { field: true, shell: true, layer: true }),
-    // A digit is typed in a field and is the shell's: only on the page of an agent.
-    ...'123456789'.split('').map((n) => b('answer', n)),
-    // Ctrl+B is the shell's (back a character), Alt+. its last argument.
-    b('toggleSide', 'Ctrl+b', { field: true, split: true }),
-    // Alt+B in the shell view too, taken from the shell (its back-a-word is also Alt+←); Ctrl+B
-    // there stays the shell's.
-    b('toggleSide', 'Alt+b', { field: true, shell: true, split: true }),
-    // F6 / Shift+F6 as VS Code's: the focus to the next (previous) column, past the list's many
-    // Tab stops. Taken from the shell too (its F6 is rarely anything): the way out to the list.
-    b('nextPane', 'F6', { field: true, shell: true, split: true }),
-    b('prevPane', 'Shift+F6', { field: true, shell: true, split: true }),
-    b('stop', 'Alt+.', { field: true }),
-    // Ctrl+N is the shell's (next line) and Alt+N readline's; Chrome may keep Ctrl+N (and
-    // Ctrl+Shift+N) for a new window, so each has an Alt twin.
-    b('newAgent', 'Ctrl+n', { field: true }),
-    b('newAgent', 'Alt+n', { field: true }),
-    b('newWorkspace', 'Ctrl+Shift+n', { field: true }),
-    b('newWorkspace', 'Alt+Shift+n', { field: true }),
-    // Alt+Shift+↑/↓: Alt+↑/↓ (the next row) narrowed to the agents waiting for an answer. No shell
-    // key (rawKeyName), so the shell view too.
-    b('nextBlocked', 'Alt+Shift+ArrowDown', { field: true, shell: true }),
-    b('prevBlocked', 'Alt+Shift+ArrowUp', { field: true, shell: true }),
-    // Alt+Z as VS Code's word wrap; in the shell view Alt+Z is the shell's, so Ctrl+Alt+Z there
-    // (no shell key: keys.js sends no Ctrl+Alt chord to the shell).
-    b('wrap', 'Alt+z', { field: true }),
-    b('wrap', 'Ctrl+Alt+z', { field: true, shell: true }),
-    // Ctrl+= / Ctrl+- are the browser's zoom; with Alt they are no shell key (no Ctrl+Alt chord
-    // goes to the shell), so the shell view too. Read by code as well (a Mac's Option+= is ≠).
-    b('termFontUp', 'Ctrl+Alt+=', { field: true, shell: true }),
-    b('termFontDown', 'Ctrl+Alt+-', { field: true, shell: true }),
-    // Alt+T is the shell's (swap words); the agent view has no shell, and it closes its own sheet.
-    b('terminal', 'Alt+t', { field: true, layer: true }),
-    // Alt+W: Ctrl+W is the browser's (close the tab or the app window). Alt+W is the shell's
-    // (copy a word back), so not in the shell view; close a shell with ⋯ or exit.
-    b('closeView', 'Alt+w', { field: true }),
-    // Ctrl+Alt+W in the shell view too: no shell key (keys.js sends no Ctrl+Alt chord to the shell).
-    b('closeView', 'Ctrl+Alt+w', { field: true, shell: true }),
-    // Alt+M: the ⋯ menu (M for menu). Alt+M is the shell's (back to indentation), so in the shell
-    // view Ctrl+Alt+M (no shell key: keys.js sends no Ctrl+Alt chord to the shell).
-    b('menu', 'Alt+m', { field: true }),
-    b('menu', 'Ctrl+Alt+m', { field: true, shell: true }),
-    // Shift+Tab is the shell's (and moves the focus back on the page): only the message box takes it
-    // (KEY_ACTIONS.mode), so a field, not the shell view.
-    b('mode', 'Shift+Tab', { field: true }),
-    // Alt+` as an app switcher's last app; the backquote key by code too (a Mac's Option+` is a
-    // dead key). No shell key either.
-    b('lastView', 'Alt+`', { field: true, shell: true }),
-  ];
+  // The table for a device. On the Mac the ⌘ form of a Hub chord comes first (the one hints show)
+  // and the Ctrl form stays: ⌘ never reaches the shell (keys.js rawKeyName), so a ⌘ key works in
+  // the shell view too.
+  function table({ mac = false, app = false } = {}) {
+    const when = (yes, ...xs) => (yes ? xs : []);
+    return [
+      // Always taken (app.js): Android turns an Esc the page leaves alone into Back, which closes
+      // the app. Ctrl+[ is the terminal's Esc, for a keyboard cover whose Esc the system keeps.
+      // In the shell's 키 직접 입력 they are the shell's Esc (shellEsc): the field sends it.
+      b('back', 'Escape', { field: true, shell: true, layer: true }),
+      b('back', 'Ctrl+[', { field: true, shell: true, layer: true }),
+      // Scroll Lock: a key with no text and no system meaning, for a key remapper to turn the
+      // cover's Esc into (Key Mapper sends no Ctrl with a key it injects, and its own Esc is taken).
+      b('back', 'ScrollLock', { field: true, shell: true, layer: true }),
+      // 대화창 닫기 (‹ without the step out of a field): the browser's close keys, which only the
+      // installed app gets (in a tab they close the tab). ⌘W in the shell view too (no shell key);
+      // Ctrl+W there is the shell's (delete a word). Under a sheet it closes the sheet, so the key
+      // never falls through to close the window while something is still open.
+      ...when(app && mac, b('leaveView', 'Meta+w', { field: true, shell: true, layer: true })),
+      ...when(app && !mac, b('leaveView', 'Ctrl+w', { field: true, layer: true })),
+      // Ctrl+? (Ctrl+Shift+/ on the key): the 단축키 page from anywhere, a field and the shell view
+      // too (no shell key); a bare ? is typed. Not Ctrl+/ (no Shift).
+      ...when(mac, b('help', 'Meta+?', { field: true, shell: true })),
+      b('help', 'Ctrl+?', { field: true, shell: true }),
+      b('focusInput', '/'),
+      // Ctrl+Shift+↑/↓: Ctrl+↑/↓ (by your messages) all the way. Easy on a keyboard cover, where
+      // End is Fn+→ and ⌘ may belong to the system.
+      b('jumpEnd', 'Ctrl+Shift+ArrowDown', { field: true, shell: true, layer: true }),
+      b('jumpTop', 'Ctrl+Shift+ArrowUp', { field: true, shell: true, layer: true }),
+      b('jumpEnd', 'Ctrl+End', { field: true, shell: true, layer: true }),
+      b('jumpEnd', 'Meta+ArrowDown', { field: true, shell: true, layer: true }),
+      b('jumpEnd', 'End', { layer: true }), // in a field End is the caret's
+      // Ctrl+↑/↓ step by the messages you sent; Ctrl+K/J (as vim's k and j) just scroll.
+      b('prevMine', 'Ctrl+ArrowUp', { field: true, shell: true, layer: true }),
+      b('nextMine', 'Ctrl+ArrowDown', { field: true, shell: true, layer: true }),
+      b('scrollUp', 'Ctrl+k', { field: true, layer: true }), // the shell's kill-to-end
+      b('scrollDown', 'Ctrl+j', { field: true, layer: true }), // the shell's newline
+      b('prevHost', 'Alt+ArrowLeft', { field: true }), // the shell's word keys
+      b('nextHost', 'Alt+ArrowRight', { field: true }),
+      // Alt+H/L as vim's h and l: the same, by e.code (a Mac's Option+H is ˙, a Korean layout ㅗ).
+      // In the shell they stay the shell's, as Alt+←/→ do.
+      b('prevHost', 'Alt+h', { field: true }),
+      b('nextHost', 'Alt+l', { field: true }),
+      // Alt+↑/↓ works in the shell too: it is the way out of a shell that has every other key.
+      b('prevRow', 'Alt+ArrowUp', { field: true, shell: true, split: true }),
+      b('nextRow', 'Alt+ArrowDown', { field: true, shell: true, split: true }),
+      // Alt+K/J as vim's k and j: the same, the shell included (taken from the shell there).
+      b('prevRow', 'Alt+k', { field: true, shell: true, split: true }),
+      b('nextRow', 'Alt+j', { field: true, shell: true, split: true }),
+      // Ctrl+, as in VS Code (⌘, on the Mac, the shell view too). Ctrl+, not in the shell, whose
+      // keys stay its own; it types nothing in a field.
+      ...when(mac, b('settings', 'Meta+,', { field: true, shell: true })),
+      b('settings', 'Ctrl+,', { field: true }),
+      // Ctrl+P is the shell's (previous line): there Alt+P, taken from the shell (its rarely used
+      // history search by prefix); ⌘P on the Mac, the shell view too. Taken under a sheet too, so
+      // the browser never prints; switcher.js decides what it means there.
+      ...when(mac, b('switcher', 'Meta+p', { field: true, shell: true, layer: true })),
+      b('switcher', 'Ctrl+p', { field: true, layer: true }),
+      b('switcher', 'Alt+p', { field: true, shell: true, layer: true }),
+      // A digit is typed in a field and is the shell's: only on the page of an agent.
+      ...'123456789'.split('').map((n) => b('answer', n)),
+      // Ctrl+B is the shell's (back a character), Alt+. its last argument. ⌘B on the Mac.
+      ...when(mac, b('toggleSide', 'Meta+b', { field: true, shell: true, split: true })),
+      b('toggleSide', 'Ctrl+b', { field: true, split: true }),
+      // Alt+B in the shell view too, taken from the shell (its back-a-word is also Alt+←); Ctrl+B
+      // there stays the shell's.
+      b('toggleSide', 'Alt+b', { field: true, shell: true, split: true }),
+      // F6 / Shift+F6 as VS Code's: the focus to the next (previous) column, past the list's many
+      // Tab stops. Taken from the shell too (its F6 is rarely anything): the way out to the list.
+      b('nextPane', 'F6', { field: true, shell: true, split: true }),
+      b('prevPane', 'Shift+F6', { field: true, shell: true, split: true }),
+      b('stop', 'Alt+.', { field: true }),
+      // Ctrl+N is the shell's (next line), so not in the shell view. In a tab Chrome keeps Ctrl+N
+      // and Ctrl+Shift+N (a new window) on Windows, Linux and ChromeOS: there the Alt twins come
+      // first (Alt+N is readline's, so not in the shell view either). On the Mac a tab gets
+      // Ctrl+N (Chrome's is ⌘N) and the app ⌘N, the shell view too.
+      ...when(mac && app, b('newAgent', 'Meta+n', { field: true, shell: true })),
+      ...when(!mac && !app, b('newAgent', 'Alt+n', { field: true })),
+      b('newAgent', 'Ctrl+n', { field: true }),
+      ...when(mac && app, b('newWorkspace', 'Meta+Shift+n', { field: true, shell: true })),
+      ...when(!mac && !app, b('newWorkspace', 'Alt+Shift+n', { field: true })),
+      b('newWorkspace', 'Ctrl+Shift+n', { field: true }),
+      // Alt+Shift+↑/↓: Alt+↑/↓ (the next row) narrowed to the agents waiting for an answer. No shell
+      // key (rawKeyName), so the shell view too.
+      b('nextBlocked', 'Alt+Shift+ArrowDown', { field: true, shell: true }),
+      b('prevBlocked', 'Alt+Shift+ArrowUp', { field: true, shell: true }),
+      // Alt+Z as VS Code's word wrap; in the shell view Alt+Z is the shell's, so Ctrl+Alt+Z there
+      // (no shell key: keys.js sends no Ctrl+Alt chord to the shell).
+      b('wrap', 'Alt+z', { field: true }),
+      b('wrap', 'Ctrl+Alt+z', { field: true, shell: true }),
+      // Ctrl+= / Ctrl+- are the browser's zoom; with Alt they are no shell key (no Ctrl+Alt chord
+      // goes to the shell), so the shell view too. Read by code as well (a Mac's Option+= is ≠).
+      b('termFontUp', 'Ctrl+Alt+=', { field: true, shell: true }),
+      b('termFontDown', 'Ctrl+Alt+-', { field: true, shell: true }),
+      // Alt+T is the shell's (swap words); the agent view has no shell, and it closes its own sheet.
+      b('terminal', 'Alt+t', { field: true, layer: true }),
+      // 대화 종료, Alt+W (Option+W): not Ctrl+W, which is 대화창 닫기 in the app and the browser's in
+      // a tab. Alt+W is the shell's (copy a word back), so not in the shell view.
+      b('closeView', 'Alt+w', { field: true }),
+      // Ctrl+Alt+W in the shell view too: no shell key (keys.js sends no Ctrl+Alt chord to the shell).
+      b('closeView', 'Ctrl+Alt+w', { field: true, shell: true }),
+      // Alt+M: the ⋯ menu (M for menu). Alt+M is the shell's (back to indentation), so in the shell
+      // view Ctrl+Alt+M (no shell key: keys.js sends no Ctrl+Alt chord to the shell).
+      b('menu', 'Alt+m', { field: true }),
+      b('menu', 'Ctrl+Alt+m', { field: true, shell: true }),
+      // Shift+Tab is the shell's (and moves the focus back on the page): only the message box takes it
+      // (KEY_ACTIONS.mode), so a field, not the shell view.
+      b('mode', 'Shift+Tab', { field: true }),
+      // Alt+` as an app switcher's last app; the backquote key by code too (a Mac's Option+` is a
+      // dead key). No shell key either.
+      b('lastView', 'Alt+`', { field: true, shell: true }),
+    ];
+  }
 
   // Keys handled in their own field, listed in the sheet but not dispatched from here.
   const LOCAL = [
-    { group: '메시지 칸', key: 'Ctrl+Enter', label: '보내기 (⌘+리턴도). 리턴 키 설정이 「보내기」면 리턴, 줄바꿈은 Shift+리턴' },
+    { group: '메시지 칸', key: 'Ctrl+Enter', label: '보내기. 리턴 키 설정이 「보내기」면 리턴, 줄바꿈은 Shift+리턴' },
     { group: '메시지 칸', key: 'ArrowUp', label: '빈 칸에서: 전에 보낸 메시지 불러오기 (↓ 는 다음)' },
     { group: '메시지 칸', key: '/', label: '맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)' },
     { group: '메시지 칸', key: '', label: '대화 화면에서 입력 칸 밖에서 친 글자도 메시지 칸으로 간다 (단축키·선택지 숫자·Space 는 빼고)' },
     { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
     { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc' },
     { group: '셸', key: 'Tab', label: '한 줄 입력: 쓴 것을 셸에 넘기고 셸의 완성 (Shift+Tab 은 포커스 이동)' },
+    { group: '셸', key: 'Ctrl+w', label: '한 줄 입력: 커서 앞 단어 지우기 (셸의 Ctrl+W 처럼; 설치한 앱에서도 창을 닫지 않는다)' },
     { group: '셸', key: 'Escape', label: '한 줄 입력: 한 번이면 칸에서 나가고, 두 번이면 뒤로 (대화 화면과 같다)' },
     { group: '셸', key: '', label: '단축키 페이지에서 「셸 화면 Hub」인 키만 Hub 가 쓰고, 나머지는 모두 셸로 간다. 키 줄의 Alt·Ctrl 을 누르고 친 키는 언제나 셸로 (Alt 다음 B 는 셸의 alt+b)' },
-    { group: '폼', key: 'Ctrl+Enter', label: '에이전트 시작·새 워크스페이스: 시작 / 만들기 (⌘+리턴도, 어느 칸에서나)' },
+    { group: '폼', key: 'Ctrl+Enter', label: '에이전트 시작·새 워크스페이스: 시작 / 만들기 (어느 칸에서나)' },
     { group: '목록 칸 폭', key: 'ArrowRight', label: '두 칸: 목록 칸 가장자리에 포커스가 있을 때 ←/→ 로 16px 씩 좁히고 넓힌다. 리턴(두 번 누르기)은 자동으로' },
     { group: '빠른 이동', key: 'Enter', label: '고른 것 열기. Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
     { group: '빠른 이동', key: 'Ctrl+j', follows: 'scrollDown', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞; 아래로 스크롤의 키)' },
@@ -264,14 +292,20 @@
     return [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.metaKey && 'Meta', e.shiftKey && !isSymbol(name) && 'Shift', name].filter(Boolean).join('+');
   }
 
-  // Keys the browser or the system keeps (the page never sees them, or it would close a tab).
-  const RESERVED = ['Ctrl+w', 'Ctrl+Shift+w', 'Ctrl+t', 'Ctrl+Shift+t', 'Ctrl+Tab', 'Ctrl+Shift+Tab', 'Ctrl+q', 'Meta+w', 'Meta+q', 'Meta+t', 'Alt+F4'].map(norm);
-  // Why key can't be given to action, or ''. overrides: the device's changes so far.
-  function refuse(action, key) {
+  // Keys that quit or are the system's, never the page's (or it would quit by a slip): ⌘Q, ⌘H,
+  // ⌘M, ⌘Tab, ⌘Space, ⌘`, Alt+F4, Ctrl+Shift+Q (Ctrl+Q on Linux).
+  const SYSTEM = ['Alt+F4', 'Ctrl+q', 'Ctrl+Shift+q', 'Meta+q', 'Meta+Shift+q', 'Meta+h', 'Meta+m', 'Meta+Tab', 'Meta+Shift+Tab', 'Meta+ ', 'Meta+`'].map(norm);
+  // The browser's tab and window keys: its own in a tab (the page never sees them, or it would
+  // close the tab); the page's in the installed app.
+  const BROWSER = ['Ctrl+w', 'Ctrl+Shift+w', 'Ctrl+t', 'Ctrl+Shift+t', 'Ctrl+Tab', 'Ctrl+Shift+Tab', 'Meta+w', 'Meta+Shift+w', 'Meta+t', 'Meta+Shift+t', 'Meta+n', 'Meta+Shift+n'].map(norm);
+  // Why key can't be given to action, or ''. stored: a key this device kept, which may be one
+  // the app has and the tab not (the same storage): only the system's keys are dropped then.
+  function refuse(action, key, stored = false) {
     if (!key) return '이 키는 받을 수 없습니다';
     const k = parse(key);
     const mod = k.ctrl || k.alt || k.meta;
-    if (RESERVED.includes(norm(key))) return `${label(key)} 는 브라우저가 먼저 가져갑니다`;
+    if (SYSTEM.includes(norm(key))) return `${label(key)} 는 시스템이 가져갑니다 (끝내기·숨기기·창 바꾸기)`;
+    if (!env.app && !stored && BROWSER.includes(norm(key))) return `${label(key)} 는 브라우저 탭에서는 브라우저가 먼저 가져갑니다 (설치한 앱에서는 쓸 수 있습니다)`;
     if (k.name === '+') return '+ 는 쓸 수 없습니다';
     if (!mod && !(k.shift && k.name === 'Tab') && ['Enter', 'Tab', ' ', 'Backspace', 'Delete'].includes(k.name)) return `${label(key)} 만으로는 쓸 수 없습니다: 단추 누르기·이동·지우기에 씁니다`;
     if (k.name === 'Escape' && action !== 'back') return 'Esc 는 뒤로·닫기에만 씁니다';
@@ -360,7 +394,7 @@
       out[action] = [];
       for (const entry of keys) {
         const key = keyOfEntry(entry);
-        if (!realKey(key) || refuse(action, key) || taken.has(norm(key))) continue;
+        if (!realKey(key) || refuse(action, key, true) || taken.has(norm(key))) continue;
         taken.set(norm(key), action);
         // The switch is kept only where it says something: on a key that can have it, and not
         // what the key would do anyway.
@@ -372,6 +406,8 @@
     return out;
   }
 
+  let env = { mac: false, app: false };
+  let BINDINGS = table(env);
   let current = {};
   let active = BINDINGS;
   // The table this page goes by: the defaults with overrides laid over them. A default key that
@@ -385,6 +421,18 @@
     ];
     return current;
   }
+
+  // The device the table is for: { mac, app } (the page reads them, core.js; the tests pass them).
+  // The overrides are laid over the new defaults again.
+  function setEnv(e = {}) {
+    env = { mac: Boolean(e.mac), app: Boolean(e.app) };
+    BINDINGS = table(env);
+    setOverrides(current);
+    return env;
+  }
+  // A Ctrl chord as this device says it: its ⌘ form on the Mac (Ctrl+리턴 → ⌘+리턴), for a key a
+  // field takes both ways.
+  const deviceKey = (key) => (env.mac ? key.replace(/^Ctrl\+/, 'Meta+') : key);
 
   // key given to action: new overrides, and the action it was taken from (or null). Throws the
   // reason when it can't be.
@@ -522,8 +570,10 @@
   }
 
   // A LOCAL row's keys: an action's (follows: the field uses that action's keys), else its own.
+  // Ctrl+리턴 (the field takes ⌘ too) reads as ⌘+리턴 first on the Mac.
   function localKeys(x) {
     if (x.follows) return keysFor(x.follows);
+    if (x.key === 'Ctrl+Enter' && env.mac) return ['Meta+Enter', x.key];
     return x.key ? [x.key] : [];
   }
 
@@ -545,7 +595,19 @@
     return [...groups].map(([group, rows]) => ({ group, rows }));
   }
 
-  const api = { ACTIONS, BINDINGS, LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, refuseShell, shellKey, setOverrides, assign, unassign, reset, setShell, shellFor, shellLoses, keysFor, actionRows, whereText, localKeys };
+  const api = {
+    ACTIONS,
+    get BINDINGS() {
+      return BINDINGS;
+    },
+    get env() {
+      return { ...env };
+    },
+    setEnv,
+    deviceKey,
+    table,
+    ...{ LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, refuseShell, shellKey, setOverrides, assign, unassign, reset, setShell, shellFor, shellLoses, keysFor, actionRows, whereText, localKeys },
+  };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keymap = api;
 })(typeof self !== 'undefined' ? self : this);

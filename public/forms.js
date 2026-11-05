@@ -47,7 +47,7 @@ async function renderForm() {
         <input class="field" id="f-name" placeholder="비우면 폴더·워크스페이스 이름" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="f-name-hint">
         <p class="hint" id="f-name-hint" aria-live="polite"></p>
       </section>
-      <div class="row end"><button type="submit" class="btn" id="f-submit"${keyAttrs(null, isNew ? '만들기' : '시작', Keymap.label('Ctrl+Enter'))} disabled>${isNew ? '만들기' : '시작'}</button></div>
+      <div class="row end"><button type="submit" class="btn" id="f-submit"${keyAttrs(null, isNew ? '만들기' : '시작', Keymap.label(Keymap.deviceKey('Ctrl+Enter')))} disabled>${isNew ? '만들기' : '시작'}</button></div>
     </form>`;
   const withAgent = document.getElementById('f-with');
   if (withAgent)

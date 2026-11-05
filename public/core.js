@@ -123,6 +123,20 @@ function refreshKeyHints() {
   }
 }
 
+// The device the keymap is built for (keymap.js setEnv): a Mac (⌘; an iPad with a keyboard
+// too), and the installed app, where the browser's tab and window keys (Ctrl+W, ⌘N …) come to
+// the page first. Not display-mode fullscreen: a tab in F11 says that too. A window that turns
+// into the app (or back) redraws its key hints.
+const KEY_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+const appMq = matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay), (display-mode: minimal-ui)');
+const keyEnv = () => ({ mac: KEY_MAC, app: appMq.matches || Boolean(navigator.standalone) });
+Keymap.setEnv(keyEnv());
+appMq.addEventListener('change', () => {
+  Keymap.setEnv(keyEnv());
+  refreshKeyHints();
+  if (view.name === 'keys') drawKeysList(); // keyspage.js
+});
+
 // This device's changed keys (keymap.js setOverrides), laid over the table before anything is
 // drawn. Kept as they stand after keymap.js has dropped what can't.
 const KEYS_KEY = 'herdr-hub.keys';
@@ -544,7 +558,7 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', canc
 // opened it when there is one (Alt+W).
 function confirmKeys(action) {
   const again = action ? Keymap.hint(action, { shell: view.name === 'term' }) : '';
-  const enter = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘+리턴' : 'Ctrl+리턴';
+  const enter = Keymap.label(Keymap.deviceKey('Ctrl+Enter'));
   return `<kbd>${enter}</kbd>${again ? ` 또는 <kbd>${esc(again)}</kbd> 한 번 더` : ''}로 확인 · <kbd>리턴</kbd> 취소`;
 }
 
