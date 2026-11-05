@@ -42,6 +42,7 @@ test('storage keys are the ones the app always used', () => {
     color: 'herdr-hub.color',
     'wrap.term': 'herdr-hub.wrap.term',
     'wrap.agent': 'herdr-hub.wrap.agent',
+    termFont: 'herdr-hub.termFont',
     edgeForward: 'herdr-hub.edgeForward',
   });
   // index.html applies the theme before any script: it reads this key and these values.
@@ -60,8 +61,9 @@ test('values written by the old code read the same (and unknown or missing ones 
     'wrap.term': (s) => (s === '1' || s === '0' ? s === '1' : true),
     'wrap.agent': (s) => (s === '1' || s === '0' ? s === '1' : false),
     edgeForward: (s) => (s === '1' || s === '0' ? s === '1' : false), // new: off unless iOS
+    termFont: (s) => (['11', '12', '14'].includes(s) ? s : '12'), // new
   };
-  const samples = [null, '', 'send', 'newline', 'line', 'raw', 'light', 'dark', 'system', '1', '0', 'true', 'x'];
+  const samples = [null, '', 'send', 'newline', 'line', 'raw', 'light', 'dark', 'system', '1', '0', 'true', 'x', '11', '12', '14', '13'];
   for (const p of PREFS)
     for (const s of samples) {
       const store = createStore(() => fakeStorage(s == null ? {} : { [p.store]: s }));
@@ -125,6 +127,16 @@ test('private mode: storage that throws gives the defaults, and a choice lasts i
   const s2 = createStore(() => st);
   s2.set('wrap.agent', true);
   assert.equal(s2.get('wrap.agent'), true);
+});
+
+test('셸 글자 크기: 11 / 12 / 14 px, 12 by default, stored as the number', () => {
+  const { row } = require('../public/prefs.js');
+  const p = row('termFont');
+  assert.deepEqual(Object.keys(p.options), ['11', '12', '14']);
+  assert.equal(p.default, '12');
+  const st = fakeStorage();
+  createStore(() => st).set('termFont', '14');
+  assert.equal(st.m.get('herdr-hub.termFont'), '14');
 });
 
 test('오른쪽 끝에서 밀어: on by default on iOS only; a stored choice wins on every platform', () => {

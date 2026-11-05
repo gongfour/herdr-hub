@@ -50,6 +50,8 @@
     stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', twice: true, noShell: true },
     wrap: { group: '대화·터미널 화면', label: '줄바꿈 켜기·끄기: 셸 화면, 에이전트의 터미널 화면 (VS Code 의 Alt+Z)' },
     terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기', noShell: true },
+    termFontUp: { group: '대화·터미널 화면', label: '셸 글자 키우기 (설정 → 셸 글자 크기)' },
+    termFontDown: { group: '대화·터미널 화면', label: '셸 글자 줄이기' },
     closeView: { group: '대화·터미널 화면', label: '연 에이전트·셸(또는 워크스페이스) 닫기: 확인 창에서 리턴으로 닫고 Esc 로 그만둔다' },
     mode: { group: '대화·터미널 화면', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)', noShell: true },
     prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
@@ -126,6 +128,10 @@
     // (no shell key: keys.js sends no Ctrl+Alt chord to the shell).
     b('wrap', 'Alt+z', { field: true }),
     b('wrap', 'Ctrl+Alt+z', { field: true, shell: true }),
+    // Ctrl+= / Ctrl+- are the browser's zoom; with Alt they are no shell key (no Ctrl+Alt chord
+    // goes to the shell), so the shell view too. Read by code as well (a Mac's Option+= is ≠).
+    b('termFontUp', 'Ctrl+Alt+=', { field: true, shell: true }),
+    b('termFontDown', 'Ctrl+Alt+-', { field: true, shell: true }),
     // Alt+T is the shell's (swap words); the agent view has no shell, and it closes its own sheet.
     b('terminal', 'Alt+t', { field: true, layer: true }),
     // Alt+W: Ctrl+W is the browser's (close the tab or the app window). Alt+W is the shell's
@@ -149,7 +155,9 @@
     { group: '메시지 칸', key: '', label: '대화 화면에서 입력 칸 밖에서 친 글자도 메시지 칸으로 간다 (단축키·선택지 숫자·Space 는 빼고)' },
     { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
     { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc' },
-    { group: '셸', key: '', label: '「셸 화면에서도」가 켜진 키만 Hub 가 쓰고, 나머지는 모두 셸로 간다. 키 줄의 Alt·Ctrl 을 누르고 친 키는 언제나 셸로 (Alt 다음 B 는 셸의 alt+b)' },
+    { group: '셸', key: 'Tab', label: '한 줄 입력: 쓴 것을 셸에 넘기고 셸의 완성 (Shift+Tab 은 포커스 이동)' },
+    { group: '셸', key: 'Escape', label: '한 줄 입력: 한 번이면 칸에서 나가고, 두 번이면 뒤로 (대화 화면과 같다)' },
+    { group: '셸', key: '', label: '단축키 페이지에서 「셸 화면 Hub」인 키만 Hub 가 쓰고, 나머지는 모두 셸로 간다. 키 줄의 Alt·Ctrl 을 누르고 친 키는 언제나 셸로 (Alt 다음 B 는 셸의 alt+b)' },
     { group: '빠른 이동', key: 'Enter', label: '고른 것 열기. Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
     { group: '빠른 이동', key: 'Ctrl+j', follows: 'scrollDown', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞; 아래로 스크롤의 키)' },
     { group: '빠른 이동', key: 'Ctrl+k', follows: 'scrollUp', label: '이전 것 고르기 (↑ 와 같다; 위로 스크롤의 키)' },
@@ -164,7 +172,7 @@
   }
   const isLetter = (s) => /^[a-z]$/i.test(s);
   const isSymbol = (s) => s.length === 1 && !isLetter(s) && !/^\d$/.test(s);
-  const CODES = { '[': 'BracketLeft', ']': 'BracketRight', '/': 'Slash', '?': 'Slash', '.': 'Period', ',': 'Comma', '`': 'Backquote' };
+  const CODES = { '[': 'BracketLeft', ']': 'BracketRight', '/': 'Slash', '?': 'Slash', '.': 'Period', ',': 'Comma', '`': 'Backquote', '=': 'Equal', '-': 'Minus' };
   const SHIFTED = new Set(['?']); // a symbol typed with Shift: by code only with Shift held
 
   function matches(e, key) {

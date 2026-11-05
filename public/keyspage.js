@@ -84,9 +84,10 @@ function drawKeysList() {
           const keep = r.action === 'back' && k === 'Escape'; // 뒤로 always has Esc
           const sh = r.shells[i];
           const name = Keymap.label(k);
-          // On and off differ in shape and words, not only a tint: filled 「✓ 셸」 or an outlined 「셸」.
+          // Where the key goes in the shell view, in words that say the state: filled 「Hub」 (the
+          // Hub takes it there too) or an outlined 「셸로」 (the shell gets it).
           const shBtn = sh && sh.can
-            ? `<button type="button" class="ksh" data-sh="${esc(k)}" role="switch" aria-checked="${sh.on}" aria-label="${esc(name)} 셸 화면에서도" title="셸 화면에서도: ${sh.on ? '켜짐 (Hub 가 씀)' : '꺼짐 (셸로 감)'}">${sh.on ? '✓ 셸' : '셸'}</button>`
+            ? `<button type="button" class="ksh" data-sh="${esc(k)}" role="switch" aria-checked="${sh.on}" aria-label="${esc(name)} 셸 화면에서도 Hub 가 씀" title="셸 화면에서: ${sh.on ? 'Hub 가 씀 (누르면 셸로 보냄)' : '셸로 감 (누르면 Hub 가 씀)'}"><span class="ksh-where">셸 화면</span>${sh.on ? 'Hub' : '셸로'}</button>`
             : '';
           // 뒤로's Esc can't be taken off: said so where the others have their ×.
           const end = keep ? '<span class="k-lock" title="뒤로는 늘 Esc 를 씁니다">고정</span>' : `<button type="button" class="kx" data-rm="${esc(k)}" aria-label="${esc(name)} 빼기" title="빼기">×</button>`;
@@ -108,7 +109,7 @@ function drawKeysList() {
   const local = Keymap.LOCAL.filter((x) => keysMatch({ label: `${x.group} ${x.label}`, keys: Keymap.localKeys(x) }, q));
   const changed = Object.keys(keyOverrides).length > 0;
   const html = `
-    <p class="pnote k-note">바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만 동작합니다. 키 옆이 <span class="ksh-demo" aria-hidden="true">✓ 셸</span>인 키는 셸 화면에서도 Hub 가 쓰고, <span class="ksh-demo off" aria-hidden="true">셸</span>인 키는 셸 화면에서 셸로 갑니다.</p>
+    <p class="pnote k-note">바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만 동작합니다. 키 옆의 단추는 셸 화면에서 그 키가 가는 곳입니다: <span class="ksh-demo" aria-hidden="true">Hub</span>면 셸 화면에서도 Hub 가 쓰고, <span class="ksh-demo off" aria-hidden="true">셸로</span>면 셸이 받습니다. 눌러서 바꿉니다.</p>
     ${[...groups]
       .map(([g, rows]) => `<section class="pgroup"><h2>${esc(g)}</h2><div class="pcard">${rows.map(row).join('')}</div></section>`)
       .join('')}

@@ -252,11 +252,17 @@ const PREF_EFFECTS = {
   'wrap.term': () => applyScreenPrefs(),
   'wrap.agent': () => applyScreenPrefs(),
   color: () => applyScreenPrefs(),
+  termFont: (v) => applyTermFont(v),
   // The shell view open now switches between 키 직접 입력 and 한 줄 입력 in place.
   shellInput(v) {
     if (view.name === 'term' && detail.setRaw) detail.setRaw(v === 'raw');
   },
 };
+// 셸 글자 크기: the shell view's screen box (style.css .screen.term) reads --term-font.
+function applyTermFont(v = Prefs.get('termFont')) {
+  document.documentElement.style.setProperty('--term-font', `${Number(v) || 12}px`);
+}
+applyTermFont();
 function setPref(key, v) {
   Prefs.set(key, v);
   if (PREF_EFFECTS[key]) PREF_EFFECTS[key](v);
@@ -577,13 +583,15 @@ function toastRoot() {
   return toastBox;
 }
 addEventListener('DOMContentLoaded', toastRoot);
-function toast(text, { error = false, action = null, ms } = {}) {
+// id: one toast per id (a setting turned on, then off: the second replaces the first).
+function toast(text, { error = false, action = null, ms, id = '' } = {}) {
   const box = toastRoot();
-  for (const old of box.querySelectorAll('.toast')) if (old.dataset.text === text) old.remove();
+  for (const old of box.querySelectorAll('.toast')) if (old.dataset.text === text || (id && old.dataset.id === id)) old.remove();
   const el = document.createElement('div');
   el.className = `toast${error ? ' err' : ''}`;
   if (error) el.setAttribute('role', 'alert');
   el.dataset.text = text;
+  if (id) el.dataset.id = id;
   el.innerHTML = `<span class="t">${esc(text)}</span>${action ? `<button type="button" class="t-act">${esc(action.label)}</button><button type="button" class="t-x" aria-label="알림 닫기">×</button>` : ''}`;
   const remove = () => {
     if (!el.isConnected) return;
@@ -645,6 +653,13 @@ const toastErr = (text, action) => toast(text, { error: true, action });
 const TOAST_ABOVE = '#d-pal:not([hidden]), #d-tray:not([hidden]), #d-form, #t-keys, #t-form, .tabbar, .ws-dock, .fwd-chip:not(.closing)';
 function placeToasts() {
   if (!toastBox || !toastBox.isConnected || !toastBox.children.length) return;
+  // Two columns, the shell view: under its header (style.css), clear of the screen's pills at its
+  // foot (← 처음으로) and of the folded key row.
+  if (split && view.name === 'term') {
+    const bar = document.querySelector('#detail-pane .bar');
+    toastBox.style.top = bar ? `${Math.round(bar.getBoundingClientRect().bottom + 12)}px` : '';
+    return;
+  }
   let top = Infinity;
   for (const el of document.querySelectorAll(TOAST_ABOVE)) {
     const r = el.getBoundingClientRect();

@@ -651,6 +651,15 @@ document.addEventListener('click', (e) => {
   e.preventDefault();
   goBack(a.getAttribute('href'));
 });
+function stepTermFont(dir) {
+  const sizes = Object.keys(Prefs.row('termFont').options);
+  const i = sizes.indexOf(Prefs.get('termFont')) + dir;
+  if (i >= 0 && i < sizes.length) setPref('termFont', sizes[i]);
+  const v = Prefs.get('termFont');
+  const edge = i < 0 ? ' (가장 작게)' : i >= sizes.length ? ' (가장 크게)' : '';
+  toast(`셸 글자 크기: ${Prefs.row('termFont').options[v]}${edge}`, { id: 'termFont' });
+  return true;
+}
 // Keyboard: every shortcut is a binding in keymap.js; these are what its actions do. A handler
 // returns true when it acted (the key is then taken). In the shell view a key with the focus on
 // the page goes to the shell first (termStrayKey).
@@ -685,9 +694,12 @@ const KEY_ACTIONS = {
     if (!scr) return false;
     const key = scr.kind === 'term' ? 'wrap.term' : 'wrap.agent';
     setPref(key, !Prefs.get(key));
-    toast(Prefs.get(key) ? '줄바꿈을 켰습니다' : '줄바꿈을 껐습니다');
+    toast(Prefs.get(key) ? '줄바꿈을 켰습니다' : '줄바꿈을 껐습니다', { id: 'wrap' });
     return true;
   },
+  // 셸 글자 크기 one step (설정 → 화면 has the same three).
+  termFontUp: () => stepTermFont(1),
+  termFontDown: () => stepTermFont(-1),
   prevMine: () => navStep(-1),
   nextMine: () => navStep(1),
   scrollUp: (b, e) => scrollStep(-1, e.repeat),

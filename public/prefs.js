@@ -55,6 +55,11 @@
       key: 'wrap.term', store: 'herdr-hub.wrap.term', group: 'screen', label: '셸 줄바꿈', type: 'bool', default: true,
       hint: '끄면 긴 줄을 접지 않고 옆으로 밀어 봅니다. 표나 전체 화면 프로그램은 꺼야 모양이 맞습니다.',
     },
+    {
+      key: 'termFont', store: 'herdr-hub.termFont', group: 'screen', label: '셸 글자 크기', type: 'choice',
+      options: { 11: '작게', 12: '보통', 14: '크게' }, default: '12',
+      hint: { 11: '표가 넓을 때: 한 줄에 더 많이 들어갑니다.', 12: '', 14: '넓은 화면에서 읽기 편합니다.' },
+    },
     { key: 'wrap.agent', store: 'herdr-hub.wrap.agent', group: 'screen', label: '에이전트 터미널 화면 줄바꿈', type: 'bool', default: false, hint: '에이전트의 「터미널 화면 보기」에서 같은 일을 합니다.' },
   ];
   const BY_KEY = new Map(PREFS.map((p) => [p.key, p]));

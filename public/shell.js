@@ -39,9 +39,11 @@ function renderTerminal() {
       <div class="scroll" id="t-body" role="region" aria-label="셸 화면"></div>
       <div class="term-bar">
         <div class="raw-chip" id="t-sending" hidden></div>
+        <p class="term-state" id="t-state"></p>
         <div class="keys term-keys" id="t-keys"></div>
         <div class="term-side">
-          <button type="button" class="key" id="t-kbd" aria-pressed="false" aria-label="키보드 올리기">${ICON.keyboard}</button>
+          <button type="button" class="key fold" id="t-fold" aria-expanded="true" aria-controls="t-keys" hidden>키 줄</button>
+          <button type="button" class="key" id="t-kbd" aria-pressed="false" aria-label="키보드 올리기" title="키보드 올리기">${ICON.keyboard}</button>
         </div>
       </div>
       <form class="composer" id="t-form">
@@ -68,6 +70,16 @@ function renderTerminal() {
   const keysFade = () => keysBox.classList.toggle('more', keysBox.scrollWidth - keysBox.scrollLeft - keysBox.clientWidth > 2);
   keysBox.addEventListener('scroll', keysFade, { passive: true });
   if (window.ResizeObserver) new ResizeObserver(keysFade).observe(keysBox);
+  // A mouse wheel turns the row sideways (it has no other way to reach the keys past its edge).
+  keysBox.addEventListener(
+    'wheel',
+    (e) => {
+      if (e.ctrlKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY) || keysBox.scrollWidth <= keysBox.clientWidth) return;
+      e.preventDefault();
+      keysBox.scrollLeft += e.deltaY;
+    },
+    { passive: false },
+  );
   drawKeys();
   // Raw mode: pressing a key button leaves the caret (and the iPhone keyboard) in the field,
   // so the next typed key still goes to the program, not to the button. On a touch screen
@@ -108,12 +120,13 @@ function renderTerminal() {
     detail.raw = on;
     detail.mods = {};
     input.value = '';
-    input.placeholder = on ? '누르는 키가 바로 갑니다' : '명령 (Enter 로 실행)';
+    input.placeholder = on ? '누르는 키가 바로 갑니다' : '명령 (리턴으로 실행 · Tab 은 셸의 완성)';
     input.setAttribute('aria-label', on ? '셸에 키 입력' : '셸 명령');
     input.setAttribute('enterkeyhint', on ? 'enter' : 'send');
     document.getElementById('t-send').hidden = on;
     detailRoot().querySelector('.detail').classList.toggle('raw', on);
     drawKeys();
+    drawKeyRow();
   };
   setRaw(getShellInput() === 'raw');
   detail.setRaw = (on) => {
@@ -132,6 +145,12 @@ function renderTerminal() {
     kbd.innerHTML = up ? ICON.keyboardOff : ICON.keyboard;
     kbd.setAttribute('aria-pressed', String(up));
     kbd.setAttribute('aria-label', up ? '키보드 내리기' : '키보드 올리기');
+    kbd.title = up ? '키보드 내리기' : '키보드 올리기';
+  };
+  // 키 줄 접기·펴기 (two columns or a mouse): the choice lasts while the app is open.
+  document.getElementById('t-fold').onclick = () => {
+    keyRowPick = keyRowFolded() ? 'open' : 'folded';
+    drawKeyRow();
   };
   input.addEventListener('focus', showKbd);
   input.addEventListener('blur', showKbd);
@@ -153,6 +172,15 @@ function renderTerminal() {
       setTimeout(loadTerminal, 400);
     }
   };
+  // 한 줄 입력: Tab in the line hands what is typed to the shell with its Tab (the key row's Tab
+  // does the same), so the shell completes it; Shift+Tab still moves the focus back.
+  input.addEventListener('keydown', (e) => {
+    if (detail.raw || e.isComposing || e.keyCode === 229 || e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    const tab = keysBox.querySelector('[data-key="tab"]');
+    if (!tab || !currentTerminal()) return;
+    e.preventDefault();
+    pressKey(tab);
+  });
   // Raw mode: typed characters go as text, editing keys as keys; the field stays empty.
   // A Korean (IME) syllable goes once it is composed. Everything passes the sticky Ctrl/Alt
   // (rawPress). A word deleted at once (Alt+Backspace, the keyboard's word delete) is Ctrl+W.
@@ -203,7 +231,13 @@ function renderTerminal() {
     e.preventDefault();
     rawPress({ key: k });
   });
-  document.getElementById('t-more').onclick = () => paneMenu('term', currentTerminal()); // actions.js
+  // After ⋯ (a tap or a click), the keys typed next go to the shell again, not to ⋯.
+  document.getElementById('t-more').onclick = async () => {
+    await paneMenu('term', currentTerminal()); // actions.js
+    if (view.name !== 'term' || topLayer() || !detail.raw || !document.getElementById('t-input')) return;
+    const a = document.activeElement;
+    if (!a || a === document.body || a.id === 't-more') typeHere();
+  };
   mountScreen(document.getElementById('t-body'), 'term', document.getElementById('s-tools'));
   document.getElementById('t-body').addEventListener('scroll', termScrolled);
   document.getElementById('t-sending').onclick = () => {
@@ -212,10 +246,69 @@ function renderTerminal() {
   };
   renderTerminalHeader();
   drawSending();
+  drawKeyRow();
   // With a hardware keyboard (a tablet's cover, a laptop) typing goes to the shell at once,
   // here and after Alt+↑/↓; a phone's keyboard stays down until the screen is tapped.
   if (keyboardLikely()) input.focus({ preventScroll: true });
+  drawTyping();
 }
+
+// The caret into the shell's field (keys go to the shell from there).
+function typeHere() {
+  const input = document.getElementById('t-input');
+  if (input && !input.disabled) input.focus({ preventScroll: true });
+}
+
+// ---- the key row folded (two columns with a keyboard)
+
+// A laptop or a tablet's cover types every key the row has, so in the two-column layout the row
+// starts folded to one line saying where typed keys go; 키 줄 opens it. A finger on the screen
+// (the tablet without its cover) opens it again, unless 키 줄 was used. The fold button shows in
+// two columns and wherever there is a mouse.
+let keyRowPick = null; // 'open' | 'folded': 키 줄 was pressed
+let touchSeen = false;
+const keyRowFolded = () => Boolean(detail.raw && split && (keyRowPick ? keyRowPick === 'folded' : keyboardLikely() && !touchSeen));
+function drawKeyRow() {
+  const d = detailRoot().querySelector('.detail');
+  const fold = document.getElementById('t-fold');
+  if (!d || !fold) return;
+  const folded = keyRowFolded();
+  d.classList.toggle('keys-folded', folded);
+  fold.hidden = !detail.raw || !(split || matchMedia('(hover: hover) and (pointer: fine)').matches);
+  fold.setAttribute('aria-expanded', String(!folded));
+  fold.textContent = folded ? '키 줄 ▴' : '키 줄 ▾';
+  fold.title = folded ? '키 줄 펴기 (Esc·Ctrl·Tab·화살표…)' : '키 줄 접기';
+  fold.setAttribute('aria-label', folded ? '키 줄 펴기' : '키 줄 접기');
+}
+addEventListener(
+  'pointerdown',
+  (e) => {
+    if (e.pointerType !== 'touch' || touchSeen) return;
+    touchSeen = true;
+    if (view.name === 'term') drawKeyRow();
+  },
+  true,
+);
+
+// Where typed keys go now, said on the folded row (and as .typing for the screen's edge): to the
+// shell while the focus is in its field or on the page (termStrayKey), else nowhere until the
+// screen is clicked.
+function keysReachShell() {
+  const input = document.getElementById('t-input');
+  if (!input || input.disabled || topLayer()) return false;
+  const a = document.activeElement;
+  return a === input || termPageFocus(a);
+}
+function drawTyping() {
+  const d = detailRoot().querySelector('.detail');
+  const st = document.getElementById('t-state');
+  if (view.name !== 'term' || !d || !st) return;
+  const on = Boolean(detail.raw && keysReachShell());
+  d.classList.toggle('typing', on);
+  st.classList.toggle('on', on);
+  st.textContent = on ? '치는 키가 셸로 갑니다' : '셸 화면을 누르면 키가 셸로 갑니다';
+}
+for (const ev of ['focusin', 'focusout']) addEventListener(ev, () => view.name === 'term' && setTimeout(drawTyping, 0));
 
 // ---- hardware keyboard
 
@@ -231,7 +324,10 @@ document.addEventListener(
   (e) => {
     if (hardKeys || e.keyCode === 229 || e.key === 'Unidentified' || e.isComposing) return;
     // On Android a soft keyboard's letters come as keyCode 229 (skipped above); a cover's don't.
-    if (!editable(e.target) || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || /^F\d/.test(e.key) || (ANDROID && e.key.length === 1)) hardKeys = true;
+    if (!editable(e.target) || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || /^F\d/.test(e.key) || (ANDROID && e.key.length === 1)) {
+      hardKeys = true;
+      if (view.name === 'term') drawKeyRow();
+    }
   },
   true,
 );
@@ -252,11 +348,8 @@ function termStrayKey(e) {
   const input = document.getElementById('t-input');
   const a = document.activeElement;
   if (!input || a === input) return false;
-  // The page: nothing, the screen, the key row, or (split) a row of the list that was tapped to
-  // open this shell. A link or button keeps Enter, Space and Tab; the header keeps every key.
   const control = a && a.closest && a.closest('a, button');
-  const onPage = !a || a === document.body || a === document.documentElement || (!editable(a) && !a.closest('.bar') && (detailRoot().contains(a) || (split && listRoot().contains(a))));
-  if (!onPage || (control && ['Enter', ' ', 'Tab'].includes(e.key))) return false;
+  if (!termPageFocus(a) || (control && ['Enter', ' ', 'Tab'].includes(e.key))) return false;
   if (detail.raw) {
     const b = Keymap.match(e, keyContext()); // app.js
     if (b && !Keymap.ACTIONS[b.action].shellEsc) return false; // the Hub's
@@ -267,11 +360,19 @@ function termStrayKey(e) {
     rawPress(k ? { key: k } : { text });
     return true;
   }
-  // 한 줄 입력: a typed character starts the line; Esc only puts the caret there.
-  if (e.ctrlKey || e.metaKey || e.altKey || (e.key !== 'Escape' && e.key.length !== 1)) return false;
+  // 한 줄 입력: a typed character starts the line. Esc (and Ctrl+[) are 뒤로 as anywhere: once
+  // out of the line, twice back, as in the chat.
+  if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return false;
   input.focus({ preventScroll: true });
-  if (e.key.length === 1) input.value += e.key;
+  input.value += e.key;
   return true;
+}
+// Whether the focus is on the shell view's page, where a key pressed goes to the shell: nothing,
+// the screen, the key row, the header's buttons (they keep Enter, Space and Tab), or (split) a
+// row of the list that was tapped to open this shell.
+function termPageFocus(a) {
+  if (!a || a === document.body || a === document.documentElement) return true;
+  return !editable(a) && (detailRoot().contains(a) || (split && listRoot().contains(a)));
 }
 
 // ---- sticky Ctrl and Alt (the key row)
@@ -330,6 +431,9 @@ function renderTerminalHeader() {
   if (!t && state.agents.some((a) => same(a, curHost(), detail.pane))) return (location.hash = link(curHost(), `/agent/${encodeURIComponent(detail.pane)}`));
   const offline = !t && !online(curHost());
   // Opened before the first state (the app just started): not known yet, so not 「닫힘」 either.
+  if (t) detail.lastTerm = t;
+  const more = document.getElementById('t-more');
+  if (more) more.hidden = !t; // nothing to do with a shell that is gone
   if (!t && !stateIn) {
     title.innerHTML = '<span class="t">셸</span><span class="sub">불러오는 중…</span>';
     return;
@@ -338,7 +442,9 @@ function renderTerminalHeader() {
     ? `<span class="t">${esc(termTitle(t))}</span><span class="sub">${multi() ? `${esc(hostLabel(t.host))} · ` : ''}셸 · ${esc(t.workspaceLabel)} · ${esc(t.cwd)}</span>`
     : offline
       ? `<span class="t">${esc(hostLabel(curHost()))} 오프라인</span><span class="sub">호스트가 돌아오면 다시 보입니다</span>`
-      : '<span class="t">셸 없음</span><span class="sub">이 셸이 닫혔습니다</span>';
+      : detail.lastTerm
+        ? `<span class="t">${esc(termTitle(detail.lastTerm))}</span><span class="sub">닫힘 · ${esc(detail.lastTerm.workspaceLabel)} · ${esc(detail.lastTerm.cwd)}</span>`
+        : '<span class="t">셸 없음</span><span class="sub">닫혔거나 없는 셸입니다</span>';
   const dot = document.getElementById('t-live');
   if (dot) dot.innerHTML = liveDot();
   termGone(t ? null : offline ? 'offline' : 'closed');
@@ -363,6 +469,7 @@ function termGone(kind) {
   d.classList.toggle('closed', Boolean(kind));
   d.classList.toggle('kept', Boolean(kind) && Boolean(scr && scr.shown != null));
   for (const el of d.querySelectorAll('.term-bar button, #t-form input, #t-form button')) el.disabled = Boolean(kind);
+  drawTyping();
   if (!kind) {
     box.hidden = true;
     box.innerHTML = '';
@@ -375,7 +482,10 @@ function termGone(kind) {
   box.innerHTML =
     kind === 'offline'
       ? `<p class="g-main">${esc(hostLabel(curHost()))}에 닿지 않습니다</p><p class="g-sub">호스트가 돌아오면 이 셸이 다시 보입니다</p>`
-      : `<p class="g-main">이 셸은 닫혔습니다</p><a class="btn secondary" href="${esc(homeHash())}">작업공간으로</a>`;
+      : `<div class="g-text"><p class="g-main">이 셸은 닫혔습니다</p>${d.classList.contains('kept') ? '<p class="g-sub">아래는 닫히기 전의 마지막 화면입니다</p>' : ''}</div>${
+          // Two columns: the list is beside it and ✕ closes this side.
+          split ? '' : `<a class="btn secondary" href="${esc(homeHash())}">작업공간으로</a>`
+        }`;
 }
 
 // Raw-mode keys in order: text runs merge, one request at a time, the screen read soon after.

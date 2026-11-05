@@ -453,6 +453,26 @@ test('Ctrl+Alt+W: the same close, the shell view included (no shell key)', () =>
   assert.equal(act('Ctrl+Alt+w', { layer: true }), null);
 });
 
+test('Ctrl+Alt+= / Ctrl+Alt+-: the shell\'s text size, the shell view and a field too (no shell key)', () => {
+  for (const ctx of [{}, { field: true }, { shell: true }, { shell: true, field: true, split: true }]) {
+    assert.equal(act('Ctrl+Alt+=', ctx), 'termFontUp');
+    assert.equal(act('Ctrl+Alt+-', ctx), 'termFontDown');
+  }
+  assert.equal(rawKeyName(ev('Ctrl+Alt+=')), null);
+  assert.equal(rawKeyName(ev('Ctrl+Alt+-')), null);
+  assert.equal(KM0.shellKey(ev('Ctrl+Alt+='), { shell: true }), null);
+  // A Mac's Ctrl+Option+= types ≠, and Shift (+) still means the same key; by code.
+  assert.equal(act('Ctrl+Alt+=', { shell: true }, { key: '≠', code: 'Equal' }), 'termFontUp');
+  assert.equal(act('Ctrl+Alt+=', { shell: true }, { key: '+', code: 'Equal', shiftKey: true }), 'termFontUp');
+  assert.equal(act('Ctrl+Alt+-', { shell: true }, { key: '–', code: 'Minus' }), 'termFontDown');
+  // Without Alt they are the browser's zoom; a bare - or = is typed.
+  assert.equal(act('Ctrl+=', {}), null);
+  assert.equal(act('-', {}), null);
+  assert.equal(act('-', {}, { code: 'Minus' }), null);
+  assert.equal(KM0.keyOf({ key: '≠', code: 'Equal', ctrlKey: true, altKey: true }), 'Ctrl+Alt+=');
+  assert.equal(hint('termFontUp'), 'Ctrl+Alt+=');
+});
+
 // ---- the shell view and the 「셸 화면에서도」 switch
 const { withMods } = require('../public/keys.js');
 const sp = { shell: true, split: true };
