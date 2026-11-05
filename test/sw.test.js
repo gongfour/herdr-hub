@@ -11,18 +11,22 @@ function load({ fetchReply }) {
   const shown = [];
   const fetched = [];
   const opened = [];
+  const closed = [];
+  const waits = [];
   const self = {
     location: { origin: 'https://hub.invalid' },
     addEventListener: (type, fn) => (handlers[type] = fn),
     skipWaiting() {},
     clients: { claim() {}, matchAll: async () => [], openWindow: async (u) => opened.push(u) },
-    registration: { showNotification: async (title, opts) => shown.push({ title, ...opts }), getNotifications: async () => [] },
+    registration: { showNotification: async (title, opts) => shown.push({ title, ...opts }), getNotifications: async ({ tag }) => [{ close: () => closed.push(tag) }] },
   };
   const fetch = async (url, init) => {
     fetched.push({ url, init, body: JSON.parse(init.body) });
     return fetchReply();
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/sw.js'), 'utf8'), { self, fetch, URL, setTimeout: () => 0, Notification: { maxActions: 2 } });
+  // Timers run at once; their delays are kept.
+  const setTimeout = (f, ms) => (waits.push(ms), f(), 0);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/sw.js'), 'utf8'), { self, fetch, URL, setTimeout, Notification: { maxActions: 2 } });
   const click = async (action, data) => {
     let wait;
     handlers.notificationclick({ action, notification: { title: 'a: 답 필요', tag: 'server|w1:p1', data, close() {} }, waitUntil: (p) => (wait = p) });
@@ -33,7 +37,7 @@ function load({ fetchReply }) {
     handlers.push({ data: { json: () => payload }, waitUntil: (p) => (wait = p) });
     await wait;
   };
-  return { click, push, shown, fetched, opened };
+  return { click, push, shown, fetched, opened, closed, waits };
 }
 
 const data = { url: '/#/h/server/agent/w1%3Ap1', host: 'server', pane: 'w1:p1', stateSeq: 7, answers: { 1: 'Yes', 3: 'No' } };
@@ -51,12 +55,16 @@ test('a button posts the answer with stateSeq and label, then confirms quietly',
   assert.equal(w.shown[0].tag, 'server|w1:p1');
   assert.equal(w.shown[0].silent, true);
   assert.deepEqual(w.opened, []);
+  // Closed 4 s later, before the click's waitUntil promise settles.
+  assert.deepEqual(w.waits, [4000]);
+  assert.deepEqual(w.closed, ['server|w1:p1']);
 });
 
 test('a refused answer says so; a plain tap opens the agent and sends nothing', async () => {
   const w = load({ fetchReply: () => ({ ok: false, status: 409, json: async () => ({ error: 'stale' }) }) });
   await w.click('answer:1', data);
   assert.match(w.shown[0].body, /이미 바뀌었습니다/);
+  assert.deepEqual(w.closed, [], 'a failure stays');
   await w.click('', data);
   assert.equal(w.fetched.length, 1);
   assert.deepEqual(w.opened, ['https://hub.invalid/#/h/server/agent/w1%3Ap1']);

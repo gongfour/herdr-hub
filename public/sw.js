@@ -118,7 +118,10 @@ async function answer(note, n) {
     badge: '/icon-192.png',
     data: { url: d.url || '/' },
   });
-  if (ok) setTimeout(() => self.registration.getNotifications({ tag: note.tag }).then((ns) => ns.forEach((x) => x.close())), 4000);
+  // Closed 4 s later, inside the click's waitUntil (this promise): the worker may stop once that ends.
+  if (!ok) return;
+  await new Promise((r) => setTimeout(r, 4000));
+  for (const x of await self.registration.getNotifications({ tag: note.tag })) x.close();
 }
 
 // An open app only changes its route (postMessage; the page sets location.hash), so drafts,
