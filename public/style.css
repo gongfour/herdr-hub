@@ -1386,7 +1386,8 @@ button.tool:active { filter: brightness(0.95); }
 /* The chat, split: one column of about 760px for everything in it — the header's contents, the
    activity line, the messages (and the 최신 대화 pill), the answer box, the photos, the command
    suggestions and the composer. Rules and backgrounds still run edge to edge; only the contents
-   keep to the column (--gut, from the view's own width). Tables and code reach wider.
+   keep to the column (--gut, from the view's own width); tables and code keep to it too, edge for
+   edge with the text, as every other part of the view does.
    The column follows 설정 → 대화 폭 (prefs.js chatW): 자동 takes the view less 64px a side, within
    760–1280px; 좁게 stays 760; 넓게 less 32px a side, up to 1680px; 꽉 차게 all.
    The chat's text grows a little with the screen too (16px on a laptop, up to 18px on a monitor). */
@@ -1404,7 +1405,6 @@ button.tool:active { filter: brightness(0.95); }
 .split .detail.chat > .composer { padding-left: var(--gut); padding-right: var(--gut); }
 .split .detail.chat > .activity { margin-left: var(--gut); margin-right: var(--gut); }
 .split .detail.chat > #d-blocked > .blocked-box { margin-left: 0; margin-right: 0; }
-.split .detail.chat .msg.assistant > :is(pre, .table-wrap) { margin-left: calc(-1 * min(160px, var(--gut) - 16px)); margin-right: calc(-1 * min(160px, var(--gut) - 16px)); }
 /* The answer box's toggles say what they are where there is room (answer.js). */
 .wide-only { display: none; }
 .split .wide-only { display: inline; }
