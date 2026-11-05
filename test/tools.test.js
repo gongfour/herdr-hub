@@ -20,6 +20,17 @@ test('a shell command without its leading cd, with the folder as context', () =>
   assert.equal(toolSummary(bash('echo cd /a && ls')), 'echo cd /a && ls'); // only a leading cd
 });
 
+test('leading variables set with ; or && go too; a cd to one names its folder', () => {
+  assert.equal(toolSummary(bash("S='C:/Users/kangw/src/hub'; cd \"$S\" && git log -3")), 'git log -3 · hub');
+  assert.equal(toolSummary(bash('S="/a/b"; cd "${S}/lib" && ls')), 'ls · lib');
+  assert.equal(toolSummary(bash('export NODE_ENV=test && npm test')), 'npm test');
+  assert.equal(toolSummary(bash('A=1; B="x y" && cd /p/q && make')), 'make · q');
+  assert.equal(toolSummary(bash('cd /p && X=1; run')), 'run · p');
+  assert.equal(toolSummary(bash('NODE_ENV=test npm test')), 'NODE_ENV=test npm test'); // an env prefix is part of the command
+  assert.equal(toolSummary(bash('A=1;')), 'A=1;'); // nothing after it
+  assert.equal(toolSummary(bash('cd "$HOME/x" && ls')), 'ls · x'); // a variable not set here: as written
+});
+
 test("Claude Code's description of a command comes first", () => {
   assert.equal(toolSummary(bash('cd /x && npm test -- --watch=false', 'Run the  unit tests')), 'Run the unit tests');
   assert.equal(toolCommand(bash('cd /x && npm test', 'Run tests')), 'cd /x && npm test');
