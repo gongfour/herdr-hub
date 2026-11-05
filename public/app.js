@@ -631,7 +631,8 @@ function emptyDetailHtml() {
       ${keyLine([k('newWorkspace', '새 워크스페이스'), k('switcher', '찾아 열기')])}
     </div>`;
   }
-  const keys = [k('switcher', '찾아 열기'), k('nextRow', '목록 옮겨 다니기'), k('nextBlocked', '다음 답 필요'), k('nextPane', '칸 옮기기'), k('toggleSide', off ? '목록 펴기' : '사이드바 접기')];
+  // Two keys to get going, and the sheet with the rest: a wall of hints reads as noise.
+  const keys = [k('switcher', '찾아 열기'), k('nextRow', '목록 옮겨 다니기'), k('help', '모든 단축키')];
   return `<div class="empty-detail">
       ${icon}
       <h2>${off ? '목록을 열어 에이전트를 고르세요' : '왼쪽에서 에이전트를 고르세요'}</h2>
