@@ -507,10 +507,8 @@ function termGone(kind) {
   box.innerHTML =
     kind === 'offline'
       ? `<p class="g-main">${esc(hostLabel(curHost()))}에 닿지 않습니다</p><p class="g-sub">호스트가 돌아오면 이 셸이 다시 보입니다</p>`
-      : `<div class="g-text"><p class="g-main">이 셸은 닫혔습니다</p>${d.classList.contains('kept') ? '<p class="g-sub">아래는 닫히기 전의 마지막 화면입니다</p>' : ''}</div>${
-          // Two columns: the list is beside it and ✕ closes this side.
-          split ? '' : `<a class="btn secondary" href="${esc(homeHash())}">작업공간으로</a>`
-        }`;
+      : // Back to the list in one tap (in two columns too: this side then empties).
+        `<div class="g-text"><p class="g-main">이 셸은 닫혔습니다</p>${d.classList.contains('kept') ? '<p class="g-sub">아래는 닫히기 전의 마지막 화면입니다</p>' : ''}</div><a class="btn secondary" href="${esc(homeHash())}">작업공간으로</a>`;
 }
 
 // Raw-mode keys in order: text runs merge, one request at a time, the screen read soon after.

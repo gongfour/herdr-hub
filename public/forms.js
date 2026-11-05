@@ -43,7 +43,7 @@ async function renderForm() {
         ${isNew ? '<p class="form-note">새 폴더에서 Claude 를 처음 띄우면 폴더 신뢰 질문이 나옵니다. 에이전트 화면에 나오는 버튼으로 답하세요.</p>' : ''}
         <select class="field" id="f-kind"></select>
         <h2><label for="f-args">추가 옵션 (선택)</label></h2>
-        <input class="field" id="f-args" placeholder="예: --model haiku" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input class="field" id="f-args" placeholder="예: --model sonnet" autocomplete="off" autocapitalize="off" spellcheck="false">
         <h2><label for="f-name">에이전트 이름 (선택)</label></h2>
         <input class="field" id="f-name" placeholder="비우면 폴더·워크스페이스 이름" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="f-name-hint">
         <p class="hint" id="f-name-hint" aria-live="polite"></p>

@@ -136,8 +136,11 @@ function renderBlocked() {
     const title = parts.intent || parts.question || '답 필요';
     if (detail.ctxFor !== text) Object.assign(detail, { ctxFor: text, ctxOpen: false });
     const n = parts.body ? parts.body.split('\n').length : 0;
+    // The command to approve wraps only at its spaces, never inside a word (`-- -`, `-clean`); a
+    // word wider than the box scrolls sideways.
+    const tokens = (s) => s.split(/(\s+)/).map((w, i) => (i % 2 ? w : w && `<span class="tok">${esc(w)}</span>`)).join('');
     const ctx = n
-      ? `<div class="ctx${detail.ctxOpen ? ' open' : ''}"><pre class="context">${esc(parts.body)}</pre><button type="button" class="ctx-more" aria-expanded="false" hidden>전체 보기${n > 1 ? ` (${n}줄)` : ''}</button></div>`
+      ? `<div class="ctx${detail.ctxOpen ? ' open' : ''}"><pre class="context">${tokens(parts.body)}</pre><button type="button" class="ctx-more" aria-expanded="false" hidden>전체 보기${n > 1 ? ` (${n}줄)` : ''}</button></div>`
       : '';
     // AskUserQuestion asking several things: which are answered (☒ on the terminal's tab bar).
     const ask = choices.ask && choices.ask.tabs.length > 1 ? choices.ask : null;
