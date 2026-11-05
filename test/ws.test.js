@@ -109,3 +109,22 @@ test('fragmented messages are put together; pings are answered', async () => {
   c.close();
   server.close();
 });
+
+test('a message in many empty fragments is closed at MAX_FRAGMENTS, without a quadratic stall', () => {
+  const { EventEmitter } = require('events');
+  const sock = Object.assign(new EventEmitter(), { setNoDelay() {}, write: () => true, end() {}, destroy() {}, destroyed: false });
+  const c = new ws.Conn(sock, {});
+  let closed = null;
+  c.on('close', (code) => (closed = code));
+  const part = (opcode) => {
+    const f = ws.frame(opcode, Buffer.alloc(0), true);
+    f[0] &= 0x7f; // not the last
+    return f;
+  };
+  // 160k empty fragments (under 1 MB): summing the parts per frame took ~10 s of the main thread.
+  const all = Buffer.concat([part(1), ...Array.from({ length: 160000 }, () => part(0))]);
+  const t0 = performance.now();
+  for (let i = 0; i < all.length; i += 65536) sock.emit('data', all.subarray(i, i + 65536));
+  assert.ok(performance.now() - t0 < 1000, `took ${performance.now() - t0} ms`);
+  assert.equal(closed, 1009);
+});
