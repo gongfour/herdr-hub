@@ -1032,6 +1032,14 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .ver-line .ver-k { flex: none; white-space: nowrap; font-size: 15px; color: var(--text); }
 .ver-line .ver-v { color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .pref-ver .btn { flex: none; min-height: 36px; padding: 0 12px; font-size: 14px; }
+/* The waiting build: a row of its own (a rule above, as every row of a card), the news and its
+   line under it on the left, 「지금 바꾸기」 centred beside them. */
+.pref-ver.ver-next { padding: 10px 14px; }
+.pref-ver.ver-next[hidden] { display: none; }
+.ver-next .vn-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ver-next .vn-t { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--text); }
+.ver-next .vn-t::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.ver-next .vn-h { padding-left: 15px; font-size: 13px; color: var(--muted); }
 
 /* ---- polish: small pieces */
 #d-badge { display: flex; align-items: center; flex: none; }

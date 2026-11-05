@@ -72,7 +72,7 @@ function settingsHtml() {
         <h2 id="g-info">정보</h2>
         <div class="pcard">
           <div class="pref-ver"><button type="button" class="pref-info ver-line" id="s-ver"><span class="ver-k">버전</span><span class="ver-v"></span></button><button type="button" class="btn secondary" id="s-reload">새로고침</button></div>
-          <p class="pref-hint ver-next" id="s-ver-next" hidden></p>
+          <div class="pref-ver ver-next" id="s-ver-next" hidden><span class="vn-text"><span class="vn-t"></span><span class="vn-h"></span></span><button type="button" class="btn" id="s-update">지금 바꾸기</button></div>
         </div>
       </section>
       <section class="pgroup" aria-labelledby="g-dev">
@@ -180,6 +180,7 @@ function bindSettings(main) {
   main.querySelector('#s-clear').onclick = clearDeviceData;
   bindConn(main);
   main.querySelector('#s-reload').onclick = () => reloadToNew(); // app.js
+  main.querySelector('#s-update').onclick = () => reloadToNew();
   main.querySelector('#s-ver').onclick = copyBuildSha;
   main.querySelector('#s-push').onclick = (e) => {
     const b = e.target.closest('button');
@@ -417,19 +418,21 @@ function renderVersionInfo() {
   el.title = copy ? `${myBuild.sha} — 눌러서 복사` : '';
   el.setAttribute('aria-label', copy ? `버전 ${text}. 누르면 커밋 해시를 복사합니다` : `버전 ${text}`);
   el.classList.toggle('ver-copy', copy);
-  // A new build waiting: the line under says which and that nothing needs doing (it comes by
-  // itself the next time the app comes back), and the button stands out; else a quiet 새로고침.
+  // A new build waiting: a row of its own under the version, saying which and that nothing needs
+  // doing (it comes by itself the next time the app comes back), with its button 「지금 바꾸기」
+  // beside it; the quiet 새로고침 on the version row steps aside meanwhile.
   const next = document.getElementById('s-ver-next');
   if (next) {
-    const say = !hasNew() ? '' : mustReload() ? '이 화면이 서버와 맞지 않습니다. 새로고침하면 고쳐집니다' : `새 버전 ${Update.shortLabel(serverBuild)} — 다음에 돌아올 때 저절로 바뀝니다`;
-    if (next.textContent !== say) next.textContent = say;
-    next.hidden = !say;
+    const must = hasNew() && mustReload();
+    const t = !hasNew() ? '' : must ? '이 화면이 서버와 맞지 않습니다' : `새 버전 ${Update.shortLabel(serverBuild)}`;
+    const h = !hasNew() ? '' : must ? '새로고침하면 고쳐집니다. 쓰던 글은 남습니다.' : '앱으로 다시 돌아오면 저절로 바뀝니다.';
+    next.querySelector('.vn-t').textContent = t;
+    next.querySelector('.vn-h').textContent = h;
+    next.querySelector('#s-update').textContent = must ? '새로고침' : '지금 바꾸기';
+    next.hidden = !t;
   }
   const r = document.getElementById('s-reload');
-  if (r) {
-    r.textContent = hasNew() ? '지금 새로고침' : '새로고침';
-    r.classList.toggle('secondary', !hasNew());
-  }
+  if (r) r.hidden = hasNew();
 }
 async function copyBuildSha() {
   if (!myBuild || !myBuild.sha) return;
