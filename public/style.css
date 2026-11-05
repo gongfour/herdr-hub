@@ -1033,31 +1033,58 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .split .term-sheet .screen, .split .term-sheet .screen.wrap { font-size: 13px; line-height: 1.4; }
 
 /* ---- composer palette: "/" commands, "@" files, "!" hint; right above the composer, so it
-   rides on the iOS keyboard with it. About six rows show; more scroll inside. */
+   rides on the iOS keyboard with it. About six rows show; more scroll inside. Its rows are the
+   switcher's (.qs-row): a line between rows, the picked one tinted with the accent bar at its
+   left, 36px a line with a mouse and 50px for a finger as the list's rows. On a wide pane it
+   floats as the switcher's card (border, --radius, --pop-shadow) on the chat's column. */
 .palette {
   flex: none; max-height: min(306px, 46%); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 16px rgb(0 0 0 / 0.06);
 }
 .palette + .composer { border-top-color: var(--line); }
-.pal-row { padding: var(--sp-2) var(--sp-4); min-height: 50px; display: flex; flex-direction: column; justify-content: center; gap: var(--sp-0); cursor: pointer; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); -webkit-user-select: none; user-select: none; }
-.pal-row.file { min-height: 44px; }
-.pal-row[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.split .detail.chat > #d-pal {
+  margin: 0 var(--gut) var(--sp-2); padding-left: 0; padding-right: 0;
+  border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--pop-shadow);
+}
+.split .detail.chat > #d-pal + .composer { border-top-color: transparent; }
+.pal-row {
+  display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto; grid-template-areas: "name hint src" "desc desc desc";
+  align-items: baseline; row-gap: var(--sp-0); align-content: center; min-height: 50px; padding: var(--sp-1) var(--sp-4);
+  cursor: pointer; border-top: 1px solid var(--line); -webkit-user-select: none; user-select: none;
+}
+.palette > .pal-row:first-child { border-top: 0; }
+.palette .pal-row[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent); }
 .pal-row:active { background: var(--surface-2); }
-.pal-top { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
-.pal-name { font: 600 14px/1.3 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
-.pal-row.file .pal-name { font-weight: 500; }
-.pal-hint { font: 12px/1.3 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 0; }
-.pal-chip { flex: none; margin-left: auto; font-size: 11px; font-weight: 600; padding: var(--sp-0) var(--sp-2); border-radius: 999px; color: var(--muted); background: var(--surface-2); white-space: nowrap; }
-.pal-hint + .pal-chip { margin-left: 0; }
-.pal-chip.menu { color: var(--working); background: var(--working-bg); }
-.pal-chip.menu + .pal-chip { margin-left: 0; }
-.pal-chip.project { color: var(--done); background: var(--done-bg); }
-.pal-chip.plugin { color: var(--ansi-4); background: color-mix(in srgb, var(--ansi-4) 14%, transparent); }
-.pal-desc { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pal-name { grid-area: name; font: 600 14px/1.35 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pal-hint { grid-area: hint; margin-left: var(--sp-2); font: 12px/1.35 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pal-desc { grid-area: desc; font-size: 13px; line-height: 1.35; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Where a command comes from, said in a word at the end; the built-in ones (most) say nothing. A
+   command that opens a menu in the terminal says so first, in the working colour. */
+.pal-src { grid-area: src; margin-left: var(--sp-3); font-size: 12px; line-height: 1.35; color: var(--muted); white-space: nowrap; }
+.pal-src .menu { color: var(--working); font-weight: 600; }
+/* A path: an icon, its folder part muted, the name it ends in in the text colour. */
+.pal-row.file { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "ic name"; column-gap: var(--sp-2); align-items: center; min-height: 44px; }
+.pal-row.file .pal-name { font-weight: 400; color: var(--muted); }
+.pal-row.file .pal-name b { font-weight: 600; color: var(--text); }
+.pal-ic { grid-area: ic; }
 .pal-ic svg { width: 16px; height: 16px; display: block; stroke: var(--muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pal-note { padding: var(--sp-3) var(--sp-4); font-size: 13px; color: var(--muted); line-height: 1.4; }
+.pal-row + .pal-note { border-top: 1px solid var(--line); padding-top: var(--sp-2); padding-bottom: var(--sp-2); font-size: 12px; }
 .pal-note b { font-family: var(--mono); color: var(--text); }
 .pal-note.err { color: var(--blocked); }
+@media (hover: hover) {
+  .palette .pal-row:hover { background: color-mix(in srgb, var(--surface-2) 65%, var(--surface)); }
+  .palette .pal-row[aria-selected="true"]:hover { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+}
+/* With a mouse, one line a row as the switcher's commands: the name, its arguments, what it does,
+   where it comes from. Six and a half rows show, so the list says it scrolls. */
+@media (hover: hover) and (pointer: fine) {
+  .palette { max-height: min(240px, 46%); }
+  .pal-row { min-height: 36px; grid-template-columns: minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr) auto; grid-template-areas: "name hint desc src"; }
+  .pal-desc { margin-left: var(--sp-3); }
+  .pal-row.file { min-height: 36px; }
+  .pal-name { font-size: 13px; }
+}
 
 /* ---- 설정: groups of rows (prefs.js), a small heading above each card */
 .panel.settings { gap: var(--sp-4); }

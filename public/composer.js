@@ -140,6 +140,20 @@ function hidePalette(dismissed = null) {
   pal = dismissed ? { dismissed } : null;
 }
 
+// Where a command comes from, in a word at the row's end: the built-in ones say nothing (most of
+// the list is built in); 「메뉴」 first for a command that opens a menu in the terminal.
+function sourceText(c) {
+  const src = c.source === 'builtin' ? '' : c.scope === 'project' ? '프로젝트 스킬' : SOURCE_LABEL[c.source] || c.source || '';
+  const parts = [c.menu ? '<span class="menu">메뉴</span>' : '', src ? esc(src) : ''].filter(Boolean);
+  return parts.length ? `<span class="pal-src">${parts.join(' · ')}</span>` : '';
+}
+
+// A path with its folder part muted and its last name (a folder's with its "/") in bold.
+function pathParts(p) {
+  const m = /^(.*\/)?([^/]+\/?)$/.exec(p) || [p, '', p];
+  return `${esc(m[1] || '')}<b>${esc(m[2])}</b>`;
+}
+
 function renderPalette() {
   const box = document.getElementById('d-pal');
   if (!box || !pal) return;
@@ -152,13 +166,12 @@ function renderPalette() {
       .map((c, i) =>
         pal.kind === 'cmd'
           ? `<div class="pal-row" role="option" id="pal-${i}" data-i="${i}" aria-selected="${i === pal.sel}">
-              <div class="pal-top"><b class="pal-name">/${esc(c.name)}</b>${c.hint ? `<span class="pal-hint">${esc(c.hint)}</span>` : ''}${
-                c.menu ? '<span class="pal-chip menu">메뉴</span>' : ''
-              }<span class="pal-chip ${esc(c.source)}">${esc(c.scope === 'project' ? '프로젝트 스킬' : SOURCE_LABEL[c.source] || c.source)}</span></div>
-              ${c.desc ? `<div class="pal-desc">${esc(c.desc)}</div>` : ''}
+              <b class="pal-name">/${esc(c.name)}</b>${c.hint ? `<span class="pal-hint">${esc(c.hint)}</span>` : ''}${
+                c.desc ? `<span class="pal-desc">${esc(c.desc)}</span>` : ''
+              }${sourceText(c)}
             </div>`
           : `<div class="pal-row file" role="option" id="pal-${i}" data-i="${i}" aria-selected="${i === pal.sel}">
-              <div class="pal-top"><span class="pal-ic" aria-hidden="true">${c.dir ? ICON.folder : ICON.file}</span><b class="pal-name">${esc(c.path)}</b></div>
+              <span class="pal-ic" aria-hidden="true">${c.dir ? ICON.folder : ICON.file}</span><span class="pal-name">${pathParts(c.path)}</span>
             </div>`
       )
       .join('') + (pal.total > pal.items.length ? `<div class="pal-note">${pal.total - pal.items.length}개 더 — 더 적어서 좁히세요</div>` : '');
