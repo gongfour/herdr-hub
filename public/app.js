@@ -491,6 +491,8 @@ function route(e, { relayout = false } = {}) {
     // An agent always shows its chat. …/screen (the old 화면 tab) opens the terminal sheet over it.
     const pane = r.pane;
     view = { name: 'agent', host };
+    // Still this visit's host once the state is known (the same pane id on another host is not it).
+    const sameHost = () => curHost() === (host || localId());
     const draft = drafts.get(rowKey(curHost(), pane));
     detail = { host, pane, transcript: null, screen: null, blockedText: null, lastSeq: -1, files: draft ? draft.files : [], sheet: null, wantSheet: r.sub === 'screen', activity: null };
     if (was && was.view.name === 'agent' && was.detail.pane === pane && (was.view.host || localId()) === curHost()) {
@@ -509,7 +511,7 @@ function route(e, { relayout = false } = {}) {
       // Opened before the first state (the app just started, or reloaded onto a new version):
       // the host isn't known yet, so neither is the draft's key. Put it back once it is.
       ready.then(() => {
-        const d = view.name === 'agent' && detail.pane === pane && drafts.get(rowKey(curHost(), pane));
+        const d = view.name === 'agent' && detail.pane === pane && sameHost() && drafts.get(rowKey(curHost(), pane));
         const input = document.getElementById('d-input');
         if (d && input && !input.value) {
           input.value = d.text;
@@ -519,7 +521,7 @@ function route(e, { relayout = false } = {}) {
     }
     loadDetail();
     closeNotes(curHost(), pane);
-    ready.then(() => view.name === 'agent' && detail.pane === pane && markSeen(currentAgent()));
+    ready.then(() => view.name === 'agent' && detail.pane === pane && sameHost() && markSeen(currentAgent()));
     pollTimer = setInterval(() => {
       const a = currentAgent();
       // Also retry a screen read that failed, whatever the status; the sheet keeps reading while open.

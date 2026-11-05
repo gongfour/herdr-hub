@@ -657,6 +657,7 @@ async function loadTerminal() {
   if (liveFeeds()) return liveSyncShape();
   liveEnsure();
   const pane = detail.pane;
+  const host = curHost();
   const deep = Boolean(detail.deep);
   const n = ++termReads;
   detail.loadAt = Date.now();
@@ -667,7 +668,8 @@ async function loadTerminal() {
     if (n === termReads && scr && scr.kind === 'term' && !['pane_not_found', 'peer_offline'].includes(err.code)) screenError(errReason(err));
     return;
   }
-  if (detail.pane === pane) drawTerminal(screen, n, deep);
+  // Not onto another host's shell with the same id (herdr's ids repeat across hosts: w1:p1).
+  if (termHere(host, pane)) drawTerminal(screen, n, deep);
 }
 function drawTerminal(screen, n, deep) {
   if (n < (detail.drawn || 0)) return; // an older read finished after a newer one

@@ -1095,7 +1095,7 @@ async function cycleMode() {
   if (ok)
     await new Promise((r) => setTimeout(r, 450)).then(() =>
       api(hp(`/agents/${encodeURIComponent(pane)}/screen?source=visible&lines=8`, host))
-        .then((s) => detail.pane === pane && noteMode(s.text))
+        .then((s) => detail.pane === pane && curHost() === host && noteMode(s.text))
         .catch(() => {})
     );
   detail.modeBusy = false;

@@ -280,7 +280,7 @@ function startAnswer(choices = null) {
 async function sendKeys(keys, host = curHost(), pane = detail.pane) {
   try {
     await api(hp(`/agents/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ keys }) });
-    if (view.name === 'agent' && detail.pane === pane) setTimeout(loadDetail, 500);
+    if (view.name === 'agent' && detail.pane === pane && curHost() === host) setTimeout(loadDetail, 500);
     return true;
   } catch (err) {
     toastErr(`키를 보내지 못했습니다: ${errText(err)}`);
