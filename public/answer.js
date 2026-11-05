@@ -134,7 +134,7 @@ function renderBlocked() {
     const toggle = (k, label) => `<button type="button" class="toggle" data-toggle="${k}" aria-expanded="${Boolean(detail[k])}">${label}</button>`;
     html = `<div class="blocked-box">
         <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>답 필요${parts.kind ? ` · ${esc(parts.kind)}` : ''}</span>
-          <span class="toggles">${toggle('showScreen', '화면')}${toggle('showKeys', '키')}</span></div>
+          <span class="toggles">${toggle('showScreen', '<span class="wide-only">터미널 </span>화면')}${toggle('showKeys', '키<span class="wide-only"> 직접 보내기</span>')}</span></div>
         <strong class="b-title">${esc(title)}</strong>
         ${ctx}
         ${parts.intent && parts.question ? `<p class="b-q">${esc(parts.question)}</p>` : ''}

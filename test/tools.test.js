@@ -48,3 +48,8 @@ test('stripCd: the command after the cd steps, and the last folder', () => {
   assert.deepEqual(stripCd('cd /a/b && make'), { rest: 'make', dir: '/a/b' });
   assert.deepEqual(stripCd('make'), { rest: 'make', dir: '' });
 });
+
+test('Skill: the skill\'s name, then its arguments', () => {
+  assert.equal(toolSummary({ name: 'Skill', input: { skill: 'design:design-critique' } }), 'design:design-critique');
+  assert.equal(toolSummary({ name: 'Skill', input: { skill: 'loop', args: '5m  /foo' } }), 'loop · 5m /foo');
+});

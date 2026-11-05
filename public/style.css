@@ -918,6 +918,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .term-sheet-head .sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .term-sheet .scroll { flex: 1; min-height: 0; }
 .term-sheet .scroll.screen-mode { padding-bottom: var(--safe-bottom); }
+/* Split, the sheet has a laptop's room: the screen reads in 13px (11px is for a phone), the sheet up to 1120px. */
+.split .sheet.term-sheet { max-width: min(1120px, 100%); }
+.split .term-sheet .screen, .split .term-sheet .screen.wrap { font-size: 13px; line-height: 1.4; }
 
 /* ---- composer palette: "/" commands, "@" files, "!" hint; right above the composer, so it
    rides on the iOS keyboard with it. About six rows show; more scroll inside. */
@@ -1138,6 +1141,15 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 .tool-wrap { display: flex; flex-direction: column; }
 button.tool { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; text-align: left; cursor: pointer; min-height: 40px; }
+/* With a mouse a tool line is a quiet line, as one with nothing to open: 28px, no pill until
+   hovered, ▸ right before the name (lined up with the plain lines'). A finger keeps the 40px pill. */
+@media (hover: hover) and (pointer: fine) {
+  .tools { gap: 2px; }
+  button.tool { min-height: 28px; background: none; }
+  button.tool:hover, button.tool[aria-expanded="true"] { background: var(--surface-2); }
+  button.tool .chev { order: -1; width: 10px; color: var(--muted); font-size: 12px; }
+  div.tool { padding-left: 24px; }
+}
 button.tool .tool-head { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.tool.asked .tool-head { white-space: normal; }
 button.tool .chev { flex: none; color: var(--text); font-size: 14px; }
@@ -1320,7 +1332,23 @@ button.tool:active { filter: brightness(0.95); }
 .split #list-pane .seg.hosts { margin-inline: 14px; }
 /* Forms and the workspace page keep a readable measure in the wide column; so does the chat. */
 .split #detail-pane > .panel, .split #detail-pane > main.list { padding-inline: max(24px, calc((100% - 760px) / 2)); }
-.split #detail-pane .msgs { max-width: 880px; margin-inline: auto; }
+/* The chat, split: one column of about 760px for everything in it — the header's contents, the
+   activity line, the messages (and the 최신 대화 pill), the answer box, the photos, the command
+   suggestions and the composer. Rules and backgrounds still run edge to edge; only the contents
+   keep to the column (--gut, from the view's own width). Tables and code reach a little wider. */
+.split .detail.chat { container-type: inline-size; --gut: max(16px, (100cqw - 760px) / 2); }
+.split .detail.chat > .bar,
+.split .detail.chat > .scroll,
+.split .detail.chat > #d-blocked,
+.split .detail.chat > .attach-tray,
+.split .detail.chat > .palette,
+.split .detail.chat > .composer { padding-left: var(--gut); padding-right: var(--gut); }
+.split .detail.chat > .activity { margin-left: var(--gut); margin-right: var(--gut); }
+.split .detail.chat > #d-blocked > .blocked-box { margin-left: 0; margin-right: 0; }
+.split .detail.chat .msg.assistant > :is(pre, .table-wrap) { margin-left: calc(-1 * min(48px, var(--gut) - 16px)); margin-right: calc(-1 * min(48px, var(--gut) - 16px)); }
+/* The answer box's toggles say what they are where there is room (answer.js). */
+.wide-only { display: none; }
+.split .wide-only { display: inline; }
 /* ✕ (닫기) sits at the end of the detail header, where a close button is looked for. */
 .bar .close-detail { order: 10; }
 

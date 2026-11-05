@@ -424,6 +424,13 @@ test('the quick switcher\'s Ctrl+J/K are the scroll keys: changed with them', ()
   withKeys({ scrollDown: ['Alt+j'] }, () => assert.deepEqual(KM.localKeys(row(/다음 것 고르기/)), ['Alt+j']));
 });
 
+test('the start form\'s Ctrl+리턴 is listed on the 단축키 page and dispatches nothing', () => {
+  const row = KM.LOCAL.find((x) => x.group === '폼');
+  assert.deepEqual(KM.localKeys(row), ['Ctrl+Enter']);
+  assert.ok(KM.sheetGroups().find((g) => g.group === '폼').rows.some((r) => r.keys.includes(label('Ctrl+Enter'))));
+  assert.equal(act('Ctrl+Enter', { field: true }), null); // the form takes it (forms.js), not the table
+});
+
 test('keyOf records Ctrl+Shift+/ as Ctrl+?, Ctrl+/ as itself', () => {
   assert.equal(KM.keyOf({ key: '?', code: 'Slash', ctrlKey: true, shiftKey: true }), 'Ctrl+?');
   assert.equal(KM.keyOf({ key: '/', code: 'Slash', ctrlKey: true }), 'Ctrl+/');

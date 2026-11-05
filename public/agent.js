@@ -6,7 +6,7 @@
 
 function renderDetail() {
   detailRoot().innerHTML = `
-    <div class="detail">
+    <div class="detail chat">
       <header class="bar">
         ${backLink(homeHash())}
         <h1 id="d-title"></h1>
@@ -710,14 +710,18 @@ function renderDetailBody(reset) {
     if (body._html !== html) body.innerHTML = body._html = html;
   } else {
     if (body._html !== 'chat' || !body.querySelector('.msgs')) {
-      body.innerHTML = '<p class="note trunc" hidden>최근 대화만 표시합니다</p><div class="msgs"></div>' +
+      body.innerHTML = '<p class="note trunc" hidden></p><div class="msgs"></div>' +
         `<div class="pill-dock"><button type="button" class="new-out jump"${keyAttrs('jumpEnd', '맨 아래로')} hidden>↓ 최신 대화</button></div>`;
       body._html = 'chat';
       body._seen = null;
       body.querySelector('.jump').onclick = () => jumpLatest(keyboardLikely()); // a phone's keyboard stays down
     }
     // A short copy (the latest few, more on the way) says nothing about older ones yet.
-    body.querySelector('.trunc').hidden = !t.truncated || Boolean(t.partial);
+    // How many, and that the older ones are not to be had here (the server reads the file's tail).
+    const trunc = body.querySelector('.trunc');
+    trunc.hidden = !t.truncated || Boolean(t.partial);
+    const truncText = `최근 메시지 ${t.messages.length}개만 보입니다 · 그보다 앞의 대화는 여기서 불러오지 않습니다`;
+    if (!trunc.hidden && trunc.textContent !== truncText) trunc.textContent = truncText;
     // One element per message, replaced only when its HTML changed: a poll that brings
     // nothing new touches nothing, so a text selection or a press survives it.
     const waiting = pendingNow(rowKey(curHost(), detail.pane), currentAgent()).map((p) => [`wait:${p.at}`, pendingBubble(p)]);

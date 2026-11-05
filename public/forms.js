@@ -12,10 +12,10 @@ async function renderForm() {
   const term = view.mode === 'pane' ? (state.terminals || []).find((t) => same(t, host, view.target)) : null;
   const on = isNew ? '' : multi() ? ` · ${hostLabel(host)}` : '';
   const where = isNew ? '' : ws ? `${ws.label} 워크스페이스의 새 탭${on}` : term ? `${termTitle(term)} 셸 (${term.workspaceLabel})${on}` : '찾을 수 없음';
-  const back = isNew ? homeHash() : ws ? link(host, `/ws/${encodeURIComponent(ws.workspace_id)}`) : term ? link(host, `/term/${encodeURIComponent(term.pane)}`) : homeHash();
+  const back = isNew ? homeHash() : formBack(ws ? link(host, `/ws/${encodeURIComponent(ws.workspace_id)}`) : term ? link(host, `/term/${encodeURIComponent(term.pane)}`) : homeHash());
   detailRoot().innerHTML = `
     <header class="bar">
-      ${backLink(back, '뒤로')}
+      ${backLink(back, '뒤로', split)}
       <h1>${isNew ? '새 워크스페이스' : '에이전트 시작'}${where ? `<span class="sub">${esc(where)}</span>` : ''}</h1>
     </header>
     <form class="panel" id="f-form">
@@ -47,7 +47,7 @@ async function renderForm() {
         <input class="field" id="f-name" placeholder="비우면 폴더·워크스페이스 이름" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="f-name-hint">
         <p class="hint" id="f-name-hint" aria-live="polite"></p>
       </section>
-      <div class="row end"><button type="submit" class="btn" id="f-submit" disabled>${isNew ? '만들기' : '시작'}</button></div>
+      <div class="row end"><button type="submit" class="btn" id="f-submit"${keyAttrs(null, isNew ? '만들기' : '시작', Keymap.label('Ctrl+Enter'))} disabled>${isNew ? '만들기' : '시작'}</button></div>
     </form>`;
   const withAgent = document.getElementById('f-with');
   if (withAgent)
@@ -62,7 +62,14 @@ async function renderForm() {
     fname.setAttribute('aria-invalid', String(Boolean(hint)));
     syncSubmit();
   };
-  document.getElementById('f-form').onsubmit = submitForm;
+  const form = document.getElementById('f-form');
+  form.onsubmit = submitForm;
+  // Ctrl+리턴 (⌘+리턴) from any field, a <select> too, as in the message box (keymap.js LOCAL).
+  form.onkeydown = (e) => {
+    if (Keys.enterAction(e, 'newline') !== 'send') return;
+    e.preventDefault();
+    if (!document.getElementById('f-submit').disabled) form.requestSubmit();
+  };
   const pick = document.getElementById('f-host');
   if (pick) pick.onchange = () => fillForm(pick.value);
   if (isNew) {
@@ -71,6 +78,15 @@ async function renderForm() {
     document.getElementById('f-browse').onclick = () => browseDirs(view.formHost || host);
   }
   if (isNew || ws || term) fillForm(host);
+  // Opened from a keyboard (Ctrl+N): straight into the form, its first field.
+  if (!isNew && keyboardLikely()) document.getElementById('f-kind').focus({ preventScroll: true });
+}
+
+// Where 에이전트 시작's ‹ / ✕ goes: the page it was opened over (the agent or shell beside it,
+// Ctrl+N), else the workspace or shell it starts in.
+function formBack(fallback) {
+  const p = history.state && history.state.prev;
+  return p && !/(^|\/)(new|start)(\/|$)/.test(normHash(p)) ? p : fallback;
 }
 
 // ---- folder choice: recent rows, a browser sheet, or a typed path
