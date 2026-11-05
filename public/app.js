@@ -542,7 +542,7 @@ function route(e, { relayout = false } = {}) {
   } else if (r.name === 'keys') {
     view = { name: 'keys' };
     kp.rec = null;
-    renderKeys({ focus: true }); // keyspage.js: split on the right, the phone a page of its own
+    renderKeys({ focus: true, from }); // keyspage.js: split on the right, the phone a page of its own; on the tab of where it came from
   } else {
     view = { name: 'list' };
     render();

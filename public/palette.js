@@ -5,7 +5,7 @@
 // Pure: loaded as a plain script in the page (window.Palette), required by the tests.
 //
 // A command: { id, name, hay, group, keys, sub } — name what the row says, hay what a query also
-// finds it by (the action's whole label: 「vs code」, 「사이드바」), keys the key hint shown at the end.
+// finds it by (the action's short name and whole label: 「vs code」, 「사이드바」), keys the key hint shown at the end.
 (function (root) {
   // > first: command mode, the rest the query. (Leading spaces after it are not part of the query.)
   function parseQuery(value) {
@@ -32,7 +32,7 @@
     for (const [action, a] of Object.entries(actions || {})) {
       if (!a || a.fixed || a.noCommand || !can(action)) continue;
       const nm = name(action) || commandName(a);
-      out.push({ id: `key:${action}`, action, name: nm, sub: sub(action) || '', group: a.group || '', keys: hint(action) || '', hay: `${nm} ${a.label || ''}` });
+      out.push({ id: `key:${action}`, action, name: nm, sub: sub(action) || '', group: a.group || '', keys: hint(action) || '', hay: `${nm} ${a.name || ''} ${a.label || ''}` });
     }
     return out;
   }

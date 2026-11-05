@@ -1572,30 +1572,59 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 .bar h1 .st-dot.working { background: var(--working); }
 .bar h1 .st-dot.done { background: var(--done); }
 
-/* 단축키 page (keyspage.js), in 설정's cards: the action and where it works on the left, its keys
-   (× to take off, + to add) on the right; stacked when narrow. */
+/* 단축키 page (keyspage.js), in 설정's cards. Tabs per screen; the cheat sheet first (one row per
+   action: its name, then its key, the others folded as +2; two columns where the page is wide), and
+   바꾸기's rows: the name over the long label and where it works on the left, every key (× to take
+   off, + to add, on 셸 the switch) on the right; stacked when narrow. */
+.panel.settings.keys-page > * { max-width: 1120px; }
 .keys-page .k-search { display: flex; gap: var(--sp-2); align-items: center; position: sticky; top: -16px; z-index: 2; padding: var(--sp-2) 0; background: var(--bg); }
 .keys-page .k-search input { flex: 1; min-width: 0; } /* .search-field */
 .keys-page .k-search .toggle { flex: none; min-height: 44px; white-space: nowrap; }
-#k-list { display: flex; flex-direction: column; gap: var(--sp-4); } /* 설정's gap, one level down */
+.bar .k-edit { flex: none; min-height: 36px; padding: 0 var(--sp-4); font-size: 14px; color: var(--text); }
+.k-tabs button { min-height: 40px; white-space: nowrap; }
+.k-tabs button[aria-selected="true"] { background: var(--seg-on); border-color: var(--seg-on-line); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / 0.1); }
+.k-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Searching looks in every tab: no tab marked as the one shown. */
+.k-tabs.searching button[aria-selected="true"] { background: transparent; border-color: transparent; box-shadow: none; font-weight: 400; color: var(--muted); }
+@media (pointer: coarse) { .k-tabs button { min-height: 44px; } }
+#k-list { display: flex; flex-direction: column; gap: var(--sp-4); container-type: inline-size; } /* 설정's gap, one level down */
+#k-list:focus { outline: none; }
 .keys-page .k-note { margin: 0 var(--sp-1); }
+.k-filter { display: flex; justify-content: flex-end; margin-bottom: calc(-1 * var(--sp-2)); } /* closer to the card it filters */
 .k-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2) var(--sp-4); align-items: center; padding: var(--sp-2) var(--sp-4); min-height: 52px; }
+.k-row.view { min-height: 44px; padding: var(--sp-2) var(--sp-4); gap: var(--sp-1) var(--sp-3); }
 .k-row.recording { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.k-row.note { grid-template-columns: 1fr; min-height: 0; }
+.k-row.note .k-label { color: var(--muted); }
 .k-what { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-0) var(--sp-2); }
-.k-name { font-size: 15px; }
+.k-name { font-size: 15px; display: inline-flex; align-items: center; gap: var(--sp-2); }
+.k-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+.k-in { font-size: 12px; color: var(--muted); }
+.k-label { flex-basis: 100%; font-size: 13px; line-height: 1.45; color: var(--muted); }
 .k-where { flex-basis: 100%; font-size: 12px; color: var(--muted); }
-.k-mark { font-size: 11px; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); padding: var(--sp-0) var(--sp-2); border-radius: 999px; }
 .k-keys { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--sp-2); }
+.k-keys:focus { outline: none; }
 .k-keys kbd { font: 12px/1 var(--mono); padding: var(--sp-1) var(--sp-2); border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); white-space: nowrap; }
+.k-twice { font-size: 12px; color: var(--muted); }
+.k-more { position: relative; min-height: 28px; min-width: 32px; padding: 0 var(--sp-2); border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; cursor: pointer; }
+.k-more:hover { color: var(--text); background: var(--surface-2); }
+/* Under a finger a 44px target (::after) on the small pill. */
+@media (pointer: coarse) { .k-more { min-width: 44px; } .k-more::after { content: ""; position: absolute; inset: -8px 0; } }
+/* Two columns where the list is wide (the split's right side, a big window): rows left to right,
+   the rule between them both ways. */
+@container (min-width: 880px) {
+  .pcard.k-cols { display: grid; grid-template-columns: 1fr 1fr; }
+  .pcard.k-cols > * { border-top: 1px solid var(--line); }
+  .pcard.k-cols > :nth-child(-n + 2) { border-top: 0; }
+  .pcard.k-cols > :nth-child(even) { border-left: 1px solid var(--line); }
+}
 .kchip { display: inline-flex; align-items: center; }
 .kchip .kx { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; min-width: 26px; min-height: 32px; cursor: pointer; border-radius: 6px; }
 .kchip .kx:hover { color: var(--blocked); background: var(--surface-2); }
-/* A key's 「셸 화면에서도」 switch: on is a filled 「✓ 셸」, off an outlined 「셸」 (shape and words,
-   not a tint alone; the outline is --field-line, 3:1 against the card). */
+/* A key's 「셸 화면에서도」 switch (셸 tab, 바꾸기): on is a filled 「Hub」, off an outlined 「셸로」
+   (shape and words, not a tint alone; the outline is --field-line, 3:1 against the card). */
 .kchip .ksh, .ksh-demo { font-size: 11px; font-weight: 600; line-height: 1; padding: var(--sp-1) var(--sp-2); border-radius: 999px; border: 1px solid var(--field-line); background: none; color: var(--muted); white-space: nowrap; }
-.kchip .ksh { position: relative; margin-left: var(--sp-1); min-height: 32px; min-width: 52px; cursor: pointer; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-0); }
-/* The switch's small caption: what the word under it is about. */
-.kchip .ksh .ksh-where { font-size: 9px; font-weight: 500; opacity: 0.8; letter-spacing: 0.02em; }
+.kchip .ksh { position: relative; margin-left: var(--sp-1); min-height: 32px; min-width: 48px; cursor: pointer; }
 .kchip .ksh[aria-checked="true"], .ksh-demo { color: var(--accent-text); border-color: var(--accent); background: var(--accent); }
 .ksh-demo.off { color: var(--muted); border-color: var(--field-line); background: none; }
 .kchip .ksh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -1608,7 +1637,7 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 .k-recnote { font-size: 12px; font-weight: 600; color: var(--accent); padding: var(--sp-2) var(--sp-3); border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .k-fixed, .k-none { font-size: 12px; color: var(--muted); }
 .k-empty { color: var(--muted); text-align: center; margin: var(--sp-5) 0; }
-@media (max-width: 560px) { .k-row { grid-template-columns: 1fr; } .k-keys { justify-content: flex-start; } }
+@media (max-width: 560px) { .k-row:not(.view) { grid-template-columns: 1fr; } .k-row:not(.view) .k-keys { justify-content: flex-start; } }
 .keys-page .k-heard { margin: 0 var(--sp-1); padding: var(--sp-2) var(--sp-3); border-radius: 10px; background: var(--surface-2); font-size: 13px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
 .keys-page .k-heard code { font: 12px/1.5 var(--mono); }
 
@@ -1678,7 +1707,7 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
   .kchip .kx { min-width: 44px; min-height: 44px; }
   .k-add { min-width: 44px; min-height: 44px; }
   /* A 32px pill beside the key chip, its target 44px (::after); a gap so it isn't the ×'s neighbour. */
-  .kchip .ksh { min-width: 52px; min-height: 44px; padding: 0 var(--sp-3); margin: 0 var(--sp-2); }
+  .kchip .ksh { min-width: 52px; padding: 0 var(--sp-3); margin: 0 var(--sp-2); }
   .kchip .ksh::after { content: ""; position: absolute; inset: -6px -2px; }
   .k-reset { min-height: 44px; }
   /* 설정 → 정보's 새로고침·지금 바꾸기, the answer box's toggles, the shell's 더 보기, the hub-down

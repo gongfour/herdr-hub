@@ -866,3 +866,87 @@ test('changed keys survive the device: a stored app key kept in a tab, the defau
     KM.setOverrides({});
   }
 });
+
+// ---- the 단축키 page (keyspage.js): names, tabs per screen, the one key a row shows, the search
+
+test('every action and every LOCAL row has a short name (the 단축키 page\'s row; the label is the detail)', () => {
+  for (const [action, a] of Object.entries(ACTIONS)) {
+    assert.ok(a.name && a.name.length <= 12, `${action}: ${a.name}`);
+    assert.ok(!/[:(]/.test(a.name), `${action}: ${a.name}`);
+  }
+  // A row without a key is a note the page says in full (its label); a name is still there to find it by.
+  for (const x of LOCAL) assert.ok(x.name && (!x.key || x.name.length <= 12), `${x.group}: ${x.name}`);
+  const names = Object.values(ACTIONS).map((a) => a.name);
+  assert.equal(new Set(names).size, names.length, 'two actions with one name');
+});
+
+test('tabsOf: an action is listed on the screens it works on, 셸 by the keys the Hub takes there', () => {
+  const KM = KM0;
+  const on = (tab) => Object.keys(ACTIONS).filter((a) => KM.tabsOf(a).includes(tab));
+  assert.deepEqual(KM.TABS.map((t) => t.name), ['어디서나', '대화', '셸', '목록']);
+  for (const a of Object.keys(ACTIONS)) assert.ok(KM.tabsOf(a).length, `${a} on no tab`);
+  assert.deepEqual(on('any'), Object.keys(ACTIONS).filter((a) => ACTIONS[a].group === '어디서나'));
+  for (const a of ['jumpEnd', 'closeView', 'closeWorkspace', 'stop', 'answer', 'mode']) assert.ok(on('chat').includes(a), a);
+  for (const a of ['prevHost', 'nextRow', 'toggleSide', 'closeWorkspace']) assert.ok(on('list').includes(a), a);
+  // 셸: exactly the actions with a key the Hub takes in the shell view; not 뒤로 (the shell's Esc).
+  const shell = on('shell');
+  assert.deepEqual(shell, Object.keys(ACTIONS).filter((a) => !ACTIONS[a].shellEsc && BINDINGS.some((x) => x.action === a && x.shell)));
+  for (const a of ['help', 'switcher', 'commands', 'closeView', 'wrap', 'prevRow']) assert.ok(shell.includes(a), a);
+  for (const a of ['back', 'newAgent', 'stop', 'answer', 'mode', 'scrollUp', 'prevHost']) assert.ok(!shell.includes(a), a);
+  assert.equal(KM.localTab(LOCAL.find((x) => x.group === '메시지 칸')), 'chat');
+  assert.equal(KM.localTab(LOCAL.find((x) => x.group === '셸')), 'shell');
+  assert.equal(KM.localTab(LOCAL.find((x) => x.group === '목록 칸 폭')), 'list');
+  // The switch moves an action on or off 셸.
+  withKeys(KM.setShell({}, 'lastView', 'Alt+`', false), () => assert.ok(!KM.tabsOf('lastView').includes('shell')));
+  withKeys(KM.setShell({}, 'newAgent', 'Ctrl+n', true), () => assert.ok(KM.tabsOf('newAgent').includes('shell')));
+});
+
+test('primaryKey: the one key a row shows, this device\'s first (⌘ on the Mac), the shell view\'s on 셸', () => {
+  const KM = KM0;
+  const P = (action, ctx) => label(KM.primaryKey(action, ctx));
+  try {
+    KM.setEnv({ mac: true, app: true });
+    assert.equal(P('switcher'), '⌘+P');
+    assert.equal(P('switcher', { shell: true }), '⌘+P');
+    assert.equal(P('settings'), '⌘+,');
+    assert.equal(P('newAgent'), '⌘+N');
+    assert.equal(P('leaveView'), '⌘+W');
+    KM.setEnv({ mac: true, app: false });
+    assert.equal(P('newAgent'), 'Ctrl+N');
+    assert.equal(P('leaveView'), '');
+    KM.setEnv({ mac: false, app: false });
+    assert.equal(P('newAgent'), 'Alt+N');
+    assert.equal(P('switcher'), 'Ctrl+P');
+    assert.equal(P('switcher', { shell: true }), 'Alt+P'); // Ctrl+P is the shell's there
+    assert.equal(P('closeView', { shell: true }), 'Ctrl+Alt+W');
+    assert.equal(P('settings', { shell: true }), '');
+    KM.setEnv({ mac: false, app: true });
+    assert.equal(P('newAgent'), 'Ctrl+N');
+    assert.equal(P('leaveView'), 'Ctrl+W');
+    for (const env of [{}, { mac: true }]) {
+      KM.setEnv(env);
+      assert.equal(P('back'), 'Esc');
+      assert.deepEqual(KM.keysIn('back'), KM.keysFor('back'));
+    }
+  } finally {
+    KM.setEnv({});
+  }
+});
+
+test('search: every tab at once, by name, label or key, each result with its tabs', () => {
+  const KM = KM0;
+  const find = (q) => KM.search(q);
+  const acts = (q) => find(q).filter((x) => x.action).map((x) => x.action);
+  assert.deepEqual(find('셸 글자 키우기').find((x) => x.action === 'termFontUp').tabs, ['chat', 'shell']);
+  assert.ok(acts('빠른').includes('switcher'));
+  assert.deepEqual(acts('alt+p'), ['switcher']); // by a key
+  assert.deepEqual(acts('Alt+Shift+W'), ['closeWorkspace']);
+  assert.ok(acts('vs code').includes('commands')); // by the label
+  const local = find('보내기').filter((x) => x.local);
+  assert.ok(local.some((x) => x.local.group === '메시지 칸' && x.tabs[0] === 'chat'));
+  assert.ok(find('목록 칸 폭').some((x) => x.local && x.tabs[0] === 'list'));
+  assert.deepEqual(find('없는동작이름'), []);
+  // A key taken off isn't found by it any more.
+  assert.deepEqual(acts('alt+b'), ['toggleSide']);
+  withKeys({ toggleSide: ['Ctrl+b'] }, () => assert.deepEqual(acts('alt+b'), []));
+});

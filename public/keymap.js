@@ -16,7 +16,8 @@
 //          take only a few (the tests list them), and 뒤로's keys there are the shell's Esc.
 //   layer  also while a sheet or menu is open (the action decides what it means there).
 //   split  only in the two-column layout.
-// ACTIONS give each action its words for the sheet, in the group it is listed under; fixed: its
+// ACTIONS give each action its words for the sheet: name, the 단축키 page's short row, and label, the
+// whole of it; group, the screen it is listed under (its tab there, tabsOf; also: more tabs); fixed: its
 // keys are what it means (1–9 pick that choice), so they can't be changed; twice: pressed twice;
 // noShell: means nothing in the shell view (no 「셸 화면에서도」 switch); shellEsc: in the shell's
 // 키 직접 입력 its keys send the shell Esc (뒤로 there is the shell's Esc).
@@ -38,41 +39,41 @@
 // table is built for the device; the keys that quit or are the system's stay refused anywhere.
 (function (root) {
   const ACTIONS = {
-    back: { group: '어디서나', label: '시트·메뉴 닫기, 입력 칸에서 나가기, 뒤로 (셸의 키 직접 입력에서는 셸의 Esc)', shellEsc: true, noCommand: true },
-    leaveView: { group: '어디서나', label: '대화창 닫기: 연 에이전트·셸·워크스페이스(또는 시트, 설정)에서 나온다. 에이전트는 그대로 돈다 (Ctrl+W·⌘W 는 설치한 앱에서만; 닫을 것이 없으면 앱 창이 닫힌다)' },
-    help: { group: '어디서나', label: '단축키 보기' },
-    settings: { group: '어디서나', label: '설정 열기·닫기 (두 칸이면 오른쪽에)' },
-    focusInput: { group: '어디서나', label: '입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)', noShell: true },
-    newAgent: { group: '어디서나', label: '새 에이전트 바로 시작: 지금 연 것의 작업공간·폴더에, 이 기기에서 마지막에 쓴 종류·옵션으로 (목록이면 새 워크스페이스)' },
-    newWorkspace: { group: '어디서나', label: '새 워크스페이스' },
-    menu: { group: '어디서나', label: '⋯ 메뉴 열기: 지금 연 에이전트·셸·워크스페이스의 것 (목록 줄에 포커스가 있으면 그 줄의 것)' },
-    switcher: { group: '어디서나', label: '빠른 이동: 에이전트·셸을 이름·작업공간·호스트로 찾아 열기 (셸 화면에서는 Alt+P)' },
-    commands: { group: '어디서나', label: '명령: 할 수 있는 일을 이름으로 찾아 하기 (빠른 이동에서 > 를 먼저 쳐도; VS Code 의 Ctrl+Shift+P·F1)', noCommand: true },
-    lastView: { group: '어디서나', label: '직전에 보던 에이전트·셸로 (다시 누르면 돌아온다; 목록에서는 방금 나온 것, 「방금 본 대화」)' },
-    nextBlocked: { group: '어디서나', label: '다음 답 필요 에이전트 열기 (목록 순서로 돌아가며)' },
-    prevBlocked: { group: '어디서나', label: '이전 답 필요 에이전트 열기' },
-    jumpEnd: { group: '대화·터미널 화면', label: '맨 아래로, 그리고 입력 칸으로' },
-    jumpTop: { group: '대화·터미널 화면', label: '맨 위로' },
-    prevMine: { group: '대화·터미널 화면', label: '내가 보낸 이전 메시지로 (터미널 화면은 한 화면 위로)', noCommand: true },
-    nextMine: { group: '대화·터미널 화면', label: '내가 보낸 다음 메시지로 (마지막 다음은 맨 아래, 입력 칸으로)', noCommand: true },
-    scrollUp: { group: '대화·터미널 화면', label: '위로 스크롤 (누르고 있으면 계속)', noCommand: true },
-    scrollDown: { group: '대화·터미널 화면', label: '아래로 스크롤 (누르고 있으면 계속)', noCommand: true },
-    answer: { group: '대화·터미널 화면', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)', fixed: true, noShell: true },
-    stop: { group: '대화·터미널 화면', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', twice: true, noShell: true, cmd: '에이전트 중단' },
-    wrap: { group: '대화·터미널 화면', label: '줄바꿈 켜기·끄기: 셸 화면, 에이전트의 터미널 화면 (VS Code 의 Alt+Z)' },
-    terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기', noShell: true, cmd: '터미널 화면 열기·닫기' },
-    termFontUp: { group: '대화·터미널 화면', label: '셸 글자 키우기 (설정 → 셸 글자 크기)' },
-    termFontDown: { group: '대화·터미널 화면', label: '셸 글자 줄이기' },
-    closeView: { group: '대화·터미널 화면', label: '끝내기: 연 에이전트·셸을 끝낸다 (워크스페이스 화면이면 그 워크스페이스를 닫는다). 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 끝내고, Esc 로 그만둔다' },
-    closeWorkspace: { group: '대화·터미널 화면', label: '워크스페이스 닫기: 연 에이전트·셸·워크스페이스가 든 워크스페이스를 (목록에서는 포커스가 있는 줄의 것) 닫는다. 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 닫는다' },
-    mode: { group: '대화·터미널 화면', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)', noShell: true },
-    prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
-    nextHost: { group: '목록', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
-    prevRow: { group: '목록', label: '두 칸: 목록의 이전 에이전트·셸 열기', cmd: '목록의 이전 에이전트·셸 열기' },
-    nextRow: { group: '목록', label: '두 칸: 목록의 다음 에이전트·셸 열기', cmd: '목록의 다음 에이전트·셸 열기' },
-    toggleSide: { group: '목록', label: '두 칸: 사이드바 접기·펴기 (입력 칸에서도)', cmd: '사이드바 접기·펴기' },
-    nextPane: { group: '목록', label: '두 칸: 다음 칸으로 포커스 (활동 막대 → 목록의 고른 줄 → 오른쪽의 입력 칸, VS Code 의 F6)', noCommand: true },
-    prevPane: { group: '목록', label: '두 칸: 이전 칸으로 포커스', noCommand: true },
+    back: { group: '어디서나', name: '뒤로·닫기', label: '시트·메뉴 닫기, 입력 칸에서 나가기, 뒤로 (셸의 키 직접 입력에서는 셸의 Esc)', shellEsc: true, noCommand: true },
+    leaveView: { group: '어디서나', name: '대화창 닫기', label: '대화창 닫기: 연 에이전트·셸·워크스페이스(또는 시트, 설정)에서 나온다. 에이전트는 그대로 돈다 (Ctrl+W·⌘W 는 설치한 앱에서만; 닫을 것이 없으면 앱 창이 닫힌다)' },
+    help: { group: '어디서나', name: '단축키', label: '단축키 보기' },
+    settings: { group: '어디서나', name: '설정', label: '설정 열기·닫기 (두 칸이면 오른쪽에)' },
+    focusInput: { group: '어디서나', name: '입력 칸으로', label: '입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)', noShell: true },
+    newAgent: { group: '어디서나', name: '새 에이전트', label: '새 에이전트 바로 시작: 지금 연 것의 작업공간·폴더에, 이 기기에서 마지막에 쓴 종류·옵션으로 (목록이면 새 워크스페이스)' },
+    newWorkspace: { group: '어디서나', name: '새 워크스페이스', label: '새 워크스페이스' },
+    menu: { group: '어디서나', name: '⋯ 메뉴', label: '⋯ 메뉴 열기: 지금 연 에이전트·셸·워크스페이스의 것 (목록 줄에 포커스가 있으면 그 줄의 것)' },
+    switcher: { group: '어디서나', name: '빠른 이동', label: '빠른 이동: 에이전트·셸을 이름·작업공간·호스트로 찾아 열기 (셸 화면에서는 Alt+P)' },
+    commands: { group: '어디서나', name: '명령 팔레트', label: '명령: 할 수 있는 일을 이름으로 찾아 하기 (빠른 이동에서 > 를 먼저 쳐도; VS Code 의 Ctrl+Shift+P·F1)', noCommand: true },
+    lastView: { group: '어디서나', name: '직전에 보던 것', label: '직전에 보던 에이전트·셸로 (다시 누르면 돌아온다; 목록에서는 방금 나온 것, 「방금 본 대화」)' },
+    nextBlocked: { group: '어디서나', name: '다음 답 필요', label: '다음 답 필요 에이전트 열기 (목록 순서로 돌아가며)' },
+    prevBlocked: { group: '어디서나', name: '이전 답 필요', label: '이전 답 필요 에이전트 열기' },
+    jumpEnd: { group: '대화·터미널 화면', name: '맨 아래로', label: '맨 아래로, 그리고 입력 칸으로' },
+    jumpTop: { group: '대화·터미널 화면', name: '맨 위로', label: '맨 위로' },
+    prevMine: { group: '대화·터미널 화면', name: '내 이전 메시지', label: '내가 보낸 이전 메시지로 (터미널 화면은 한 화면 위로)', noCommand: true },
+    nextMine: { group: '대화·터미널 화면', name: '내 다음 메시지', label: '내가 보낸 다음 메시지로 (마지막 다음은 맨 아래, 입력 칸으로)', noCommand: true },
+    scrollUp: { group: '대화·터미널 화면', name: '위로 스크롤', label: '위로 스크롤 (누르고 있으면 계속)', noCommand: true },
+    scrollDown: { group: '대화·터미널 화면', name: '아래로 스크롤', label: '아래로 스크롤 (누르고 있으면 계속)', noCommand: true },
+    answer: { group: '대화·터미널 화면', name: '선택지 고르기', label: '답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)', fixed: true, noShell: true },
+    stop: { group: '대화·터미널 화면', name: '에이전트 중단', label: '작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)', twice: true, noShell: true, cmd: '에이전트 중단' },
+    wrap: { group: '대화·터미널 화면', name: '줄바꿈', label: '줄바꿈 켜기·끄기: 셸 화면, 에이전트의 터미널 화면 (VS Code 의 Alt+Z)' },
+    terminal: { group: '대화·터미널 화면', name: '터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기', noShell: true, cmd: '터미널 화면 열기·닫기' },
+    termFontUp: { group: '대화·터미널 화면', name: '셸 글자 키우기', label: '셸 글자 키우기 (설정 → 셸 글자 크기)' },
+    termFontDown: { group: '대화·터미널 화면', name: '셸 글자 줄이기', label: '셸 글자 줄이기' },
+    closeView: { group: '대화·터미널 화면', name: '끝내기', label: '끝내기: 연 에이전트·셸을 끝낸다 (워크스페이스 화면이면 그 워크스페이스를 닫는다). 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 끝내고, Esc 로 그만둔다' },
+    closeWorkspace: { group: '대화·터미널 화면', name: '워크스페이스 닫기', also: ['list'], label: '워크스페이스 닫기: 연 에이전트·셸·워크스페이스가 든 워크스페이스를 (목록에서는 포커스가 있는 줄의 것) 닫는다. 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 닫는다' },
+    mode: { group: '대화·터미널 화면', name: '모드 바꾸기', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)', noShell: true },
+    prevHost: { group: '목록', name: '이전 호스트', label: '이전 호스트 (전체 / 각 기기)' },
+    nextHost: { group: '목록', name: '다음 호스트', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
+    prevRow: { group: '목록', name: '이전 줄 열기', label: '두 칸: 목록의 이전 에이전트·셸 열기', cmd: '목록의 이전 에이전트·셸 열기' },
+    nextRow: { group: '목록', name: '다음 줄 열기', label: '두 칸: 목록의 다음 에이전트·셸 열기', cmd: '목록의 다음 에이전트·셸 열기' },
+    toggleSide: { group: '목록', name: '사이드바', label: '두 칸: 사이드바 접기·펴기 (입력 칸에서도)', cmd: '사이드바 접기·펴기' },
+    nextPane: { group: '목록', name: '다음 칸으로', label: '두 칸: 다음 칸으로 포커스 (활동 막대 → 목록의 고른 줄 → 오른쪽의 입력 칸, VS Code 의 F6)', noCommand: true },
+    prevPane: { group: '목록', name: '이전 칸으로', label: '두 칸: 이전 칸으로 포커스', noCommand: true },
   };
 
   const b = (action, key, o = {}) => ({ action, key, field: false, shell: false, layer: false, split: false, ...o });
@@ -204,27 +205,27 @@
 
   // Keys handled in their own field, listed in the sheet but not dispatched from here.
   const LOCAL = [
-    { group: '메시지 칸', key: 'Ctrl+Enter', label: '보내기. 리턴 키 설정이 「보내기」면 리턴, 줄바꿈은 Shift+리턴' },
-    { group: '메시지 칸', key: 'ArrowUp', label: '빈 칸에서: 전에 보낸 메시지 불러오기 (↓ 는 다음)' },
-    { group: '메시지 칸', key: '/', label: '맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)' },
-    { group: '메시지 칸', key: '', label: '대화 화면에서 입력 칸 밖에서 친 글자도 메시지 칸으로 간다 (단축키·선택지 숫자·Space 는 빼고)' },
-    { group: '셸', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
-    { group: '셸', key: 'Ctrl+[', label: '키 직접 입력: Esc' },
-    { group: '셸', key: 'Tab', label: '한 줄 입력: 쓴 것을 셸에 넘기고 셸의 완성 (Shift+Tab 은 포커스 이동)' },
-    { group: '셸', key: 'Ctrl+w', label: '한 줄 입력: 커서 앞 단어 지우기 (셸의 Ctrl+W 처럼; 설치한 앱에서도 창을 닫지 않는다)' },
-    { group: '셸', key: 'Escape', label: '한 줄 입력: 한 번이면 칸에서 나가고, 두 번이면 뒤로 (대화 화면과 같다)' },
-    { group: '셸', key: '', label: '단축키 페이지에서 「셸 화면 Hub」인 키만 Hub 가 쓰고, 나머지는 모두 셸로 간다. 키 줄의 Alt·Ctrl 을 누르고 친 키는 언제나 셸로 (Alt 다음 B 는 셸의 alt+b)' },
-    { group: '폼', key: 'Ctrl+Enter', label: '에이전트 시작·새 워크스페이스: 시작 / 만들기 (어느 칸에서나)' },
-    { group: '목록 칸 폭', key: 'ArrowRight', label: '두 칸: 목록 칸 가장자리에 포커스가 있을 때 ←/→ 로 16px 씩 좁히고 넓힌다. 리턴(두 번 누르기)은 자동으로' },
-    { group: '빠른 이동', key: 'Enter', label: '고른 것 열기 (명령이면 하기). Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
-    { group: '빠른 이동', key: '>', label: '맨 앞에 치면 명령: 할 수 있는 일을 찾는다 (> 를 지우면 다시 에이전트·셸)' },
-    { group: '빠른 이동', key: 'Ctrl+j', follows: 'scrollDown', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞; 아래로 스크롤의 키)' },
-    { group: '빠른 이동', key: 'Ctrl+k', follows: 'scrollUp', label: '이전 것 고르기 (↑ 와 같다; 위로 스크롤의 키)' },
-    { group: '메뉴·확인 창', key: 'ArrowDown', label: '메뉴의 다음 항목 (↑ 는 이전. 끝 다음은 처음)' },
-    { group: '메뉴·확인 창', key: 'Ctrl+j', follows: 'scrollDown', label: '메뉴의 다음 항목 (↓ 와 같다)' },
-    { group: '메뉴·확인 창', key: 'Ctrl+k', follows: 'scrollUp', label: '메뉴의 이전 항목 (↑ 와 같다)' },
-    { group: '메뉴·확인 창', key: 'Home', label: '메뉴의 첫 항목 (End 는 마지막)' },
-    { group: '메뉴·확인 창', key: 'Ctrl+Enter', label: '되돌릴 수 없는 일의 확인 창에서 확인 (그 창을 연 키를 한 번 더 눌러도 확인; Esc 는 그만두기)' },
+    { group: '메시지 칸', name: '보내기', key: 'Ctrl+Enter', label: '보내기. 리턴 키 설정이 「보내기」면 리턴, 줄바꿈은 Shift+리턴' },
+    { group: '메시지 칸', name: '전에 보낸 메시지', key: 'ArrowUp', label: '빈 칸에서: 전에 보낸 메시지 불러오기 (↓ 는 다음)' },
+    { group: '메시지 칸', name: '명령 제안', key: '/', label: '맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)' },
+    { group: '메시지 칸', name: '밖에서 친 글자도 메시지 칸으로', key: '', label: '대화 화면에서 입력 칸 밖에서 친 글자도 메시지 칸으로 간다 (단축키·선택지 숫자·Space 는 빼고)' },
+    { group: '셸', name: '밖에서 누른 키도 셸로', key: '', label: '입력 칸 밖에서 누른 키도 셸로 간다. 나가려면 ‹ (✕) 나 두 칸의 Alt+↑/↓ (Alt+K/J)' },
+    { group: '셸', name: '셸의 Esc', key: 'Ctrl+[', label: '키 직접 입력: Esc' },
+    { group: '셸', name: '셸의 완성', key: 'Tab', label: '한 줄 입력: 쓴 것을 셸에 넘기고 셸의 완성 (Shift+Tab 은 포커스 이동)' },
+    { group: '셸', name: '앞 단어 지우기', key: 'Ctrl+w', label: '한 줄 입력: 커서 앞 단어 지우기 (셸의 Ctrl+W 처럼; 설치한 앱에서도 창을 닫지 않는다)' },
+    { group: '셸', name: '칸에서 나가기', key: 'Escape', label: '한 줄 입력: 한 번이면 칸에서 나가고, 두 번이면 뒤로 (대화 화면과 같다)' },
+    { group: '셸', name: '나머지 키는 셸로', key: '', label: '단축키 페이지의 「셸」 탭에 있는 키만 Hub 가 쓰고, 나머지는 모두 셸로 간다. 키 줄의 Alt·Ctrl 을 누르고 친 키는 언제나 셸로 (Alt 다음 B 는 셸의 alt+b)' },
+    { group: '폼', name: '시작·만들기', key: 'Ctrl+Enter', label: '에이전트 시작·새 워크스페이스: 시작 / 만들기 (어느 칸에서나)' },
+    { group: '목록 칸 폭', name: '목록 칸 폭', key: 'ArrowRight', label: '두 칸: 목록 칸 가장자리에 포커스가 있을 때 ←/→ 로 16px 씩 좁히고 넓힌다. 리턴(두 번 누르기)은 자동으로' },
+    { group: '빠른 이동', name: '고른 것 열기', key: 'Enter', label: '고른 것 열기 (명령이면 하기). Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
+    { group: '빠른 이동', name: '명령으로', key: '>', label: '맨 앞에 치면 명령: 할 수 있는 일을 찾는다 (> 를 지우면 다시 에이전트·셸)' },
+    { group: '빠른 이동', name: '다음 것', key: 'Ctrl+j', follows: 'scrollDown', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞; 아래로 스크롤의 키)' },
+    { group: '빠른 이동', name: '이전 것', key: 'Ctrl+k', follows: 'scrollUp', label: '이전 것 고르기 (↑ 와 같다; 위로 스크롤의 키)' },
+    { group: '메뉴·확인 창', name: '다음 항목', key: 'ArrowDown', label: '메뉴의 다음 항목 (↑ 는 이전. 끝 다음은 처음)' },
+    { group: '메뉴·확인 창', name: '다음 항목', key: 'Ctrl+j', follows: 'scrollDown', label: '메뉴의 다음 항목 (↓ 와 같다)' },
+    { group: '메뉴·확인 창', name: '이전 항목', key: 'Ctrl+k', follows: 'scrollUp', label: '메뉴의 이전 항목 (↑ 와 같다)' },
+    { group: '메뉴·확인 창', name: '첫 항목', key: 'Home', label: '메뉴의 첫 항목 (End 는 마지막)' },
+    { group: '메뉴·확인 창', name: '확인', key: 'Ctrl+Enter', label: '되돌릴 수 없는 일의 확인 창에서 확인 (그 창을 연 키를 한 번 더 눌러도 확인; Esc 는 그만두기)' },
   ];
 
   const MODS = ['Ctrl', 'Alt', 'Meta', 'Shift'];
@@ -538,6 +539,7 @@
       return {
         action,
         group: a.group,
+        name: a.name,
         label: a.label,
         fixed: Boolean(a.fixed),
         changed: action in current,
@@ -613,6 +615,55 @@
     return [...groups].map(([group, rows]) => ({ group, rows }));
   }
 
+  // ---- the 단축키 page's tabs (keyspage.js): one per screen, an action in each it works on.
+
+  const TABS = [
+    { id: 'any', name: '어디서나' },
+    { id: 'chat', name: '대화' },
+    { id: 'shell', name: '셸' },
+    { id: 'list', name: '목록' },
+  ];
+  const GROUP_TAB = { 어디서나: 'any', '대화·터미널 화면': 'chat', 목록: 'list' };
+  const LOCAL_TAB = { '메시지 칸': 'chat', 셸: 'shell', 폼: 'any', '목록 칸 폭': 'list', '빠른 이동': 'any', '메뉴·확인 창': 'any' };
+  // The tabs an action is listed under: its group's (and also's), and 셸 when one of its keys is
+  // the Hub's in the shell view now (the active table: a key switched off leaves it). 뒤로's keys
+  // there are the shell's Esc (LOCAL says so), not the Hub's.
+  function tabsOf(action) {
+    const a = ACTIONS[action];
+    if (!a) return [];
+    const on = new Set([GROUP_TAB[a.group], ...(a.also || [])]);
+    if (!a.shellEsc && active.some((x) => x.action === action && x.shell)) on.add('shell');
+    return TABS.map((t) => t.id).filter((id) => on.has(id));
+  }
+  const localTab = (x) => LOCAL_TAB[x.group] || 'any';
+  // The context a tab's keys are read in: the shell view's keys on 셸.
+  const tabCtx = (tab) => (tab === 'shell' ? { shell: true } : {});
+  // An action's keys that work in ctx, this device's first (⌘ on the Mac: the table's order).
+  function keysIn(action, ctx = {}) {
+    return active.filter((x) => x.action === action && usable(x, ctx)).map((x) => x.key);
+  }
+  // The one key a row shows: 뒤로's Esc, else the first that works there.
+  function primaryKey(action, ctx = {}) {
+    const keys = keysIn(action, ctx);
+    if (action === 'back' && keys.includes('Escape')) return 'Escape';
+    return keys[0] || '';
+  }
+
+  // The 단축키 page's search, over every tab: each word in an action's name, label or a key
+  // ("ctrl+k", "alt+↓"). [{ action, tabs }] in the table's order, then [{ local, tabs }].
+  function search(q) {
+    const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const hit = (hay) => words.every((w) => hay.toLowerCase().includes(w));
+    const keys = (ks) => ks.map(label).join(' ');
+    const out = [];
+    for (const [action, a] of Object.entries(ACTIONS)) {
+      const ks = active.filter((x) => x.action === action).map((x) => x.key);
+      if (hit(`${a.name} ${a.label} ${keys(ks)}`)) out.push({ action, tabs: tabsOf(action) });
+    }
+    for (const x of LOCAL) if (hit(`${x.group} ${x.name} ${x.label} ${keys(localKeys(x))}`)) out.push({ local: x, tabs: [localTab(x)] });
+    return out;
+  }
+
   const api = {
     ACTIONS,
     get BINDINGS() {
@@ -624,7 +675,7 @@
     setEnv,
     deviceKey,
     table,
-    ...{ LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, refuseShell, shellKey, setOverrides, assign, unassign, reset, setShell, shellFor, shellLoses, keysFor, actionRows, whereText, localKeys },
+    ...{ LOCAL, MODS, parse, matches, match, label, hint, sheetGroups, keyOf, refuse, refuseShell, shellKey, setOverrides, assign, unassign, reset, setShell, shellFor, shellLoses, keysFor, actionRows, whereText, localKeys, TABS, tabsOf, localTab, tabCtx, keysIn, primaryKey, search, canShellAction },
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keymap = api;
