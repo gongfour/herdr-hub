@@ -2,7 +2,9 @@
 // 빠른 이동 (Ctrl+P; Alt+P, also in the shell, keymap.js): a small palette over the page. Type to
 // find an agent or a shell on any host by its name, workspace or host; ↑↓ (Ctrl+J/K) move, Enter opens it as
 // a tap on its row would (split: on the right, with the caret in its field, as Alt+↑/↓ does).
-// Esc / Ctrl+[ close it like any layer. With nothing typed: 답 필요 first, then the recently opened.
+// Esc / Ctrl+[ close it like any layer. With nothing typed, what wants you first: 답 필요, then a
+// new result (a finished agent not yet read), then 작업 중, then the rest; each by when it was
+// last opened here. Typed: the name's match first, then that same order.
 
 // Opened here lately (agent and shell addresses, newest first), on this device.
 const RECENT_KEY = 'herdr-hub.recent';
@@ -58,8 +60,7 @@ const fold = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 function switcherFilter(rows, query) {
   const words = fold(query).split(' ').filter(Boolean);
   const open = (r) => (r.status === 'blocked' ? 0 : r.unread ? 1 : r.status === 'working' ? 2 : 3);
-  const blocked = (r) => (r.status === 'blocked' ? 0 : 1);
-  if (!words.length) return rows.sort((p, q) => blocked(p) - blocked(q) || p.recent - q.recent || open(p) - open(q));
+  if (!words.length) return rows.sort((p, q) => open(p) - open(q) || p.recent - q.recent);
   const out = [];
   for (const r of rows) {
     const name = fold(r.name);
