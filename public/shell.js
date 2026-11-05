@@ -695,7 +695,7 @@ function termScrolled() {
 
 
 // ------------------------------------------------------------ the live channel
-// One WebSocket per open shell view (server.js, lib/live.js; the rules in live.js): typed keys go
+// One WebSocket per open shell view (lib/routes/live.js, lib/live.js; the rules in live.js): typed keys go
 // up as they are pressed, each with a sequence number the host applies in order, and the host
 // pushes the screen whenever it changed (a line change after the first whole one). The HTTP way
 // (POST /keys, GET /screen every 300 ms) stays for hosts without it (API before 2), while the

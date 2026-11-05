@@ -3,7 +3,7 @@
 // how soon to try again, when to give up and read over HTTP, and the screen out of its frames.
 // Pure: a plain script in the page (window.Live), required by the tests.
 (function (root) {
-  const API = 2; // the hosts that have it (server.js LIVE_API)
+  const API = 2; // the hosts that have it (lib/hub.js LIVE_API)
   const RETRY_MS = [300, 1000, 3000, 6000]; // after a drop: the first quickly, then slower
   const FAILS_MAX = 2; // channels in a row that did not open
   const DROPS_MAX = 3; // channels that dropped within DROPS_WINDOW_MS

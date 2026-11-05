@@ -233,7 +233,7 @@
     return keys.length <= 8 ? keys : null;
   }
 
-  // A prompt herdr may take for Claude's input box (server.js holdAsk): AskUserQuestion (its tab
+  // A prompt herdr may take for Claude's input box (lib/hub.js holdAsk): AskUserQuestion (its tab
   // bar) or the plan approval, at the bottom of the screen with no empty input line under it.
   // Not any numbered menu: a reply's own list sits right above the input box too.
   function heldPrompt(text) {

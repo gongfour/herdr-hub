@@ -79,7 +79,7 @@
   const answers = (status, body) => status === 200 && Boolean(body) && typeof body.version === 'string';
 
   // Asks each host's /api/version from the browser (cross-origin: the peer allows this one path,
-  // server.js CORS_RULE), all at once, PROBE_MS each. -> the hosts that answered, in their order.
+  // lib/hub.js CORS_RULE), all at once, PROBE_MS each. -> the hosts that answered, in their order.
   async function probe(hosts, fetchImpl, timeoutMs = PROBE_MS) {
     const one = async (h) => {
       const ctl = typeof AbortController === 'function' ? new AbortController() : null;

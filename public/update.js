@@ -67,7 +67,7 @@
     return Boolean(s.visible) && !s.focused && Number(s.idleMs) >= AWAY_MS;
   }
 
-  // Whether this page can't go on as it is: the server speaks another API version (server.js
+  // Whether this page can't go on as it is: the server speaks another API version (lib/hub.js
   // API_VERSION) than the one this page was written for, so its requests may be wrong. Then the
   // reload doesn't wait for the app to come back, and a bar says so. Any other new build is
   // only a dot on 설정 until the next safe moment. Unknown on either side: no.
