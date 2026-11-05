@@ -481,7 +481,17 @@ async function sendPaneKeys(pane, keys) {
 }
 // Text, then keys: one herdr call (pane.send_input) when every key has a herdr name, else as above.
 let sendInputOk = true;
+// herdr 0.9.3 (server) holds ~half of the key calls ~105 ms, but almost never one that comes 3 ms
+// after another call (measured: 13–15/30 → 2–3/30; one sent at the same moment is always held).
+// So on a host whose herdr is kept awake (HERDR_HUB_AWAKE_MS, off on desktop) a ping goes first.
+const PRIME_MS = 3;
+async function primeHerdr() {
+  if (!(awake.intervalFromEnv(process.env.HERDR_HUB_AWAKE_MS) > 0)) return;
+  herdr.call('ping', {}, { timeoutMs: 2000 }).catch(() => {});
+  await new Promise((r) => setTimeout(r, PRIME_MS));
+}
 async function sendPaneInput(pane, text, keys) {
+  await primeHerdr();
   if (text && keys.length && sendInputOk && !keys.some((k) => SEQ_KEYS[k])) {
     try {
       return await herdr.call('pane.send_input', { pane_id: pane, text, keys });

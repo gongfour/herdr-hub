@@ -110,6 +110,9 @@ test('live channel: checks, the screen, keys', async (t) => {
   assert.deepEqual(msgs.find((m) => m.t === 'kerr'), { t: 'kerr', from: 3, to: 3, error: 'bad_keys', message: 'bad_keys' });
   await until(() => cur.screen.text === '$ ls\n$ ');
   assert.ok(msgs.filter((m) => m.t === 'f').length === 1, 'one whole screen, then changes');
+  // herdr kept awake here (the default): each key call comes right after a ping.
+  const i = herdr.calls.findIndex((x) => /send_(text|keys|input)/.test(x.method));
+  assert.equal(herdr.calls.slice(0, i).reverse().find((x) => x.method !== 'pane.read')?.method, 'ping');
   const sends = herdr.calls.filter((x) => /send_(text|keys|input)/.test(x.method));
   assert.ok(sends.length >= 1 && sends.length <= 2);
   c.close();
