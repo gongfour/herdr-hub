@@ -836,7 +836,8 @@ async function api(req, res, url) {
     if (method === 'GET' && parts[2] === 'transcript') {
       if (agent.agent !== 'claude' || !agent.session) return send(res, 200, { supported: false, messages: [] });
       const limit = Math.min(Number(url.searchParams.get('limit')) || 120, 500);
-      const opts = { since: url.searchParams.get('since') || null, rev: url.searchParams.get('rev') || null };
+      const q = (k) => (url.searchParams.get(k) || '').slice(0, 100) || null;
+      const opts = { since: q('since'), rev: q('rev'), before: q('before') };
       return send(res, 200, { supported: true, ...(await transcript.read(agent.session, limit, opts)) });
     }
     if (method === 'POST' && parts[2] === 'prompt') {
@@ -1046,8 +1047,9 @@ const lastChats = new Map(); // peer|pane -> { body, type }
 const LAST_CHATS = 32;
 const LAST_CHAT_BYTES = 4 << 20;
 function chatWindow(rest, url) {
-  return rest.length === 3 && rest[0] === 'agents' && rest[2] === 'transcript' && !url.searchParams.has('since') && !url.searchParams.has('rev');
+  return chatRoute(rest) && !url.searchParams.has('since') && !url.searchParams.has('rev') && !url.searchParams.has('before');
 }
+const chatRoute = (rest) => rest.length === 3 && rest[0] === 'agents' && rest[2] === 'transcript';
 
 async function proxy(req, res, url) {
   const raw = url.pathname.split('/').filter(Boolean); // api, peers, <host>, ...rest (still encoded)
@@ -1061,6 +1063,8 @@ async function proxy(req, res, url) {
     if (kept) return send(res, 200, kept.body, { 'Content-Type': kept.type, 'Cache-Control': 'no-store' });
     // No copy here either: said as an answer (the page says so), not as an error to retry.
     if (chatKey) return send(res, 200, { supported: true, found: false, messages: [], ghostless: true }, { 'Cache-Control': 'no-store' });
+    // An older page (?before=) of a ghost's chat: the hub keeps only its last window, so no more.
+    if (req.method === 'GET' && chatRoute(rest) && url.searchParams.has('before')) return send(res, 200, { supported: true, found: true, before: url.searchParams.get('before'), messages: [], more: false, ghost: true }, { 'Cache-Control': 'no-store' });
     return send(res, 503, { error: 'peer_offline', message: `${peer.shown()} 오프라인` });
   }
   // Photo uploads are raw image bytes; everything else is JSON. Bodies stay Buffers both ways.

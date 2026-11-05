@@ -136,3 +136,83 @@ test('ExitPlanMode keeps its plan, to read before the approval prompt is answere
   assert.equal(m[0].tools[0].plan, '# Plan\n\n1. Create hi.txt');
   assert.equal(m[1].tools[0].plan, undefined);
 });
+
+// ---- older pages (?before=)
+const { pageBefore, _setChunk } = require('../lib/transcript');
+const u = (id, text) => line({ type: 'user', uuid: id, message: { role: 'user', content: text } });
+const said = (id, blocks) => line({ type: 'assistant', uuid: `x${id}`, message: { id, content: blocks } });
+
+function bigChat(n) {
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    out.push(u(`u${k}`, `질문 ${k} ${'ㄱ'.repeat(40)}`));
+    // A reply in two lines (Claude Code writes a line per block) whose tool result comes after.
+    out.push(said(`a${k}`, [{ type: 'text', text: `답 ${k}` }]));
+    out.push(said(`a${k}`, [{ type: 'tool_use', id: `t${k}`, name: 'Bash', input: { command: `echo ${k}` } }]));
+    out.push(line({ type: 'user', uuid: `r${k}`, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: `t${k}`, content: `out ${k}` }] } }));
+  }
+  return out.join('\n') + '\n';
+}
+
+test('pages before an id are read backwards a chunk at a time, whole and in order', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-tr-'));
+  t.after(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    _setChunk(2 * 1024 * 1024);
+  });
+  const file = path.join(dir, 's.jsonl');
+  fs.writeFileSync(file, bigChat(200));
+  const all = parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(all.length, 400);
+  // Small chunks: every cut falls somewhere inside a reply or between a tool and its result.
+  for (const chunk of [700, 1500, 4096, 1 << 20]) {
+    _setChunk(chunk);
+    let before = 'u190';
+    const got = [];
+    for (let guard = 0; guard < 500; guard++) {
+      const r = await pageBefore(file, before, 25);
+      assert.equal(r.found, true);
+      assert.ok(!r.missing);
+      if (!r.messages.length && r.more) continue; // still searching backwards
+      got.unshift(...r.messages);
+      if (!r.more) break;
+      before = r.messages[0].id;
+    }
+    const want = all.slice(0, all.findIndex((m) => m.id === 'u190'));
+    assert.deepEqual(got, want, `chunk ${chunk}`);
+  }
+});
+
+test('a page reads only chunks, the file grows under it, and an unknown id is missing', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-tr-'));
+  const fsq = require('../lib/fsq');
+  const orig = fsq.readPart;
+  const reads = [];
+  fsq.readPart = (b, f, bytes, o) => (reads.push(bytes), orig(b, f, bytes, o));
+  t.after(() => {
+    fsq.readPart = orig;
+    fs.rmSync(dir, { recursive: true, force: true });
+    _setChunk(2 * 1024 * 1024);
+  });
+  const file = path.join(dir, 's.jsonl');
+  fs.writeFileSync(file, bigChat(300));
+  _setChunk(8192);
+  const r1 = await pageBefore(file, 'u299', 10);
+  assert.deepEqual(r1.messages.map((m) => m.id).slice(-2), ['u298', 'a298']);
+  assert.ok(r1.more);
+  assert.ok(reads.every((n) => n <= 8192), 'never more than a chunk at once');
+  // Appended while paging: the next page still lines up, and the new end is taken in.
+  fs.appendFileSync(file, [u('n1', 'new'), said('b1', [{ type: 'text', text: 'new reply' }])].join('\n') + '\n');
+  const r2 = await pageBefore(file, r1.messages[0].id, 10);
+  assert.equal(r2.messages[r2.messages.length - 1].id, parse(fs.readFileSync(file, 'utf8')).find((m, i, a) => a[i + 1] && a[i + 1].id === r1.messages[0].id).id);
+  const r3 = await pageBefore(file, 'b1', 1);
+  assert.deepEqual(r3.messages.map((m) => m.id), ['n1']);
+  // An id that is in no line: searched to the start of the file, then said so.
+  let r;
+  for (let guard = 0; guard < 200; guard++) {
+    r = await pageBefore(file, 'nope', 10);
+    if (!r.more) break;
+  }
+  assert.equal(r.missing, true);
+  assert.deepEqual(r.messages, []);
+});
