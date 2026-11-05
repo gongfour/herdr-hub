@@ -743,7 +743,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .qs-head + .qs-row { border-top: 0; }
 .qs-none { margin: 0; padding: 14px; font-size: 14px; color: var(--muted); }
 .qs-keys { margin: 0; padding: 8px 14px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
-/* Sized as a palette, not a page (VS Code, Linear, Raycast: about 600–680px wide, under ten rows
+/* Sized as a palette, not a page (VS Code, Linear, Raycast: about 600–760px wide (Raycast 750), under ten rows
    tall): the search is the card's own top line, no field box inside the card's box; a row is one
    title line (the full name is a search away); with a mouse the rows are as dense as a menu's. */
 .qs-top { padding: 4px 6px 4px 4px; }
@@ -752,7 +752,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .qs-row .pane-title { display: block; white-space: nowrap; text-overflow: ellipsis; }
 .qs-row .pane-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (hover: hover) and (pointer: fine) {
-  .qs { max-height: min(100%, 520px); }
+  .qs { max-height: min(100%, 560px); }
   .qs-row.pane-row { min-height: 44px; padding-top: 5px; padding-bottom: 5px; }
   .qs-head { padding-top: 8px; padding-bottom: 2px; }
 }
@@ -1729,7 +1729,7 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 /* 빠른 이동 in the split layout: over the right column, where what it opens will be, the list left in
    view beside it to match its rows against. */
 .split .sheet-back.qs-back { padding-left: calc(var(--side-w) + 16px); padding-right: 16px; }
-.split .qs { max-width: 640px; max-height: min(100%, 560px); }
+.split .qs { max-width: min(760px, 100%); max-height: min(100%, 560px); }
 
 /* The two notices at the top (hub-down, a new version), split: their words and buttons in one
    centred measure, so 「다시 시도」 and 새로고침 sit at the end of their line, not mid-screen or 1300px away. */
