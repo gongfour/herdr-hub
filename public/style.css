@@ -964,7 +964,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* A readable column on a wide pane: a name and its control stay close (설정, 단축키, 워크스페이스).
    760px, the same column as the forms and the chat's narrowest (split: the .panel padding below). */
 .panel.settings > * { width: 100%; max-width: 760px; margin-inline: auto; }
-.split #detail-pane > .panel.settings > * { margin-inline: 0; }
+.split #detail-pane > .panel.settings > * { max-width: none; }
 /* Focused as a whole when 설정 opens (settings.js): the place to start from, not a control. */
 .panel.settings:focus { outline: none; }
 .panel.settings section.pgroup { background: none; border: 0; padding: 0; }
@@ -1396,11 +1396,8 @@ button.tool:active { filter: brightness(0.95); }
 :root.split.side-off .list-grip { display: none; }
 /* 설정, 단축키, the workspace page and the forms sit in the chat's column (--col, --gut below, set
    on #detail-pane too): the header's title and ✕ in the very places the chat has them, and the
-   page from the same left line. A page keeps a readable measure of 760px from there (a name and its
-   control stay close), so on a wider column it leaves room on the right, not on both sides. */
-.split #detail-pane > .panel, .split #detail-pane > main.list, .split #detail-pane > .ws-dock {
-  padding-left: var(--gut); padding-right: max(var(--gut), calc(100% - var(--gut) - 760px));
-}
+   page edge for edge with them, the column's whole width (as GitHub's and VS Code's settings). */
+.split #detail-pane > .panel, .split #detail-pane > main.list, .split #detail-pane > .ws-dock { padding-inline: var(--gut); }
 /* The chat, split: one column of about 760px for everything in it — the header's contents, the
    activity line, the messages (and the 최신 대화 pill), the answer box, the photos, the command
    suggestions and the composer. Rules and backgrounds still run edge to edge; only the contents
