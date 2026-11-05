@@ -23,6 +23,7 @@ const ICON = {
   grid: '<svg viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>', // layout-grid
   file: '<svg viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /></svg>', // file
   panel: '<svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" /></svg>', // panel-left
+  check: '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>', // check
 };
 // Logos for herdr agent kinds, from Simple Icons 16.36 (CC0; the marks belong to their owners).
 // A kind without one (codex: Simple Icons carries no OpenAI mark) keeps the generic bot.
@@ -623,10 +624,12 @@ function menu(title, items, { sub = '', anchor = null } = {}) {
     const at = menuAnchor(anchor);
     const pop = Boolean(split && at && !(lastInput === 'pointer' && lastPointer.type === 'touch'));
     // off: why the item can't be used now (an offline host's ghost, actions.js ghostOff), said in its place.
-    const row = ([key, label, danger, note, action, off]) => {
+    // on: the one chosen now (a picker's current value): checked, and focused first from a key.
+    const row = ([key, label, danger, note, action, off, on]) => {
       const k = kbd && action && !off ? Keymap.hint(action, ctx) : '';
       const sub = off || note;
-      return `<button class="action ${danger ? 'danger' : ''}" data-k="${esc(key)}"${off ? ' disabled' : ''}><span class="act-main">${esc(label)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</span>${k ? `<kbd class="act-key">${esc(k)}</kbd>` : ''}</button>`;
+      const check = on ? `<span class="act-check" aria-hidden="true">${ICON.check}</span>` : '';
+      return `<button class="action ${danger ? 'danger' : ''}${on ? ' on' : ''}" data-k="${esc(key)}"${off ? ' disabled' : ''}${on ? ' aria-current="true"' : ''}><span class="act-main">${esc(label)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</span>${k ? `<kbd class="act-key">${esc(k)}</kbd>` : ''}${check}</button>`;
     };
     const blocks = [[]];
     for (const x of items.filter(Boolean)) {
@@ -663,7 +666,7 @@ function menu(title, items, { sub = '', anchor = null } = {}) {
         resolve(v || null);
       },
       // From a key the first item; from a pointer the menu itself (↓ then goes to the first).
-      focus: lastInput === 'key' ? '.action' : '.sheet',
+      focus: lastInput === 'key' ? (el.querySelector('.action.on:not(:disabled)') ? '.action.on' : '.action') : '.sheet',
     });
     if (pop) placePop(el.querySelector('.sheet'), at);
   });

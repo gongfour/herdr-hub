@@ -872,6 +872,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* A menu row: its words (and note) on the left, its key, with a keyboard, at the end (core.js menu). */
 .action { display: flex; align-items: center; gap: var(--sp-3); width: 100%; }
 .action .act-main { flex: 1; min-width: 0; }
+/* A picker's current value (menu's `on`): a check at the end, the label bold. */
+.action .act-check { flex: none; display: inline-flex; color: var(--accent); }
+.action .act-check svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.action.on .act-main { font-weight: 600; }
+.action.danger .act-check { color: var(--blocked); }
 .action .act-key { flex: none; font: 12px/1 var(--mono); padding: var(--sp-1) var(--sp-2); border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); color: var(--muted); }
 .sheet:focus { outline: none; } /* focused on open on a touch screen, so no item looks picked */
 

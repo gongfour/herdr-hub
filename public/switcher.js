@@ -223,7 +223,7 @@ function commandSub(action, o) {
 // needs no caret in the message box.
 const COMMAND_RUN = {
   stop: () => confirmStop(currentAgent()), // agent.js
-  mode: () => cycleMode(),
+  mode: () => pickMode(), // the picker: from 명령 there is no message box to step in
 };
 const runAction = (action) => (COMMAND_RUN[action] ? COMMAND_RUN[action]() : KEY_ACTIONS[action]({ action, key: '' }, null));
 

@@ -11,7 +11,7 @@ function renderDetail() {
         ${backLink(homeHash())}
         <h1 id="d-title"></h1>
         <span class="sync" id="d-sync" role="img" aria-label="새로 불러오는 중" title="새로 불러오는 중" hidden></span>
-        <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', '모드 바꾸기')} hidden></button>
+        <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', '모드 고르기 · 메시지 칸에서 다음 모드')} hidden></button>
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기" aria-haspopup="dialog"${keyAttrs('menu', '더 보기')}>${ICON.more}</button>
       </header>
@@ -222,7 +222,7 @@ function renderDetail() {
   keepFocusTap(document.getElementById('d-send'), sendNow);
   document.getElementById('d-stop').onclick = () => confirmStop();
   document.getElementById('d-more').onclick = () => paneMenu('agent', currentAgent()); // actions.js
-  document.getElementById('d-mode').onclick = cycleMode;
+  document.getElementById('d-mode').onclick = pickMode;
   renderDetailHeader();
   renderDetailBody(true);
 }
@@ -1180,14 +1180,18 @@ function tickActivity() {
   el.textContent = since ? durKo((Date.now() - since) / 1000) : '';
 }
 
-// ---- permission mode chip (Claude): read off the footer; a tap sends ⇧Tab, the next mode
+// ---- permission mode chip (Claude): read off the footer. A tap opens a picker (pickMode); ⇧Tab
+// in the message box is Claude Code's own key, one step on (cycleMode).
 const MODE_LABEL = { auto: '자동', manual: '수동 승인', accept: '편집 허용', plan: '계획', bypass: '권한 우회' };
 // The phone's narrow header shows the chip in two letters (style.css picks one).
 const MODE_SHORT = { auto: '자동', manual: '수동', accept: '편집', plan: '계획', bypass: '우회' };
+const MODE_NOTE = { auto: '안전한 것은 묻지 않고 한다', manual: '할 때마다 묻는다', accept: '파일 편집은 묻지 않는다', plan: '계획만 세우고 고치지 않는다', bypass: '아무것도 묻지 않는다' };
+const MODE_ORDER = ['manual', 'accept', 'plan', 'auto', 'bypass'];
 function noteMode(text) {
-  if (text == null || !window.parseMode) return;
+  if (text == null || !window.parseMode) return null;
   const m = parseMode(window.Ansi ? window.Ansi.strip(String(text)) : String(text));
   if (m) detail.mode = m;
+  return m;
 }
 function renderMode() {
   const chip = document.getElementById('d-mode');
@@ -1201,25 +1205,76 @@ function renderMode() {
   chip.innerHTML = `<span class="full">${esc(MODE_LABEL[m] || m)}</span><span class="short" aria-hidden="true">${esc(MODE_SHORT[m] || MODE_LABEL[m] || m)}</span>`;
   chip.dataset.mode = m;
   chip.disabled = Boolean(detail.modeBusy);
-  chip.setAttribute('aria-label', `권한 모드: ${MODE_LABEL[m] || m}. 누르면 다음 모드로 바꿉니다(⇧Tab)`);
+  chip.setAttribute('aria-haspopup', 'dialog');
+  chip.setAttribute('aria-label', `권한 모드: ${MODE_LABEL[m] || m}. 누르면 모드를 고릅니다`);
 }
+
+// One ⇧Tab, then the footer read again once Claude has redrawn it: the mode now, or null.
+// A footer that still shows the mode before (not redrawn yet) is read once more a moment later.
+async function modeStep(host, pane) {
+  const before = detail.mode;
+  if (!(await sendKeys(['shift+tab'], host, pane))) return null;
+  let m = null;
+  for (const wait of [450, 600]) {
+    await new Promise((r) => setTimeout(r, wait));
+    try {
+      const s = await api(hp(`/agents/${encodeURIComponent(pane)}/screen?source=visible&lines=8`, host));
+      if (detail.pane !== pane || curHost() !== host) return null;
+      m = noteMode(s.text);
+    } catch {
+      return null;
+    }
+    if (m && m !== before) break;
+  }
+  return m;
+}
+const modeHere = (a) => a && a.agent === 'claude' && a.status !== 'blocked' && !a.stale && !detail.modeBusy;
+
+// ⇧Tab in the message box: the next mode, as in Claude Code itself.
 async function cycleMode() {
   const a = currentAgent();
-  if (!a || a.status === 'blocked' || detail.modeBusy) return;
-  const pane = a.pane;
-  const host = curHost();
+  if (!modeHere(a)) return;
   detail.modeBusy = true;
   renderMode();
-  const ok = await sendKeys(['shift+tab'], host, pane);
-  // Read the footer again once Claude has redrawn it.
-  if (ok)
-    await new Promise((r) => setTimeout(r, 450)).then(() =>
-      api(hp(`/agents/${encodeURIComponent(pane)}/screen?source=visible&lines=8`, host))
-        .then((s) => detail.pane === pane && curHost() === host && noteMode(s.text))
-        .catch(() => {})
-    );
+  await modeStep(curHost(), a.pane);
   detail.modeBusy = false;
   renderMode();
+}
+
+// The chip (and the 명령): the modes, the one on now checked; the one picked is reached by ⇧Tab
+// one step at a time, each step read back off the footer, so the order Claude Code cycles in
+// (which depends on its version and on what this session allows) need not be known. A mode the
+// whole round never showed is not on offer in this session (bypass, unless claude was started
+// with it allowed): said, and left off the picker for this agent.
+async function pickMode() {
+  const a = currentAgent();
+  if (!modeHere(a) || !detail.mode) return;
+  const now = detail.mode;
+  const off = detail.modeMissing || new Set();
+  const items = MODE_ORDER.map((m) => [m, MODE_LABEL[m], m === 'bypass', MODE_NOTE[m], null, off.has(m) ? '이 세션에서는 고를 수 없습니다' : null, m === now]);
+  const chip = document.getElementById('d-mode');
+  const want = await menu('권한 모드', items, { sub: 'Claude Code 의 Shift+Tab 을 필요한 만큼 보냅니다', anchor: chip && !chip.hidden ? chip : null });
+  if (!want || want === now) return;
+  const b = currentAgent();
+  if (!modeHere(b) || b.pane !== a.pane) return;
+  const host = curHost();
+  const pane = a.pane;
+  detail.modeBusy = true;
+  renderMode();
+  const { mode: m, missing } = await reachMode(now, want, async () => {
+    const c = currentAgent();
+    if (detail.pane !== pane || curHost() !== host || !c || c.status === 'blocked') return null; // a question came up
+    return modeStep(host, pane);
+  });
+  if (missing) {
+    (detail.modeMissing ||= new Set()).add(want);
+    toast(`「${MODE_LABEL[want]}」 모드는 이 세션에서 고를 수 없습니다`);
+  }
+  if (detail.pane === pane && curHost() === host) {
+    detail.modeBusy = false;
+    renderMode();
+    if (!missing && m !== want) toast(m ? `모드를 바꾸지 못했습니다: 지금 「${MODE_LABEL[m] || m}」` : '모드를 바꾸지 못했습니다');
+  }
 }
 
 // ---- the terminal screen as a tall sheet over the chat

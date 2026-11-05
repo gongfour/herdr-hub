@@ -66,7 +66,7 @@
     termFontDown: { group: '대화·터미널 화면', name: '셸 글자 줄이기', label: '셸 글자 줄이기' },
     closeView: { group: '대화·터미널 화면', name: '끝내기', label: '끝내기: 연 에이전트·셸을 끝낸다 (워크스페이스 화면이면 그 워크스페이스를 닫는다). 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 끝내고, Esc 로 그만둔다' },
     closeWorkspace: { group: '대화·터미널 화면', name: '워크스페이스 닫기', also: ['list'], label: '워크스페이스 닫기: 연 에이전트·셸·워크스페이스가 든 워크스페이스를 (목록에서는 포커스가 있는 줄의 것) 닫는다. 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 닫는다' },
-    mode: { group: '대화·터미널 화면', name: '모드 바꾸기', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)', noShell: true },
+    mode: { group: '대화·터미널 화면', name: '모드 바꾸기', label: '에이전트 모드 바꾸기 (메시지 칸에서 다음 모드로, Claude Code 의 Shift+Tab; 명령·모드 칩은 골라서)', noShell: true },
     prevHost: { group: '목록', name: '이전 호스트', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', name: '다음 호스트', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
     prevRow: { group: '목록', name: '이전 줄 열기', label: '두 칸: 목록의 이전 에이전트·셸 열기', cmd: '목록의 이전 에이전트·셸 열기' },
