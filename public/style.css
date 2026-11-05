@@ -1568,6 +1568,13 @@ button.tool:active { filter: brightness(0.95); }
 }
 .split main.home .attn-row[aria-current="page"] { background: color-mix(in srgb, var(--blocked) 13%, transparent); box-shadow: inset 3px 0 0 var(--blocked); }
 .split main.home .ws-head .sw-front[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent); }
+/* Keyboard focus on a list row or a card head (it comes back there after Esc closes a view): the
+   switcher's picked look, a light tint and the accent bar, not an outline box that the card's
+   rounded corners clip. Lighter than the open row's tint, so the two still differ when split. */
+main.home .pane-row:focus-visible, main.home .ws-head .ws-main:focus-visible { outline: none; }
+main.home .pane-row:focus-visible, main.home .ws-head .sw-front:has(.ws-main:focus-visible) {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent);
+}
 /* The icon's tint and the 답 필요 pill are the selection's colour family: on the selected row
    they take the surface, so they still read as shapes. */
 .split main.home .sw-front[aria-current="page"] .pane-ic { background: var(--surface); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
