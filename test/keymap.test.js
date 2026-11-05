@@ -40,6 +40,8 @@ test('the shell keys the defaults take are exactly this list', () => {
     'Alt+k prevRow', // vim's k and j, the split layout only
     'Alt+j nextRow',
     'Alt+p switcher', // Ctrl+P stays the shell's
+    'Ctrl+Shift+p commands', // VS Code's: a terminal gets it as Ctrl+P, which stays the shell's
+    'F1 commands', // VS Code's; a TUI's help (htop, mc) is all the shell loses
     'Alt+b toggleSide', // the split layout only; Alt+← is the shell's back-a-word too
     'F6 nextPane', // the split layout only: the focus to the next column, out of the shell too
     'Shift+F6 prevPane',
@@ -167,8 +169,57 @@ test('switcher: Ctrl+P on the page, in a field and under a sheet, never in the s
   assert.equal(act('Alt+p', { shell: true, field: true }), 'switcher');
   assert.equal(act('Ctrl+p', {}, { key: 'ㅔ', code: 'KeyP' }), 'switcher'); // keyboard set to Korean
   assert.equal(act('Alt+p', {}, { key: 'π', code: 'KeyP' }), 'switcher'); // a Mac's Option+P
-  assert.equal(act('Ctrl+Shift+p', {}, { key: 'P' }), null);
+  assert.equal(act('Ctrl+Shift+p', {}, { key: 'P' }), 'commands'); // not the switcher: 명령
   assert.equal(act('p', {}), null);
+});
+
+test('commands (명령): Ctrl+Shift+P and F1 everywhere, the shell, a field and under a sheet; ⌘⇧P on the Mac', () => {
+  for (const ctx of [{}, { field: true }, { layer: true }, { shell: true }, { shell: true, field: true }, { split: true }]) {
+    assert.equal(act('Ctrl+Shift+p', ctx, { key: 'P' }), 'commands', JSON.stringify(ctx));
+    assert.equal(act('F1', ctx), 'commands', JSON.stringify(ctx));
+  }
+  assert.equal(act('Ctrl+Shift+p', {}, { key: 'ㅖ', code: 'KeyP' }), 'commands'); // keyboard set to Korean
+  assert.equal(KM0.shellKey(ev('Ctrl+Shift+p', { key: 'P' })), null);
+  assert.equal(KM0.shellKey(ev('F1')), null);
+  assert.equal(KM0.shellKey(ev('Ctrl+p')), 'ctrl+p'); // the shell's previous line stays
+  assert.equal(KM0.shellKey(ev('F2')), 'f2');
+  assert.equal(hint('commands'), 'Ctrl+Shift+P');
+  try {
+    for (const app of [false, true]) {
+      KM0.setEnv({ mac: true, app });
+      assert.equal(hint('commands'), '⌘+Shift+P');
+      for (const ctx of [{}, { field: true }, { shell: true }, { layer: true }]) assert.equal(act('Meta+Shift+p', ctx, { key: 'p' }), 'commands');
+      KM0.setEnv({ mac: false, app });
+      assert.equal(act('Meta+Shift+p', {}, { key: 'p' }), null);
+    }
+  } finally {
+    KM0.setEnv({});
+  }
+  assert.ok(ACTIONS.commands.noCommand); // no command to open the commands
+});
+
+test('closeWorkspace (워크스페이스 닫기): Alt+Shift+W on the page and in a field, Ctrl+Alt+Shift+W in the shell view', () => {
+  for (const ctx of [{}, { field: true }, { split: true }]) {
+    assert.equal(act('Alt+Shift+w', ctx, { key: 'W' }), 'closeWorkspace');
+    assert.equal(act('Ctrl+Alt+Shift+w', ctx, { key: 'W' }), 'closeWorkspace');
+  }
+  assert.equal(act('Alt+Shift+w', {}, { key: '„', code: 'KeyW' }), 'closeWorkspace'); // a Mac's Option+Shift+W
+  assert.equal(act('Alt+Shift+w', { shell: true }, { key: 'W' }), null); // the shell gets it as Alt+W
+  assert.equal(KM0.shellKey(ev('Alt+Shift+w', { key: 'W' })), 'alt+w');
+  assert.equal(act('Ctrl+Alt+Shift+w', { shell: true }, { key: 'W' }), 'closeWorkspace');
+  assert.equal(KM0.shellKey(ev('Ctrl+Alt+Shift+w', { key: 'W' })), null);
+  assert.equal(act('Alt+Shift+w', { layer: true }, { key: 'W' }), null); // a sheet decides (its confirm: the same key again)
+  assert.equal(act('Alt+w', {}), 'closeView'); // 끝내기 is still Alt+W
+  assert.equal(hint('closeWorkspace'), 'Alt+Shift+W');
+  assert.equal(hint('closeWorkspace', { shell: true }), 'Ctrl+Alt+Shift+W');
+  for (const d of [{ mac: false, app: false }, { mac: true, app: true }]) {
+    try {
+      KM0.setEnv(d);
+      assert.deepEqual(KM0.keysFor('closeWorkspace'), ['Alt+Shift+w', 'Ctrl+Alt+Shift+w']);
+    } finally {
+      KM0.setEnv({});
+    }
+  }
 });
 
 test('answer: 1–9 only on the page, never in a field, the shell or under a sheet', () => {

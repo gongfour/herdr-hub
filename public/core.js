@@ -473,8 +473,11 @@ const topLayer = () => layers[layers.length - 1] || null;
 // the field as you type, and OK waits for a usable value.
 // cancel: null for a sheet that only tells something (one button).
 // danger: a step that can't be undone. 취소 has the focus, so a habitual Enter keeps things; Ctrl+Enter
-// (⌘+Enter), or the key that asked (key: keymap.js's action, Alt+W again), confirms.
-function sheet({ title, text = '', error = '', input = null, ok = '확인', cancel = '취소', danger = false, validate = null, again = false, key = null }) {
+// (⌘+Enter), or the key that asked (key: keymap.js's action, Alt+W again), confirms. Those keys
+// are the confirm button's (its tooltip, aria-keyshortcuts, and a quiet keycap of the key that
+// asked, with a keyboard), not a line of their own.
+// subject: what it is about (a name), at the head of the title in its own weight: 「‘hub-qtest’ 에이전트를 끝낼까요?」.
+function sheet({ title, subject = '', text = '', error = '', input = null, ok = '확인', cancel = '취소', danger = false, validate = null, again = false, key = null }) {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     // Split, a dialog about what is open on the right sits over the right column; one asked from the
@@ -484,18 +487,19 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', canc
     // The text is the dialog's description (「되돌릴 수 없습니다」 is heard, not only the title). The
     // field comes with its old value picked, so typing replaces it, and an ⓧ that empties it (iOS has
     // no select-all-and-delete in reach).
-    el.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"${text ? ' aria-describedby="sheet-text"' : ''} tabindex="-1">
-        <h2>${esc(title)}</h2>
+    const name = subject ? clipName(subject, 48) : '';
+    const confirm = danger && cancel ? confirmKeys(key) : null;
+    el.innerHTML = `<form class="sheet dialog" role="dialog" aria-modal="true" aria-label="${esc(name ? `‘${name}’ ${title}` : title)}"${text ? ' aria-describedby="sheet-text"' : ''} tabindex="-1">
+        <h2>${name ? `<span class="sheet-subject">‘${esc(name)}’</span> ` : ''}${esc(title)}</h2>
         ${text ? `<p id="sheet-text">${esc(text)}</p>` : ''}
         ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
         ${input ? `<div class="field-wrap"><input class="field" name="v" value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="sheet-hint">
         <button type="button" class="field-clear" data-clear aria-label="지우기"${input.value ? '' : ' hidden'}>${ICON.x}</button></div>
         <p class="hint" id="sheet-hint" aria-live="polite"></p>` : ''}
-        <div class="row end">
+        <div class="row end sheet-btns">
           ${cancel ? `<button type="button" class="btn secondary" data-cancel>${esc(cancel)}</button>` : ''}
-          <button type="submit" class="btn ${danger ? 'danger' : ''}">${esc(ok)}</button>
+          <button type="submit" class="btn ${danger ? 'danger' : ''}"${confirm ? ` title="${esc(confirm.title)}" aria-keyshortcuts="${esc(confirm.aria)}"` : ''}>${esc(ok)}${confirm && confirm.cap && keyboardLikely() ? `<kbd class="btn-key" aria-hidden="true">${esc(confirm.cap)}</kbd>` : ''}</button>
         </div>
-        ${danger && cancel && keyboardLikely() ? `<p class="confirm-keys" aria-hidden="true">${confirmKeys(key)}</p>` : ''}
       </form>`;
     const field = el.querySelector('input');
     const submit = el.querySelector('[type=submit]');
@@ -554,13 +558,21 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', canc
   });
 }
 
-// The keys that confirm a danger sheet, as its button shows them: 「Ctrl+리턴」, and the key that
-// opened it when there is one (Alt+W).
+// The keys that confirm a danger sheet: the key that asked (Alt+W, the shell view's Ctrl+Alt+W)
+// again, and Ctrl+리턴 (⌘+리턴 on the Mac). cap: the one keycap the button shows (the key that
+// asked, else none: Ctrl+리턴 is the same in every danger sheet and said in its tooltip).
 function confirmKeys(action) {
   const again = action ? Keymap.hint(action, { shell: view.name === 'term' }) : '';
-  const enter = Keymap.label(Keymap.deviceKey('Ctrl+Enter'));
-  return `<kbd>${enter}</kbd>${again ? ` 또는 <kbd>${esc(again)}</kbd> 한 번 더` : ''}로 확인 · <kbd>리턴</kbd> 취소`;
+  const enter = Keymap.deviceKey('Ctrl+Enter');
+  const aria = (k) => k.replace(/\bCtrl\b/g, 'Control').replace(/⌘/g, 'Meta').replace(/리턴/g, 'Enter');
+  const keys = [again, Keymap.label(enter)].filter(Boolean);
+  return { title: `확인: ${keys.join(' 또는 ')}`, aria: keys.map(aria).join(' '), cap: again };
 }
+// A name cut to n characters with an ellipsis (a conversation's long title in a dialog's title).
+const clipName = (s, n) => {
+  const cs = Array.from(String(s));
+  return cs.length > n ? `${cs.slice(0, n - 1).join('')}…` : cs.join('');
+};
 
 // Ask, post, and on failure ask again with the error and the typed text kept (the 새 폴더 way).
 async function askLoop(opts, post) {

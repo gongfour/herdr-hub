@@ -867,6 +867,7 @@ const KEY_ACTIONS = {
   prevRow: () => stepList(-1),
   nextRow: () => stepList(1),
   switcher: () => toggleSwitcher(), // switcher.js
+  commands: () => toggleSwitcher({ commands: true }),
   nextBlocked: () => stepBlocked(1), // list.js
   prevBlocked: () => stepBlocked(-1),
   terminal: () => toggleScreenSheet(), // agent.js
@@ -892,6 +893,14 @@ const KEY_ACTIONS = {
       return true;
     }
     return false;
+  },
+  // The workspace of what is open (an agent, a shell, a workspace), or of the list row the focus
+  // is on, after the same sheet as its menu's 워크스페이스 닫기; this key again confirms.
+  closeWorkspace() {
+    const w = workspaceHere();
+    if (!w) return false;
+    closeWorkspace(w, 'closeWorkspace'); // actions.js
+    return true;
   },
   // In the message box only: elsewhere Shift+Tab moves the focus back, as always.
   mode() {
@@ -952,6 +961,20 @@ const KEY_ACTIONS = {
     return true;
   },
 };
+// The workspace a 워크스페이스 닫기 means here: the focused row's (the list, the workspace page),
+// else that of the agent, shell or workspace open; null when there is none.
+function workspaceHere() {
+  const a = document.activeElement;
+  const row = a && a.closest && !topLayer() && a.closest('[data-kind]');
+  if (row) {
+    const x = rowTarget(row); // rows.js
+    if (x) return row.dataset.kind === 'ws' ? x : wsFor(x.host || localId(), x.workspace);
+  }
+  const host = curHost();
+  if (view.name === 'ws') return (state.workspaces || []).find((x) => same(x, host, view.id, 'workspace_id')) || null;
+  const x = view.name === 'agent' ? currentAgent() : view.name === 'term' ? currentTerminal() : null;
+  return x ? wsFor(host, x.workspace) : null;
+}
 // Ctrl+N: an agent started right away in workspace ws, with this device's last kind and options
 // (quick.js; Claude with none the first time) and the server's name, then its chat opened with
 // the caret in the composer. One at a time: a held key or a second press while it starts does

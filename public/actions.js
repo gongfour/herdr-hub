@@ -46,19 +46,22 @@ function unusedAgent(host, pane) {
   });
 }
 
+// 끝내기 (an agent, a shell) and 워크스페이스 닫기: one verb each, the same in the sheet, the ⋯ menu,
+// the keymap's words and the toasts (닫기 alone is 대화창 닫기, leaving the view: keymap.js leaveView).
 async function closePane(host, pane, label, isAgent) {
   if (isAgent && unusedAgent(host, pane)) {
-    if ((await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '새 대화를 닫았습니다', '에이전트를 닫지 못했습니다')) && leaveFor(host, pane)) goBack(homeHash());
+    if ((await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '새 대화를 끝냈습니다', '에이전트를 끝내지 못했습니다')) && leaveFor(host, pane)) goBack(homeHash());
     return;
   }
   const ok = await sheet({
-    title: isAgent ? '에이전트 닫기' : '셸 닫기',
-    text: `‘${label}’ ${isAgent ? '패널을 닫으면 에이전트와 그 대화가 끝납니다' : '셸을 닫으면 그 안에서 돌던 것이 끝납니다'}. 되돌릴 수 없습니다.`,
-    ok: isAgent ? '에이전트 닫기' : '셸 닫기',
+    subject: label,
+    title: isAgent ? '에이전트를 끝낼까요?' : '셸을 끝낼까요?',
+    text: isAgent ? '에이전트와 대화가 끝나고 되돌릴 수 없습니다.' : '셸에서 돌던 것이 끝납니다. 되돌릴 수 없습니다.',
+    ok: '끝내기',
     danger: true,
     key: 'closeView',
   });
-  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '패널을 닫았습니다', isAgent ? '에이전트를 닫지 못했습니다' : '셸을 닫지 못했습니다')) && leaveFor(host, pane)) goBack(homeHash());
+  if (ok && (await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, isAgent ? '에이전트를 끝냈습니다' : '셸을 끝냈습니다', isAgent ? '에이전트를 끝내지 못했습니다' : '셸을 끝내지 못했습니다')) && leaveFor(host, pane)) goBack(homeHash());
 }
 
 // After closing a pane or workspace: back to the list when that was open. On the phone the list
@@ -79,18 +82,27 @@ async function renameWorkspace(w) {
   if (r) toast('이름을 바꿨습니다');
 }
 
-async function closeWorkspace(w) {
+// What closing a workspace ends, in words: 「안의 에이전트 2개와 셸 1개가 모두 끝납니다.」
+// (the panes that are not agents are shells).
+function wsEnds(agents, panes) {
+  const shells = Math.max(0, panes - agents);
+  const parts = [agents ? `에이전트 ${agents}개` : '', shells ? `셸 ${shells}개` : ''].filter(Boolean);
+  return parts.length ? `안의 ${parts.join('와 ')}가 모두 끝납니다.` : '안에 돌고 있는 것이 없습니다.';
+}
+
+// key: the action that asked (closeView: Alt+W in the workspace view; closeWorkspace: Alt+Shift+W),
+// which confirms when pressed again.
+async function closeWorkspace(w, key = 'closeView') {
   const host = w.host || localId();
   const agents = state.agents.filter((a) => same(a, host, w.workspace_id, 'workspace')).length;
   const panes = w.pane_count || agents + (state.terminals || []).filter((t) => same(t, host, w.workspace_id, 'workspace')).length;
   const ok = await sheet({
-    title: '워크스페이스 닫기',
-    // The agents are among the panes, not besides them: 「패널 6개(에이전트 2개 포함)」, not 「와」;
-    // all of them agents, just 「에이전트 6개」.
-    text: `‘${w.label}’ 워크스페이스를 닫으면 안의 ${agents && agents === panes ? `에이전트 ${agents}개` : `패널 ${panes}개${agents ? `(에이전트 ${agents}개 포함)` : ''}`}가 모두 끝납니다. 되돌릴 수 없습니다.`,
+    subject: w.label,
+    title: '워크스페이스를 닫을까요?',
+    text: `${wsEnds(agents, panes)}${agents || panes ? ' 되돌릴 수 없습니다.' : ''}`,
     ok: '워크스페이스 닫기',
     danger: true,
-    key: 'closeView',
+    key,
   });
   if (ok && (await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/close`, w.host), {}, '워크스페이스를 닫았습니다', '워크스페이스를 닫지 못했습니다')) && leaveFor(host, null, w.workspace_id)) goBack(homeHash());
 }
@@ -119,13 +131,10 @@ async function act(path, body, okText, failText = '하지 못했습니다') {
 // list), in blocks: what to do with it, then managing it, then closing it (red). From a row it
 // starts with 열기. Opened in its own view, an item with a shortcut shows the key (with a keyboard).
 
-async function paneMenu(kind, x, opts = {}) {
-  const { fromRow = false } = opts;
-  if (!x) return;
-  const host = x.host || localId();
-  const here = !fromRow && ['agent', 'term'].includes(view.name) && same(x, curHost(), detail.pane);
+// The items of a pane's menu (also 명령's 「지금 연 것」 rows, switcher.js).
+function paneMenuItems(kind, x, { fromRow = false, here = false } = {}) {
   const agent = kind === 'agent';
-  const items = agent
+  return agent
     ? [
         fromRow ? ['open', '대화 열기'] : null,
         fromRow ? '-' : null,
@@ -136,7 +145,7 @@ async function paneMenu(kind, x, opts = {}) {
         '-',
         ['rename', '이름 바꾸기'],
         ['ws', '워크스페이스 보기'],
-        ['close', '에이전트 닫기', true, '패널과 대화가 끝납니다', here ? 'closeView' : null],
+        ['close', '에이전트 끝내기', true, '에이전트와 대화가 끝납니다', here ? 'closeView' : null],
       ]
     : [
         fromRow ? ['open', '셸 보기'] : null,
@@ -158,8 +167,16 @@ async function paneMenu(kind, x, opts = {}) {
           : []),
         ['rename', '이름 바꾸기'],
         ['ws', '워크스페이스 보기'],
-        ['close', '셸 닫기', true, '', here ? 'closeView' : null],
+        ['close', '셸 끝내기', true, '', here ? 'closeView' : null],
       ];
+}
+
+async function paneMenu(kind, x, opts = {}) {
+  const { fromRow = false } = opts;
+  if (!x) return;
+  const here = !fromRow && ['agent', 'term'].includes(view.name) && same(x, curHost(), detail.pane);
+  const agent = kind === 'agent';
+  const items = paneMenuItems(kind, x, { fromRow, here });
   // Titled as its row reads (rows.js rowLabel): the conversation's title, the agent's name under it.
   const k = await menu(rowLabel(kind, x), items, { sub: agent ? [x.title && x.name, '에이전트'].filter(Boolean).join(' · ') : '셸', anchor: opts.anchor });
   if (k) paneAction(kind, x, k, { here });
@@ -197,22 +214,22 @@ async function paneAction(kind, x, k, { here = false } = {}) {
   }
 }
 
+function wsMenuItems(w, { fromRow = false, here = false } = {}) {
+  return [
+    fromRow ? ['open', '워크스페이스 보기'] : null,
+    fromRow ? '-' : null,
+    ['agent', '에이전트 시작', false, '', here ? 'newAgent' : null],
+    ['tab', '새 셸 열기', false, '새 탭에'],
+    '-',
+    ['rename', '이름 바꾸기'],
+    ['close', '워크스페이스 닫기', true, '안의 에이전트·셸이 모두 끝납니다', here ? 'closeWorkspace' : null],
+  ];
+}
+
 async function wsMenu(w, { fromRow = false, anchor = null } = {}) {
   if (!w) return;
   const here = !fromRow && view.name === 'ws' && same(w, curHost(), view.id, 'workspace_id');
-  const k = await menu(
-    w.label,
-    [
-      fromRow ? ['open', '워크스페이스 보기'] : null,
-      fromRow ? '-' : null,
-      ['agent', '에이전트 시작', false, '', here ? 'newAgent' : null],
-      ['tab', '새 셸 열기', false, '새 탭에'],
-      '-',
-      ['rename', '이름 바꾸기'],
-      ['close', '워크스페이스 닫기', true, '안의 패널이 모두 끝납니다', here ? 'closeView' : null],
-    ],
-    { sub: '워크스페이스', anchor },
-  );
+  const k = await menu(w.label, wsMenuItems(w, { fromRow, here }), { sub: '워크스페이스', anchor });
   if (k) wsAction(w, k);
 }
 

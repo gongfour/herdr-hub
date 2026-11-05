@@ -9,6 +9,11 @@
 // first, then that same order. Each row is the list's own (list.js agentRow / termRow: its icon,
 // title, name and time, status and unread dot), with where it is under it; split, the palette sits
 // over the right column, where what it opens will be, so the list stays in view beside it.
+// 명령 (Ctrl+Shift+P, ⌘⇧P, F1; or > typed first, as in VS Code): the same palette lists commands
+// instead, what can be done from here (palette.js names and matches them): every keymap action
+// that can run where you are, with its keys, and the ⋯ menu's other items of what is open. Enter
+// runs one as its key or menu item would (one that can't be undone still asks). Deleting the >
+// goes back to the agents and shells.
 
 // Opened here lately (agent and shell addresses, newest first), on this device.
 const RECENT_KEY = 'herdr-hub.recent';
@@ -111,8 +116,24 @@ function switcherRowHtml(r, i) {
   return `<div class="qs-row ${cls}${r.here ? ' here' : ''}" role="option" id="qs-${i}" data-i="${i}" aria-selected="${i === qs.sel}">${front.innerHTML}</div>`;
 }
 
+// The mode follows what is typed: > first is 명령. The field's words and the list's name with it.
+function switcherMode() {
+  const cmd = Palette.parseQuery(qs.input.value).commands;
+  if (cmd === qs.cmd) return cmd;
+  qs.cmd = cmd;
+  qs.sel = 0;
+  qs.input.placeholder = cmd ? '명령 이름 (예: 끝내기, 설정, 줄바꿈)' : PLACEHOLDER;
+  qs.input.setAttribute('aria-label', cmd ? '명령 검색' : '빠른 이동 검색');
+  qs.list.setAttribute('aria-label', cmd ? '명령' : '에이전트·셸');
+  qs.el.querySelector('.qs').classList.toggle('commands', cmd);
+  const keys = qs.el.querySelector('.qs-keys');
+  if (keys) keys.innerHTML = switcherKeys();
+  return cmd;
+}
+
 function renderSwitcher() {
   if (!switcherOpen()) return;
+  if (switcherMode()) return renderCommands();
   const sel = qs.items[qs.sel];
   qs.items = switcherFilter(switcherRows(), qs.input.value);
   // The same row stays chosen while the list changes under it (a status came in).
@@ -135,6 +156,137 @@ function renderSwitcher() {
     : `<p class="qs-none">${state.agents.length || (state.terminals || []).length ? '맞는 에이전트·셸이 없습니다' : '아직 에이전트·셸이 없습니다'}</p>`;
   fillTimes(qs.list); // list.js: 「방금」, 「4분」
   moveSwitcher(0);
+}
+
+// ---- 명령
+// What is open, for its ⋯ items and the commands that act on it: { kind, x } or null.
+function openThing() {
+  if (view.name === 'agent' && currentAgent()) return { kind: 'agent', x: currentAgent() };
+  if (view.name === 'term' && currentTerminal()) return { kind: 'term', x: currentTerminal() };
+  if (view.name === 'ws') {
+    const w = (state.workspaces || []).find((x) => same(x, curHost(), view.id, 'workspace_id'));
+    if (w) return { kind: 'ws', x: w };
+  }
+  return null;
+}
+// Whether an action can do something here, as its key would (a key that would do nothing has no
+// command); an action not listed always can (a new one shows up as a command by itself).
+const visible = (id) => {
+  const el = document.getElementById(id);
+  return Boolean(el && !el.hidden && !el.disabled && el.offsetParent);
+};
+const COMMAND_CAN = {
+  leaveView: () => view.name !== 'list' && (view.name === 'settings' || Boolean($app.querySelector('a[data-back]'))),
+  focusInput: () => visible('d-input') || visible('t-input'),
+  menu: (o) => Boolean(o),
+  lastView: () => Boolean(view.name === 'agent' || view.name === 'term' ? visits.prev : visits.cur),
+  nextBlocked: () => state.agents.some((a) => a.status === 'blocked'),
+  prevBlocked: () => state.agents.some((a) => a.status === 'blocked'),
+  jumpEnd: (o) => Boolean(o && o.kind !== 'ws'),
+  jumpTop: (o) => Boolean(o && o.kind !== 'ws'),
+  stop: (o) => Boolean(o && o.kind === 'agent' && o.x.status === 'working'),
+  wrap: () => Boolean(scr),
+  terminal: (o) => Boolean(o && o.kind === 'agent'),
+  termFontUp: (o) => Boolean(scr || (o && o.kind === 'term')),
+  termFontDown: (o) => Boolean(scr || (o && o.kind === 'term')),
+  // In a workspace's own view 워크스페이스 닫기 is the one (끝내기 there closes it too).
+  closeView: (o) => Boolean(o && o.kind !== 'ws'),
+  closeWorkspace: () => Boolean(workspaceHere()), // app.js
+  mode: (o) => Boolean(o && o.kind === 'agent' && visible('d-mode')),
+  prevHost: () => multi() && listShown(),
+  nextHost: () => multi() && listShown(),
+  prevRow: () => split,
+  nextRow: () => split,
+  toggleSide: () => split,
+  nextPane: () => split,
+  prevPane: () => split,
+};
+// A command's name where it is, when its words depend on what is open.
+function commandNameHere(action, o) {
+  if (action === 'closeView' && o) return o.kind === 'agent' ? '에이전트 끝내기' : '셸 끝내기';
+  if (action === 'wrap' && scr) return Prefs.get(scr.kind === 'term' ? 'wrap.term' : 'wrap.agent') ? '줄바꿈 끄기' : '줄바꿈 켜기';
+  if (action === 'toggleSide') return sideOff() ? '사이드바 펴기' : '사이드바 접기';
+  if (action === 'settings') return view.name === 'settings' ? '설정 닫기' : '설정 열기';
+  return '';
+}
+// What a command is about, on its small line: the agent, shell or workspace it acts on.
+function commandSub(action, o) {
+  if (action === 'closeView' && o) return o.kind === 'agent' ? o.x.name || o.x.title || o.x.pane : termTitle(o.x); // as its sheet names it
+  if (action === 'closeWorkspace') {
+    const w = workspaceHere();
+    return w ? w.label : '';
+  }
+  return '';
+}
+// Run as the key would; two keep their own way: 중단 asks (its key is pressed twice), and 모드
+// needs no caret in the message box.
+const COMMAND_RUN = {
+  stop: () => confirmStop(currentAgent()), // agent.js
+  mode: () => cycleMode(),
+};
+const runAction = (action) => (COMMAND_RUN[action] ? COMMAND_RUN[action]() : KEY_ACTIONS[action]({ action, key: '' }, null));
+
+// Every command that can run here: what is open's ⋯ items first (those its own key doesn't cover),
+// then the keymap's actions in the table's order.
+function switcherCommands() {
+  const o = openThing();
+  const ctx = hintCtx();
+  const cmds = [];
+  if (o) {
+    const items = o.kind === 'ws' ? wsMenuItems(o.x, { here: true }) : paneMenuItems(o.kind, o.x, { here: true });
+    const group = `${o.kind === 'agent' ? '이 에이전트' : o.kind === 'term' ? '이 셸' : '이 워크스페이스'}: ${rowLabel(o.kind, o.x)}`;
+    for (const it of items) {
+      if (!Array.isArray(it) || it[4] || it[0] === 'close') continue; // an action's own command says it, with its key
+      const [k, name, , note] = it;
+      const run = () => (o.kind === 'ws' ? wsAction(o.x, k) : paneAction(o.kind, o.x, k, { here: true }));
+      cmds.push({ id: `menu:${k}`, name, sub: note || '', group, keys: '', hay: `${name} ${note || ''} ${group}`, run });
+    }
+  }
+  const acts = Palette.actionCommands(Keymap.ACTIONS, {
+    can: (a) => !COMMAND_CAN[a] || COMMAND_CAN[a](o),
+    name: (a) => commandNameHere(a, o),
+    sub: (a) => commandSub(a, o),
+    hint: (a) => Keymap.hint(a, ctx),
+  });
+  for (const c of acts) cmds.push({ ...c, run: () => runAction(c.action) });
+  return cmds;
+}
+
+function commandRowHtml(c, i) {
+  return `<div class="qs-row qs-cmd" role="option" id="qs-${i}" data-i="${i}" aria-selected="${i === qs.sel}">
+      <span class="qs-cmd-main"><span class="qs-cmd-name">${esc(c.name)}</span>${c.sub ? `<span class="qs-cmd-sub">${esc(c.sub)}</span>` : ''}</span>
+      ${c.keys && keyboardLikely() ? `<kbd class="qs-cmd-key">${esc(c.keys)}</kbd>` : ''}
+    </div>`;
+}
+
+function renderCommands() {
+  const sel = qs.items[qs.sel];
+  const { query } = Palette.parseQuery(qs.input.value);
+  qs.items = Palette.filter(switcherCommands(), query);
+  const keep = sel ? qs.items.findIndex((c) => c.id === sel.id) : -1;
+  qs.sel = keep >= 0 && !qs.typed ? keep : 0;
+  qs.typed = false;
+  // Headings by group with nothing typed; typed, the best fit first and no headings.
+  const heads = !query;
+  let last = null;
+  qs.list.innerHTML = qs.items.length
+    ? qs.items
+        .map((c, i) => {
+          const head = heads && c.group !== last ? `<div class="qs-head" role="presentation">${esc(c.group)}</div>` : '';
+          last = c.group;
+          return head + commandRowHtml(c, i);
+        })
+        .join('')
+    : '<p class="qs-none">맞는 명령이 없습니다</p>';
+  moveSwitcher(0);
+}
+
+// Run it once the palette is gone (its history entry back off, the focus back where it was), so
+// what it opens (a sheet, a page) lands on the page, not under the palette.
+function runCommand(c) {
+  if (!c) return;
+  qs.run = c.run;
+  closeLayer(qs.layer);
 }
 
 function moveSwitcher(d) {
@@ -170,14 +322,24 @@ function switcherKeys() {
   const kbd = (k) => `<kbd>${esc(k)}</kbd>`;
   const jk = [Keymap.keysFor('scrollDown')[0], Keymap.keysFor('scrollUp')[0]].filter(Boolean).map(Keymap.label);
   const back = Keymap.hint('back').split(' · ');
-  return `${kbd('↑')}${kbd('↓')}${jk.length ? ` ${jk.map(kbd).join('')}` : ''} 고르기 · ${kbd('리턴')} 열기 · ${back.map(kbd).join('')} 닫기`;
+  const cmd = qs && qs.cmd;
+  const other = cmd ? '' : ` · ${kbd('>')} 명령`;
+  return `${kbd('↑')}${kbd('↓')}${jk.length ? ` ${jk.map(kbd).join('')}` : ''} 고르기 · ${kbd('리턴')} ${cmd ? '하기' : '열기'}${other} · ${back.map(kbd).join('')} 닫기`;
 }
+const PLACEHOLDER = '에이전트·셸 이름, 작업공간, 호스트 (> 명령)';
 
-// Ctrl+P / Alt+P. Again while it is open: closed. Under another sheet: taken, nothing opens
-// (the browser would print).
-function toggleSwitcher() {
+// Ctrl+P / Alt+P; commands: Ctrl+Shift+P / F1, straight into 명령 (the field starts with >).
+// Again while it is open: closed; the other one's key turns it to the other mode. Under another
+// sheet: taken, nothing opens (the browser would print).
+function toggleSwitcher({ commands = false } = {}) {
   if (switcherOpen()) {
-    closeLayer(qs.layer);
+    if (commands === Boolean(qs.cmd)) closeLayer(qs.layer);
+    else {
+      qs.input.value = commands ? '>' : '';
+      qs.typed = true;
+      renderSwitcher();
+      qs.input.setSelectionRange(qs.input.value.length, qs.input.value.length);
+    }
     return true;
   }
   if (topLayer()) return true;
@@ -191,7 +353,7 @@ function toggleSwitcher() {
   const byKey = lastInput === 'key';
   el.innerHTML = `<div class="qs${touch ? ' by-touch' : ''}" role="dialog" aria-modal="true" aria-label="빠른 이동">
       <div class="qs-top">
-        <input class="field search-field qs-field" type="text" placeholder="에이전트·셸 이름, 작업공간, 호스트" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
+        <input class="field search-field qs-field" type="text" placeholder="${PLACEHOLDER}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
           role="combobox" aria-expanded="true" aria-controls="qs-list" aria-autocomplete="list" aria-label="빠른 이동 검색">
         ${byKey ? '' : '<button type="button" class="qs-cancel" data-cancel>취소</button>'}
       </div>
@@ -200,13 +362,17 @@ function toggleSwitcher() {
     </div>`;
   const input = el.querySelector('input');
   const list = el.querySelector('.qs-list');
-  qs = { el, input, list, items: [], sel: 0, typed: false, layer: null };
+  qs = { el, input, list, items: [], sel: 0, typed: false, layer: null, cmd: null, run: null };
+  if (commands) input.value = '>';
   el.onclick = (e) => {
     if (e.target === el || e.target.closest('[data-cancel]')) closeLayer(qs.layer);
   };
   list.onclick = (e) => {
     const row = e.target.closest('.qs-row');
-    if (row) openSwitched(qs.items[Number(row.dataset.i)]);
+    if (!row) return;
+    const it = qs.items[Number(row.dataset.i)];
+    if (qs.cmd) runCommand(it);
+    else openSwitched(it);
   };
   // Every keystroke, a syllable still being composed included (IME), filters at once.
   input.oninput = () => {
@@ -226,14 +392,20 @@ function toggleSwitcher() {
       moveSwitcher(down ? 1 : -1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      openSwitched(qs.items[qs.sel]);
+      if (qs.cmd) runCommand(qs.items[qs.sel]);
+      else openSwitched(qs.items[qs.sel]);
     } else if (Keymap.keysFor('switcher').some((k) => Keymap.matches(e, k))) {
-      // In the shell view the keymap leaves Ctrl+P alone; here it closes, never prints.
+      // In the shell view the keymap leaves Ctrl+P alone; here it closes (or turns 명령 back to
+      // 빠른 이동), never prints.
       e.preventDefault();
-      closeLayer(qs.layer);
+      e.stopPropagation();
+      toggleSwitcher();
     }
   };
-  qs.layer = openLayer(el, { focus: input });
+  // A command runs once the palette has closed (runCommand).
+  const mine = qs;
+  qs.layer = openLayer(el, { focus: input, onClose: () => mine.run && mine.run() });
+  if (commands) input.setSelectionRange(1, 1);
   renderSwitcher();
   return true;
 }

@@ -656,7 +656,12 @@ div.tool { background: none; padding: 2px 8px; }
 
 /* ---- management: forms, sheets, terminal */
 a.btn { display: inline-flex; align-items: center; text-decoration: none; }
-.btn.danger { background: var(--blocked); color: var(--bg); }
+/* Something that can't be undone: clearly red, not a red slab. --blocked words on its tint with a
+   --blocked border (light 4.7:1, dark 7.1:1), the same everywhere a danger button is. */
+.btn.danger { background: var(--blocked-bg); color: var(--blocked); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blocked) 55%, var(--blocked-bg)); }
+.btn.danger:active { background: color-mix(in srgb, var(--blocked) 16%, var(--blocked-bg)); }
+@media (hover: hover) { .btn.danger:hover { background: color-mix(in srgb, var(--blocked) 10%, var(--blocked-bg)); } }
+.btn.danger:focus-visible { outline: 2px solid var(--blocked); outline-offset: 2px; }
 .btn.danger-text { color: var(--blocked); }
 .btn.wide { width: 100%; margin-top: 8px; }
 .row.end { justify-content: flex-end; }
@@ -704,9 +709,18 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   border-radius: 18px 18px 0 0; padding: 18px 16px calc(16px + var(--safe-bottom)); border-top: 1px solid var(--line);
   box-shadow: 0 -6px 24px rgb(0 0 0 / 0.2); display: flex; flex-direction: column; gap: 10px;
 }
-/* A danger sheet's keys (core.js sheet): 취소 has Enter, Ctrl+리턴 (or its own key again) confirms. */
-.sheet .confirm-keys { margin: -2px 0 0; text-align: right; font-size: 12px; color: var(--muted); }
-.confirm-keys kbd { font: 11px/1 var(--mono); padding: 2px 5px; margin: 0 1px; border-radius: 5px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); }
+/* A dialog (core.js sheet: a question, a name, a field): the title with what it is about, one line
+   of what follows, the buttons. On the phone a bottom sheet with its two buttons side by side,
+   equal (the one that does it on the right); wide, a small card (below). */
+.sheet.dialog { gap: 8px; padding: 22px 20px calc(16px + var(--safe-bottom)); }
+.sheet.dialog h2 { font-size: 17px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.sheet.dialog .sheet-subject { color: var(--text); font-weight: 600; }
+.sheet.dialog > #sheet-text { font-size: 15px; line-height: 1.45; }
+.sheet.dialog .field-wrap { margin-top: 4px; }
+.sheet-btns { margin-top: 10px; flex-wrap: nowrap; }
+.sheet-btns > .btn { flex: 1 1 0; min-width: 0; }
+/* The key that asked, again, confirms (Alt+W): a quiet keycap in the button, with a keyboard. */
+.btn .btn-key { margin-left: 8px; font: 500 11px/1 var(--mono); padding: 2px 5px; border-radius: 5px; border: 1px solid currentColor; opacity: 0.6; vertical-align: 1px; }
 .sheet h2 { font-size: 17px; margin: 0; }
 .sheet h2 > .sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
 .actions + .actions { margin-top: 2px; }
@@ -758,6 +772,13 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .qs-keys kbd { white-space: nowrap; font: 11px/1 var(--mono); padding: 2px 5px; margin: 0 1px; border-radius: 5px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); }
 @media (hover: hover) { .qs-row:hover { background: color-mix(in srgb, var(--surface-2) 65%, var(--surface)); } .qs-row[aria-selected="true"]:hover { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); } }
+/* 명령 (switcher.js): a command a line, its name, what it acts on after it, its key at the end. */
+.qs-row.qs-cmd { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 14px 6px 22px; }
+.qs-cmd-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; overflow: hidden; }
+.qs-cmd-name { flex: none; max-width: 100%; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qs-cmd-sub { min-width: 0; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qs-cmd-key { flex: none; font: 12px/1 var(--mono); padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); color: var(--muted); }
+@media (hover: hover) and (pointer: fine) { .qs-row.qs-cmd { min-height: 36px; padding-top: 4px; padding-bottom: 4px; } }
 /* One search field (빠른 이동, 단축키 찾기): a surface field, the field's 3:1 outline, a 2px accent ring. */
 .search-field { min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--field-line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px; } /* 16px: iOS zooms into a smaller field */
 .search-field:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -1114,6 +1135,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   /* A dialog in the middle reads better than a bottom sheet on a laptop. */
   .sheet-back { align-items: center; }
   .sheet:not(.term-sheet):not(.browser) { border-radius: 18px; padding-bottom: 16px; border: 1px solid var(--line); box-shadow: var(--pop-shadow); }
+  /* A dialog as a small card: narrow, the buttons right-aligned and as tall as each other. */
+  .sheet-back > form.sheet.dialog { max-width: 420px; padding: 22px 24px 20px; }
+  .sheet-btns > .btn { flex: 0 0 auto; min-width: 88px; min-height: 40px; }
   .sheet-back > .sheet:not(.term-sheet):not(.browser) { animation-name: pop-in; }
   .sheet-back.closing > .sheet:not(.term-sheet):not(.browser) { animation-name: pop-out; }
 }

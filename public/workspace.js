@@ -49,7 +49,7 @@ function renderWorkspace() {
         <h2 id="ws-mg">워크스페이스</h2>
         <div class="pcard">
           <button type="button" class="pref-link" id="w-rename"><span>이름 바꾸기</span><span class="pl-end" aria-hidden="true">›</span></button>
-          <button type="button" class="pref-link danger-text" id="w-close"${keyAttrs('closeView', '워크스페이스 닫기')}><span>워크스페이스 닫기</span><span class="pl-end ws-close-note">안의 패널이 모두 끝납니다</span></button>
+          <button type="button" class="pref-link danger-text" id="w-close"${keyAttrs('closeWorkspace', '워크스페이스 닫기')}><span>워크스페이스 닫기</span><span class="pl-end ws-close-note">안의 에이전트·셸이 모두 끝납니다</span></button>
         </div>
       </section>` : `
       <div class="ws-gone" role="status">
