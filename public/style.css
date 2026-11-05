@@ -573,12 +573,14 @@ div.tool { background: none; padding: 2px 8px; }
    covers none of the header's controls; the bar takes the notch's inset and the header drops its own. */
 .update-bar {
   position: fixed; left: 0; right: 0; top: var(--app-top, 0px); z-index: 20;
-  display: flex; align-items: center; gap: 8px;
-  padding: calc(4px + var(--safe-top)) calc(4px + var(--safe-right)) 4px calc(16px + var(--safe-left));
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: calc(4px + var(--safe-top)) calc(52px + var(--safe-right)) 4px calc(52px + var(--safe-left));
   background: var(--bg); color: var(--text); border-bottom: 1px solid var(--line); font-size: 14px;
 }
-/* The page's own colours (the header's --bg), a small accent dot, and the action as quiet as a toast's. */
-.update-bar .ub-t { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; line-height: 1.35; }
+/* The page's own colours (the header's --bg), a small accent dot, and the action as quiet as a toast's.
+   What it says and its button sit together in the middle (read as one: 「● 새 버전이 있습니다 [새로고침]」),
+   on any width; ✕ keeps to the far right. */
+.update-bar .ub-t { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; line-height: 1.35; }
 .update-bar .ub-t::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .update-bar .ub-go {
   flex: none; min-height: 36px; padding: 0 12px; border: 0; border-radius: 10px;
@@ -586,13 +588,13 @@ div.tool { background: none; padding: 2px 8px; }
 }
 .update-bar .ub-go:active { background: color-mix(in srgb, var(--text) 10%, var(--surface-2)); }
 .update-bar .ub-x {
+  position: absolute; right: calc(4px + var(--safe-right)); bottom: 0;
   flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 10px;
   background: none; color: var(--muted); cursor: pointer;
 }
 .update-bar .ub-x svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .update-bar .ub-x:active { background: var(--surface-2); }
 :root.has-update #app { top: calc(var(--app-top, 0px) + var(--update-h, 0px)); height: calc(var(--app-h, 100%) - var(--update-h, 0px)); --safe-top: 0px; }
-.split .update-bar { padding-left: 16px; }
 
 /* The hub can't be reached (app.js, conn.js): a calm full-width notice at the top, with the likeliest
    cause first and a way to open a remembered host directly. The app moves down under it like the
@@ -1696,7 +1698,6 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 /* The two notices at the top (hub-down, a new version), split: their words and buttons in one
    centred measure, so 「다시 시도」 and 새로고침 sit at the end of their line, not mid-screen or 1300px away. */
 :root.split .hub-down .hd-body { max-width: 960px; margin-inline: auto; }
-:root.split .update-bar { padding-inline: max(16px, calc((100% - 960px) / 2)); }
 /* While the hub-down notice says so, the headers' 끊김 chips say nothing more; split, the sidebar's
    chip alone tells the stream is down (the right column's header would say it a second time). */
 :root.split.has-down .live-chip, :root.split #detail-pane .live-chip { display: none; }
