@@ -573,20 +573,23 @@ div.tool { background: none; padding: 2px 8px; }
 .update-bar {
   position: fixed; left: 0; right: 0; top: var(--app-top, 0px); z-index: 20;
   display: flex; align-items: center; gap: 8px;
-  padding: calc(6px + var(--safe-top)) calc(8px + var(--safe-right)) 6px calc(16px + var(--safe-left));
-  background: var(--surface); color: var(--text); border-bottom: 1px solid var(--line); font-size: 14px;
+  padding: calc(4px + var(--safe-top)) calc(4px + var(--safe-right)) 4px calc(16px + var(--safe-left));
+  background: var(--bg); color: var(--text); border-bottom: 1px solid var(--line); font-size: 14px;
 }
-.update-bar .ub-t { flex: 1; min-width: 0; line-height: 1.35; } /* may take two lines on a phone */
+/* The page's own colours (the header's --bg), a small accent dot, and the action as quiet as a toast's. */
+.update-bar .ub-t { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; line-height: 1.35; }
+.update-bar .ub-t::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .update-bar .ub-go {
-  flex: none; min-height: 44px; padding: 0 14px; border: 0; border-radius: 10px;
-  background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer;
+  flex: none; min-height: 36px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: var(--surface-2); color: var(--accent); font: inherit; font-weight: 700; cursor: pointer;
 }
+.update-bar .ub-go:active { background: color-mix(in srgb, var(--text) 10%, var(--surface-2)); }
 .update-bar .ub-x {
   flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 10px;
   background: none; color: var(--muted); cursor: pointer;
 }
 .update-bar .ub-x svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.update-bar button:active { filter: brightness(0.95); }
+.update-bar .ub-x:active { background: var(--surface-2); }
 :root.has-update #app { top: calc(var(--app-top, 0px) + var(--update-h, 0px)); height: calc(var(--app-h, 100%) - var(--update-h, 0px)); --safe-top: 0px; }
 .split .update-bar { padding-left: 16px; }
 

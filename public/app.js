@@ -292,7 +292,7 @@ function showUpdateBanner() {
   }
   // What to do, not the number (설정 → 정보 has that; here it is the tooltip).
   const t = updateBanner.querySelector('.ub-t');
-  t.textContent = '새 버전이 나왔습니다 · 새로고침하면 적용됩니다';
+  t.textContent = '새 버전이 있습니다';
   t.title = `새 버전 ${Update.shortLabel(serverBuild)}`;
   document.documentElement.classList.add('has-update');
 }
