@@ -128,3 +128,14 @@ test('a message in many empty fragments is closed at MAX_FRAGMENTS, without a qu
   assert.ok(performance.now() - t0 < 1000, `took ${performance.now() - t0} ms`);
   assert.equal(closed, 1009);
 });
+
+test('connect: a plain HTTP answer whose body never ends rejects at the timeout', { timeout: 5000 }, async () => {
+  const server = http.createServer();
+  server.on('upgrade', (req, socket) => socket.write('HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{"err')); // and nothing more
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const t0 = Date.now();
+  await assert.rejects(ws.connect(`ws://127.0.0.1:${server.address().port}/x`, { timeoutMs: 300 }), { code: 'timeout' });
+  assert.ok(Date.now() - t0 < 2000);
+  server.closeAllConnections?.();
+  server.close();
+});
