@@ -1376,8 +1376,10 @@ button.tool:active { filter: brightness(0.95); }
 .bar h1 .st-dot.done { background: var(--done); }
 
 /* Ctrl or Alt held (app.js): each button with a shortcut shows its keys in a badge. A small
-   button gets it just outside, as a tooltip: below in a header, above at the composer,
-   beside on the rail. A wide one (the activity line, the pills, the host row) inside its corner. */
+   button gets it just outside, as a tooltip, above at the composer; in a header and on the rail
+   over its own lower edge, so it neither hangs onto what is below (the activity line, the host
+   row, with their badges) nor covers the title beside it. A wide one (the activity line, the
+   pills, the host row) inside its corner. */
 .show-keys [data-keyhint] { position: relative; }
 .show-keys [data-keyhint]::after {
   content: attr(data-keyhint); position: absolute; z-index: 40; pointer-events: none;
@@ -1393,7 +1395,8 @@ button.tool:active { filter: brightness(0.95); }
 .show-keys .composer [data-keyhint]::after { top: auto; bottom: calc(100% + 4px); }
 /* 중단 sits just left of 보내기: its badge goes to its left, so the two don't overlap. */
 .show-keys .composer .stop[data-keyhint]::after { bottom: auto; top: 50%; right: calc(100% + 6px); transform: translateY(-50%); }
-.show-keys .rail-btn[data-keyhint]::after { top: 50%; right: auto; left: calc(100% + 6px); transform: translateY(-50%); }
+.show-keys :is(.bar, .rail) [data-keyhint]::after { top: calc(100% - 12px); }
+.show-keys .rail-btn[data-keyhint]::after { right: auto; left: 0; }
 .show-keys :is(.activity, .new-out, .seg.hosts)[data-keyhint]::after { top: 2px; right: 2px; }
 
 /* 단축키 page (keyspage.js), in 설정's cards: the action and where it works on the left, its keys
