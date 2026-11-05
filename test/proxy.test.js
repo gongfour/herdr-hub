@@ -140,6 +140,12 @@ test('proxy: an offline peer is 503 for everything but its last chat window', { 
   // Only a full window: a request for what changed since is not answered from the copy.
   const since = await hub.request('GET', '/api/peers/pa/agents/w1-p3/transcript?since=x');
   assert.equal(since.status, 503);
+  // An older page (?before=) of a ghost's chat: not from the copy; said to be all there is.
+  for (const host of ['pa', 'pb']) {
+    const older = await hub.request('GET', `/api/peers/${host}/agents/w1-p3/transcript?before=m12&limit=100`);
+    assert.equal(older.status, 200, host);
+    assert.deepEqual(older.body, { supported: true, found: true, before: 'm12', messages: [], more: false, ghost: true });
+  }
   const s = (await hub.request('GET', '/api/state')).body;
   assert.ok(s.agents.filter((a) => a.host === 'pa').every((a) => a.stale), 'listed as a ghost');
   const a = await hub.request('POST', '/api/peers/pa/agents/w1-p2/answer', { stateSeq: 5, n: 1 });
