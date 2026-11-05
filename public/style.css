@@ -1416,6 +1416,7 @@ button.tool:active { filter: brightness(0.95); }
 .detail.closed:not(.kept) #t-body { display: none; }
 .detail.closed:not(.kept) .term-gone { flex: 1; flex-direction: column; justify-content: center; text-align: center; background: var(--bg); border: 0; padding: var(--sp-6) var(--sp-5); }
 .detail.closed:not(.kept) .term-gone .g-main { flex: none; font-size: 17px; }
+.detail.closed:not(.kept) .term-gone .g-text { flex: none; } /* the button right under the words, not pushed to the bottom */
 .detail.closed.kept .term-gone { flex-wrap: wrap; }
 .detail.closed.kept .term-gone .btn.secondary { background: var(--surface); border: 1px solid var(--line); }
 .term-bar .term-keys { flex: 1; min-width: 0; border-top: 0; }
