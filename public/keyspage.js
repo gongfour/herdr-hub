@@ -13,7 +13,9 @@
 
 // rec: the action whose key is being recorded, or 'search'. tab: the tab shown. edit: 바꾸기 on.
 // only: 바꾼 키만. open: the rows whose folded keys are shown.
-const kp = { q: '', rec: null, tab: 'any', edit: false, only: false, open: new Set() };
+// info: the one row whose long label is open in the cheat sheet (a tap on the row; a touch screen
+// has no tooltip to show it).
+const kp = { q: '', rec: null, tab: 'any', edit: false, only: false, open: new Set(), info: null };
 
 // Where ✕ goes: what was open before (the agent it was opened over, or 설정), else 설정 (phone) or
 // the list (split).
@@ -35,7 +37,7 @@ const KEYS_TAB_FROM = { term: 'shell', agent: 'chat', list: 'list' };
 // from: the route it was opened from (app.js); the page drawn again (from itself) keeps its state.
 function renderKeys({ focus = false, from = null } = {}) {
   if (!from || from.name !== 'keys') {
-    Object.assign(kp, { q: '', tab: KEYS_TAB_FROM[from && from.name] || 'any', edit: false, only: false });
+    Object.assign(kp, { q: '', tab: KEYS_TAB_FROM[from && from.name] || 'any', edit: false, only: false, info: null });
     kp.open.clear();
   }
   const root = detailRoot();
@@ -89,6 +91,17 @@ function drawKeysList() {
 
   // One action's row. tab: the tab it is drawn on (its keys read there: the shell view's on 셸);
   // tabs: the tabs to name (search results).
+  // The cheat sheet's name: a button that opens the long label under it (one row at a time), when
+  // the label says more than the name. The row's tooltip says it too, for a mouse.
+  const nameOf = (id, name, label, dot = '') => {
+    if (edit || !label || label === name) return { name: `<span class="k-name">${esc(name)}${dot}</span>`, label: '' };
+    const open = kp.info === id;
+    return {
+      name: `<button type="button" class="k-name k-info" data-info="${esc(id)}" aria-expanded="${open}">${esc(name)}${dot}</button>`,
+      // The name is just above: the label without it again in front (「대화창 닫기: …」).
+      label: open ? `<span class="k-label">${esc(label.startsWith(`${name}: `) ? label.slice(name.length + 2) : label)}</span>` : '',
+    };
+  };
   const row = (r, tab, tabs = null) => {
     const rec = kp.rec === r.action;
     const onShell = tab === 'shell';
@@ -113,8 +126,9 @@ function drawKeysList() {
             : ''
         }`;
       }
+      const n = nameOf(`a:${r.action}`, r.name, r.label, dot);
       return `<div class="k-row view${r.changed ? ' changed' : ''}" data-action="${esc(r.action)}" title="${esc(r.label)}">
-          <div class="k-what"><span class="k-name">${esc(r.name)}${dot}</span>${tabsLine}</div>
+          <div class="k-what">${n.name}${tabsLine}${n.label}</div>
           <div class="k-keys"${kp.open.has(r.action) ? ' tabindex="-1"' : ''}>${keys}</div>
         </div>`;
     }
@@ -155,7 +169,8 @@ function drawKeysList() {
     const tabsLine = tabs ? `<span class="k-in">${esc(tabs.map(tabName).join(' · '))}</span>` : '';
     // A row without a key is a note on how the screen takes keys: said in full.
     if (!ks.length) return `<div class="k-row local note"><div class="k-what"><span class="k-label">${esc(x.label)}</span>${tabsLine}</div></div>`;
-    return `<div class="k-row local${edit ? '' : ' view'}"${edit ? '' : ` title="${esc(x.label)}"`}><div class="k-what"><span class="k-name">${esc(x.name)}</span>${tabsLine}${edit ? `<span class="k-label">${esc(x.label)}</span>` : ''}</div><div class="k-keys">${(edit || x.keys ? ks : ks.slice(0, 1)).map(kbd).join('')}</div></div>`;
+    const n = nameOf(`l:${x.group}|${x.name}`, x.name, x.label);
+    return `<div class="k-row local${edit ? '' : ' view'}"${edit ? '' : ` title="${esc(x.label)}"`}><div class="k-what">${n.name}${tabsLine}${edit ? `<span class="k-label">${esc(x.label)}</span>` : n.label}</div><div class="k-keys">${(edit || x.keys ? ks : ks.slice(0, 1)).map(kbd).join('')}</div></div>`;
   };
   const card = (title, inner, cls = '') => (inner ? `<section class="pgroup">${title ? `<h2>${esc(title)}</h2>` : ''}<div class="pcard${cls}">${inner}</div></section>` : '');
   const cols = edit ? '' : ' k-cols';
@@ -312,6 +327,17 @@ function bindKeysPage(main) {
     const t = e.target;
     if (t.closest('[data-reset-all]')) return saveKeys({}), toast('모든 단축키를 기본값으로 되돌렸습니다'), drawKeysList();
     if (t.closest('[data-only]')) return (kp.only = !kp.only), drawKeysList();
+    // The cheat sheet: a tap anywhere on a row (but its +N) opens or closes its long label.
+    const viewRow = !kp.edit && !t.closest('[data-more]') && t.closest('.k-row.view');
+    const info = viewRow && viewRow.querySelector('[data-info]');
+    if (info) {
+      const id = info.dataset.info;
+      const hadFocus = document.activeElement === info;
+      kp.info = kp.info === id ? null : id;
+      drawKeysList();
+      if (hadFocus) [...document.querySelectorAll('[data-info]')].find((b) => b.dataset.info === id)?.focus({ preventScroll: true });
+      return;
+    }
     const row = t.closest('.k-row[data-action]');
     if (!row) return;
     const action = row.dataset.action;
