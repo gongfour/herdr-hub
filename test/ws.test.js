@@ -139,3 +139,49 @@ test('connect: a plain HTTP answer whose body never ends rejects at the timeout'
   server.closeAllConnections?.();
   server.close();
 });
+
+test('holdWhileFull: a bridge stops reading its source while the far end is full, and goes on in order', { timeout: 10000 }, async () => {
+  // src: a client of server A, which floods it. dst: server B's side of a client that does not read.
+  let flood = null;
+  const a = await serve((conn) => (flood = conn));
+  const src = await ws.connect(`ws://127.0.0.1:${a.address().port}/a`);
+  let dst = null;
+  const b = await serve((conn) => (dst = conn));
+  const sink = await ws.connect(`ws://127.0.0.1:${b.address().port}/b`);
+  while (!flood || !dst) await new Promise((r) => setTimeout(r, 5));
+  sink.socket.pause(); // the slow phone
+  const got = [];
+  sink.on('message', (m) => got.push(Number(m.slice(0, 6))));
+  const high = 64 * 1024;
+  let maxBuffered = 0;
+  let held = 0;
+  src.on('message', (m) => {
+    dst.send(m);
+    maxBuffered = Math.max(maxBuffered, dst.buffered);
+    if (ws.holdWhileFull(src, dst, high)) held++;
+  });
+  const N = 400;
+  const pad = 'x'.repeat(8 * 1024);
+  const cleanup = () => {
+    for (const c of [src, sink]) c.socket.destroy();
+    a.closeAllConnections?.();
+    b.closeAllConnections?.();
+    a.close();
+    b.close();
+  };
+  try {
+  for (let i = 0; i < N; i++) flood.send(String(i).padStart(6, '0') + pad); // 3.2 MB
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(held >= 1 && src.held, 'the source is held');
+  // high, plus the frames of the read chunk already in hand when it paused (64 KB); without the
+  // hold it would be the whole 3.2 MB.
+  assert.ok(maxBuffered < high + 128 * 1024, `the bridge buffered ${maxBuffered} bytes`);
+  sink.socket.resume();
+  const end = Date.now() + 8000;
+  while (got.length < N && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(got.length, N);
+  assert.deepEqual(got, Array.from({ length: N }, (_, i) => i));
+  } finally {
+    cleanup();
+  }
+});

@@ -1167,6 +1167,7 @@ async function livePeer(req, socket, head, hostId, encodedPane, url) {
       } catch {}
     }
     down.send(t);
+    ws.holdWhileFull(up, down); // a slow page: the peer's reads wait, so the peer skips screens
   });
   down.on('message', (t) => {
     if (t.includes('"tr":1') && tracedAt.size < 256) {
