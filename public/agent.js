@@ -47,8 +47,11 @@ function renderDetail() {
   };
   input.onkeydown = (e) => {
     if (paletteKey(e) || recallKey(e, input)) return;
-    const act = Keys.enterAction(e, getEnter());
-    if (act === 'send') {
+    const act = Keys.enterAction(e, getEnter(), !input.value.trim() && !(detail.files || []).length);
+    if (act === 'send-queued') {
+      e.preventDefault();
+      sendQueuedNow();
+    } else if (act === 'send') {
       e.preventDefault();
       sendNow();
     } else if (act === 'send-later') sendAfterIme = Date.now();
@@ -95,6 +98,7 @@ function renderDetail() {
   };
   document.getElementById('d-body').addEventListener('scroll', (e) => updateJump(e.currentTarget), { passive: true });
   document.getElementById('d-body').addEventListener('click', (e) => {
+    if (e.target.closest('[data-sendnow]')) return sendQueuedNow();
     const pic = e.target.closest('.pic');
     if (pic) openViewer(pic.dataset.src);
     const more = e.target.closest('[data-shell]');
@@ -662,9 +666,57 @@ function pendingNow(key, a) {
   }
   return keep;
 }
-function pendingBubble(p) {
+// 지금 보내기 (Claude Code's Ctrl+Enter, chat:sendNow): what the agent holds queued goes out at
+// once instead of after the work it is on. Claude Code moves a running shell command or subagent
+// to the background and reads the messages in the same turn, else it stops the reply it is
+// writing and takes them next. All queued ones go together, so the button is on the last bubble.
+// Only a Claude agent at work: idle, its queue has gone out by itself.
+const canSendQueued = (a) => Boolean(a && a.agent === 'claude' && a.status === 'working');
+const queuedHere = () => {
+  const a = currentAgent();
+  return canSendQueued(a) ? pendingNow(rowKey(curHost(), detail.pane), a).filter((p) => !p.now) : [];
+};
+async function sendQueuedNow() {
+  if (detail.sending || !queuedHere().length) return;
+  const host = curHost();
+  const pane = detail.pane;
+  const key = rowKey(host, pane);
+  detail.sending = true;
+  updateComposer();
+  try {
+    const r = await api(hp(`/agents/${encodeURIComponent(pane)}/sendnow`, host), { method: 'POST', body: '{}' });
+    // Sent: the bubbles say so until the transcript has the messages (then they are the turn's).
+    if (r.sent !== false) {
+      for (const p of pendingSent.get(key) || []) p.now ||= Date.now();
+      savePending();
+    }
+  } catch (err) {
+    // A host whose Hub is older has no such route yet.
+    toastErr(err.status === 404 && err.code === 'not_found' ? '이 호스트의 Hub 를 배포해야 지금 보낼 수 있습니다.' : `지금 보내지 못했습니다: ${errText(err)}`);
+  } finally {
+    detail.sending = false;
+    updateComposer();
+  }
+  if (view.name === 'agent' && detail.pane === pane && curHost() === host) {
+    renderDetailBody(false);
+    setTimeout(loadDetail, 500);
+  }
+}
+// Its keys, as the composer takes them (keymap.js LOCAL 「지금 보내기」): ⌘+리턴 first on a Mac.
+function sendQueuedKeys() {
+  const row = Keymap.LOCAL.find((x) => x.name === '지금 보내기');
+  const keys = row ? Keymap.localKeys(row) : [];
+  return { hint: keys.map(Keymap.label).join(' · '), aria: keys.map((k) => k.replace(/\bCtrl\b/g, 'Control')).join(' ') };
+}
+// now: the last bubble, of an agent 지금 보내기 works on (its button).
+function pendingBubble(p, now = false) {
   const pics = p.pics ? `<div class="pics"><span class="img-chip">사진 ${p.pics}장</span></div>` : '';
-  return `<div class="msg user pending">${pics}${p.text ? `<span>${esc(p.text)}</span>` : ''}<small class="wait"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>대기 중</small></div>`;
+  const k = now && sendQueuedKeys();
+  const btn = now ? `<button type="button" class="send-now" data-sendnow title="대기 중인 메시지를 지금 보내기${k.hint ? ` (빈 메시지 칸에서 ${esc(k.hint)})` : ''}"${k.aria ? ` aria-keyshortcuts="${esc(k.aria)}"` : ''}>지금 보내기</button>` : '';
+  const state = p.now
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12M13 6l6 6-6 6" /></svg>보내는 중`
+    : `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>대기 중`;
+  return `<div class="msg user pending${p.now ? ' going' : ''}">${pics}${p.text ? `<span>${esc(p.text)}</span>` : ''}<div class="wait-row">${btn}<small class="wait">${state}</small></div></div>`;
 }
 
 // The agent view with no agent: 'gone' (ended or closed), 'offline' (its host is away, the chat
@@ -754,7 +806,8 @@ function renderDetailBody(reset) {
     // Scrolled up: the message at the top of the view stays where it is, whatever comes in
     // above it (the older messages after a short first copy) or below.
     const anchor = nearBottom ? null : topMessage(body, box);
-    patchList(box, [...t.messages.map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting.map((p) => [`wait:${p.at}`, pendingBubble(p)])]);
+    const nowAt = canSendQueued(currentAgent()) && waiting.some((p) => !p.now) ? waiting.length - 1 : -1; // 지금 보내기
+    patchList(box, [...t.messages.map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting.map((p, i) => [`wait:${p.at}`, pendingBubble(p, i === nowAt)])]);
     if (anchor && anchor.el.isConnected) body.scrollTop += anchor.el.getBoundingClientRect().top - anchor.top;
   }
   if (nearBottom) body.scrollTop = body.scrollHeight;

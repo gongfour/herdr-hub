@@ -6,12 +6,14 @@
   // What Enter does in the composer: 'send', 'newline' or null (leave it to the IME).
   // Korean (and other) IMEs send Enter while a syllable is still being composed: never act then.
   // ⌘/Ctrl+Enter on a syllable still being composed (the last one typed) says to send once the
-  // IME has put it in: 'send-later'.
-  function enterAction(e, mode) {
+  // IME has put it in: 'send-later'. empty (nothing typed, no photo): ⌘/Ctrl+Enter is
+  // 'send-queued', 지금 보내기 for what the agent holds queued (Claude Code's Ctrl+Enter, the
+  // send chord pressed again); a plain Enter there is still 'send', which sends nothing.
+  function enterAction(e, mode, empty = false) {
     const composing = e.isComposing || e.keyCode === 229;
     if (composing && (e.metaKey || e.ctrlKey) && (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter')) return 'send-later';
     if (e.key !== 'Enter' || composing) return null;
-    if (e.metaKey || e.ctrlKey) return 'send';
+    if (e.metaKey || e.ctrlKey) return empty ? 'send-queued' : 'send';
     if (mode === 'send' && !e.shiftKey && !e.altKey) return 'send';
     return 'newline';
   }

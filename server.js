@@ -753,6 +753,17 @@ async function api(req, res, url) {
       refreshSoon();
       return send(res, 200, { ok: true });
     }
+    // 지금 보내기: Claude Code's chat:sendNow on what it holds queued (prompts sent while it
+    // works). Ctrl+X Ctrl+S, not Ctrl+Enter, which a terminal without extended keys turns into
+    // a plain Enter. With nothing queued Claude Code leaves the turn alone (2.1.318). Only while
+    // it works: once it is idle the queue has gone out already.
+    if (method === 'POST' && parts[2] === 'sendnow') {
+      if (agent.agent !== 'claude') return send(res, 400, { error: 'not_claude' });
+      if (agent.status !== 'working') return send(res, 200, { ok: true, sent: false });
+      await herdr.call('agent.send_keys', { target: pane, keys: ['ctrl+x', 'ctrl+s'] });
+      refreshSoon();
+      return send(res, 200, { ok: true, sent: true });
+    }
     // An answer from a notification button or a choice button in the app: sent only while the
     // agent is blocked on the same prompt (stateSeq, and the option's label when given) it was
     // shown for. own: the app's "Type something" pick.

@@ -206,6 +206,7 @@
   // Keys handled in their own field, listed in the sheet but not dispatched from here.
   const LOCAL = [
     { group: '메시지 칸', name: '보내기', key: 'Ctrl+Enter', label: '보내기. 리턴 키 설정이 「보내기」면 리턴, 줄바꿈은 Shift+리턴' },
+    { group: '메시지 칸', name: '지금 보내기', key: 'Ctrl+Enter', label: '빈 칸에서: 대기 중인 메시지를 지금 보내기 — 작업 중인 Claude 가 하던 일(셸 명령·서브에이전트)은 뒤로 돌리거나 쓰던 답을 멈추고 먼저 읽는다 (Claude Code 의 Ctrl+Enter; 대기 중 말풍선의 「지금 보내기」와 같다)' },
     { group: '메시지 칸', name: '전에 보낸 메시지', key: 'ArrowUp', label: '빈 칸에서: 전에 보낸 메시지 불러오기 (↓ 는 다음)' },
     { group: '메시지 칸', name: '명령 제안', key: '/', label: '맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)' },
     { group: '메시지 칸', name: '밖에서 친 글자도 메시지 칸으로', key: '', label: '대화 화면에서 입력 칸 밖에서 친 글자도 메시지 칸으로 간다 (단축키·선택지 숫자·Space 는 빼고)' },

@@ -355,7 +355,17 @@ button:disabled { cursor: default; }
 .msg.user.lit { animation: lit 1.2s ease-out; }
 @keyframes lit { from { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent); } to { box-shadow: 0 0 0 3px transparent; } }
 @media (prefers-reduced-motion: reduce) { .msg.user.lit { animation: none; outline: 2px solid var(--accent); outline-offset: 2px; } }
-.msg.user.pending .wait { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); margin-top: var(--sp-1); font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.msg.user.pending .wait-row { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-3); margin-top: var(--sp-1); }
+.msg.user.pending .wait { display: flex; align-items: center; gap: var(--sp-1); font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.msg.user.pending.going .wait { color: var(--accent); }
+/* 지금 보내기 (agent.js pendingBubble): a word button on the bubble's last line, its press area
+   widened past the line (44px for a finger, 32px for a mouse) without making the bubble taller. */
+.msg.user.pending .send-now { margin: -14px auto -8px -12px; min-height: 44px; padding: 0 var(--sp-3); border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; }
+.msg.user.pending .send-now:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  .msg.user.pending .send-now { min-height: 32px; margin-top: -8px; }
+  .msg.user.pending .send-now:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
 .msg.user.pending .wait svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
 .msg.assistant + .msg.assistant { margin-top: -8px; }
 .msg .tools:first-child { margin-top: 0; }
