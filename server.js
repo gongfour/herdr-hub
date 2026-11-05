@@ -29,6 +29,7 @@ const echo = require('./lib/echo');
 const { readBuild, describe, decorator } = require('./lib/build');
 const watchdog = require('./lib/watchdog');
 const fsq = require('./lib/fsq');
+const awake = require('./lib/awake');
 
 // The contract between this server and its pages, and between a hub and its peers. Bumped by
 // hand when either changes (AGENTS.md); 설정 → 연결 shows a peer whose number differs from the hub's.
@@ -432,6 +433,10 @@ async function sendPaneInput(pane, text, keys) {
   if (keys.length) await sendPaneKeys(pane, keys);
 }
 
+// herdr kept awake while a shell here is in use (lib/awake): keys and the shell view's reads touch it.
+// Requests proxied from the hub land here too, so each host keeps its own herdr awake.
+const herdrAwake = awake.keepAwake({ ping: () => herdr.call('ping', {}, { timeoutMs: 2000 }), intervalMs: awake.intervalFromEnv(process.env.HERDR_HUB_AWAKE_MS) });
+
 // The last screen read per shell pane (lib/echo): what a key's echo is compared against.
 const paneScreens = echo.lastScreens();
 async function readPane(pane, source, lines, format) {
@@ -564,6 +569,7 @@ async function api(req, res, url) {
     if (!term && !(parts[2] === 'close' && findAgent(pane))) return send(res, 404, { error: 'pane_not_found' });
 
     if (method === 'GET' && parts[2] === 'screen') {
+      herdrAwake.touch();
       const lines = Math.min(Number(url.searchParams.get('lines')) || 120, 400);
       return send(res, 200, await readPane(pane, url.searchParams.get('source'), lines, url.searchParams.get('format')));
     }
@@ -573,6 +579,7 @@ async function api(req, res, url) {
       // input: one command line, the text then Enter (empty text just presses Enter).
       // keys: optional text typed first without Enter, so "Get-Ch" + tab completes.
       if (parts[2] === 'input' || parts[2] === 'keys') {
+        herdrAwake.touch();
         const { text = '' } = body;
         const keys = parts[2] === 'input' ? ['enter'] : body.keys;
         if (badText(text)) return send(res, 400, { error: 'bad_text' });
