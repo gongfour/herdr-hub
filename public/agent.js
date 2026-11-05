@@ -375,6 +375,9 @@ let reloadAfter = false; // a load was asked for while one was running
 async function loadDetail() {
   const a = currentAgent();
   if (!a) return;
+  // A page in the background reads nothing (the poll, state changes); it reads at once when it
+  // is back in front (app.js visibilitychange).
+  if (document.visibilityState === 'hidden') return;
   if (loading === detail) return void (reloadAfter = true);
   const mine = (loading = detail);
   reloadAfter = false;
@@ -383,10 +386,23 @@ async function loadDetail() {
   // Started first, so a blocked agent's screen read below doesn't hold the chat up.
   const chat = screenBody(a) ? null : loadChat(detail, a, pane, host);
   if (chat) chat.catch(() => {}); // awaited below; a failure there is reported once
+  // The screen reads this load needs, all asked for at once (each was one round trip after the
+  // other: up to four every 3 s, twice that through a peer); used below in the same order.
+  const working = a.status === 'working';
+  const read = (q) => api(hp(`/agents/${pane}/screen?${q}`, host));
+  const sheetQuery = () => `source=${working || a.status === 'blocked' ? 'visible' : 'recent'}&lines=200${colorQuery()}`;
+  const early = screenBody(a) || detail.sheet;
+  const reads = {
+    blocked: a.status === 'blocked' ? read('source=visible&lines=30') : null,
+    sheet: early ? read(sheetQuery()) : null,
+    activity: working && !early ? read('source=visible&lines=60') : null,
+    mode: !working && a.status !== 'blocked' && a.agent === 'claude' ? read('source=visible&lines=8') : null,
+  };
+  for (const p of Object.values(reads)) if (p) p.catch(() => {}); // awaited below; the first failure is reported
   try {
     if (a.status === 'blocked') {
       const seq = a.stateSeq;
-      const v = await api(hp(`/agents/${pane}/screen?source=visible&lines=30`, host));
+      const v = await reads.blocked;
       if (detail !== mine) return; // another agent was opened meanwhile: its own load runs
       // Read before a state change: that screen belongs to the previous prompt.
       if ((currentAgent() || {}).stateSeq === seq) detail.blockedText = v.text.replace(/\s+$/, '');
@@ -394,7 +410,6 @@ async function loadDetail() {
       renderBlocked();
       updateComposer(); // what the composer's words would answer (setPlaceholder)
     } else detail.blockedText = null;
-    const working = a.status === 'working';
     const d = detail;
     let activityText = null;
     let footer = false; // the visible screen was read this round (for the mode chip)
@@ -404,8 +419,8 @@ async function loadDetail() {
     if (screenBody(a) || detail.sheet) {
       // A working agent can't give its scrollback; Claude draws on the alternate screen anyway,
       // so what is visible is the whole picture. The server falls back to it too.
-      const source = working || a.status === 'blocked' ? 'visible' : 'recent';
-      const s = await api(hp(`/agents/${pane}/screen?source=${source}&lines=200${colorQuery()}`, host));
+      // (The sheet opened while the chat loaded: its read starts now.)
+      const s = await (reads.sheet || read(sheetQuery()));
       if (detail !== mine) return;
       detail.screen = s;
       if (working && s.source === 'visible') activityText = s.format === 'ansi' && window.Ansi ? window.Ansi.strip(s.text) : s.text;
@@ -415,7 +430,7 @@ async function loadDetail() {
       }
     }
     // The activity line: what the visible screen says the agent is doing, only while working.
-    if (working && activityText == null) activityText = (await api(hp(`/agents/${pane}/screen?source=visible&lines=60`, host))).text;
+    if (working && activityText == null) activityText = (await (reads.activity || read('source=visible&lines=60'))).text;
     if (detail !== mine) return;
     if (working && (currentAgent() || {}).status === 'working') setActivity(activityText);
     if (activityText != null) {
@@ -424,7 +439,7 @@ async function loadDetail() {
     }
     // Idle Claude: a short read of the bottom lines for the mode chip.
     if (!footer && !working && a.status !== 'blocked' && a.agent === 'claude') {
-      const m = (await api(hp(`/agents/${pane}/screen?source=visible&lines=8`, host))).text;
+      const m = (await (reads.mode || read('source=visible&lines=8'))).text;
       if (detail !== mine) return;
       noteMode(m);
     }
