@@ -157,27 +157,81 @@ function screenColors(pre) {
   return { fg: fg.length === 3 ? fg : undefined, bg: bg.length === 3 ? bg : undefined, palette, dark: bg.length === 3 ? 0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2] < 128 : darkNow() };
 }
 
+// The box holds one element per line (a span ending in its newline, so the text, selection and
+// copy are as one <pre>), and a new screen changes only the lines that changed: output moving by
+// a line removes one element and adds one, a key typed redraws the prompt's line. ScreenDiff
+// finds them, the same way the live channel does.
+const htmlEsc = (t) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 function drawScreen(s, p) {
-  if (p.view === 'ansi') s.pre.innerHTML = window.Ansi.toHtml(p.text, screenColors(s.pre));
-  else s.pre.textContent = p.view === 'strip' ? window.Ansi.strip(p.text) : p.text;
+  const lines = p.view === 'ansi' ? window.Ansi.toHtmlLines(p.text, screenColors(s.pre), s.htmlCache || (s.htmlCache = {})) : (p.view === 'strip' ? window.Ansi.strip(p.text) : p.text).split('\n').map(htmlEsc);
+  patchLines(s, lines);
   paneBackground(s, p.view === 'ansi');
+}
+
+const lineEl = (html) => {
+  const el = document.createElement('span');
+  el.className = 'ln';
+  el.innerHTML = `${html}\n`;
+  return el;
+};
+function patchLines(s, next) {
+  const pre = s.pre;
+  const prev = s.lines;
+  if (!prev || pre.childElementCount !== prev.length || pre.childNodes.length !== prev.length) {
+    const f = document.createDocumentFragment();
+    for (const h of next) f.appendChild(lineEl(h));
+    pre.replaceChildren(f);
+    s.lines = next;
+    return;
+  }
+  const d = window.ScreenDiff.diff(prev, next);
+  const kids = pre.children;
+  for (let i = 0; i < d.k; i++) kids[0].remove();
+  // The old lines between the kept start (h) and the kept end (z): reused for the new ones as far
+  // as they go, the rest removed or added before the kept end.
+  const old = prev.length - d.k - d.h - d.z;
+  const both = Math.min(old, d.a.length);
+  for (let i = 0; i < both; i++) {
+    const el = kids[d.h + i];
+    el.innerHTML = `${d.a[i]}\n`;
+    el._bg = null;
+  }
+  for (let i = both; i < old; i++) kids[d.h + both].remove();
+  if (d.a.length > both) {
+    const f = document.createDocumentFragment();
+    for (let i = both; i < d.a.length; i++) f.appendChild(lineEl(d.a[i]));
+    pre.insertBefore(f, kids[d.h + both] || null);
+  }
+  s.lines = next;
 }
 
 // A full-screen program (helix, vim) paints its own background on most cells. That colour then
 // fills the whole box, padding included, so no dark gutter or gaps show around its rows.
+// Counted per line and kept with it, so an unchanged line is not looked at again.
+function lineBackgrounds(el) {
+  if (el._bg) return el._bg;
+  const counts = new Map();
+  for (const sp of el.querySelectorAll('span')) {
+    const bg = sp.style.backgroundColor || (/(^|\s)a[bB]\d/.test(sp.className) ? getComputedStyle(sp).backgroundColor : '');
+    if (bg) counts.set(bg, (counts.get(bg) || 0) + sp.textContent.length);
+  }
+  return (el._bg = { counts, cells: el.textContent.length - 1 });
+}
 function paneBackground(s, ansi) {
   let best = '';
   if (ansi) {
     const counts = new Map();
+    let cells = 0;
     let most = 0;
-    for (const sp of s.pre.querySelectorAll('span')) {
-      const bg = sp.style.backgroundColor || (/(^|\s)a[bB]\d/.test(sp.className) ? getComputedStyle(sp).backgroundColor : '');
-      if (!bg) continue;
-      const n = (counts.get(bg) || 0) + sp.textContent.length;
-      counts.set(bg, n);
-      if (n > most) (most = n), (best = bg);
+    for (const el of s.pre.children) {
+      const b = lineBackgrounds(el);
+      cells += b.cells;
+      for (const [bg, n0] of b.counts) {
+        const n = (counts.get(bg) || 0) + n0;
+        counts.set(bg, n);
+        if (n > most) (most = n), (best = bg);
+      }
     }
-    const cells = s.pre.textContent.replace(/\n/g, '').length;
     if (!cells || most / cells < 0.4) best = '';
   }
   if (best) s.body.style.setProperty('--term-bg', best);

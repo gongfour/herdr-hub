@@ -95,29 +95,36 @@
     return st;
   }
 
-  // Split into lines of { text, st } runs. \r and other controls are gone.
-  function parse(str) {
-    const lines = [[]];
-    let st = RESET;
-    const push = (text) => {
-      const parts = text.split('\n');
-      parts.forEach((t, k) => {
-        if (k) lines.push([]);
-        if (t) lines[lines.length - 1].push({ text: t, st });
-      });
-    };
+  // One line (no newline in it) from the style it starts with: its { text, st } runs and the style
+  // it ends with. \r and other controls are gone. No escape sequence spans a line (OSC and the
+  // rest stop at a newline), so a screen is its lines one after another.
+  function parseLine(line, st0 = RESET) {
+    const runs = [];
+    let st = st0;
     let last = 0;
     SEQ.lastIndex = 0;
-    for (let m; (m = SEQ.exec(String(str))); ) {
-      if (m.index > last) push(String(str).slice(last, m.index));
+    for (let m; (m = SEQ.exec(line)); ) {
+      if (m.index > last) runs.push({ text: line.slice(last, m.index), st });
       last = SEQ.lastIndex;
       // SGR only when the parameters are plain numbers: "\x1b[>4;2m" is a key mode, not dim.
       const params = m[1] != null ? m[1] : m[3];
       const final = m[1] != null ? m[2] : m[4];
       if (final === 'm' && /^[\d;:]*$/.test(params)) st = sgr(st, params);
     }
-    if (last < String(str).length) push(String(str).slice(last));
-    return lines;
+    if (last < line.length) runs.push({ text: line.slice(last), st });
+    return { runs, st };
+  }
+
+  // Split into lines of { text, st } runs.
+  function parse(str) {
+    let st = RESET;
+    return String(str)
+      .split('\n')
+      .map((line) => {
+        const r = parseLine(line, st);
+        st = r.st;
+        return r.runs;
+      });
   }
 
   // Plain text, with the same trailing-blank trimming the plain screen gets.
@@ -172,13 +179,19 @@
   // opts: { dark, fg: [r,g,b], bg: [r,g,b], palette: [[r,g,b] × 16] } — the box's default text and
   // background colours and the theme's basic colours (the --ansi-N variables). Without them,
   // light theme defaults are assumed; without a palette, basic colours on a background go unchecked.
-  function toHtml(str, opts = {}) {
+  // The same, one string per line (no newlines), for a box that changes only the lines that did.
+  // cache (optional, an object the caller keeps): each line's HTML by its text and the style it
+  // starts with, so a screen that moved by a line costs one line's work, not the whole screen's.
+  function toHtmlLines(str, opts = {}, cache = null) {
     const dark = Boolean(opts.dark);
     const pageFg = opts.fg || (dark ? [236, 235, 230] : [29, 28, 25]);
     const pageBg = opts.bg || (dark ? [31, 31, 28] : [255, 255, 255]);
     const MIN = 4.5;
-
-    const out = parse(str).map((runs) => {
+    if (cache) {
+      const ok = JSON.stringify([dark, pageFg, pageBg, opts.palette || null]);
+      if (cache.opts !== ok || !cache.map || cache.map.size > CACHE_MAX) (cache.opts = ok), (cache.map = new Map());
+    }
+    const lineHtml = (runs) => {
       const spans = [];
       for (const { text, st } of runs) {
         let fg = st.fg;
@@ -242,12 +255,28 @@
           return `<span${c}${y}>${esc(s.text)}</span>`;
         })
         .join('');
-    });
+    };
+    const out = [];
+    let st = RESET;
+    for (const line of String(str).split('\n')) {
+      const key = cache ? `${styleKey(st)}\u0001${line}` : null;
+      let hit = cache && cache.map.get(key);
+      if (!hit) {
+        const r = parseLine(line, st);
+        hit = { html: lineHtml(r.runs), st: r.st };
+        if (cache) cache.map.set(key, hit);
+      }
+      out.push(hit.html);
+      st = hit.st;
+    }
     while (out.length && out[out.length - 1] === '') out.pop();
-    return out.join('\n');
+    return out;
   }
+  const CACHE_MAX = 4000; // lines kept (a 400-line screen ten times over), then it starts again
+  const styleKey = (st) => (st === RESET ? '' : JSON.stringify(st));
+  const toHtml = (str, opts) => toHtmlLines(str, opts).join('\n');
 
-  const api = { toHtml, strip, parse, contrast, readable };
+  const api = { toHtml, toHtmlLines, strip, parse, parseLine, contrast, readable };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Ansi = api;
 })(typeof window !== 'undefined' ? window : globalThis);

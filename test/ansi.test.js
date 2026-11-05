@@ -2,7 +2,8 @@
 // npm test  (node --test test/*.test.js)
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { toHtml, strip, contrast } = require('../public/ansi.js');
+const Ansi = require('../public/ansi.js');
+const { toHtml, strip, contrast } = Ansi;
 
 const E = '\x1b';
 const LIGHT = { dark: false, fg: [29, 28, 25], bg: [255, 255, 255] };
@@ -113,4 +114,27 @@ test('basic colours on a background are checked against it when the palette is k
   assert.match(html, /^<span class="ab4 af2" style="color:rgb\(\d+,\d+,\d+\)">green on blue<\/span>$/);
   // the same green on the plain box is left to its class
   assert.equal(toHtml(`${E}[32mok`, opts), '<span class="af2">ok</span>');
+});
+
+test('toHtmlLines: one string per line, the same as toHtml split', () => {
+  const s = '\x1b[31mred\nstill red\x1b[0m\n\nplain  \n\n';
+  const lines = Ansi.toHtmlLines(s);
+  assert.deepEqual(lines, Ansi.toHtml(s).split('\n'));
+  assert.equal(lines.length, 4); // trailing blank lines dropped
+  assert.match(lines[1], /class="af1"/); // the colour carries over the line break
+});
+
+test('toHtmlLines with a cache: the same lines, each line worked out once per starting style', () => {
+  const cache = {};
+  const a = '\x1b[31mred\nstill red\x1b[0m\nplain\n\x1b[1mbold';
+  assert.deepEqual(Ansi.toHtmlLines(a, {}, cache), Ansi.toHtmlLines(a));
+  const n = cache.map.size;
+  // Moved up by a line, one new line at the end: one more entry. "plain" now starts unstyled
+  // after a line that reset: the same entry as before.
+  const b = 'still red\x1b[0m\nplain\n\x1b[1mbold\nnew';
+  assert.deepEqual(Ansi.toHtmlLines(b, {}, cache), Ansi.toHtmlLines(b));
+  assert.ok(cache.map.size <= n + 2);
+  // Other colours (the theme flipped): the cache starts again.
+  Ansi.toHtmlLines(b, { dark: true }, cache);
+  assert.equal(cache.map.size, 4);
 });
