@@ -764,6 +764,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 window.addEventListener('hashchange', route);
+// Into or out of the shell view, the keys the buttons show change (core.js hintCtx).
+window.addEventListener('hashchange', () => refreshKeyHints());
 // Links marked data-back go back in history when that is where they lead (see goBack).
 document.addEventListener('click', (e) => {
   const a = e.target.closest && e.target.closest('a[data-back]');
@@ -884,6 +886,28 @@ const KEY_ACTIONS = {
     if (!ws) return KEY_ACTIONS.newWorkspace();
     location.hash = link(host, `/start/ws/${encodeURIComponent(ws)}`);
     return true;
+  },
+  // The ⋯ menu: of the row the focus is on (the list, the workspace page), else of what is open.
+  // It opens beside its ⋯ (or the row) in the split layout (core.js menu).
+  menu() {
+    const a = document.activeElement;
+    const row = a && a.closest && a.closest('[data-kind]');
+    if (row && !topLayer()) {
+      rowMenu(row); // rows.js
+      return true;
+    }
+    const more = (id) => {
+      const b = document.getElementById(id);
+      return b && !b.hidden && b.offsetParent ? { el: b } : null;
+    };
+    if (view.name === 'agent' && currentAgent() && more('d-more')) return paneMenu('agent', currentAgent(), { anchor: more('d-more') }), true;
+    if (view.name === 'term' && currentTerminal() && more('t-more')) return paneMenu('term', currentTerminal(), { anchor: more('t-more') }), true;
+    if (view.name === 'ws') {
+      const w = (state.workspaces || []).find((x) => same(x, curHost(), view.id, 'workspace_id'));
+      const h1 = detailRoot().querySelector('.ws-bar h1');
+      if (w) return wsMenu(w, { anchor: h1 ? { el: h1 } : null }), true;
+    }
+    return false;
   },
   // As the list's +: on the host the list is filtered to, if any.
   newWorkspace() {

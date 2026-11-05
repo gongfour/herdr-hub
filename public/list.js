@@ -251,7 +251,7 @@ function hostSeg(f) {
     return `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}" aria-label="${esc(RowText.hostAria(x, warn))}"${warn ? ` title="${esc(warn)} — 배포가 필요합니다"` : ''}><span class="hdot" aria-hidden="true"></span><span class="hl">${esc(x.label)}</span>${warn ? '<span class="api-warn" aria-hidden="true">!</span>' : ''}</button>`;
   };
   return `
-    <nav class="seg hosts" role="group" aria-label="호스트"${keyAttrs(null, '호스트 바꾸기', 'Alt+←→')}>
+    <nav class="seg hosts" role="group" aria-label="호스트"${keyAttrs('prevHost|nextHost', '호스트 바꾸기')}>
       <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
       ${hosts().map(btn).join('')}
     </nav>`;
@@ -513,8 +513,13 @@ function agentRow(a) {
       <span class="pane-main"><span class="pane-title">${esc(a.title || a.name || a.agent || a.pane)}</span>${meta ? `<span class="pane-meta">${meta}</span>` : ''}</span>
       ${badge}
     </a>
+    ${rowMore(a.title || a.name || a.pane)}
   </div>`;
 }
+
+// A row's ⋯, shown while the pointer is over the row (style.css): the same menu as a right-click or
+// a long press (rows.js). Out of the Tab order: Alt+M opens the focused row's menu.
+const rowMore = (name) => `<button type="button" class="icon-btn row-more" tabindex="-1" aria-haspopup="dialog" aria-label="${esc(name)} 메뉴">${ICON.more}</button>`;
 
 function termRow(t) {
   return `<div class="sw" ${rowData('term', t.host, t.pane)}>
@@ -523,5 +528,6 @@ function termRow(t) {
       <span class="pane-main"><span class="pane-title">${esc(termTitle(t))}</span></span>
       <span class="pane-kind">셸</span>
     </a>
+    ${rowMore(termTitle(t))}
   </div>`;
 }

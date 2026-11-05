@@ -25,7 +25,8 @@ function bindList(main) {
     if (!row) return;
     e.preventDefault();
     if ((swipe.g && swipe.g.long) || Date.now() < swipe.mute) return;
-    rowMenu(row);
+    // A mouse's right-click: the menu at the pointer; a long press: the row's sheet.
+    rowMenu(row, e.button === 2 && lastPointer.type !== 'touch' ? { x: e.clientX, y: e.clientY } : null);
   });
 }
 
@@ -78,11 +79,12 @@ function rowClick(e) {
     e.stopPropagation();
     return;
   }
-  const more = e.target.closest('.ws-more');
+  const more = e.target.closest('.ws-more, .row-more');
   if (!more) return;
-  // The card's ⋯ opens the same menu as a long press, not another page.
+  // The card's ⋯ (and a row's, shown on hover) opens the same menu as a long press, not another page.
   e.preventDefault();
-  rowMenu(more.closest('[data-kind]'));
+  e.stopPropagation();
+  rowMenu(more.closest('[data-kind]'), { el: more });
 }
 
 function rowTarget(el) {
@@ -91,12 +93,25 @@ function rowTarget(el) {
   if (kind === 'ws') return wsFor(host, id);
   return (kind === 'agent' ? state.agents : state.terminals || []).find((x) => same(x, host, id));
 }
-const rowLabel = (kind, x) => (kind === 'ws' ? x.label : kind === 'agent' ? x.name || x.title : termTitle(x));
+// What a row reads as, the menu's title too: an agent's title (what the conversation is about) as
+// the list shows it, else its name.
+const rowLabel = (kind, x) => (kind === 'ws' ? x.label : kind === 'agent' ? x.title || x.name || x.agent || x.pane : termTitle(x));
 
-async function rowMenu(el) {
+// anchor: where the menu was asked for (a right-click's point, the row's ⋯); else the row itself,
+// which is marked while its menu is open (core.js menu).
+async function rowMenu(el, anchor) {
   const kind = el.dataset.kind;
   const x = rowTarget(el);
   if (!x) return;
-  if (kind === 'ws') wsMenu(x, { fromRow: true }); // actions.js: the same menus as the views' ⋯
-  else paneMenu(kind, x, { fromRow: true });
+  const at = { el: anchor && anchor.el ? anchor.el : el, x: anchor && anchor.x, y: anchor && anchor.y, mark: el };
+  if (kind === 'ws') wsMenu(x, { fromRow: true, anchor: at }); // actions.js: the same menus as the views' ⋯
+  else paneMenu(kind, x, { fromRow: true, anchor: at });
 }
+
+// A row's ⋯ outside the list (the workspace page draws the list's rows too).
+document.addEventListener('click', (e) => {
+  const more = e.target.closest && e.target.closest('.row-more');
+  if (!more || e.defaultPrevented) return;
+  e.preventDefault();
+  rowMenu(more.closest('[data-kind]'), { el: more });
+});

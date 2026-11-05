@@ -13,7 +13,7 @@ function renderDetail() {
         <span class="sync" id="d-sync" role="img" aria-label="새로 불러오는 중" title="새로 불러오는 중" hidden></span>
         <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', '모드 바꾸기')} hidden></button>
         <span id="d-badge"></span>
-        <button class="icon-btn" id="d-more" aria-label="더 보기">${ICON.more}</button>
+        <button class="icon-btn" id="d-more" aria-label="더 보기" aria-haspopup="dialog"${keyAttrs('menu', '더 보기')}>${ICON.more}</button>
       </header>
       <button type="button" class="activity" id="d-activity"${keyAttrs('terminal', '터미널 화면 보기')} hidden></button>
       <div class="screen-tools" id="s-tools" hidden></div>

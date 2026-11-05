@@ -102,20 +102,23 @@ const settingsShown = () => view.name === 'settings';
 
 // ------------------------------------------------------------ utilities
 
-// A button's shortcut: its title says it ("중단 (Alt+. ×2)"). keymap.js gives the keys, or hint for a key
-// its own field handles. Nothing when the action has no key.
+// A button's shortcut: its title says it ("중단 (Alt+. ×2)"). keymap.js gives the keys that work here
+// (the shell view takes other keys than the rest: Keymap.hint's ctx), or hint for a key its own
+// field handles. Nothing when the action has no key here.
+const hintCtx = () => ({ shell: view.name === 'term', split });
 const keyAttrs = (action, label, hint) => {
-  const h = hint ?? (action ? Keymap.hint(action) : '');
-  // An action's own hint follows changed keys (refreshKeyHints); a given one stays.
+  const h = hint ?? (action ? Keymap.hint(action, hintCtx()) : '');
+  // An action's own hint follows changed keys and the view (refreshKeyHints); a given one stays.
   const act = action && hint == null ? ` data-keyact="${esc(action)}" data-keylabel="${esc(label)}"` : '';
-  return (h ? ` title="${esc(label)} (${esc(h)})"` : '') + act;
+  return (h ? ` title="${esc(label)} (${esc(h)})"` : act ? ` title="${esc(label)}"` : '') + act;
 };
-// After keys change: the buttons on screen say the new ones.
+// After keys change, or the view changes (into or out of the shell): the buttons on screen say the
+// keys that work now.
 function refreshKeyHints() {
+  const ctx = hintCtx();
   for (const el of document.querySelectorAll('[data-keyact]')) {
-    const h = Keymap.hint(el.dataset.keyact);
-    if (h) el.title = `${el.dataset.keylabel} (${h})`;
-    else el.removeAttribute('title');
+    const h = Keymap.hint(el.dataset.keyact, ctx);
+    el.title = h ? `${el.dataset.keylabel} (${h})` : el.dataset.keylabel;
   }
 }
 
@@ -445,10 +448,15 @@ const topLayer = () => layers[layers.length - 1] || null;
 // validate(value) -> a hint while the typed value can't be used ('' when it can): shown under
 // the field as you type, and OK waits for a usable value.
 // cancel: null for a sheet that only tells something (one button).
-function sheet({ title, text = '', error = '', input = null, ok = '확인', cancel = '취소', danger = false, validate = null, again = false }) {
+// danger: a step that can't be undone. 취소 has the focus, so a habitual Enter keeps things; Ctrl+Enter
+// (⌘+Enter), or the key that asked (key: keymap.js's action, Alt+W again), confirms.
+function sheet({ title, text = '', error = '', input = null, ok = '확인', cancel = '취소', danger = false, validate = null, again = false, key = null }) {
   return new Promise((resolve) => {
     const el = document.createElement('div');
-    el.className = 'sheet-back';
+    // Split, a dialog about what is open on the right sits over the right column; one asked from the
+    // list stays in the middle of the screen (the list's column is too narrow for it).
+    const from = document.activeElement && document.activeElement !== document.body ? document.activeElement : lastPointer.el;
+    el.className = `sheet-back${split && !(from && from.closest && from.closest('#list-pane')) ? ' in-detail' : ''}`;
     // The text is the dialog's description (「되돌릴 수 없습니다」 is heard, not only the title). The
     // field comes with its old value picked, so typing replaces it, and an ⓧ that empties it (iOS has
     // no select-all-and-delete in reach).
@@ -463,6 +471,7 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', canc
           ${cancel ? `<button type="button" class="btn secondary" data-cancel>${esc(cancel)}</button>` : ''}
           <button type="submit" class="btn ${danger ? 'danger' : ''}">${esc(ok)}</button>
         </div>
+        ${danger && cancel && keyboardLikely() ? `<p class="confirm-keys" aria-hidden="true">${confirmKeys(key)}</p>` : ''}
       </form>`;
     const field = el.querySelector('input');
     const submit = el.querySelector('[type=submit]');
@@ -502,13 +511,31 @@ function sheet({ title, text = '', error = '', input = null, ok = '확인', canc
       if (!check()) return;
       done(input ? field.value : true);
     };
+    if (danger && cancel)
+      el.addEventListener('keydown', (e) => {
+        const same = key && Keymap.match(e, { shell: view.name === 'term' })?.action === key;
+        if (!(((e.ctrlKey || e.metaKey) && e.key === 'Enter') || same) || e.repeat) return;
+        e.preventDefault();
+        e.stopPropagation();
+        submit.click();
+      });
     check();
     // Shown again after an error: no slide, so it reads as the same sheet.
     // The OK button takes Enter when it came from a key; after a tap it would only look picked.
-    layer = openLayer(el, { onClose: (v) => resolve(v === undefined ? null : v), focus: field || (lastInput === 'key' ? submit : el.querySelector('.sheet')), animate: !again });
+    // A danger sheet gives Enter to 취소 instead (above).
+    const first0 = danger && cancel ? el.querySelector('[data-cancel]') : submit;
+    layer = openLayer(el, { onClose: (v) => resolve(v === undefined ? null : v), focus: field || (lastInput === 'key' ? first0 : el.querySelector('.sheet')), animate: !again });
     // Shown again after an error, the typed text stays as it was (the cursor at its end).
     if (field && !again && field.value) field.select();
   });
+}
+
+// The keys that confirm a danger sheet, as its button shows them: 「Ctrl+리턴」, and the key that
+// opened it when there is one (Alt+W).
+function confirmKeys(action) {
+  const again = action ? Keymap.hint(action, { shell: view.name === 'term' }) : '';
+  const enter = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘+리턴' : 'Ctrl+리턴';
+  return `<kbd>${enter}</kbd>${again ? ` 또는 <kbd>${esc(again)}</kbd> 한 번 더` : ''}로 확인 · <kbd>리턴</kbd> 취소`;
 }
 
 // Ask, post, and on failure ask again with the error and the typed text kept (the 새 폴더 way).
@@ -536,15 +563,27 @@ let lastInput = 'pointer';
 addEventListener('pointerdown', () => (lastInput = 'pointer'), true);
 addEventListener('keydown', (e) => !['Control', 'Alt', 'Shift', 'Meta'].includes(e.key) && (lastInput = 'key'), true);
 
+// The last pointer down: its kind (mouse, pen, touch), where, and on what. A menu asked for just
+// after it opens beside that (menu's anchor).
+const lastPointer = { type: 'mouse', x: 0, y: 0, el: null, t: 0 };
+addEventListener('pointerdown', (e) => Object.assign(lastPointer, { type: e.pointerType || 'mouse', x: e.clientX, y: e.clientY, el: e.target, t: Date.now() }), true);
+
 // items: [key, label, danger, note, action] (action: keymap.js's, whose key shows at the end of
-// the row with a keyboard), or '-' to start a new block. The danger items make the last block.
-// Opened from a key, the first item takes the focus (↑↓ and Enter); opened by a tap the sheet
-// itself does (lastInput), so no item looks picked before a finger picks it.
-function menu(title, items, { sub = '' } = {}) {
+// the row with a keyboard: the key that works here, the shell view's own), or '-' to start a new
+// block. The danger items make the last block.
+// Two ways to show it. Split and asked for by a mouse or a key: a small popover beside what asked
+// (anchor: { el, x, y, mark }: a right-click's point, else under the button, or under the row; mark:
+// the row it is about, marked while it is open), no 취소 (Esc, Ctrl+[, a click outside). Asked for by a finger, or on the phone: the sheet, opened from a key with its
+// first item focused, by a tap with the sheet itself focused so no item looks picked.
+// ↑↓ (Ctrl+J/K, the scroll keys) move through the items, Home/End to the first and last.
+function menu(title, items, { sub = '', anchor = null } = {}) {
   return new Promise((resolve) => {
     const kbd = keyboardLikely();
+    const ctx = hintCtx();
+    const at = menuAnchor(anchor);
+    const pop = Boolean(split && at && !(lastInput === 'pointer' && lastPointer.type === 'touch'));
     const row = ([key, label, danger, note, action]) => {
-      const k = kbd && action ? Keymap.hint(action) : '';
+      const k = kbd && action ? Keymap.hint(action, ctx) : '';
       return `<button class="action ${danger ? 'danger' : ''}" data-k="${esc(key)}"><span class="act-main">${esc(label)}${note ? `<span class="sub">${esc(note)}</span>` : ''}</span>${k ? `<kbd class="act-key">${esc(k)}</kbd>` : ''}</button>`;
     };
     const blocks = [[]];
@@ -554,21 +593,81 @@ function menu(title, items, { sub = '' } = {}) {
     }
     const risky = items.filter((x) => Array.isArray(x) && x[2]);
     const el = document.createElement('div');
-    el.className = 'sheet-back';
-    el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1">
+    el.className = `sheet-back${pop ? ' as-pop' : ''}`;
+    el.innerHTML = `<div class="sheet${pop ? ' pop' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1">
         <h2>${esc(title)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</h2>
         ${[...blocks.filter((b) => b.length), ...(risky.length ? [risky] : [])].map((b) => `<div class="actions">${b.map(row).join('')}</div>`).join('')}
-        <button class="btn secondary wide" data-k="">취소</button>
+        ${pop || lastInput === 'key' ? '' : '<button class="btn secondary wide" data-k="">취소</button>'}
       </div>`;
     let layer = null;
+    const mark = at && (at.mark || at.el);
     const done = (v) => closeLayer(layer, v);
     // A block body: an onclick that returns false would cancel the submit button's click.
     el.onclick = (e) => {
       if (e.target === el) done(null);
     };
+    el.addEventListener('contextmenu', (e) => {
+      if (e.target === el) {
+        e.preventDefault();
+        done(null);
+      }
+    });
     el.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => done(b.dataset.k)));
-    layer = openLayer(el, { onClose: (v) => resolve(v || null), focus: lastInput === 'key' ? '.action' : '.sheet' });
+    el.addEventListener('keydown', (e) => menuKey(e, el));
+    if (mark && mark.classList) mark.classList.add('menu-target');
+    layer = openLayer(el, {
+      onClose: (v) => {
+        if (mark && mark.classList) mark.classList.remove('menu-target');
+        resolve(v || null);
+      },
+      // From a key the first item; from a pointer the menu itself (↓ then goes to the first).
+      focus: lastInput === 'key' ? '.action' : '.sheet',
+    });
+    if (pop) placePop(el.querySelector('.sheet'), at);
   });
+}
+// What a menu opens beside: the anchor given, else what was just clicked (a button, a link, a row),
+// else the focused control a key opened it from. null: nothing to open beside (the middle).
+function menuAnchor(a) {
+  if (a && (a.el || a.x != null)) return a;
+  if (a && a.nodeType === 1) return { el: a };
+  const fresh = lastInput === 'pointer' && Date.now() - lastPointer.t < 1500 && lastPointer.el && lastPointer.el.isConnected;
+  const from = fresh ? lastPointer.el.closest && lastPointer.el.closest('button, a, [data-kind], [role=button]') : document.activeElement;
+  if (!from || from === document.body || !from.getBoundingClientRect) return null;
+  return { el: from };
+}
+// The popover beside its anchor, inside the window: under a button with their right edges lined
+// up (the left edges where that would leave the window), under a wide row a little in, at a point
+// from there; above when there is no room under it.
+function placePop(box, a) {
+  const m = 8;
+  const w = box.offsetWidth;
+  const h = box.offsetHeight;
+  const r = a.x != null ? { left: a.x, right: a.x, top: a.y, bottom: a.y, width: 0 } : a.el.getBoundingClientRect();
+  let left = a.x != null ? r.left : r.width > 160 ? r.left + 16 : r.right - w < m ? r.left : r.right - w;
+  left = Math.max(m, Math.min(left, innerWidth - w - m));
+  let top = r.bottom + 4;
+  if (top + h > innerHeight - m) top = r.top - h - 4 >= m ? r.top - h - 4 : Math.max(m, innerHeight - h - m);
+  box.style.left = `${Math.round(left)}px`;
+  box.style.top = `${Math.round(top)}px`;
+}
+// ↑↓ (and the scroll keys, Ctrl+J/K) through a menu's items, round at the ends; Home/End.
+function menuKey(e, el) {
+  if (e.isComposing || e.altKey || e.metaKey) return;
+  const acts = [...el.querySelectorAll('.action')];
+  if (!acts.length) return;
+  const i = acts.indexOf(document.activeElement);
+  const has = (action) => Keymap.keysFor(action).some((k) => Keymap.matches(e, k));
+  const bare = !e.ctrlKey && !e.shiftKey;
+  let to = null;
+  if ((bare && e.key === 'ArrowDown') || has('scrollDown')) to = i < 0 ? 0 : (i + 1) % acts.length;
+  else if ((bare && e.key === 'ArrowUp') || has('scrollUp')) to = i < 0 ? acts.length - 1 : (i - 1 + acts.length) % acts.length;
+  else if (bare && e.key === 'Home') to = 0;
+  else if (bare && e.key === 'End') to = acts.length - 1;
+  if (to == null) return;
+  e.preventDefault();
+  e.stopPropagation();
+  acts[to].focus();
 }
 
 // Toasts stack above the composer (newest at the bottom, three at most); the same text again

@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { GROUPS, PREFS, decode, encode, hintOf, createStore } = require('../public/prefs.js');
+const { GROUPS, PREFS, decode, encode, hintOf, createStore, shownOn } = require('../public/prefs.js');
 const { pushView, platformOf, deniedFix } = require('../public/push.js');
 
 // A localStorage stand-in: getItem / setItem / removeItem over a Map.
@@ -25,6 +25,7 @@ test('every row is well formed: a known group, a herdr-hub.* key used once, a va
     keys.add(p.key);
     stores.add(p.store);
     assert.ok(['choice', 'bool'].includes(p.type), p.key);
+    assert.ok(p.when === undefined || p.when === 'touch', p.key);
     if (p.type === 'bool') assert.equal(typeof p.default, 'boolean');
     else {
       assert.ok(Object.keys(p.options).length >= 2, p.key);
@@ -282,4 +283,11 @@ test('목록 칸 폭: a named width or a dragged one (a whole number in range); 
     assert.throws(() => store.set('listW', bad));
   }
   for (const raw of ['10', '9999', 'x']) assert.equal(decode(p, raw), 'auto', raw);
+});
+
+test('a touch gesture\'s setting shows only with a touch screen; the rest everywhere', () => {
+  const edge = PREFS.find((p) => p.key === 'edgeForward');
+  assert.equal(shownOn(edge, { touch: true }), true);
+  assert.equal(shownOn(edge, { touch: false }), false);
+  for (const p of PREFS.filter((x) => x.key !== 'edgeForward')) assert.equal(shownOn(p, { touch: false }), true, p.key);
 });

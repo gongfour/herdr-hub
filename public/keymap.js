@@ -36,6 +36,7 @@
     focusInput: { group: '어디서나', label: '입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)', noShell: true },
     newAgent: { group: '어디서나', label: '새 에이전트: 지금 연 것의 작업공간에 (목록이면 새 워크스페이스)' },
     newWorkspace: { group: '어디서나', label: '새 워크스페이스' },
+    menu: { group: '어디서나', label: '⋯ 메뉴 열기: 지금 연 에이전트·셸·워크스페이스의 것 (목록 줄에 포커스가 있으면 그 줄의 것)' },
     switcher: { group: '어디서나', label: '빠른 이동: 에이전트·셸을 이름·작업공간·호스트로 찾아 열기 (셸 화면에서는 Alt+P)' },
     lastView: { group: '어디서나', label: '직전에 보던 에이전트·셸로 (다시 누르면 돌아온다; 목록에서는 방금 나온 것, 「방금 본 대화」)' },
     nextBlocked: { group: '어디서나', label: '다음 답 필요 에이전트 열기 (목록 순서로 돌아가며)' },
@@ -52,7 +53,7 @@
     terminal: { group: '대화·터미널 화면', label: '대화 화면에서 터미널 화면 열기·닫기', noShell: true },
     termFontUp: { group: '대화·터미널 화면', label: '셸 글자 키우기 (설정 → 셸 글자 크기)' },
     termFontDown: { group: '대화·터미널 화면', label: '셸 글자 줄이기' },
-    closeView: { group: '대화·터미널 화면', label: '연 에이전트·셸(또는 워크스페이스) 닫기: 확인 창에서 리턴으로 닫고 Esc 로 그만둔다' },
+    closeView: { group: '대화·터미널 화면', label: '연 에이전트·셸(또는 워크스페이스) 닫기: 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 닫고, 리턴·Esc 로 그만둔다' },
     mode: { group: '대화·터미널 화면', label: '에이전트 모드 바꾸기 (메시지 칸에서; Claude Code 의 Shift+Tab)', noShell: true },
     prevHost: { group: '목록', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
@@ -145,6 +146,10 @@
     b('closeView', 'Alt+w', { field: true }),
     // Ctrl+Alt+W in the shell view too: no shell key (keys.js sends no Ctrl+Alt chord to the shell).
     b('closeView', 'Ctrl+Alt+w', { field: true, shell: true }),
+    // Alt+M: the ⋯ menu (M for menu). Alt+M is the shell's (back to indentation), so in the shell
+    // view Ctrl+Alt+M (no shell key: keys.js sends no Ctrl+Alt chord to the shell).
+    b('menu', 'Alt+m', { field: true }),
+    b('menu', 'Ctrl+Alt+m', { field: true, shell: true }),
     // Shift+Tab is the shell's (and moves the focus back on the page): only the message box takes it
     // (KEY_ACTIONS.mode), so a field, not the shell view.
     b('mode', 'Shift+Tab', { field: true }),
@@ -169,6 +174,11 @@
     { group: '빠른 이동', key: 'Enter', label: '고른 것 열기. Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
     { group: '빠른 이동', key: 'Ctrl+j', follows: 'scrollDown', label: '다음 것 고르기 (↓ 와 같다. 맨 끝 다음은 맨 앞; 아래로 스크롤의 키)' },
     { group: '빠른 이동', key: 'Ctrl+k', follows: 'scrollUp', label: '이전 것 고르기 (↑ 와 같다; 위로 스크롤의 키)' },
+    { group: '메뉴·확인 창', key: 'ArrowDown', label: '메뉴의 다음 항목 (↑ 는 이전. 끝 다음은 처음)' },
+    { group: '메뉴·확인 창', key: 'Ctrl+j', follows: 'scrollDown', label: '메뉴의 다음 항목 (↓ 와 같다)' },
+    { group: '메뉴·확인 창', key: 'Ctrl+k', follows: 'scrollUp', label: '메뉴의 이전 항목 (↑ 와 같다)' },
+    { group: '메뉴·확인 창', key: 'Home', label: '메뉴의 첫 항목 (End 는 마지막)' },
+    { group: '메뉴·확인 창', key: 'Ctrl+Enter', label: '되돌릴 수 없는 일의 확인 창에서 확인 (리턴은 처음 골라 둔 「취소」; 그 창을 연 키를 한 번 더 눌러도 확인)' },
   ];
 
   const MODS = ['Ctrl', 'Alt', 'Meta', 'Shift'];
@@ -477,13 +487,31 @@
     return [k.ctrl && 'Ctrl', k.alt && 'Alt', k.meta && '⌘', k.shift && 'Shift', name].filter(Boolean).join('+');
   }
 
-  // The keys a button shows (its title, and the badge while Ctrl or Alt is held): an action's own
-  // hint, else its first key.
-  function hint(action) {
+  // The keys a button shows (its title, a menu row's key, a key line):
+  // the first key that works where it is shown. ctx: as for match ({ field, shell, layer, split });
+  // split: false leaves out the keys of the two-column layout.
+  // 뒤로 shows Esc and Ctrl+[ both (a keyboard cover's Esc never reaches the page); in the shell
+  // view its keys are the shell's Esc, so it shows none there.
+  function usable(x, ctx) {
+    return !((ctx.field && !x.field) || (ctx.shell && !x.shell) || (ctx.layer && !x.layer) || (x.split && ctx.split === false));
+  }
+  // 'prevHost|nextHost': a pair of actions as one, 「Alt+←→」.
+  function hint(action, ctx = {}) {
+    if (action.includes('|')) {
+      const [p, q] = action.split('|').map((x) => hint(x, ctx));
+      if (!p || !q) return p || q;
+      const pre = (k) => k.slice(0, k.lastIndexOf('+') + 1);
+      return pre(p) && pre(p) === pre(q) ? p + q.slice(pre(q).length) : `${p} · ${q}`;
+    }
     const a = ACTIONS[action];
-    const x = active.find((y) => y.action === action);
-    if (!x) return '';
-    return a && a.twice ? `${label(x.key)} ×2` : label(x.key);
+    if (!a || (ctx.shell && a.shellEsc)) return '';
+    const own = active.filter((y) => y.action === action && usable(y, ctx));
+    if (!own.length) return '';
+    if (action === 'back') {
+      const two = [own.find((y) => y.key === 'Escape'), own.find((y) => parse(y.key).ctrl || parse(y.key).alt)].filter(Boolean);
+      if (two.length) return two.map((y) => label(y.key)).join(' · ');
+    }
+    return a.twice ? `${label(own[0].key)} ×2` : label(own[0].key);
   }
 
   // A LOCAL row's keys: an action's (follows: the field uses that action's keys), else its own.

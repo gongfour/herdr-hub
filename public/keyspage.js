@@ -35,7 +35,7 @@ function renderKeys({ focus = false } = {}) {
       </header>
       <main class="panel settings keys-page" tabindex="-1" aria-labelledby="k-title">
         <div class="k-search">
-          <input type="search" id="k-q" placeholder="동작이나 키 이름으로 찾기" aria-label="단축키 찾기" autocomplete="off" enterkeyhint="search">
+          <input type="search" id="k-q" class="search-field" placeholder="동작이나 키 이름으로 찾기" aria-label="단축키 찾기" autocomplete="off" enterkeyhint="search">
           <button type="button" class="toggle" id="k-rec" aria-pressed="false" title="키를 눌러 그 키를 쓰는 동작 찾기">⌨ 키로 찾기</button>
         </div>
         <p class="k-heard" id="k-heard" role="status" hidden></p>

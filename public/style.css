@@ -706,45 +706,50 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   border-radius: 18px 18px 0 0; padding: 18px 16px calc(16px + var(--safe-bottom)); border-top: 1px solid var(--line);
   box-shadow: 0 -6px 24px rgb(0 0 0 / 0.2); display: flex; flex-direction: column; gap: 10px;
 }
+/* A danger sheet's keys (core.js sheet): 취소 has Enter, Ctrl+리턴 (or its own key again) confirms. */
+.sheet .confirm-keys { margin: -2px 0 0; text-align: right; font-size: 12px; color: var(--muted); }
+.confirm-keys kbd { font: 11px/1 var(--mono); padding: 2px 5px; margin: 0 1px; border-radius: 5px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); }
 .sheet h2 { font-size: 17px; margin: 0; }
 .sheet h2 > .sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
 .actions + .actions { margin-top: 2px; }
 
 /* 빠른 이동 (switcher.js): a palette at the top, clear of the phone's keyboard. */
 .qs-back { align-items: flex-start; padding: calc(10px + var(--safe-top)) 10px 10px; }
+/* A card as everything floating is (the centred dialog, a menu's popover): the card's border and
+   corner, the one shadow (--pop-shadow), the dialog's pop-in. */
 .qs {
-  width: 100%; max-width: 560px; max-height: min(100%, 560px); display: flex; flex-direction: column; overflow: hidden;
-  background: var(--surface); color: var(--text); border-radius: 16px; box-shadow: 0 10px 32px rgb(0 0 0 / 0.25);
-  animation: qs-in 0.16s ease-out;
+  width: 100%; max-width: 560px; max-height: min(100%, 600px); display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--pop-shadow);
+  animation: pop-in 0.16s ease-out;
 }
-@keyframes qs-in { from { transform: translateY(-8px); opacity: 0.6; } }
-.qs-back.closing > .qs { animation: fade-out 0.16s ease-in forwards; }
+.qs-back.closing > .qs { animation: pop-out 0.16s ease-in forwards; }
 .qs-top { display: flex; align-items: center; gap: 4px; padding: 10px; }
 .qs-field { flex: 1; min-width: 0; margin: 0; width: auto; }
 .qs-cancel { flex: none; min-height: 44px; padding: 0 10px; border: 0; border-radius: 10px; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
 .qs-cancel:active { background: var(--surface-2); }
 /* Opened by a finger: nothing looks picked until something is typed or ↑↓ pressed (switcher.js). */
-.qs.by-touch:has(.qs-field:placeholder-shown) .qs-row[aria-selected="true"] { background: none; }
+.qs.by-touch:has(.qs-field:placeholder-shown) .qs-row[aria-selected="true"] { background: var(--surface); box-shadow: none; }
 .qs-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
-.qs-row {
-  position: relative; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 14px; cursor: pointer;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); -webkit-user-select: none; user-select: none;
-}
-.qs-row:last-child { border-bottom: 0; }
-.qs-row[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+/* The rows are the list's (.pane-row: icon, title, name · time, status, unread dot); the picked one
+   as the list marks the open row, a tint and a bar at its left edge (readable in dark too). */
+.qs-row { position: relative; cursor: pointer; border-top: 1px solid var(--line); background: var(--surface); -webkit-user-select: none; user-select: none; }
+.qs-list > .qs-row:first-child { border-top: 0; }
+.qs-row[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent); }
 .qs-row:active { background: var(--surface-2); }
-.qs-row .pane-ic { background: var(--surface-2); }
-.qs-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.qs-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qs-row.unread .qs-name { font-weight: 700; }
-.qs-title { color: var(--muted); font-weight: 400; }
-.qs-where { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qs-where:empty { display: none; }
 .qs-row .badge, .qs-row .pane-kind { flex: none; }
+/* The one open now: last, dimmed, 「지금 보는 중」 on its small line. */
+.qs-row.here > * { opacity: 0.55; }
+/* Where the order changes (기다림 · 작업 중 · 그 밖 · 지금 보는 중); ↑↓ step over it. */
+.qs-head { padding: 10px 14px 4px 22px; font-size: 13px; font-weight: 600; color: var(--muted); border-top: 1px solid var(--line); }
+.qs-list > .qs-head:first-child { border-top: 0; padding-top: 8px; }
+.qs-head + .qs-row { border-top: 0; }
 .qs-none { margin: 0; padding: 14px; font-size: 14px; color: var(--muted); }
 .qs-keys { margin: 0; padding: 8px 14px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
 .qs-keys kbd { font: 11px/1 var(--mono); padding: 2px 5px; margin: 0 1px; border-radius: 5px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); }
 @media (hover: hover) { .qs-row:hover { background: color-mix(in srgb, var(--surface-2) 65%, var(--surface)); } .qs-row[aria-selected="true"]:hover { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); } }
+/* One search field (빠른 이동, 단축키 찾기): a surface field, the field's 3:1 outline, a 2px accent ring. */
+.search-field { min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--field-line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px; } /* 16px: iOS zooms into a smaller field */
+.search-field:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .action .sub { display: block; font-size: 12px; color: var(--muted); margin-top: -2px; }
 .action:has(.sub) { padding-top: 6px; padding-bottom: 6px; }
 .sheet p { margin: 0; color: var(--muted); font-size: 14px; }
@@ -1086,7 +1091,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 @media (min-width: 760px) and (min-height: 700px) {
   /* A dialog in the middle reads better than a bottom sheet on a laptop. */
   .sheet-back { align-items: center; }
-  .sheet:not(.term-sheet):not(.browser) { border-radius: 18px; padding-bottom: 16px; }
+  .sheet:not(.term-sheet):not(.browser) { border-radius: 18px; padding-bottom: 16px; border: 1px solid var(--line); box-shadow: var(--pop-shadow); }
   .sheet-back > .sheet:not(.term-sheet):not(.browser) { animation-name: pop-in; }
   .sheet-back.closing > .sheet:not(.term-sheet):not(.browser) { animation-name: pop-out; }
 }
@@ -1488,8 +1493,7 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 /* 단축키 page (keyspage.js), in 설정's cards: the action and where it works on the left, its keys
    (× to take off, + to add) on the right; stacked when narrow. */
 .keys-page .k-search { display: flex; gap: 8px; align-items: center; position: sticky; top: -16px; z-index: 2; padding: 8px 0; background: var(--bg); }
-.keys-page .k-search input { flex: 1; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 16px; } /* 16px: iOS zooms into a smaller field */
-.keys-page .k-search input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; }
+.keys-page .k-search input { flex: 1; min-width: 0; } /* .search-field */
 .keys-page .k-search .toggle { flex: none; min-height: 44px; white-space: nowrap; }
 #k-list { display: flex; flex-direction: column; gap: 18px; } /* 설정's gap, one level down */
 .keys-page .k-note { margin: 0 4px; }
@@ -1536,7 +1540,7 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 }
 .ws-dock .btn { flex: 1; justify-content: center; margin: 0; min-height: 48px; }
 :is(#app, .col) > main.panel:has(+ .ws-dock) { padding-bottom: 16px; }
-.split #detail-pane > .ws-dock { padding-inline: max(24px, calc((100% - 760px) / 2)); }
+.split #detail-pane > .ws-dock { padding-inline: max(24px, calc((100% - 720px) / 2)); }
 /* The name may take two lines (a long one isn't cut off with no way to read it). */
 .ws-bar h1 { white-space: normal; }
 .ws-bar h1 .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
@@ -1639,3 +1643,64 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 .fwd-chip :focus-visible { outline-offset: -3px; }
 :root.fwd-on:not(.split) #app > main.home { padding-bottom: 84px; }
 @media (prefers-reduced-motion: reduce) { .fwd-chip, .fwd-chip.closing { animation: none; transition: none; } }
+
+/* ---- floating layers on wide screens (core.js menu, switcher.js): one shadow for every card that
+   floats over the page (the palette, the centred dialog, a menu's popover). */
+:root { --pop-shadow: 0 12px 32px rgb(0 0 0 / 0.18); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pop-shadow: 0 12px 32px rgb(0 0 0 / 0.45); } }
+:root[data-theme="dark"] { --pop-shadow: 0 12px 32px rgb(0 0 0 / 0.45); }
+
+/* A menu asked for with a mouse or a key in the split layout: a popover beside what asked, over a
+   page left as it is (no dimming), its rows as compact as a desktop menu's. */
+.sheet-back.as-pop { background: transparent; animation: none; }
+.sheet-back.as-pop > .sheet.pop {
+  position: fixed; width: 300px; max-width: calc(100vw - 16px); max-height: calc(100% - 16px); padding: 8px 6px 6px; gap: 4px;
+  border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--pop-shadow);
+  animation: pop-in 0.12s ease-out; transform-origin: top right;
+}
+.sheet-back.as-pop.closing > .sheet.pop { animation: pop-out 0.1s ease-in forwards; }
+.sheet.pop h2 { padding: 0 8px 4px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet.pop .actions { border: 0; border-radius: 0; overflow: visible; }
+.sheet.pop .actions + .actions { margin-top: 0; padding-top: 4px; border-top: 1px solid var(--line); }
+.sheet.pop .action { min-height: 36px; padding: 6px 10px; border: 0; border-radius: 8px; font-size: 14px; }
+.sheet.pop .action .sub { margin-top: 0; }
+.sheet.pop .action:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { .sheet-back.as-pop > .sheet.pop, .sheet-back.as-pop.closing > .sheet.pop { animation: none; } }
+
+/* What an open menu is about: its row, with the card's ring (the ⋯ that opened it looks pressed). */
+.menu-target > .sw-front, .sw-front.menu-target { box-shadow: inset 0 0 0 2px var(--accent); }
+.icon-btn.menu-target, .rail-btn.menu-target { background: var(--surface-2); }
+
+/* A row's ⋯ (list.js rowMore): with a mouse, shown while the pointer is over the row (or its menu is open;
+   a key has Alt+M), at the row's right end in its status's place; a finger has the long press. */
+.sw > .row-more { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .sw > .row-more {
+    display: grid; position: absolute; z-index: 2; top: 50%; right: 6px; transform: translateY(-50%); opacity: 0; pointer-events: none;
+    width: 36px; height: 36px; color: var(--muted); background: none;
+  }
+  .sw:hover > .row-more, .sw.menu-target > .row-more { opacity: 1; pointer-events: auto; }
+  .sw > .row-more:hover { background: var(--surface-2); color: var(--text); }
+  /* It takes the status's place while shown (the row says it again once the pointer leaves). */
+  .sw:is(:hover, .menu-target) > .sw-front > :is(.badge, .pane-kind) { visibility: hidden; }
+}
+
+/* A dialog about what is open on the right (core.js sheet): in the middle of the right column. */
+.split .sheet-back.in-detail { padding-left: var(--side-w); }
+
+/* 빠른 이동 in the split layout: over the right column, where what it opens will be, the list left in
+   view beside it to match its rows against. */
+.split .sheet-back.qs-back { padding-left: calc(var(--side-w) + 16px); padding-right: 16px; }
+.split .qs { max-width: 600px; }
+
+/* The two notices at the top (hub-down, a new version), split: their words and buttons in one
+   centred measure, so 「다시 시도」 and 새로고침 sit at the end of their line, not mid-screen or 1300px away. */
+:root.split .hub-down .hd-body { max-width: 960px; margin-inline: auto; }
+:root.split .update-bar { padding-inline: max(16px, calc((100% - 960px) / 2)); }
+/* While the hub-down notice says so, the headers' 끊김 chips say nothing more; split, the sidebar's
+   chip alone tells the stream is down (the right column's header would say it a second time). */
+:root.split.has-down .live-chip, :root.split #detail-pane .live-chip { display: none; }
+
+/* A page in 설정's column (설정, 단축키, a workspace): its title lined up with the 720px column below
+   it; ✕ stays at the column's edge. */
+.split #detail-pane > .bar:has(+ .panel.settings) { padding-left: max(16px, calc((100% - 720px) / 2)); }

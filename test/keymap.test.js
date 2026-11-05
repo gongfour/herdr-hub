@@ -598,3 +598,42 @@ test('F6 / Shift+F6: the focus to the next / previous column, split only; a fiel
   assert.equal(KM0.shellKey(ev('F6'), { shell: true }), 'f6'); // the phone: the shell's
   assert.equal(act('Ctrl+F6', { split: true }), null);
 });
+
+test('hint follows where it is shown: the shell view, the split layout', () => {
+  // The shell view: the keys that reach the Hub there, never the shell's own.
+  assert.equal(hint('wrap'), 'Alt+Z');
+  assert.equal(hint('wrap', { shell: true }), 'Ctrl+Alt+Z');
+  assert.equal(hint('closeView', { shell: true }), 'Ctrl+Alt+W');
+  assert.equal(hint('toggleSide', { shell: true, split: true }), 'Alt+B');
+  assert.equal(hint('switcher', { shell: true }), 'Alt+P');
+  assert.equal(hint('menu', { shell: true }), 'Ctrl+Alt+M');
+  assert.equal(hint('nextHost', { shell: true }), ''); // Alt+←/→ are the shell's word keys
+  assert.equal(hint('back', { shell: true }), ''); // the shell's Esc there
+  // 뒤로: Esc and Ctrl+[ (a keyboard cover's Esc never reaches the page).
+  assert.equal(hint('back'), 'Esc · Ctrl+[');
+  // A pair as one: the host row's 「Alt+←→」, none in the shell view.
+  assert.equal(hint('prevHost|nextHost'), 'Alt+←→');
+  assert.equal(hint('prevHost|nextHost', { shell: true }), '');
+  // Split-only keys say nothing on the phone.
+  assert.equal(hint('nextRow', { split: false }), '');
+  // A changed key is what it shows.
+  withKeys({ wrap: ['Alt+q'] }, () => assert.equal(hint('wrap', { shell: true }), ''));
+});
+
+test('menu: Alt+M on the page and in a field, not in the shell view; Ctrl+Alt+M everywhere but a sheet', () => {
+  assert.equal(act('Alt+m', {}), 'menu');
+  assert.equal(act('Alt+m', { field: true }), 'menu');
+  assert.equal(act('Alt+m', {}, { key: 'µ', code: 'KeyM' }), 'menu'); // a Mac's Option+M
+  assert.equal(act('Alt+m', { shell: true, field: true }), null); // the shell's alt+m
+  assert.equal(KM0.shellKey(ev('Alt+m'), { shell: true, field: true }), 'alt+m');
+  for (const ctx of [{}, { field: true }, { shell: true }, { shell: true, field: true }]) assert.equal(act('Ctrl+Alt+m', ctx), 'menu');
+  assert.equal(rawKeyName(ev('Ctrl+Alt+m')), null);
+  assert.equal(act('Alt+m', { layer: true }), null);
+  assert.equal(act('Ctrl+Alt+m', { layer: true }), null);
+});
+
+test('the sheet lists the menu keys and the confirm key', () => {
+  const g = sheetGroups().find((x) => x.group === '메뉴·확인 창');
+  const keys = g.rows.flatMap((r) => r.keys);
+  for (const k of ['↓', 'Ctrl+J', 'Ctrl+K', 'Home', 'Ctrl+리턴']) assert.ok(keys.includes(k), k);
+});

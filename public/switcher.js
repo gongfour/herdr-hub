@@ -4,7 +4,11 @@
 // a tap on its row would (split: on the right, with the caret in its field, as Alt+↑/↓ does).
 // Esc / Ctrl+[ close it like any layer. With nothing typed, what wants you first: 답 필요, then a
 // new result (a finished agent not yet read), then 작업 중, then the rest; each by when it was
-// last opened here. Typed: the name's match first, then that same order.
+// last opened here, under a small heading where the order changes (기다림 · 작업 중 · 그 밖); the
+// one open now last, dimmed (Enter on the first row never opens it again). Typed: the name's match
+// first, then that same order. Each row is the list's own (list.js agentRow / termRow: its icon,
+// title, name and time, status and unread dot), with where it is under it; split, the palette sits
+// over the right column, where what it opens will be, so the list stays in view beside it.
 
 // Opened here lately (agent and shell addresses, newest first), on this device.
 const RECENT_KEY = 'herdr-hub.recent';
@@ -38,6 +42,7 @@ const switcherOpen = () => Boolean(qs && !qs.layer.closed);
 // Every agent and shell of every host, with what is matched and how it sorts.
 function switcherRows() {
   const recent = recentList();
+  const now = isDetail() ? location.hash : '';
   const rank = (href) => {
     const i = recent.indexOf(href);
     return i < 0 ? RECENT_MAX : i;
@@ -45,11 +50,11 @@ function switcherRows() {
   const rows = [];
   for (const a of state.agents || []) {
     const href = link(a.host, `/agent/${encodeURIComponent(a.pane)}`);
-    rows.push({ href, kind: 'agent', x: a, name: a.name || a.title || a.pane, title: a.name ? a.title : '', ws: a.workspaceLabel, host: a.hostLabel || hostLabel(a.host), status: a.status, unread: isUnread(a), recent: rank(href) });
+    rows.push({ href, kind: 'agent', x: a, name: a.name || a.title || a.pane, title: a.name ? a.title : '', ws: a.workspaceLabel, host: a.hostLabel || hostLabel(a.host), status: a.status, unread: isUnread(a), recent: rank(href), here: href === now });
   }
   for (const t of state.terminals || []) {
     const href = link(t.host, `/term/${encodeURIComponent(t.pane)}`);
-    rows.push({ href, kind: 'term', x: t, name: termTitle(t), title: '', ws: t.workspaceLabel, host: t.hostLabel || hostLabel(t.host), status: 'term', unread: false, recent: rank(href) });
+    rows.push({ href, kind: 'term', x: t, name: termTitle(t), title: '', ws: t.workspaceLabel, host: t.hostLabel || hostLabel(t.host), status: 'term', unread: false, recent: rank(href), here: href === now });
   }
   return rows;
 }
@@ -57,10 +62,15 @@ function switcherRows() {
 // Lower case, one space: Korean is matched as typed (each word of the query a substring).
 const fold = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
+// What wants you first: 답 필요, a new result, 작업 중, the rest.
+const switcherOrder = (r) => (r.status === 'blocked' ? 0 : r.unread ? 1 : r.status === 'working' ? 2 : 3);
+// The heading a row goes under with nothing typed.
+const switcherGroup = (r) => (r.here ? '지금 보는 중' : ['기다림', '기다림', '작업 중', '그 밖'][switcherOrder(r)]);
+
 function switcherFilter(rows, query) {
   const words = fold(query).split(' ').filter(Boolean);
-  const open = (r) => (r.status === 'blocked' ? 0 : r.unread ? 1 : r.status === 'working' ? 2 : 3);
-  if (!words.length) return rows.sort((p, q) => open(p) - open(q) || p.recent - q.recent);
+  const open = switcherOrder;
+  if (!words.length) return rows.sort((p, q) => Number(p.here) - Number(q.here) || open(p) - open(q) || p.recent - q.recent);
   const out = [];
   for (const r of rows) {
     const name = fold(r.name);
@@ -73,12 +83,23 @@ function switcherFilter(rows, query) {
   return out.sort((p, q) => p.score - q.score || open(p) - open(q) || p.recent - q.recent);
 }
 
-function switcherBadge(r) {
-  if (r.status === 'blocked') return '<span class="badge blocked">답 필요</span>';
-  if (r.status === 'working') return '<span class="badge working">작업 중</span>';
-  if (r.unread) return '<span class="badge done">새 결과</span>';
-  if (r.kind === 'term') return '<span class="pane-kind">셸</span>';
-  return '';
+// A row as the list draws it (list.js), its front only (no ⋯), with where it is (workspace, the host
+// when there are several) on its small line, and 「지금 보는 중」 for the one open now.
+function switcherRowHtml(r, i) {
+  const t = document.createElement('template');
+  t.innerHTML = (r.kind === 'term' ? termRow(r.x) : agentRow(r.x)).trim();
+  const front = t.content.querySelector('.sw-front');
+  const main = front.querySelector('.pane-main');
+  let meta = main.querySelector('.pane-meta');
+  if (!meta) {
+    meta = document.createElement('span');
+    meta.className = 'pane-meta';
+    main.appendChild(meta);
+  }
+  const where = [r.here ? '지금 보는 중' : '', r.ws, multi() ? r.host : ''].filter(Boolean).map(esc);
+  if (where.length) meta.insertAdjacentHTML('beforeend', (meta.childNodes.length ? '<span class="sep"> · </span>' : '') + where.join('<span class="sep"> · </span>'));
+  const cls = front.className.replace(/\bsw-front\b/, '').trim();
+  return `<div class="qs-row ${cls}${r.here ? ' here' : ''}" role="option" id="qs-${i}" data-i="${i}" aria-selected="${i === qs.sel}">${front.innerHTML}</div>`;
 }
 
 function renderSwitcher() {
@@ -89,18 +110,21 @@ function renderSwitcher() {
   const keep = sel ? qs.items.findIndex((r) => r.href === sel.href) : -1;
   qs.sel = keep >= 0 && !qs.typed ? keep : 0;
   qs.typed = false;
-  const where = (r) => [r.ws, multi() ? r.host : ''].filter(Boolean).map(esc).join(' · ');
+  // Headings where the order changes, with nothing typed and more than one group to tell apart.
+  const typed = Boolean(fold(qs.input.value));
+  const heads = !typed && new Set(qs.items.map(switcherGroup)).size > 1;
+  let last = null;
   qs.list.innerHTML = qs.items.length
     ? qs.items
-        .map(
-          (r, i) => `<div class="qs-row${r.unread ? ' unread' : ''}" role="option" id="qs-${i}" data-i="${i}" aria-selected="${i === qs.sel}">
-            <span class="pane-ic" aria-hidden="true">${r.kind === 'term' ? ICON.term : agentIcon(r.x)}</span>
-            <span class="qs-main"><span class="qs-name">${esc(r.name)}${r.title ? `<span class="qs-title"> · ${esc(r.title)}</span>` : ''}</span><span class="qs-where">${where(r)}</span></span>
-            ${switcherBadge(r)}
-          </div>`,
-        )
+        .map((r, i) => {
+          const g = switcherGroup(r);
+          const head = heads && g !== last ? `<div class="qs-head" role="presentation">${esc(g)}</div>` : '';
+          last = g;
+          return head + switcherRowHtml(r, i);
+        })
         .join('')
     : `<p class="qs-none">${state.agents.length || (state.terminals || []).length ? '맞는 에이전트·셸이 없습니다' : '아직 에이전트·셸이 없습니다'}</p>`;
+  fillTimes(qs.list); // list.js: 「방금」, 「4분」
   moveSwitcher(0);
 }
 
@@ -132,6 +156,14 @@ function openSwitched(r) {
   } else afterHist(() => (location.hash = r.href));
 }
 
+// The key line under the list, from the table (changed keys, 뒤로's Ctrl+[ for a keyboard cover).
+function switcherKeys() {
+  const kbd = (k) => `<kbd>${esc(k)}</kbd>`;
+  const jk = [Keymap.keysFor('scrollDown')[0], Keymap.keysFor('scrollUp')[0]].filter(Boolean).map(Keymap.label);
+  const back = Keymap.hint('back').split(' · ');
+  return `${kbd('↑')}${kbd('↓')}${jk.length ? ` ${jk.map(kbd).join('')}` : ''} 고르기 · ${kbd('리턴')} 열기 · ${back.map(kbd).join('')} 닫기`;
+}
+
 // Ctrl+P / Alt+P. Again while it is open: closed. Under another sheet: taken, nothing opens
 // (the browser would print).
 function toggleSwitcher() {
@@ -146,14 +178,16 @@ function toggleSwitcher() {
   // leaves little dimmed page to tap, and iOS has no Back), and no row looks picked before
   // anything is typed (by-touch; once typed, the picked row is what 이동 opens).
   const touch = !keyboardLikely() && lastInput === 'pointer';
+  // 취소 only when a finger opened it (a key has Esc and Ctrl+[), as a menu's.
+  const byKey = lastInput === 'key';
   el.innerHTML = `<div class="qs${touch ? ' by-touch' : ''}" role="dialog" aria-modal="true" aria-label="빠른 이동">
       <div class="qs-top">
-        <input class="field qs-field" type="text" placeholder="에이전트·셸 이름, 작업공간, 호스트" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
+        <input class="field search-field qs-field" type="text" placeholder="에이전트·셸 이름, 작업공간, 호스트" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
           role="combobox" aria-expanded="true" aria-controls="qs-list" aria-autocomplete="list" aria-label="빠른 이동 검색">
-        <button type="button" class="qs-cancel" data-cancel>취소</button>
+        ${byKey ? '' : '<button type="button" class="qs-cancel" data-cancel>취소</button>'}
       </div>
       <div class="qs-list" id="qs-list" role="listbox" aria-label="에이전트·셸"></div>
-      ${keyboardLikely() ? '<p class="qs-keys" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd> 고르기 · <kbd>리턴</kbd> 열기 · <kbd>Esc</kbd> 닫기</p>' : ''}
+      ${keyboardLikely() ? `<p class="qs-keys" aria-hidden="true">${switcherKeys()}</p>` : ''}
     </div>`;
   const input = el.querySelector('input');
   const list = el.querySelector('.qs-list');

@@ -32,7 +32,7 @@ function renderTerminal() {
         ${backLink(homeHash())}
         <h1 id="t-title"></h1>
         <span id="t-live"></span>
-        <button class="icon-btn" id="t-more" aria-label="더 보기">${ICON.more}</button>
+        <button class="icon-btn" id="t-more" aria-label="더 보기" aria-haspopup="dialog"${keyAttrs('menu', '더 보기')}>${ICON.more}</button>
       </header>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="term-gone" id="t-gone" hidden></div>

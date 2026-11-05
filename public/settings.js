@@ -40,7 +40,8 @@ function prefHtml(p) {
 
 function settingsHtml() {
   const groups = Prefs.GROUPS.map((g) => {
-    const rows = Prefs.PREFS.filter((p) => p.group === g.id);
+    const touch = matchMedia('(any-pointer: coarse)').matches;
+    const rows = Prefs.PREFS.filter((p) => p.group === g.id && Prefs.shownOn(p, { touch }));
     return `<section class="pgroup" aria-labelledby="g-${g.id}">
         <h2 id="g-${g.id}">${esc(g.label)}</h2>
         <div class="pcard">${rows.map(prefHtml).join('')}</div>

@@ -17,6 +17,8 @@
 //   free            choice: { min, max, hint }: a whole number in min..max is a value too, one no
 //                   option names (목록 칸 폭 set by dragging); hint says it ('{}' is the number).
 //   hint            one line under the control: a string, or { value: line } for the chosen one.
+//   when            'touch': only on a device with a touch screen (a gesture's setting); 설정 leaves
+//                   it out elsewhere (a laptop with a mouse has nothing to swipe).
 // Stored values: a choice as its value, a bool as '1' / '0' (as the app always stored them).
 // GROUPS give the order of the groups between 알림 (first) and 키보드 · 연결 · 정보 · 이 기기 (last), hand-drawn.
 (function (root) {
@@ -49,7 +51,7 @@
     },
     {
       key: 'edgeForward', store: 'herdr-hub.edgeForward', group: 'input', label: '오른쪽 끝에서 밀어 방금 본 대화로', type: 'bool',
-      default: false, defaults: { ios: true },
+      default: false, defaults: { ios: true }, when: 'touch',
       hint: '목록에서 화면 오른쪽 끝을 왼쪽으로 밀면 방금 본 대화·셸로 돌아갑니다. Android 는 뒤로 제스처와 겹쳐 처음엔 꺼져 있습니다.',
     },
     { key: 'color', store: 'herdr-hub.color', group: 'screen', label: '터미널 색상', type: 'bool', default: true, hint: '끄면 셸과 터미널 화면을 한 가지 색으로 봅니다.' },
@@ -140,7 +142,10 @@
     return /Android/.test(ua) ? 'android' : 'desktop';
   }
 
-  const api = { GROUPS, PREFS, row, defaultOf, decode, encode, valid, isFree, hintOf, listWidth, createStore, platformOf };
+  // Whether a row is shown on this device (touch: it has a touch screen).
+  const shownOn = (p, { touch }) => p.when !== 'touch' || Boolean(touch);
+
+  const api = { shownOn, GROUPS, PREFS, row, defaultOf, decode, encode, valid, isFree, hintOf, listWidth, createStore, platformOf };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else {
     const nav = root.navigator || {};
