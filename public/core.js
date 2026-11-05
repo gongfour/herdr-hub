@@ -178,10 +178,13 @@ const hp = (path, host = curHost()) => (host && host !== localId() ? `/peers/${e
 const link = (host, path) => `#/h/${encodeURIComponent(host || localId() || '')}${path}`;
 const same = (x, host, id, key = 'pane') => x[key] === id && (x.host || localId()) === host;
 const hostChip = (x) => (multi() ? `<span class="host-chip">${esc(x.hostLabel || hostLabel(x.host))}</span>` : '');
-// "hub-pol-d1 · hub-pol-d1" says the same thing twice: one when the folder is named like the workspace.
+// An agent's or shell's header: its workspace and its folder (the workspace has none of its own),
+// the folder as its last two ("…/Project/herdr-hub", rowtext.js shortPath; the whole path is the
+// header's tooltip). "hub-pol-d1 · hub-pol-d1" says the same thing twice: one when the folder is
+// named like the workspace.
 const wsAndDir = (label, cwd) => {
-  const dir = basename(cwd);
-  return !dir || dir === label ? label || dir : `${label} · ${dir}`;
+  const dir = RowText.shortPath(cwd, label);
+  return !dir ? label || basename(cwd) : `${label} · ${dir}`;
 };
 
 // Settings saved before the rename lived under paddock.*; move them across once.

@@ -77,3 +77,23 @@ test('unused: only a chat started here, never used, with no user message and not
   assert.equal(Q.unused({ state: 1, messages: null, noTranscript: true }), true); // a screen-only agent
   assert.equal(Q.unused({ state: 2, messages: null, noTranscript: true }), false);
 });
+
+test('Ctrl+N starts in the open pane\'s folder, else the last viewed in that workspace, else herdr picks', () => {
+  const panes = [
+    { href: '#/h/mac/agent/w1-p1', workspace: 'w1', cwd: '/a' },
+    { href: '#/h/mac/term/w1-p2', workspace: 'w1', cwd: '/b' },
+    { href: '#/h/mac/agent/w2-p1', workspace: 'w2', cwd: '/c' },
+    { href: '#/h/mac/agent/w1-p3', workspace: 'w1', cwd: '' },
+  ];
+  const recent = ['#/h/mac/agent/w2-p1', '#/h/mac/agent/w1-p3', '#/h/mac/term/w1-p2', '#/h/mac/agent/w1-p1'];
+  // What is open wins, in its own workspace.
+  assert.equal(Q.startFolder({ open: { workspace: 'w1', cwd: '/here' }, ws: 'w1', panes, recent }), '/here');
+  // Open elsewhere (another workspace) or without a folder: the last one viewed in ws that has one.
+  assert.equal(Q.startFolder({ open: { workspace: 'w2', cwd: '/c' }, ws: 'w1', panes, recent }), '/b');
+  assert.equal(Q.startFolder({ open: { workspace: 'w1', cwd: '' }, ws: 'w1', panes, recent }), '/b');
+  assert.equal(Q.startFolder({ ws: 'w1', panes, recent: ['#/h/mac/agent/w1-p1'] }), '/a');
+  // Nothing viewed there (or gone): herdr's active tab.
+  assert.equal(Q.startFolder({ ws: 'w1', panes, recent: ['#/h/mac/agent/w2-p1', '#/h/mac/agent/gone'] }), '');
+  assert.equal(Q.startFolder({ ws: 'w3', panes, recent }), '');
+  assert.equal(Q.startFolder(), '');
+});

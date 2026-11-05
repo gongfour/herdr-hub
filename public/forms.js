@@ -10,6 +10,9 @@ async function renderForm() {
   const host = curHost();
   const ws = view.mode === 'ws' ? (state.workspaces || []).find((x) => same(x, host, view.target, 'workspace_id')) : null;
   const term = view.mode === 'pane' ? (state.terminals || []).find((t) => same(t, host, view.target)) : null;
+  // A folder to choose: a new workspace's (where its first tab opens) and a new tab's. Starting in
+  // a shell (pane) runs in that shell's folder.
+  const folder = isNew || Boolean(ws);
   const on = isNew ? '' : multi() ? ` · ${hostLabel(host)}` : '';
   const where = isNew ? '' : ws ? `${ws.label} 워크스페이스의 새 탭${on}` : term ? `${termTitle(term)} 셸 (${term.workspaceLabel})${on}` : '찾을 수 없음';
   const back = isNew ? homeHash() : formBack(ws ? link(host, `/ws/${encodeURIComponent(ws.workspace_id)}`) : term ? link(host, `/term/${encodeURIComponent(term.pane)}`) : homeHash());
@@ -24,19 +27,12 @@ async function renderForm() {
         ${multi() ? `
         <h2><label for="f-host">호스트</label></h2>
         <select class="field" id="f-host">${hosts().map((x) => `<option value="${esc(x.id)}" ${x.id === host ? 'selected' : ''} ${x.online ? '' : 'disabled'}>${esc(x.label)}${x.online ? '' : ' (오프라인)'}</option>`).join('')}</select>` : ''}
-        <h2>폴더</h2>
-        <div class="picked" id="f-picked" aria-live="polite"></div>
-        <div class="dir-rows" id="f-recent"></div>
-        <button type="button" class="btn secondary wide" id="f-browse">폴더 찾아보기</button>
-        <details class="manual" id="f-manual">
-          <summary>경로 직접 입력</summary>
-          <input class="field" id="f-cwd" list="f-cwds" aria-label="폴더 경로" autocomplete="off" autocapitalize="off" spellcheck="false">
-          <datalist id="f-cwds"></datalist>
-        </details>
+        ${folderField(true)}
         <h2><label for="f-label">워크스페이스 이름 (선택)</label></h2>
         <input class="field" id="f-label" placeholder="비우면 폴더 이름" autocomplete="off">
         <label class="check"><input type="checkbox" id="f-with" checked> 에이전트도 바로 시작</label>
       </section>` : ''}
+      ${ws ? `<section>${folderField(false)}</section>` : ''}
       <section id="f-agent">
         <h2><label for="f-kind">에이전트</label></h2>
         ${isNew ? '<p class="form-note">새 폴더에서 Claude 를 처음 띄우면 폴더 신뢰 질문이 나옵니다. 에이전트 화면에 나오는 버튼으로 답하세요.</p>' : ''}
@@ -72,10 +68,14 @@ async function renderForm() {
   };
   const pick = document.getElementById('f-host');
   if (pick) pick.onchange = () => fillForm(pick.value);
-  if (isNew) {
+  if (folder) {
     const cwd = document.getElementById('f-cwd');
     cwd.oninput = () => showPicked();
     document.getElementById('f-browse').onclick = () => browseDirs(view.formHost || host);
+    // The folder Ctrl+N would use (app.js startFolderFor), still changeable; for this start only.
+    if (ws) cwd.value = startFolderFor(host, ws.workspace_id);
+  }
+  if (isNew) {
     // Opened from the keyboard (+'s key, Tab and Enter on +): the focus into the form, not
     // left on the page behind the list's many stops.
     if (lastInput === 'key') (document.getElementById('f-host') || document.getElementById('f-browse')).focus({ preventScroll: true });
@@ -83,6 +83,21 @@ async function renderForm() {
   if (isNew || ws || term) fillForm(host);
   // Opened from a keyboard (Ctrl+N): straight into the form, its first field.
   if (!isNew && keyboardLikely()) document.getElementById('f-kind').focus({ preventScroll: true });
+}
+
+// The folder field. first: a new workspace's (where its first tab opens); else a new tab's.
+function folderField(first) {
+  return `
+        <h2>폴더</h2>
+        <p class="form-note">${first ? '첫 탭이 열릴 폴더' : '새 탭이 열릴 폴더 (마지막에 본 에이전트·셸의 폴더로 채워 둡니다)'}</p>
+        <div class="picked" id="f-picked" aria-live="polite"></div>
+        <div class="dir-rows" id="f-recent"></div>
+        <button type="button" class="btn secondary wide" id="f-browse">폴더 찾아보기</button>
+        <details class="manual" id="f-manual">
+          <summary>경로 직접 입력</summary>
+          <input class="field" id="f-cwd" list="f-cwds" aria-label="폴더 경로" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <datalist id="f-cwds"></datalist>
+        </details>`;
 }
 
 // Where 에이전트 시작's ‹ / ✕ goes: the page it was opened over (the agent or shell beside it,
@@ -111,9 +126,11 @@ function showPicked() {
   box.classList.toggle('on', Boolean(p));
   // 만들기 pressed without one (folderMissing): the box says what to do, in red, until one is chosen.
   if (p) box.classList.remove('missing');
-  const ask = box.classList.contains('missing') ? '폴더를 고르세요 — 최근 폴더를 누르거나 「폴더 찾아보기」로 고릅니다' : '아래에서 폴더를 고르세요';
+  // A new tab may go without one: herdr then opens it in the folder of the workspace's active tab.
+  const ask = view.mode === 'ws' ? '고르지 않으면 herdr 에서 그 워크스페이스의 활성 탭 폴더에 열립니다' : box.classList.contains('missing') ? '폴더를 고르세요 — 최근 폴더를 누르거나 「폴더 찾아보기」로 고릅니다' : '아래에서 폴더를 고르세요';
   box.innerHTML = p ? `<span class="k">선택됨</span><b>${esc(basename(p))}</b><span class="p">${esc(p)}</span>` : `<span class="k">${ask}</span>`;
-  document.getElementById('f-label').placeholder = `비우면 ${p ? basename(p) : '폴더 이름'}`;
+  const label = document.getElementById('f-label');
+  if (label) label.placeholder = `비우면 ${p ? basename(p) : '폴더 이름'}`;
   document.querySelectorAll('#f-recent .dir-row').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cwd === p)));
 }
 
@@ -271,10 +288,14 @@ async function fillForm(host) {
     cwd.dataset.host = host;
     if (browseAt.host !== host) browseAt = { host, path: null };
     cwd.placeholder = info.platform === 'win32' ? 'C:\\Users\\…\\project' : `${info.home || '/home/…'}/project`;
-    document.getElementById('f-cwds').innerHTML = info.recentCwds.map((c) => `<option value="${esc(c)}">`).join('');
+    // A new tab: the folders its workspace's agents and shells are in first, then the host's recent ones.
+    const wsId = view.mode === 'ws' ? view.target : null;
+    const here = wsId ? [...(state.agents || []), ...(state.terminals || [])].filter((x) => (x.host || localId()) === host && x.workspace === wsId && x.cwd).map((x) => x.cwd) : [];
+    const recent = [...new Set([...here, ...info.recentCwds])];
+    document.getElementById('f-cwds').innerHTML = recent.map((c) => `<option value="${esc(c)}">`).join('');
     // One recent folder: that is very likely the one, chosen already (still changeable).
-    if (!cwd.value && info.recentCwds.length === 1) cwd.value = info.recentCwds[0];
-    renderRecent(info.recentCwds);
+    if (!cwd.value && !wsId && recent.length === 1) cwd.value = recent[0];
+    renderRecent(recent);
   }
   view.formReady = true;
   syncSubmit();
@@ -320,7 +341,11 @@ async function submitForm(e) {
       started = Boolean(r.agent);
       hostCache.delete(host); // recent folders changed
     }
-  } else if (view.mode === 'ws') r = await act(hp(`/workspaces/${encodeURIComponent(view.target)}/agents`, host), agent, null, '에이전트를 시작하지 못했습니다');
+  } else if (view.mode === 'ws') {
+    // The folder is for this start only: Ctrl+N goes on choosing by what is open.
+    const cwd = val('f-cwd');
+    r = await act(hp(`/workspaces/${encodeURIComponent(view.target)}/agents`, host), cwd ? { ...agent, cwd } : agent, null, '에이전트를 시작하지 못했습니다');
+  }
   else r = await act(hp(`/panes/${encodeURIComponent(view.target)}/agent`, host), agent, null, '에이전트를 시작하지 못했습니다');
   syncSubmit();
   if (!r) return;

@@ -540,9 +540,14 @@ async function api(req, res, url) {
     } else if (parts[2] === 'close') {
       await herdr.call('workspace.close', { workspace_id: ws.workspace_id });
     } else if (parts[2] === 'tabs' || parts[2] === 'agents') {
-      // New tab, optionally with an agent started in its root pane.
-      const spec = parts[2] === 'agents' ? cleanAgentSpec(body, [ws.label]) : null;
-      const r = await herdr.call('tab.create', { workspace_id: ws.workspace_id, label: cleanLabel(body.label), focus: false });
+      // New tab, optionally with an agent started in its root pane. cwd (optional, the same rules
+      // as a new workspace): where the tab opens. Without it herdr opens it in the folder of the
+      // workspace's active tab — a herdr workspace has no folder of its own.
+      const cwd = body.cwd == null || body.cwd === '' ? null : await cleanCwd(body.cwd);
+      const spec = parts[2] === 'agents' ? cleanAgentSpec(body, [ws.label, cwd && path.basename(cwd)]) : null;
+      const params = { workspace_id: ws.workspace_id, label: cleanLabel(body.label), focus: false };
+      if (cwd) params.cwd = cwd;
+      const r = await herdr.call('tab.create', params);
       const pane = r.root_pane.pane_id;
       if (spec) await startAgent(pane, spec);
       await refresh();

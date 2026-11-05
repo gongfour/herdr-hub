@@ -976,24 +976,41 @@ function workspaceHere() {
   return x ? wsFor(host, x.workspace) : null;
 }
 // Ctrl+N: an agent started right away in workspace ws, with this device's last kind and options
-// (quick.js; Claude with none the first time) and the server's name, then its chat opened with
+// (quick.js; Claude with none the first time) and the server's name, in the folder of what is
+// open (startFolderFor; the toast says where), then its chat opened with
 // the caret in the composer. One at a time: a held key or a second press while it starts does
 // nothing more. The page moved on meanwhile: a toast to open it instead.
 let quickBusy = false;
+// Where Ctrl+N (and the start form, prefilled) opens the new tab on host, in workspace ws
+// (quick.js startFolder): the open agent's or shell's folder, else that of the one in ws viewed
+// last here, else '' (herdr's active tab there).
+function startFolderFor(host, ws) {
+  const open = view.name === 'agent' ? currentAgent() : view.name === 'term' ? currentTerminal() : null;
+  const href = (kind, x) => link(host, `/${kind}/${encodeURIComponent(x.pane)}`);
+  const mine = (x) => (x.host || localId()) === host && x.workspace === ws;
+  const panes = [
+    ...(state.agents || []).filter(mine).map((a) => ({ href: href('agent', a), workspace: a.workspace, cwd: a.cwd })),
+    ...(state.terminals || []).filter(mine).map((t) => ({ href: href('term', t), workspace: t.workspace, cwd: t.cwd })),
+  ];
+  return Quick.startFolder({ open: open && (open.host || localId()) === host ? open : null, ws, panes, recent: recentList() });
+}
 async function quickStart(host, ws) {
   if (quickBusy) return toast('새 에이전트를 시작하는 중입니다', { id: 'quick' });
   quickBusy = true;
   const from = location.hash;
   try {
-    let kinds = null;
+    let info = null;
     try {
-      kinds = (await hostInfo(host)).kinds;
+      info = await hostInfo(host);
     } catch {
       /* the server checks the kind anyway */
     }
+    const kinds = info && info.kinds;
     const spec = Quick.specFor(Quick.last(), kinds);
-    toast(`새 ${kindLabel(spec.kind)} 에이전트를 시작하는 중…${spec.args.length ? ` (${spec.args.join(' ')})` : ''}`, { id: 'quick', ms: 60000 });
-    const r = await act(hp(`/workspaces/${encodeURIComponent(ws)}/agents`, host), spec, null, '에이전트를 시작하지 못했습니다');
+    const cwd = startFolderFor(host, ws);
+    const where = cwd ? ` · ${RowText.homePath(cwd, info && info.home)}` : '';
+    toast(`새 ${kindLabel(spec.kind)} 에이전트를 시작하는 중…${spec.args.length ? ` (${spec.args.join(' ')})` : ''}${where}`, { id: 'quick', ms: 60000 });
+    const r = await act(hp(`/workspaces/${encodeURIComponent(ws)}/agents`, host), cwd ? { ...spec, cwd } : spec, null, '에이전트를 시작하지 못했습니다');
     for (const t of document.querySelectorAll('.toast[data-id="quick"]')) t.remove();
     if (!r || !r.pane) return;
     Quick.started(rowKey(host, r.pane));

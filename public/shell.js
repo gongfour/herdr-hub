@@ -450,11 +450,11 @@ function renderTerminalHeader() {
     return;
   }
   title.innerHTML = t
-    ? `<span class="t">${esc(termTitle(t))}</span><span class="sub">${multi() ? `${esc(hostLabel(t.host))} · ` : ''}셸 · ${esc(t.workspaceLabel)} · ${esc(t.cwd)}</span>`
+    ? `<span class="t">${esc(termTitle(t))}</span><span class="sub"${t.cwd ? ` title="${esc(t.cwd)}"` : ''}>${multi() ? `${esc(hostLabel(t.host))} · ` : ''}셸 · ${esc(wsAndDir(t.workspaceLabel, t.cwd))}</span>`
     : offline
       ? `<span class="t">${esc(hostLabel(curHost()))} 오프라인</span><span class="sub">호스트가 돌아오면 다시 보입니다</span>`
       : detail.lastTerm
-        ? `<span class="t">${esc(termTitle(detail.lastTerm))}</span><span class="sub">닫힘 · ${esc(detail.lastTerm.workspaceLabel)} · ${esc(detail.lastTerm.cwd)}</span>`
+        ? `<span class="t">${esc(termTitle(detail.lastTerm))}</span><span class="sub">닫힘 · ${esc(wsAndDir(detail.lastTerm.workspaceLabel, detail.lastTerm.cwd))}</span>`
         : '<span class="t">셸 없음</span><span class="sub">닫혔거나 없는 셸입니다</span>';
   const dot = document.getElementById('t-live');
   if (dot) dot.innerHTML = liveDot();

@@ -335,7 +335,7 @@ function renderDetailHeader() {
   // subtitle on the phone (.sub-st), where the title row is left to the name (style.css).
   const time = a.status === 'working' ? '' : timeTag(a);
   const status = esc(STATUS_LABEL[a.status] || a.status);
-  const th = `<span class="t"><span class="st-dot ${esc(a.status)}" aria-hidden="true"></span>${esc(a.name || a.title)}</span><span class="sub"><span class="sub-st"><b class="st ${esc(a.status)}">${status}</b>${time ? ` · ${time}` : ''} · </span>${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${a.agent === 'claude' ? '' : `${esc(a.agent)} · `}${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
+  const th = `<span class="t"><span class="st-dot ${esc(a.status)}" aria-hidden="true"></span>${esc(a.name || a.title)}</span><span class="sub"${a.cwd ? ` title="${esc(a.cwd)}"` : ''}><span class="sub-st"><b class="st ${esc(a.status)}">${status}</b>${time ? ` · ${time}` : ''} · </span>${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${a.agent === 'claude' ? '' : `${esc(a.agent)} · `}${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
   if (title._html !== th) {
     title._html = th;
     title.innerHTML = th;

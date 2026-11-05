@@ -251,7 +251,6 @@ button:disabled { cursor: default; }
 .ws-label { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-meta { display: flex; align-items: center; min-width: 0; margin-top: var(--sp-0); }
 .ws-meta .host-chip { flex: none; }
-.ws-cwd { min-width: 0; font: 12px/1.4 var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws .ws-more { margin: -8px 0; color: var(--muted); }
 .ws-panes { border-top: 1px solid var(--line); }
 .ws-panes > .sw + .sw { border-top: 1px solid var(--line); }
@@ -276,6 +275,7 @@ button:disabled { cursor: default; }
 .pane-meta { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: var(--sp-0); }
 .pane-meta .sep { white-space: pre; }
 .pane-meta .el { font-size: inherit; }
+.pane-dir { font-family: var(--mono); font-size: 11.5px; }
 .pane-kind { flex: none; font-size: 12px; color: var(--muted); }
 .pane-row .el { flex: none; font-size: 12px; color: var(--working); font-variant-numeric: tabular-nums; }
 
@@ -1633,7 +1633,6 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 .ws-info .ws-kv { display: flex; align-items: baseline; gap: var(--sp-3); min-height: 44px; padding: var(--sp-3) var(--sp-4); }
 .ws-info .ws-k { flex: none; width: 3.5em; font-size: 13px; color: var(--muted); }
 .ws-info .ws-v { min-width: 0; font-size: 14px; overflow-wrap: break-word; } /* the path breaks at its separators (<wbr>) */
-.ws-info .ws-path { font: 13px/1.5 var(--mono); background: none; padding: 0; user-select: all; }
 .ws-page .pcard > .pref-link + .pref-link { border-top: 1px solid var(--line); } /* .pref-link's border: 0 would drop the card's rule */
 .ws-none { margin: 0; padding: var(--sp-4); font-size: 14px; color: var(--muted); }
 .ws-close-note { font-size: 12px; }

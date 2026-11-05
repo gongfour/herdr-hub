@@ -1,12 +1,12 @@
 'use strict';
-// The words on the 작업공간 list that need no page: a card's folder line, a shell row's name,
+// The words on the 작업공간 list that need no page: a row's folder, a shell row's name,
 // a host button's spoken name and the first-visit hint (list.js).
 // Pure: loaded as a plain script in the page (window.RowText), required by the tests.
 (function (root) {
   const parts = (p) => String(p || '').split(/[\\/]/).filter(Boolean);
   const base = (p) => parts(p).pop() || '';
 
-  // A card's folder line: nothing when the folder is named like the workspace (the label says
+  // A folder in short: nothing when the folder is named like the workspace (the label says
   // it), else its last two folders ("…\digitrack\dotori_rcs"), in the path's own separator.
   function shortPath(cwd, label) {
     const p = String(cwd || '').trim();
@@ -15,6 +15,29 @@
     if (!segs.length || segs[segs.length - 1] === String(label || '').trim()) return '';
     if (segs.length <= 2) return p;
     const sep = p.includes('\\') && !p.includes('/') ? '\\' : '/';
+    return `…${sep}${segs.slice(-2).join(sep)}`;
+  }
+
+  // A pane row's folder (an agent's or a shell's, where it is now): nothing when the folder is
+  // named like its workspace or like the row itself (the row says it already), else as shortPath.
+  function rowDir(cwd, wsLabel, name) {
+    const last = base(cwd);
+    if (!last || last === String(name || '').trim()) return '';
+    return shortPath(cwd, wsLabel);
+  }
+
+  // A folder for a sentence (Ctrl+N's toast): under home as ~/…, and a deep one as its last two
+  // folders ("…/herdr-hub/public"), in the path's own separator.
+  function homePath(cwd, home) {
+    let p = String(cwd || '').trim();
+    if (!p) return '';
+    const h = String(home || '').replace(/[\\/]+$/, '');
+    const win = p.includes('\\') && !p.includes('/');
+    const sep = win ? '\\' : '/';
+    const eq = (a, b) => (win ? a.toLowerCase() === b.toLowerCase() : a === b);
+    if (h && (eq(p, h) || (eq(p.slice(0, h.length), h) && /[\\/]/.test(p[h.length])))) p = '~' + p.slice(h.length);
+    const segs = parts(p);
+    if (segs.length <= 3) return p;
     return `…${sep}${segs.slice(-2).join(sep)}`;
   }
 
@@ -41,7 +64,7 @@
   const hintDue = (stored) => stored !== 'x' && (Number(stored) || 0) < HINT_TIMES;
   const hintNext = (stored) => String(Math.min(HINT_TIMES, (Number(stored) || 0) + 1));
 
-  const api = { shortPath, termName, hostAria, hintText, hintDue, hintNext, HINT_TIMES };
+  const api = { shortPath, rowDir, homePath, termName, hostAria, hintText, hintDue, hintNext, HINT_TIMES };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RowText = api;
 })(typeof self !== 'undefined' ? self : this);

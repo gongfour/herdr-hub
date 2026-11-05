@@ -486,19 +486,17 @@ function tickList() {
 
 const rowData = (kind, host, id) => `data-kind="${kind}" data-host="${esc(host || '')}" data-id="${esc(id)}"`;
 
-// A card's head: its name, then one line with the host (전체) and the folder, the folder only when
-// its name isn't the workspace's (rowtext.js shortPath), cut to its last two folders.
+// A card's head: its name, then the host (전체). No folder: a herdr workspace has none (each tab
+// opens where it is told), so each row shows its own (paneDir).
 function wsSection({ w, agents, terms }) {
-  const first = [...agents, ...terms].sort(paneOrder)[0];
   const rows = [...agents.map(agentRow), ...terms.map(termRow)].join('');
   const chip = filter() === 'all' ? hostChip(w) : '';
-  const path = first ? RowText.shortPath(first.cwd, w.label) : '';
   return `<section class="ws">
     <div class="sw ws-head" ${rowData('ws', w.host, w.workspace_id)}>
       <div class="sw-front ws-front">
         <a class="ws-main" href="${link(w.host, `/ws/${encodeURIComponent(w.workspace_id)}`)}">
           <div class="ws-label">${esc(w.label)}</div>
-          ${chip || path ? `<div class="ws-meta">${chip}${path ? `<span class="ws-cwd" title="${esc(first.cwd)}">${esc(path)}</span>` : ''}</div>` : ''}
+          ${chip ? `<div class="ws-meta">${chip}</div>` : ''}
         </a>
         <button type="button" class="icon-btn ws-more" aria-haspopup="dialog" aria-label="${esc(w.label)} 워크스페이스 메뉴">${ICON.more}</button>
       </div>
@@ -514,7 +512,7 @@ function wsSection({ w, agents, terms }) {
 function agentRow(a) {
   const unread = isUnread(a);
   const badge = `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
-  const meta = [a.name && a.title ? `<span>${esc(a.name)}</span>` : '', timeTag(a)].filter(Boolean).join('<span class="sep"> · </span>');
+  const meta = [a.name && a.title ? `<span>${esc(a.name)}</span>` : '', timeTag(a), paneDir(a, a.name)].filter(Boolean).join('<span class="sep"> · </span>');
   return `<div class="sw" ${rowData('agent', a.host, a.pane)}>
     <a class="sw-front pane-row agent${unread ? ' unread' : ''}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
       ${unread ? '<span class="unread-dot" role="img" aria-label="새 결과"></span>' : ''}<span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
@@ -529,11 +527,19 @@ function agentRow(a) {
 // a long press (rows.js). Out of the Tab order: Alt+M opens the focused row's menu.
 const rowMore = (name) => `<button type="button" class="icon-btn row-more" tabindex="-1" aria-haspopup="dialog" aria-label="${esc(name)} 메뉴">${ICON.more}</button>`;
 
+// A row's folder, where it is now: its last two folders, none when the folder is named like the
+// workspace or the row (rowtext.js rowDir); the whole path on hover.
+function paneDir(x, name) {
+  const d = RowText.rowDir(x.cwd, x.workspaceLabel, name);
+  return d ? `<span class="pane-dir" title="${esc(x.cwd)}">${esc(d)}</span>` : '';
+}
+
 function termRow(t) {
+  const dir = paneDir(t, termTitle(t));
   return `<div class="sw" ${rowData('term', t.host, t.pane)}>
     <a class="sw-front pane-row term" href="${link(t.host, `/term/${encodeURIComponent(t.pane)}`)}">
       <span class="pane-ic" aria-hidden="true">${ICON.term}</span>
-      <span class="pane-main"><span class="pane-title">${esc(termTitle(t))}</span></span>
+      <span class="pane-main"><span class="pane-title">${esc(termTitle(t))}</span>${dir ? `<span class="pane-meta">${dir}</span>` : ''}</span>
       <span class="pane-kind">셸</span>
     </a>
     ${rowMore(termTitle(t))}

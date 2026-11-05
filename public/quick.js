@@ -52,6 +52,19 @@
     return { kind: list.includes('claude') ? 'claude' : list[0], args: [], name: '' };
   }
 
+  // ---- where Ctrl+N starts
+  // A herdr workspace has no folder: a new tab opens where it is told (cwd), else in the folder of
+  // the workspace's active tab in herdr — whichever that happens to be. So Ctrl+N says where: the
+  // folder of the agent or shell that is open (open: { workspace, cwd }), else that of the one in
+  // workspace ws viewed last in this Hub (recent: hrefs, most recent first, as 빠른 이동 keeps
+  // them; panes: { href, workspace, cwd } of that host), else '' (herdr picks).
+  function startFolder({ open = null, ws, panes = [], recent = [] } = {}) {
+    if (open && open.workspace === ws && open.cwd) return open.cwd;
+    const mine = new Map(panes.filter((p) => p && p.workspace === ws && p.cwd).map((p) => [p.href, p.cwd]));
+    for (const href of recent) if (mine.has(href)) return mine.get(href);
+    return '';
+  }
+
   // ---- started here, used or not
   const startedAll = (st) => {
     const v = read(st, STARTED_KEY);
@@ -86,7 +99,7 @@
     return !messages.some((m) => m && m.role === 'user');
   }
 
-  const api = { LAST_KEY, STARTED_KEY, lastAgent, rememberAgent, specFor, markStarted, markUsed, startedState, usedBy, unused };
+  const api = { LAST_KEY, STARTED_KEY, lastAgent, rememberAgent, specFor, startFolder, markStarted, markUsed, startedState, usedBy, unused };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else {
     const local = () => root.localStorage;

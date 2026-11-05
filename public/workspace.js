@@ -1,11 +1,9 @@
 'use strict';
-// The workspace page, in 설정's grouped cards: where it is (its folder, its host), its agents and
+// The workspace page, in 설정's grouped cards: where it is (its host; a herdr workspace has no
+// folder, each row shows its own), its agents and
 // shells as the list draws them (list.js agentRow / termRow: icon, unread dot, time, status), the
 // rare and the destructive (이름 바꾸기, 워크스페이스 닫기) as quiet rows rather than big buttons,
 // and what to do here (에이전트 시작, 새 셸 열기) in a row at the bottom, where a thumb reaches.
-
-// A path that may wrap at its separators rather than mid-name (「dotori_rc / s」).
-const wrapPath = (p) => esc(p).replace(/([/\\])/g, '$1<wbr>');
 
 function renderWorkspace() {
   const host = curHost();
@@ -13,11 +11,9 @@ function renderWorkspace() {
   const agents = state.agents.filter((a) => same(a, host, view.id, 'workspace')).sort(paneOrder);
   const terms = (state.terminals || []).filter((t) => same(t, host, view.id, 'workspace')).sort(paneOrder);
   const id = encodeURIComponent(view.id);
-  // The folder: the one its panes run in (as the list's card shows it).
-  const first = [...agents, ...terms].find((x) => x.cwd);
   const counts = [agents.length && `에이전트 ${agents.length}`, terms.length && `셸 ${terms.length}`].filter(Boolean).join(' · ') || '패널 없음';
   const sub = w ? [multi() && hostLabel(host), counts].filter(Boolean).map(esc).join(' · ') : '';
-  const info = w ? [first ? ['폴더', `<code class="ws-path">${wrapPath(first.cwd)}</code>`] : null, multi() ? ['호스트', esc(hostLabel(host))] : null].filter(Boolean) : [];
+  const info = w && multi() ? [['호스트', esc(hostLabel(host))]] : [];
   // Not here: say why, and give a way out (the back arrow alone is easy to miss). It draws again by
   // itself when a state brings it back (onState).
   const gone = w
