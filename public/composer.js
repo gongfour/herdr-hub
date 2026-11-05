@@ -11,7 +11,7 @@ const SOURCE_LABEL = { builtin: '기본', project: '프로젝트', user: '사용
 const PAL_MAX = 80; // rows drawn; the filter narrows long lists
 const cmdCache = new Map(); // host|pane -> { at, list } for 60 s, like the host's own cache
 const fileCache = new Map(); // host|pane|q -> { at, list }
-let pal = null; // { kind: cmd|file|bang, items, sel, q, start, end, pressing, dismissed }
+let pal = null; // { kind: cmd|file|bang|hash, items, sel, q, start, end, pressing, dismissed }
 
 const palAgent = () => {
   const a = currentAgent();
@@ -92,6 +92,8 @@ function paletteWant(input) {
   if ((m = /^\/(\S*)$/.exec(before)))
     return { kind: 'cmd', q: m[1], start: 0, end: before.length + (value.slice(before.length).match(/^\S*/) || [''])[0].length };
   if (/^!/.test(value)) return { kind: 'bang' };
+  // Claude Code dropped the `#` memory shortcut: the line goes as plain text (a heading is fine).
+  if (/^#/.test(value)) return { kind: 'hash' };
   if ((m = /(^|\s)@(\S*)$/.exec(before))) return { kind: 'file', q: m[2], start: before.length - m[2].length - 1, end: before.length };
   return null;
 }
@@ -159,6 +161,7 @@ function renderPalette() {
   if (!box || !pal) return;
   let html = '';
   if (pal.kind === 'bang') html = `<div class="pal-note"><b>!</b> 셸 모드: 이 줄은 에이전트의 세션에서 셸 명령으로 실행되고, 그 출력이 대화에 들어갑니다.</div>`;
+  else if (pal.kind === 'hash') html = `<div class="pal-note"><b>#</b> 메모리 단축은 이제 없어 그대로 글로 갑니다. 기억시키려면 <b>/memory</b> 를 쓰거나 「기억해 줘」라고 하세요.</div>`;
   else if (pal.error) html = `<div class="pal-note err">${esc(pal.error)}</div>`;
   else if (!pal.items.length) html = `<div class="pal-note">${pal.kind === 'cmd' ? '맞는 명령이 없습니다' : '맞는 파일이 없습니다'}</div>`;
   else
