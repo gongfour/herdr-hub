@@ -510,7 +510,16 @@ function rawSend(press) {
   if (!currentTerminal()) return;
   rawFailed = null;
   followTerm();
-  Keys.queueRaw(rawQ, { host: curHost(), pane: detail.pane }, press);
+  const host = curHost();
+  const pane = detail.pane;
+  // Over the live channel when it is open and nothing for this shell is still on the HTTP way
+  // (which would be overtaken).
+  if (liveFeeds(host, pane) && ![rawInFlight, ...rawQ].some((x) => x && x.host === host && x.pane === pane)) {
+    liveKey(press);
+    drawSending();
+    return;
+  }
+  Keys.queueRaw(rawQ, { host, pane }, press);
   drawSending();
   pumpRaw();
 }
@@ -537,7 +546,7 @@ function drawSending() {
     chip.hidden = false;
     return;
   }
-  const items = [rawInFlight, ...rawQ].filter(here);
+  const items = [rawInFlight, ...rawQ, ...liveSent()].filter(here);
   if (!detail.raw || !items.length) {
     clearTimeout(sendingTimer);
     sendingTimer = null;
@@ -551,7 +560,7 @@ function drawSending() {
     sendingTimer = setTimeout(() => {
       sendingTimer = null;
       const c = document.getElementById('t-sending');
-      if (c && [rawInFlight, ...rawQ].some(here)) c.hidden = false;
+      if (c && [rawInFlight, ...rawQ, ...liveSent()].some(here)) c.hidden = false;
     }, SENDING_MS);
 }
 async function pumpRaw() {
@@ -607,15 +616,22 @@ const DEEP_PX = 600; // this near the top asks for the longer scrollback
 const termLines = () => (detail.deep ? TERM_LINES_DEEP : TERM_LINES);
 const TERM_TICK_MS = 300;
 function pollTerminal() {
+  if (liveFeeds()) return liveSyncShape();
   if (Keys.termReadDue({ now: Date.now(), raw: detail.raw, keyAt: detail.keyAt, changeAt: detail.changeAt, loadAt: detail.loadAt })) loadTerminal();
 }
+// A page in the background closes its channel (the host stops reading for it) and opens it
+// again when it comes back.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && view.name === 'term') loadTerminal();
+  if (document.visibilityState !== 'visible') liveStop();
+  else if (view.name === 'term') loadTerminal();
 });
 
 let termReads = 0; // reads overlap when keys come fast; only the newest may draw
 async function loadTerminal() {
   if (!currentTerminal() || document.visibilityState !== 'visible') return;
+  // The channel brings the screen by itself: at most the shape it reads changes.
+  if (liveFeeds()) return liveSyncShape();
+  liveEnsure();
   const pane = detail.pane;
   const deep = Boolean(detail.deep);
   const n = ++termReads;
@@ -653,3 +669,150 @@ function termScrolled() {
   }
 }
 
+
+// ------------------------------------------------------------ the live channel
+// One WebSocket per open shell view (server.js, lib/live.js; the rules in live.js): typed keys go
+// up as they are pressed, each with a sequence number the host applies in order, and the host
+// pushes the screen whenever it changed (a line change after the first whole one). The HTTP way
+// (POST /keys, GET /screen every 300 ms) stays for hosts without it (API before 2), while the
+// channel opens or is down, and for a while after it failed to open or kept dropping.
+let liveCh = null; // { ws, host, pane, open, cur, sent, seq, heardAt, shape, gone }
+const liveLog = {}; // host → { fails, drops } (live.js ended)
+const liveOff = {}; // host → until when it reads over HTTP
+let liveRetry = null;
+let liveWatch = null;
+const liveFeeds = (host = curHost(), pane = detail.pane) => Boolean(liveCh && liveCh.open && liveCh.host === host && liveCh.pane === pane);
+const liveShapeNow = () => ({ lines: termLines(), format: getColor() ? 'ansi' : 'text' });
+// The keys sent on the channel and not yet with the shell, as the 「보내는 중」 chip lists them.
+const liveSent = () => (liveCh ? liveCh.sent.map((x) => ({ host: liveCh.host, pane: liveCh.pane, text: x.text, keys: x.keys })) : []);
+
+function liveEnsure() {
+  if (view.name !== 'term' || document.visibilityState !== 'visible' || !currentTerminal()) return;
+  const host = curHost();
+  const pane = detail.pane;
+  if (liveCh && liveCh.host === host && liveCh.pane === pane) return; // open, or opening
+  if (liveRetry) return;
+  if (!Live.usable(hostOf(host), { off: liveOff, now: Date.now(), hasSocket: typeof WebSocket === 'function' })) return;
+  liveStop();
+  const shape = liveShapeNow();
+  const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api${hp(`/panes/${encodeURIComponent(pane)}/live`, host)}?lines=${shape.lines}&format=${shape.format}`;
+  let sock;
+  try {
+    sock = new WebSocket(url);
+  } catch {
+    return;
+  }
+  const ch = { ws: sock, host, pane, open: false, cur: null, sent: [], seq: 0, heardAt: Date.now(), shape, gone: false };
+  liveCh = ch;
+  sock.onmessage = (e) => liveMessage(ch, e.data);
+  sock.onclose = () => liveClosed(ch);
+  // A link that died without a close (a phone that slept): the host's heartbeat stops coming.
+  clearInterval(liveWatch);
+  liveWatch = setInterval(() => {
+    if (liveCh !== ch || Date.now() - ch.heardAt < Live.SILENT_MS) return;
+    try {
+      ch.ws.close();
+    } catch {}
+    liveClosed(ch);
+  }, 5000);
+}
+
+function liveStop() {
+  clearTimeout(liveRetry);
+  liveRetry = null;
+  clearInterval(liveWatch);
+  const ch = liveCh;
+  liveCh = null;
+  if (ch) {
+    try {
+      ch.ws.close(1000);
+    } catch {}
+  }
+}
+
+function liveSyncShape() {
+  const ch = liveCh;
+  const want = liveShapeNow();
+  if (!ch || (ch.shape.lines === want.lines && ch.shape.format === want.format)) return;
+  ch.shape = want;
+  ch.ws.send(JSON.stringify({ t: 'shape', ...want }));
+}
+
+function liveKey(press) {
+  const ch = liveCh;
+  const it = { s: ++ch.seq, text: press.text || '', keys: press.key ? [press.key] : [] };
+  ch.sent.push(it);
+  ch.ws.send(JSON.stringify({ t: 'k', s: it.s, x: it.text, y: it.keys }));
+}
+
+// Keys that did not reach the shell (a failure, or the channel dropped before they were
+// acknowledged: they may or may not have arrived) stay in the chip, as on the HTTP way.
+function liveLost(ch, lost, why) {
+  if (!lost.length || !termHere(ch.host, ch.pane)) return;
+  rawFailed = { host: ch.host, pane: ch.pane, text: Keys.describeRaw(lost), why };
+}
+
+function liveMessage(ch, data) {
+  if (ch !== liveCh) return;
+  let m;
+  try {
+    m = JSON.parse(data);
+  } catch {
+    return;
+  }
+  ch.heardAt = Date.now();
+  if (m.t === 'hello') {
+    ch.open = true;
+    liveLog[ch.host] = { ...(liveLog[ch.host] || {}), fails: 0 };
+    return drawSending();
+  }
+  if (m.t === 'ack') {
+    ch.sent = Live.acked(ch.sent, m.s);
+    detail.keyAt = Date.now();
+    return drawSending();
+  }
+  if (m.t === 'kerr') {
+    const r = Live.failed(ch.sent, m.from, m.to);
+    ch.sent = r.left;
+    liveLost(ch, r.lost, shortReason(m.message || m.error || ''));
+    return drawSending();
+  }
+  if (m.t === 'err') {
+    if (termHere(ch.host, ch.pane)) screenError(shortReason(m.message || m.error || ''));
+    return;
+  }
+  if (m.t === 'gone') {
+    ch.gone = true;
+    return;
+  }
+  const f = Live.screenFrame(ch.cur, m, ScreenDiff);
+  if (!f) return;
+  if (f.full) {
+    ch.cur = null;
+    return ch.ws.send(JSON.stringify({ t: 'full' }));
+  }
+  ch.cur = f;
+  // A whole screen read with the longer scrollback is the one that goes on above (drawTerminal).
+  if (termHere(ch.host, ch.pane)) drawTerminal(f.screen, ++termReads, m.t === 'f' && ch.shape.lines === TERM_LINES_DEEP);
+}
+
+function liveClosed(ch) {
+  if (ch !== liveCh) return; // stopped on purpose, or replaced
+  liveCh = null;
+  clearInterval(liveWatch);
+  liveLost(ch, ch.sent, '연결이 끊겼습니다');
+  drawSending();
+  if (ch.gone) return; // the shell closed: its state says so
+  const r = Live.ended(liveLog[ch.host] || {}, { opened: ch.open, now: Date.now() });
+  liveLog[ch.host] = r.log;
+  if (r.off) {
+    liveOff[ch.host] = Date.now() + Live.OFF_MS;
+    console.warn(`[live] ${ch.host}: the channel ${ch.open ? 'keeps dropping' : 'does not open'}; reading over HTTP for now`);
+  } else
+    liveRetry = setTimeout(() => {
+      liveRetry = null;
+      if (view.name === 'term') loadTerminal();
+    }, r.delay);
+  // HTTP in the meantime.
+  if (view.name === 'term') loadTerminal();
+}

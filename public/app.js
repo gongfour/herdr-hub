@@ -465,6 +465,7 @@ function route(e, { relayout = false } = {}) {
   clearInterval(pollTimer);
   clearInterval(tickTimer);
   tickTimer = null;
+  liveStop(); // the shell's live channel (shell.js): a new view opens its own
   // relayout opens it again over the same entry (core.js: Back still closes it).
   hist.hold = relayout;
   closeScreenSheet();

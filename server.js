@@ -30,10 +30,15 @@ const { readBuild, describe, decorator } = require('./lib/build');
 const watchdog = require('./lib/watchdog');
 const fsq = require('./lib/fsq');
 const awake = require('./lib/awake');
+const ws = require('./lib/ws');
+const { liveSession } = require('./lib/live');
 
 // The contract between this server and its pages, and between a hub and its peers. Bumped by
 // hand when either changes (AGENTS.md); 설정 → 연결 shows a peer whose number differs from the hub's.
-const API_VERSION = 1;
+// 2: the shell's live channel (GET /api/panes/<id>/live as a WebSocket; lib/live.js). A page only
+// opens it on a host that says 2 or more, and keeps the HTTP path for the others.
+const API_VERSION = 2;
+const LIVE_API = 2;
 
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -886,6 +891,126 @@ const server = http.createServer(async (req, res) => {
     if (!res.headersSent) send(res, status, { error: err.code || 'error', message: err.message });
     else res.end();
   }
+});
+
+// ---------------------------------------------------------------- the shell's live channel
+// A WebSocket per open shell view (lib/ws.js, lib/live.js): keys up as they are typed, the screen
+// down when it changes. On a hub, /api/peers/<host>/panes/<id>/live is piped to that peer's
+// /api/panes/<id>/live. The same checks as a request (Host, login), and the Origin: a WebSocket
+// is not held back by CORS, so a browser's must be this page's own; the hub's leg has none and
+// sends X-Herdr-Hub instead (a browser cannot set that on a WebSocket).
+const LIVE = /^\/api\/panes\/([^/]+)\/live$/;
+const PEER_LIVE = /^\/api\/peers\/([^/]+)\/panes\/([^/]+)\/live$/;
+function liveOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return req.headers['x-herdr-hub'] === '1';
+  const host = req.headers.host || '';
+  return origin === `https://${host}` || (ALLOW_LOCAL && origin === `http://${host}`);
+}
+const liveShape = (url) => ({ lines: Math.min(Math.floor(Number(url.searchParams.get('lines'))) || 200, 400), format: url.searchParams.get('format') === 'ansi' ? 'ansi' : 'text' });
+const liveConns = new Set();
+
+function liveLocal(req, socket, head, pane, url) {
+  if (!findTerminal(pane)) return ws.refuse(socket, 404, 'pane_not_found');
+  const conn = ws.accept(req, socket, head);
+  if (!conn) return;
+  liveConns.add(conn);
+  const io = {
+    read: (shape) => readPane(pane, 'recent_unwrapped', shape.lines, shape.format),
+    input: async (text, keys) => {
+      await sendPaneInput(pane, text, keys);
+      if (keys.includes('enter')) refreshAfterKeys();
+    },
+    echo: async ({ text, before }, shape) =>
+      (
+        await echo.waitEcho(
+          {
+            waitFor: (pattern, ms) =>
+              herdr.call('pane.wait_for_output', { pane_id: pane, source: 'recent_unwrapped', lines: shape.lines, match: { type: 'regex', value: pattern }, timeout_ms: ms }).then(
+                () => true,
+                () => false
+              ),
+            read: () => readPane(pane, 'recent_unwrapped', shape.lines, shape.format),
+            sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+            now: () => performance.now(),
+          },
+          { text, before }
+        )
+      ).screen,
+    touch: () => herdrAwake.touch(),
+    now: () => performance.now(),
+    setTimeout: (f, ms) => setTimeout(f, ms),
+    clearTimeout: (t) => clearTimeout(t),
+    buffered: () => conn.buffered,
+  };
+  // The pane went away (lib/live says 'gone'): the channel goes with it.
+  const send = (m) => {
+    conn.send(JSON.stringify(m));
+    if (m.t === 'gone') conn.close(1000, 'gone');
+  };
+  const session = liveSession({ io, send, pane, shape: liveShape(url), api: API_VERSION });
+  conn.on('message', (text) => {
+    let m;
+    try {
+      m = JSON.parse(text);
+    } catch {
+      return;
+    }
+    if (m && m.t === 'k') {
+      // The same checks as POST /keys: text alone, or keys herdr knows (with text before them).
+      const x = typeof m.x === 'string' ? m.x : '';
+      const y = Array.isArray(m.y) ? m.y : [];
+      const bad = badText(x) ? 'bad_text' : y.length ? (validKeys(y, PANE_KEYS) ? null : 'bad_keys') : x ? null : 'bad_keys';
+      if (bad) return conn.send(JSON.stringify({ t: 'kerr', from: m.s, to: m.s, error: bad, message: bad }));
+      m = { t: 'k', s: m.s, x, y };
+    }
+    session.message(m);
+  });
+  conn.on('close', () => {
+    liveConns.delete(conn);
+    session.stop();
+  });
+}
+
+// The hub's leg: the peer's channel first (so a peer that cannot, or a pane that is gone, is a
+// plain HTTP answer the page falls back on), then the page's, then each message through as it is.
+async function livePeer(req, socket, head, hostId, encodedPane, url) {
+  const peer = peers.get(hostId);
+  if (!peer) return ws.refuse(socket, 404, 'unknown_host');
+  if (!peer.online) return ws.refuse(socket, 503, 'peer_offline', `${peer.shown()} 오프라인`);
+  if (!peer.build || !(peer.build.api >= LIVE_API)) return ws.refuse(socket, 501, 'peer_no_live');
+  let up;
+  try {
+    up = await ws.connect(new URL(`/api/panes/${encodedPane}/live${url.search}`, peer.url).href, { headers: { 'X-Herdr-Hub': '1' } });
+  } catch (err) {
+    if (err.status) return ws.refuse(socket, err.status, err.code || 'peer_error');
+    console.error(`${new Date().toISOString()} live ${peer.id}: ${err.code || err.message}`);
+    return ws.refuse(socket, err.timeout ? 504 : 502, err.timeout ? 'peer_timeout' : 'peer_unreachable');
+  }
+  if (socket.destroyed) return up.close(1001);
+  const down = ws.accept(req, socket, head);
+  if (!down) return up.close(1001);
+  liveConns.add(down);
+  up.on('message', (t) => down.send(t));
+  down.on('message', (t) => up.send(t));
+  up.on('close', (code) => down.close(code === 1006 || code === 1005 ? 1011 : code, 'peer'));
+  down.on('close', () => {
+    liveConns.delete(down);
+    up.close(1000);
+  });
+}
+
+server.on('upgrade', (req, socket, head) => {
+  socket.on('error', () => {});
+  const url = new URL(req.url, 'http://herdr-hub.local');
+  if (!hostAllowed(req.headers.host, HOST_RULE)) return ws.refuse(socket, 403, 'bad_host');
+  if (!identity(req)) return ws.refuse(socket, 403, 'forbidden');
+  if (!liveOrigin(req)) return ws.refuse(socket, 403, 'bad_origin');
+  if (!ws.upgradeKey(req)) return ws.refuse(socket, 400, 'not_websocket');
+  let m;
+  if ((m = LIVE.exec(url.pathname))) return liveLocal(req, socket, head, decodeURIComponent(m[1]), url);
+  if ((m = PEER_LIVE.exec(url.pathname))) return livePeer(req, socket, head, decodeURIComponent(m[1]), m[2], url).catch(() => ws.refuse(socket, 500, 'error'));
+  ws.refuse(socket, 404, 'not_found');
 });
 
 // Old photos go at start and once a day.
