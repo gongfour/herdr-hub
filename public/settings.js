@@ -233,7 +233,6 @@ function renderConn() {
   const lines = [...list, ...extra]
     .map((x) => {
       const n = state.agents.filter((a) => (a.host || localId()) === x.id).length;
-      const bad = !x.online || x.herdr !== 'up';
       const status = x.connecting ? '연결 중' : !x.online ? `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''}` : `herdr ${x.herdr === 'up' ? '연결됨' : esc(x.herdr)} · 에이전트 ${n}개`;
       const api = apiMismatch(x);
       const warn = api ? `<span class="cl-warn">${esc(api)} — 배포가 필요합니다</span>` : '';
@@ -241,7 +240,7 @@ function renderConn() {
       const where = p ? p.url.replace(/^https:\/\//, '') : x.local ? location.host : '';
       const url = where ? `<span class="cl-url">${esc(where)}</span>` : '';
       const more = p ? `<button type="button" class="icon-btn cl-more" data-host="${esc(x.id)}" aria-label="${esc(x.label)} 메뉴" title="${esc(x.label)} 메뉴">${ICON.more}</button>` : '';
-      return `<li><span class="hdot${bad ? ' off' : ''}" aria-hidden="true"></span><span class="cl-main"><span class="cl-head"><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? '이 주소' : '허브'}</span>` : ''}<span class="cl-st">${status}</span></span>${url}${warn}</span>${more}</li>`;
+      return `<li>${hostDot(x)}<span class="cl-main"><span class="cl-head"><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? '이 주소' : '허브'}</span>` : ''}<span class="cl-st">${status}</span></span>${url}${warn}</span>${more}</li>`;
     })
     .join('');
   const add = manage ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-add"><span>호스트 추가</span><span class="pl-end" aria-hidden="true">+</span></button></li>` : '';

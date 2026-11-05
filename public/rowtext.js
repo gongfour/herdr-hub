@@ -18,12 +18,25 @@
     return `…${sep}${segs.slice(-2).join(sep)}`;
   }
 
-  // A pane row's folder (an agent's or a shell's, where it is now): nothing when the folder is
-  // named like its workspace or like the row itself (the row says it already), else as shortPath.
+  // A pane row's folder (an agent's or a shell's, where it is now): its last folder alone
+  // ("herdr-hub"; the row's tooltip has the whole path), nothing when that folder is named like its
+  // workspace or like the row itself (the row says it already). The root is itself ("/", "D:").
   function rowDir(cwd, wsLabel, name) {
-    const last = base(cwd);
-    if (!last || last === String(name || '').trim()) return '';
-    return shortPath(cwd, wsLabel);
+    const p = String(cwd || '').trim();
+    if (!p) return '';
+    const last = base(p) || p;
+    if (last === String(name || '').trim() || last === String(wsLabel || '').trim()) return '';
+    return last;
+  }
+
+  // An agent's name on its small line: nothing when there is no title (the name is the title then)
+  // or the title begins with the name ("hub-cwd: 새 대화 시작 폴더", name hub-cwd).
+  function metaName(name, title) {
+    const n = String(name || '').trim();
+    const t = String(title || '').trim();
+    if (!n || !t) return '';
+    if (t.toLowerCase().startsWith(n.toLowerCase()) && !/[\p{L}\p{N}_-]/u.test(t.charAt(n.length))) return '';
+    return n;
   }
 
   // A folder for a sentence (Ctrl+N's toast): under home as ~/…, and a deep one as its last two
@@ -57,6 +70,15 @@
     return [h.label, h.online ? '' : '오프라인', mismatch ? 'API 버전 다름, 배포 필요' : ''].filter(Boolean).join(', ');
   }
 
+  // A host's dot (list.js hostDot): 'up' (online, herdr answering), 'herdr' (online, herdr not),
+  // 'connecting' (a peer added a moment ago) or 'off'.
+  function hostState(h) {
+    if (!h) return 'off';
+    if (h.connecting) return 'connecting';
+    if (!h.online) return 'off';
+    return h.herdr === 'up' ? 'up' : 'herdr';
+  }
+
   // The first-visit hint: the host swipe only when there is a host to swipe to.
   const hintText = (multi) => (multi ? '옆으로 밀어 기기 바꾸기 · 길게 눌러 메뉴' : '줄을 길게 누르면 메뉴가 나옵니다');
   // Seen this many times (one count per app start), or closed with ✕ ('x'), it stays away.
@@ -64,7 +86,7 @@
   const hintDue = (stored) => stored !== 'x' && (Number(stored) || 0) < HINT_TIMES;
   const hintNext = (stored) => String(Math.min(HINT_TIMES, (Number(stored) || 0) + 1));
 
-  const api = { shortPath, rowDir, homePath, termName, hostAria, hintText, hintDue, hintNext, HINT_TIMES };
+  const api = { shortPath, rowDir, metaName, homePath, termName, hostAria, hostState, hintText, hintDue, hintNext, HINT_TIMES };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RowText = api;
 })(typeof self !== 'undefined' ? self : this);

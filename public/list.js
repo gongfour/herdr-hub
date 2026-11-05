@@ -31,7 +31,7 @@ function agoKo(t) {
   if (sec < 86400) return `${Math.floor(sec / 3600)}시간 전`;
   return new Date(t).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }); // 11월 4일, not 11. 4.
 }
-// "작업 중 · 12분" / "완료 · 3분 전" next to the badge; nothing when the hub doesn't know.
+// "12분" (working) / "3분 전" (finished) at a row's right end; nothing when the hub doesn't know.
 function timeTag(a) {
   if (a.status === 'working' && a.workingSince) return `<span class="el" data-since="${Number(a.workingSince)}"></span>`;
   if ((a.status === 'done' || a.status === 'idle') && a.doneAt) return `<span class="el ago" data-ago="${Number(a.doneAt)}" title="${esc(clock(a.doneAt))} 완료"></span>`;
@@ -250,13 +250,33 @@ let listScroll = 0; // the list's scroll position, kept while a detail view is o
 // right under it says which, so the header doesn't say it twice.
 const hostLine = () => (multi() ? '' : state.host || '');
 
+// A host's dot, the same in the host picker and on 설정 → 연결 (rowtext.js hostState, style.css
+// .hdot): online breathes slowly, herdr not answering is amber, offline a grey hollow ring, all
+// still. A host that has just come online (seen not up before, up now) pops once: 'came' stays on
+// its dot for the pop's length, so either screen drawn in that time shows it.
+const hostSeen = new Map(); // host id → { st, cameAt }
+const HOST_POP_MS = 1200;
+function hostDot(x) {
+  const st = RowText.hostState(x);
+  const r = hostSeen.get(x.id);
+  if (!r) hostSeen.set(x.id, { st, cameAt: 0 });
+  else if (r.st !== st) {
+    if (st === 'up') r.cameAt = Date.now();
+    r.st = st;
+  }
+  const came = r && st === 'up' && Date.now() - r.cameAt < HOST_POP_MS;
+  return `<span class="hdot ${st}${came ? ' came' : ''}" aria-hidden="true"></span>`;
+}
+// A hidden page keeps its dots still (no work for a screen nobody sees).
+document.addEventListener('visibilitychange', () => document.documentElement.classList.toggle('page-hidden', document.hidden));
+
 // The host segment: one button per host, scrolling sideways when they don't fit (style.css
-// .seg.hosts). Offline is a hollow dot, and said in words to a screen reader (rowtext.js).
+// .seg.hosts). Offline is a hollow grey dot (hostDot), and said in words to a screen reader (rowtext.js).
 function hostSeg(f) {
   if (!multi()) return '';
   const btn = (x) => {
     const warn = apiMismatch(x);
-    return `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}" aria-label="${esc(RowText.hostAria(x, warn))}"${warn ? ` title="${esc(warn)} — 배포가 필요합니다"` : ''}><span class="hdot" aria-hidden="true"></span><span class="hl">${esc(x.label)}</span>${warn ? '<span class="api-warn" aria-hidden="true">!</span>' : ''}</button>`;
+    return `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}" aria-label="${esc(RowText.hostAria(x, warn))}"${warn ? ` title="${esc(warn)} — 배포가 필요합니다"` : ''}>${hostDot(x)}<span class="hl">${esc(x.label)}</span>${warn ? '<span class="api-warn" aria-hidden="true">!</span>' : ''}</button>`;
   };
   return `
     <nav class="seg hosts" role="group" aria-label="호스트"${keyAttrs('prevHost|nextHost', '호스트 바꾸기')}>
@@ -505,19 +525,25 @@ function wsSection({ w, agents, terms }) {
   </section>`;
 }
 
-// A blocked agent says so with its badge; it is answered by opening it (the chat's blocked box).
-// A finish not opened yet: a dot before the icon and a bolder name, like an unread message.
-// The title (what the conversation is about) has the row's width, up to two lines; the agent's
-// name and how long it has worked (or when it finished) go on a small line under it.
+// A row: the icon and the title (what the conversation is about, the row's width, up to two lines),
+// and at the right, on the title's first line, when it finished or how long it has worked, small.
+// The small line under the title says the status as a coloured dot and word, then the agent's
+// name (not when the title begins with it) and the folder (rowtext.js). A blocked agent wants an
+// answer now: a pill at the right says so in the time's place (it is answered by opening it, the
+// chat's blocked box). A finish not opened yet: a dot before the icon and a bolder title, like an
+// unread message.
 function agentRow(a) {
   const unread = isUnread(a);
-  const badge = `<span class="badge ${esc(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
-  const meta = [a.name && a.title ? `<span>${esc(a.name)}</span>` : '', timeTag(a), paneDir(a, a.name)].filter(Boolean).join('<span class="sep"> · </span>');
+  const blocked = a.status === 'blocked';
+  const end = blocked ? `<span class="badge blocked">${esc(STATUS_LABEL.blocked)}</span>` : timeTag(a);
+  const st = blocked ? '' : `<span class="st ${esc(a.status)}"><i class="st-dot" aria-hidden="true"></i>${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
+  const name = RowText.metaName(a.name, a.title);
+  const meta = [st, name ? `<span>${esc(name)}</span>` : '', paneDir(a, a.name)].filter(Boolean).join('<span class="sep"> · </span>');
   return `<div class="sw" ${rowData('agent', a.host, a.pane)}>
     <a class="sw-front pane-row agent${unread ? ' unread' : ''}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
       ${unread ? '<span class="unread-dot" role="img" aria-label="새 결과"></span>' : ''}<span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
       <span class="pane-main"><span class="pane-title">${esc(a.title || a.name || a.agent || a.pane)}</span>${meta ? `<span class="pane-meta">${meta}</span>` : ''}</span>
-      ${badge}
+      ${end ? `<span class="pane-end">${end}</span>` : ''}
     </a>
     ${rowMore(a.title || a.name || a.pane)}
   </div>`;
@@ -527,7 +553,7 @@ function agentRow(a) {
 // a long press (rows.js). Out of the Tab order: Alt+M opens the focused row's menu.
 const rowMore = (name) => `<button type="button" class="icon-btn row-more" tabindex="-1" aria-haspopup="dialog" aria-label="${esc(name)} 메뉴">${ICON.more}</button>`;
 
-// A row's folder, where it is now: its last two folders, none when the folder is named like the
+// A row's folder, where it is now: its last folder, none when the folder is named like the
 // workspace or the row (rowtext.js rowDir); the whole path on hover.
 function paneDir(x, name) {
   const d = RowText.rowDir(x.cwd, x.workspaceLabel, name);
@@ -540,7 +566,7 @@ function termRow(t) {
     <a class="sw-front pane-row term" href="${link(t.host, `/term/${encodeURIComponent(t.pane)}`)}">
       <span class="pane-ic" aria-hidden="true">${ICON.term}</span>
       <span class="pane-main"><span class="pane-title">${esc(termTitle(t))}</span>${dir ? `<span class="pane-meta">${dir}</span>` : ''}</span>
-      <span class="pane-kind">셸</span>
+      <span class="pane-end"><span class="pane-kind">셸</span></span>
     </a>
     ${rowMore(termTitle(t))}
   </div>`;

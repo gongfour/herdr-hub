@@ -2,7 +2,7 @@
 // The 작업공간 list's words (public/rowtext.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { shortPath, rowDir, homePath, termName, hostAria, hintText, hintDue, hintNext } = require('../public/rowtext.js');
+const { shortPath, rowDir, metaName, homePath, termName, hostAria, hostState, hintText, hintDue, hintNext } = require('../public/rowtext.js');
 
 test('a folder in short only when the name does not say it, cut to two folders', () => {
   assert.equal(shortPath('D:\\project\\digitrack\\dotori_rcs', 'dotori_rcs'), '');
@@ -14,14 +14,27 @@ test('a folder in short only when the name does not say it, cut to two folders',
   assert.equal(shortPath(null, 'x'), '');
 });
 
-test('a row shows its own folder unless the workspace or the row is named like it', () => {
-  assert.equal(rowDir('/Users/kang/Project/herdr-hub', 'hub', 'fix the list'), '…/Project/herdr-hub');
+test('a row shows its own last folder unless the workspace or the row is named like it', () => {
+  assert.equal(rowDir('/Users/kang/Project/herdr-hub', 'hub', 'fix the list'), 'herdr-hub');
+  assert.equal(rowDir('/Users/kang/Project/herdr-hub/', 'hub', 'fix the list'), 'herdr-hub');
   assert.equal(rowDir('/Users/kang/Project/herdr-hub', 'herdr-hub', 'fix the list'), ''); // the workspace says it
   assert.equal(rowDir('/Users/kang/Project/herdr-hub', 'hub', 'herdr-hub'), ''); // the row says it
-  assert.equal(rowDir('D:\\project\\digitrack\\dotori_rcs', 'mob', 'nu'), '…\\digitrack\\dotori_rcs');
-  assert.equal(rowDir('/srv/app', 'x', 'y'), '/srv/app');
+  assert.equal(rowDir('D:\\project\\digitrack\\dotori_rcs', 'mob', 'nu'), 'dotori_rcs');
+  assert.equal(rowDir('/srv/app', 'x', 'y'), 'app');
+  assert.equal(rowDir('/', 'x', 'y'), '/');
   assert.equal(rowDir('', 'x', 'y'), '');
   assert.equal(rowDir(undefined, 'x'), '');
+});
+
+test('the small line has the agent name only when the title does not begin with it', () => {
+  assert.equal(metaName('hub-cwd', 'hub-cwd: 새 대화 시작 폴더'), '');
+  assert.equal(metaName('hub-cwd', 'hub-cwd 새 대화'), '');
+  assert.equal(metaName('hub-cwd', 'hub-cwd'), '');
+  assert.equal(metaName('Hub-CWD', 'hub-cwd: x'), '');
+  assert.equal(metaName('hub', 'hub-cwd: x'), 'hub'); // a longer word, not the name
+  assert.equal(metaName('hub-cwd', 'Nu parser failure on host'), 'hub-cwd');
+  assert.equal(metaName('hub-cwd', ''), ''); // no title: the name is the title
+  assert.equal(metaName('', 'x'), '');
 });
 
 test('a folder in a sentence: ~ for home, a deep one as its last two', () => {
@@ -49,6 +62,15 @@ test('a host button says offline and a version mismatch in words', () => {
   assert.equal(hostAria({ label: 'server', online: true }), 'server');
   assert.equal(hostAria({ label: 'server', online: false }), 'server, 오프라인');
   assert.equal(hostAria({ label: 'mac', online: true }, 'API 2 ≠ 3'), 'mac, API 버전 다름, 배포 필요');
+});
+
+test("a host's dot: up, herdr not answering, connecting or offline", () => {
+  assert.equal(hostState({ online: true, herdr: 'up' }), 'up');
+  assert.equal(hostState({ online: true, herdr: 'down' }), 'herdr');
+  assert.equal(hostState({ online: true }), 'herdr');
+  assert.equal(hostState({ online: false, herdr: 'up' }), 'off');
+  assert.equal(hostState({ online: false, herdr: 'connecting', connecting: true }), 'connecting');
+  assert.equal(hostState(null), 'off');
 });
 
 test('the first-visit hint: the host swipe only with hosts, three starts or ✕', () => {
