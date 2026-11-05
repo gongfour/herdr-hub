@@ -138,15 +138,60 @@ test('queueRaw: presses merge per pane and never cross to another one', () => {
   queueRaw(q, B, { key: 'up' });
   queueRaw(q, { host: 'desktop', pane: 'w1:p2' }, { key: 'enter' }); // same pane id, other host
   assert.deepEqual(q, [
-    { ...A, text: 'rm -rf build', keys: [] },
-    { ...A, text: '', keys: ['enter'] },
-    { ...B, text: 'ls', keys: [] },
-    { ...B, text: '', keys: ['enter', 'up'] },
+    { ...A, text: 'rm -rf build', keys: ['enter'] }, // text then its keys: one trip
+    { ...B, text: 'ls', keys: ['enter', 'up'] },
     { host: 'desktop', pane: 'w1:p2', text: '', keys: ['enter'] },
   ]);
   const many = [];
   for (let i = 0; i < 10; i++) queueRaw(many, A, { key: 'down' });
   assert.deepEqual(many.map((x) => x.keys.length), [8, 2]); // herdr takes 8 keys at once
+});
+
+test('queueRaw: text after keys starts a new item, so the server (text, then keys) keeps the order', () => {
+  const { queueRaw } = require('../public/keys');
+  const A = { host: 'server', pane: 'w1:p1' };
+  const q = [];
+  queueRaw(q, A, { text: 'ls' });
+  queueRaw(q, A, { key: 'enter' });
+  queueRaw(q, A, { text: 'pwd' });
+  queueRaw(q, A, { key: 'tab' });
+  queueRaw(q, A, { key: 'enter' });
+  queueRaw(q, A, { key: 'up' });
+  queueRaw(q, A, { text: 'x' });
+  assert.deepEqual(q, [
+    { ...A, text: 'ls', keys: ['enter'] },
+    { ...A, text: 'pwd', keys: ['tab', 'enter', 'up'] },
+    { ...A, text: 'x', keys: [] },
+  ]);
+  // Any press sequence, sent item by item as text then keys, arrives as it was typed.
+  const presses = [];
+  let seed = 7;
+  const rnd = (n) => ((seed = (seed * 1103515245 + 12345) % 2147483648) % n);
+  for (let i = 0; i < 400; i++) presses.push(rnd(3) ? { text: 'abc'[rnd(3)] } : { key: ['enter', 'tab', 'left'][rnd(3)] });
+  const r = [];
+  for (const p of presses) queueRaw(r, A, p);
+  const sent = r.flatMap((it) => [...Array.from(it.text).map((c) => `t:${c}`), ...it.keys.map((k) => `k:${k}`)]);
+  assert.deepEqual(sent, presses.map((p) => (p.text ? `t:${p.text}` : `k:${p.key}`)));
+  assert.ok(r.every((it) => it.keys.length <= 8));
+});
+
+test('termReadDue: every tick while typing or while the output still moves, else the idle pace', () => {
+  const { termReadDue } = require('../public/keys');
+  const now = 100000;
+  // 키 직접 입력, idle: once a second.
+  assert.equal(termReadDue({ now, raw: true, keyAt: 0, changeAt: 0, loadAt: now - 300 }), false);
+  assert.equal(termReadDue({ now, raw: true, keyAt: 0, changeAt: 0, loadAt: now - 1000 }), true);
+  // 한 줄 입력, idle: every 2.5 s.
+  assert.equal(termReadDue({ now, raw: false, keyAt: 0, changeAt: 0, loadAt: now - 2000 }), false);
+  assert.equal(termReadDue({ now, raw: false, keyAt: 0, changeAt: 0, loadAt: now - 2500 }), true);
+  // Typing (키 직접 입력 only): every tick for 3 s.
+  assert.equal(termReadDue({ now, raw: true, keyAt: now - 2900, changeAt: 0, loadAt: now - 300 }), true);
+  assert.equal(termReadDue({ now, raw: true, keyAt: now - 3100, changeAt: 0, loadAt: now - 300 }), false);
+  assert.equal(termReadDue({ now, raw: false, keyAt: now - 100, changeAt: 0, loadAt: now - 300 }), false);
+  // Output still moving (a read differed within 3 s): every tick, in either mode, keys or not.
+  assert.equal(termReadDue({ now, raw: true, keyAt: 0, changeAt: now - 600, loadAt: now - 300 }), true);
+  assert.equal(termReadDue({ now, raw: false, keyAt: 0, changeAt: now - 2900, loadAt: now - 300 }), true);
+  assert.equal(termReadDue({ now, raw: false, keyAt: 0, changeAt: now - 3100, loadAt: now - 300 }), false);
 });
 
 test('recall: ↑ on an empty field walks back through what was sent, ↓ comes forward to empty', () => {

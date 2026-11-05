@@ -25,6 +25,7 @@ const hoststore = require('./lib/hoststore');
 const { indexPage, send, readJson, readRaw, serveStatic, takesGzip, parseHosts, hostAllowed, corsOrigin } = require('./lib/http');
 const { KINDS, PANE_KEYS, AGENT_NAME, validKeys, badText, cleanLabel, cleanCwd, cleanAgentSpec: cleanSpec } = require('./lib/validate');
 const { screenReader } = require('./lib/screen');
+const echo = require('./lib/echo');
 const { readBuild, describe, decorator } = require('./lib/build');
 const watchdog = require('./lib/watchdog');
 const fsq = require('./lib/fsq');
@@ -416,6 +417,35 @@ async function sendPaneKeys(pane, keys) {
   }
   await flush();
 }
+// Text, then keys: one herdr call (pane.send_input) when every key has a herdr name, else as above.
+let sendInputOk = true;
+async function sendPaneInput(pane, text, keys) {
+  if (text && keys.length && sendInputOk && !keys.some((k) => SEQ_KEYS[k])) {
+    try {
+      return await herdr.call('pane.send_input', { pane_id: pane, text, keys });
+    } catch (err) {
+      if (!(err.code === 'invalid_request' && /unknown variant/.test(err.message))) throw err;
+      sendInputOk = false; // a herdr without it: two calls from now on
+    }
+  }
+  if (text) await herdr.call('pane.send_text', { pane_id: pane, text });
+  if (keys.length) await sendPaneKeys(pane, keys);
+}
+
+// The last screen read per shell pane (lib/echo): what a key's echo is compared against.
+const paneScreens = echo.lastScreens();
+async function readPane(pane, source, lines, format) {
+  const screen = await readScreen('pane.read', { pane_id: pane }, source, lines, format);
+  paneScreens.set(pane, { source, format, lines }, screen);
+  return screen;
+}
+// A typed command may start an agent or change the folder: one refresh after the last Enter
+// (herdr's own events cover most of it; this is for what they do not).
+let keysRefreshTimer = null;
+const refreshAfterKeys = () => {
+  clearTimeout(keysRefreshTimer);
+  keysRefreshTimer = setTimeout(refresh, 500);
+};
 
 // Folders seen in existing agents and panes, most common first.
 function recentCwds() {
@@ -530,7 +560,7 @@ async function api(req, res, url) {
 
     if (method === 'GET' && parts[2] === 'screen') {
       const lines = Math.min(Number(url.searchParams.get('lines')) || 120, 400);
-      return send(res, 200, await readScreen('pane.read', { pane_id: pane }, url.searchParams.get('source'), lines, url.searchParams.get('format')));
+      return send(res, 200, await readPane(pane, url.searchParams.get('source'), lines, url.searchParams.get('format')));
     }
     if (method === 'POST') {
       const body = await readJson(req);
@@ -544,16 +574,31 @@ async function api(req, res, url) {
         // keys may be empty when there is text: raw mode typing one character at a time.
         const textOnly = parts[2] === 'keys' && text && Array.isArray(keys) && keys.length === 0;
         if (!textOnly && !validKeys(keys, PANE_KEYS)) return send(res, 400, { error: 'bad_keys' });
-        if (text) await herdr.call('pane.send_text', { pane_id: pane, text });
-        if (!textOnly) await sendPaneKeys(pane, keys);
-        // 키 직접 입력 asks for the screen back ({ echo: { format } }): the echo arrives with the
-        // reply instead of a second request (two hops when the pane is on a peer). Typing
-        // changes no pane state, so the refresh below is skipped. lines: as many as the
-        // page reads (200 for a page from before it said, 400 at most).
-        if (parts[2] === 'keys' && body.echo && typeof body.echo === 'object') {
-          await new Promise((r) => setTimeout(r, 40));
+        await sendPaneInput(pane, text, textOnly ? [] : keys);
+        if (parts[2] === 'keys') {
+          // Typing changes no state the views show: no refresh or broadcast per key (the
+          // regular one and herdr's events cover the rest), one shortly after an Enter.
+          if (!textOnly && keys.includes('enter')) refreshAfterKeys();
+          // 키 직접 입력 asks for the screen back ({ echo: { format } }): the echo arrives with
+          // the reply instead of a second request (two hops when the pane is on a peer), as
+          // soon as it is on screen (lib/echo). lines: as many as the page reads (200 for a
+          // page from before it said, 400 at most).
+          if (!body.echo || typeof body.echo !== 'object') return send(res, 200, result);
           const lines = Math.min(Math.floor(Number(body.echo.lines)) || 200, 400);
-          const screen = await readScreen('pane.read', { pane_id: pane }, 'recent_unwrapped', lines, body.echo.format);
+          const shape = { source: 'recent_unwrapped', format: body.echo.format, lines };
+          const { screen } = await echo.waitEcho(
+            {
+              waitFor: (pattern, ms) =>
+                herdr.call('pane.wait_for_output', { pane_id: pane, source: 'recent_unwrapped', lines, match: { type: 'regex', value: pattern }, timeout_ms: ms }).then(
+                  () => true,
+                  () => false
+                ),
+              read: () => readPane(pane, shape.source, lines, shape.format),
+              sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+              now: () => performance.now(),
+            },
+            { text: textOnly || !keys.length ? text : '', before: paneScreens.get(pane, shape) }
+          );
           return send(res, 200, { ok: true, screen });
         }
       } else if (parts[2] === 'rename') {
@@ -566,6 +611,7 @@ async function api(req, res, url) {
         await startAgent(pane, cleanAgentSpec(body, [term.workspaceLabel, path.basename(term.cwd || '')]));
       } else if (parts[2] === 'close') {
         await herdr.call('pane.close', { pane_id: pane });
+        paneScreens.drop(pane);
       } else return send(res, 404, { error: 'not_found' });
       await refresh();
       return send(res, 200, result);

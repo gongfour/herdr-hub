@@ -594,8 +594,9 @@ async function pumpRaw() {
 // Unwrapped lines, so the phone wraps each real line once instead of re-wrapping lines already
 // cut at the pane's width. (The server falls back to recent on a herdr without it.)
 // How soon the screen is read again: a little after a key's echo came back (output that takes
-// longer), every 300 ms while keys are being typed, then every second in 키 직접 입력 and every
-// 2.5 s in 한 줄 입력.
+// longer), every 300 ms while keys are being typed or the output is still moving (keys.js
+// termReadDue), else every second in 키 직접 입력 and every 2.5 s in 한 줄 입력; at once when
+// the app comes back to the front.
 const RAW_FOLLOW_MS = 250;
 // Scrollback: 200 lines while the box follows the prompt (a read every 300 ms while typing
 // stays small: a colourful 200 is about 60 KB), the server's most (400) once the box is
@@ -605,12 +606,12 @@ const TERM_LINES_DEEP = 400;
 const DEEP_PX = 600; // this near the top asks for the longer scrollback
 const termLines = () => (detail.deep ? TERM_LINES_DEEP : TERM_LINES);
 const TERM_TICK_MS = 300;
-const TYPING_MS = 3000;
 function pollTerminal() {
-  const since = Date.now() - (detail.loadAt || 0);
-  const typing = detail.raw && Date.now() - (detail.keyAt || 0) < TYPING_MS;
-  if (typing || since >= (detail.raw ? 1000 : 2500)) loadTerminal();
+  if (Keys.termReadDue({ now: Date.now(), raw: detail.raw, keyAt: detail.keyAt, changeAt: detail.changeAt, loadAt: detail.loadAt })) loadTerminal();
 }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && view.name === 'term') loadTerminal();
+});
 
 let termReads = 0; // reads overlap when keys come fast; only the newest may draw
 async function loadTerminal() {
@@ -631,6 +632,8 @@ async function loadTerminal() {
 function drawTerminal(screen, n, deep) {
   if (n < (detail.drawn || 0)) return; // an older read finished after a newer one
   detail.drawn = n;
+  // Output still moving keeps the reads coming every tick (pollTerminal).
+  if (detail.screen && detail.screen.text !== screen.text) detail.changeAt = Date.now();
   detail.screen = screen;
   if (!scr || scr.kind !== 'term') return;
   // The first longer read while scrolled up: its earlier lines go on above what is being read.

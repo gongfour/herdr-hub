@@ -101,18 +101,30 @@
     return { state: 'off', at: now };
   }
 
-  // The raw-mode send queue: { host, pane, text, keys } items, one request each, in order. A new
-  // key press joins the last item when that is for the same pane and of the same kind (text runs
-  // merge; keys gather up to 8, the most herdr takes at once); otherwise it starts its own. Each
-  // item keeps the pane it was typed for, so keys still waiting when the view moves on go there
-  // and nowhere else. Mutates and returns q.
+  // The raw-mode send queue: { host, pane, text, keys } items, one request each, in order; the
+  // server types an item's text first, then its keys. So a new key press joins the last item
+  // when that is for the same pane and the order stays: text joins text while no keys have
+  // joined yet; keys join after (up to 8, the most herdr takes at once). "ls⏎" is one item.
+  // Otherwise it starts its own. Each item keeps the pane it was typed for, so keys still waiting
+  // when the view moves on go there and nowhere else. Mutates and returns q.
   function queueRaw(q, target, press) {
     const last = q[q.length - 1];
     const here = last && last.host === target.host && last.pane === target.pane;
-    if (press.text != null && here && last.text != null && !last.keys.length && last.text.length < 2000) last.text += press.text;
-    else if (press.key && here && !last.text && last.keys.length < 8) last.keys.push(press.key);
+    if (press.text != null && here && !last.keys.length && last.text.length < 2000) last.text += press.text;
+    else if (press.key && here && last.keys.length < 8) last.keys.push(press.key);
     else q.push({ host: target.host, pane: target.pane, text: press.text || '', keys: press.key ? [press.key] : [] });
     return q;
+  }
+
+  // The shell view's screen reads (its 300 ms tick): every tick while keys are being typed or
+  // the screen is still changing (a read that differed from the one before, within the last
+  // MOVING_MS), else every IDLE_MS (키 직접 입력: 1 s, 한 줄 입력: 2.5 s). t: { now, raw, keyAt,
+  // changeAt, loadAt } in ms (0 when never).
+  const MOVING_MS = 3000;
+  function termReadDue(t) {
+    const recent = (at) => Boolean(at) && t.now - at < MOVING_MS;
+    if ((t.raw && recent(t.keyAt)) || recent(t.changeAt)) return true;
+    return t.now - (t.loadAt || 0) >= (t.raw ? 1000 : 2500);
   }
 
   // The raw-mode keys still on their way (queueRaw items), as one short line for the shell view's
@@ -151,7 +163,7 @@
     return at + 1 < sent.length ? { at: at + 1, text: sent[at + 1] } : { at: null, text: '' };
   }
 
-  const api = { enterAction, rawKeyName, shellMeaning, withMods, tapMod, queueRaw, describeRaw, recall };
+  const api = { enterAction, rawKeyName, shellMeaning, withMods, tapMod, queueRaw, termReadDue, describeRaw, recall };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Keys = api;
 })(typeof self !== 'undefined' ? self : this);
