@@ -1386,8 +1386,16 @@ button.tool:active { filter: brightness(0.95); }
 /* The chat, split: one column of about 760px for everything in it — the header's contents, the
    activity line, the messages (and the 최신 대화 pill), the answer box, the photos, the command
    suggestions and the composer. Rules and backgrounds still run edge to edge; only the contents
-   keep to the column (--gut, from the view's own width). Tables and code reach a little wider. */
-.split .detail.chat { container-type: inline-size; --gut: max(16px, (100cqw - 760px) / 2); }
+   keep to the column (--gut, from the view's own width). Tables and code reach wider.
+   The column follows 설정 → 대화 폭 (prefs.js chatW): 자동 grows with the view (760px on a laptop's
+   split, up to 1200px on a monitor), 좁게 stays 760, 넓게 takes about three quarters, 꽉 차게 all.
+   The chat's text grows a little with the screen too (16px on a laptop, up to 18px on a monitor). */
+.split .detail.chat { container-type: inline-size; --col: clamp(760px, 60cqw, 1200px); --gut: max(16px, (100cqw - var(--col)) / 2); }
+:root[data-chatw="narrow"] .detail.chat { --col: 760px; }
+:root[data-chatw="wide"] .detail.chat { --col: clamp(760px, 75cqw, 1500px); }
+:root[data-chatw="full"] .detail.chat { --col: 100cqw; }
+.split .detail.chat .msgs { font-size: clamp(16px, 0.25vw + 12.4px, 18px); }
+.split .detail.chat .msg pre { font-size: clamp(13px, 0.15vw + 10.8px, 15px); }
 .split .detail.chat > .bar,
 .split .detail.chat > .scroll,
 .split .detail.chat > #d-blocked,
@@ -1396,7 +1404,7 @@ button.tool:active { filter: brightness(0.95); }
 .split .detail.chat > .composer { padding-left: var(--gut); padding-right: var(--gut); }
 .split .detail.chat > .activity { margin-left: var(--gut); margin-right: var(--gut); }
 .split .detail.chat > #d-blocked > .blocked-box { margin-left: 0; margin-right: 0; }
-.split .detail.chat .msg.assistant > :is(pre, .table-wrap) { margin-left: calc(-1 * min(48px, var(--gut) - 16px)); margin-right: calc(-1 * min(48px, var(--gut) - 16px)); }
+.split .detail.chat .msg.assistant > :is(pre, .table-wrap) { margin-left: calc(-1 * min(160px, var(--gut) - 16px)); margin-right: calc(-1 * min(160px, var(--gut) - 16px)); }
 /* The answer box's toggles say what they are where there is room (answer.js). */
 .wide-only { display: none; }
 .split .wide-only { display: inline; }

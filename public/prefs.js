@@ -67,6 +67,16 @@
     },
     { key: 'wrap.agent', store: 'herdr-hub.wrap.agent', group: 'screen', label: '에이전트 터미널 화면 줄바꿈', type: 'bool', default: false, hint: '에이전트의 「터미널 화면 보기」에서 같은 일을 합니다.' },
     {
+      key: 'chatW', store: 'herdr-hub.chatW', group: 'screen', label: '대화 폭', type: 'choice',
+      options: { auto: '자동', narrow: '좁게', wide: '넓게', full: '꽉 차게' }, default: 'auto', clearOnDefault: true,
+      hint: {
+        auto: '두 칸 화면의 대화 글 폭: 칸이 넓을수록 넓어지고(760–1200px) 글자도 조금 커집니다. 코드·표는 조금 더 넓게 씁니다.',
+        narrow: '760px 로 둡니다. 한 줄이 짧아 읽기 편합니다.',
+        wide: '칸의 4분의 3 쯤(최대 1500px)까지 씁니다.',
+        full: '칸 끝에서 끝까지 씁니다.',
+      },
+    },
+    {
       key: 'listW', store: 'herdr-hub.listW', group: 'screen', label: '목록 칸 폭', type: 'choice',
       options: { auto: '자동', narrow: '좁게', wide: '넓게' }, default: 'auto', clearOnDefault: true,
       free: { min: 240, max: 480, hint: '목록 칸 가장자리를 끌어 {}px 로 맞췄습니다. 두 번 누르면 자동으로 돌아갑니다.' },

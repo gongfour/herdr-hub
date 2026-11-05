@@ -45,6 +45,7 @@ test('storage keys are the ones the app always used', () => {
     'wrap.agent': 'herdr-hub.wrap.agent',
     termFont: 'herdr-hub.termFont',
     edgeForward: 'herdr-hub.edgeForward',
+    chatW: 'herdr-hub.chatW',
     listW: 'herdr-hub.listW',
     paletteOrder: 'herdr-hub.paletteOrder',
   });
@@ -65,6 +66,7 @@ test('values written by the old code read the same (and unknown or missing ones 
     'wrap.agent': (s) => (s === '1' || s === '0' ? s === '1' : false),
     edgeForward: (s) => (s === '1' || s === '0' ? s === '1' : false), // new: off unless iOS
     termFont: (s) => (['11', '12', '14'].includes(s) ? s : '12'), // new
+    chatW: () => 'auto', // new: no sample is one of its values
     listW: () => 'auto', // new: no sample is one of its values
     paletteOrder: () => 'done', // new: no sample is one of its values
   };

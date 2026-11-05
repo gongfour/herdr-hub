@@ -254,6 +254,7 @@ const PREF_EFFECTS = {
   shellInput(v) {
     if (view.name === 'term' && detail.setRaw) detail.setRaw(v === 'raw');
   },
+  chatW: (v) => applyChatWidth(v),
   listW() {
     applyListWidth();
     if (split) syncGrip(), hostSegEdges(); // app.js, list.js
@@ -264,6 +265,11 @@ function applyTermFont(v = Prefs.get('termFont')) {
   document.documentElement.style.setProperty('--term-font', `${Number(v) || 12}px`);
 }
 applyTermFont();
+// 대화 폭 (prefs.js chatW): style.css picks the chat column from :root[data-chatw].
+function applyChatWidth(v = Prefs.get('chatW')) {
+  document.documentElement.dataset.chatw = v;
+}
+applyChatWidth();
 // 목록 칸 폭 (prefs.js listW): a set width overrides style.css's 자동 (--list-w-set).
 function applyListWidth(px = Prefs.listWidth(Prefs.get('listW'))) {
   const st = document.documentElement.style;
