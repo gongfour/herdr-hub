@@ -52,16 +52,31 @@ function placeCaret(input, offset) {
   sel.addRange(r);
 }
 
-// Prefix matches first (of the whole name or of a part after ":"), then substring ones;
-// each keeps the host's order (source group, then name).
-function filterCommands(list, q) {
-  const ql = q.toLowerCase();
-  if (!ql) return list;
-  const pre = (c) => c.name.toLowerCase().split(':').some((part, i, all) => all.slice(i).join(':').startsWith(ql));
-  const a = list.filter(pre);
-  const b = list.filter((c) => !pre(c) && c.name.toLowerCase().includes(ql));
-  return [...a, ...b];
+// The order (slash.js): this device's recent commands first on an empty or one-letter query.
+const SLASH_KEY = 'herdr-hub.slashRecent';
+let memSlash = null;
+function slashRecent() {
+  if (memSlash) return memSlash;
+  try {
+    const v = JSON.parse(localStorage.getItem(SLASH_KEY));
+    memSlash = Array.isArray(v) ? v.filter((n) => typeof n === 'string') : [];
+  } catch {
+    memSlash = [];
+  }
+  return memSlash;
 }
+// A message sent to a Claude agent: the command it starts with, if any, goes first next time.
+function noteSlash(text) {
+  const name = Slash.used(text);
+  if (!name) return;
+  memSlash = Slash.note(slashRecent(), name);
+  try {
+    localStorage.setItem(SLASH_KEY, JSON.stringify(memSlash));
+  } catch {
+    /* this page only */
+  }
+}
+const filterCommands = (list, q) => Slash.rank(list, q, slashRecent());
 
 async function loadCommands(host, pane) {
   const key = `${host}|${pane}`;

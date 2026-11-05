@@ -191,6 +191,7 @@ function renderDetail() {
           await new Promise((r) => setTimeout(r, 500));
         }
       }
+      if (cur && cur.agent === 'claude') noteSlash(text);
       if (here()) {
         addPending(key, text.trim(), files.length);
         renderDetailBody(true); // to the end, where the message just sent is
