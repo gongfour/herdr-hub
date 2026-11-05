@@ -34,7 +34,7 @@
     help: { group: '어디서나', label: '단축키 보기' },
     settings: { group: '어디서나', label: '설정 열기·닫기 (두 칸이면 오른쪽에)' },
     focusInput: { group: '어디서나', label: '입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)', noShell: true },
-    newAgent: { group: '어디서나', label: '새 에이전트: 지금 연 것의 작업공간에 (목록이면 새 워크스페이스)' },
+    newAgent: { group: '어디서나', label: '새 에이전트 바로 시작: 지금 연 것의 작업공간에, 이 기기에서 마지막에 쓴 종류·옵션으로 (목록이면 새 워크스페이스)' },
     newWorkspace: { group: '어디서나', label: '새 워크스페이스' },
     menu: { group: '어디서나', label: '⋯ 메뉴 열기: 지금 연 에이전트·셸·워크스페이스의 것 (목록 줄에 포커스가 있으면 그 줄의 것)' },
     switcher: { group: '어디서나', label: '빠른 이동: 에이전트·셸을 이름·작업공간·호스트로 찾아 열기 (셸 화면에서는 Alt+P)' },

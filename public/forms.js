@@ -324,6 +324,11 @@ async function submitForm(e) {
   else r = await act(hp(`/panes/${encodeURIComponent(view.target)}/agent`, host), agent, null, '에이전트를 시작하지 못했습니다');
   syncSubmit();
   if (!r) return;
+  // What Ctrl+N starts next on this device, and an agent started here (quick.js).
+  if (started) {
+    Quick.remember(agent);
+    Quick.started(rowKey(host, r.pane || view.target));
+  }
   const pane = encodeURIComponent(r.pane || view.target);
   location.hash = link(host, started ? `/agent/${pane}` : `/term/${pane}`);
 }

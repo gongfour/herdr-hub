@@ -310,6 +310,9 @@ async function hostInfo(id) {
 // not hold up the next poll. Failures carry a code: the server's, else network / timeout.
 async function api(path, opts = {}) {
   const write = opts.method && opts.method !== 'GET';
+  // Something sent to an agent started here: its close asks first from now on (quick.js).
+  const usedKey = write && Quick.usedBy(path, localId());
+  if (usedKey) Quick.used(usedKey);
   const signal = opts.signal || (window.AbortSignal && AbortSignal.timeout ? AbortSignal.timeout(write ? 60000 : 15000) : undefined);
   let res;
   try {

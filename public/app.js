@@ -899,13 +899,14 @@ const KEY_ACTIONS = {
   nextPane: () => focusPane(1),
   prevPane: () => focusPane(-1),
   stop: () => stopKey(), // agent.js
-  // 에이전트 시작 in the workspace of what is open (a new tab there); else a new workspace.
-  newAgent() {
+  // A new agent at once in the workspace of what is open (a new tab there), as this device last
+  // started one (quickStart); else a new workspace. The form is the new chat's 「종류·옵션 바꾸기」.
+  newAgent(b, e) {
     const host = curHost();
     const of = (list, pane) => (list || []).find((x) => same(x, host, pane));
     const ws = view.name === 'ws' ? view.id : view.name === 'agent' ? (of(state.agents, detail.pane) || {}).workspace : view.name === 'term' ? (of(state.terminals, view.pane) || {}).workspace : null;
     if (!ws) return KEY_ACTIONS.newWorkspace();
-    location.hash = link(host, `/start/ws/${encodeURIComponent(ws)}`);
+    if (!(e && e.repeat)) quickStart(host, ws);
     return true;
   },
   // The ⋯ menu: of the row the focus is on (the list, the workspace page), else of what is open.
@@ -937,6 +938,36 @@ const KEY_ACTIONS = {
     return true;
   },
 };
+// Ctrl+N: an agent started right away in workspace ws, with this device's last kind and options
+// (quick.js; Claude with none the first time) and the server's name, then its chat opened with
+// the caret in the composer. One at a time: a held key or a second press while it starts does
+// nothing more. The page moved on meanwhile: a toast to open it instead.
+let quickBusy = false;
+async function quickStart(host, ws) {
+  if (quickBusy) return toast('새 에이전트를 시작하는 중입니다', { id: 'quick' });
+  quickBusy = true;
+  const from = location.hash;
+  try {
+    let kinds = null;
+    try {
+      kinds = (await hostInfo(host)).kinds;
+    } catch {
+      /* the server checks the kind anyway */
+    }
+    const spec = Quick.specFor(Quick.last(), kinds);
+    toast(`새 ${kindLabel(spec.kind)} 에이전트를 시작하는 중…${spec.args.length ? ` (${spec.args.join(' ')})` : ''}`, { id: 'quick', ms: 60000 });
+    const r = await act(hp(`/workspaces/${encodeURIComponent(ws)}/agents`, host), spec, null, '에이전트를 시작하지 못했습니다');
+    for (const t of document.querySelectorAll('.toast[data-id="quick"]')) t.remove();
+    if (!r || !r.pane) return;
+    Quick.started(rowKey(host, r.pane));
+    const to = link(host, `/agent/${encodeURIComponent(r.pane)}`);
+    if (location.hash !== from) return toast('새 에이전트를 시작했습니다', { action: { label: '열기', run: () => (location.hash = to) } });
+    stepFocus = true; // the caret into its composer (route)
+    location.hash = to;
+  } finally {
+    quickBusy = false;
+  }
+}
 // Where a key is pressed, for Keymap.match. The shell's field in 키 직접 입력 is the shell, not a
 // field one types into: there a binding with shell decides alone (shell.js asks the same).
 function keyContext() {

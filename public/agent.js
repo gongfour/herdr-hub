@@ -724,9 +724,15 @@ function renderDetailBody(reset) {
   }
   const nearBottom = reset || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
   const t = detail.transcript;
-  const note = !t ? '불러오는 중…' : !t.supported ? (currentAgent()?.agent ? '아직 대화 기록이 없습니다.' : '에이전트를 시작하는 중…') : !t.found ? '아직 대화 기록이 없습니다.' : '';
+  const waiting = t ? pendingNow(rowKey(curHost(), detail.pane), currentAgent()) : [];
+  const fresh = t && (!t.found || !t.messages.length) && !waiting.length; // nothing said yet
+  const note = !t ? '불러오는 중…' : !t.supported ? (currentAgent()?.agent ? '아직 대화 기록이 없습니다.' : '에이전트를 시작하는 중…') : fresh ? '아직 대화 기록이 없습니다.' : '';
   if (note) {
-    const html = `<p class="note">${note}</p>`;
+    // A new chat (Ctrl+N starts it as last time): the start form for its workspace, to pick
+    // another kind or options there. It starts another agent; this one stays until closed.
+    const ws = fresh && currentAgent()?.workspace;
+    const more = ws ? `<p class="note"><a class="note-link" href="${link(curHost(), `/start/ws/${encodeURIComponent(ws)}`)}">종류·옵션 바꾸기</a></p>` : '';
+    const html = `<p class="note">${note}</p>${more}`;
     if (body._html !== html) body.innerHTML = body._html = html;
   } else {
     if (body._html !== 'chat' || !body.querySelector('.msgs')) {
@@ -744,12 +750,11 @@ function renderDetailBody(reset) {
     if (!trunc.hidden && trunc.textContent !== truncText) trunc.textContent = truncText;
     // One element per message, replaced only when its HTML changed: a poll that brings
     // nothing new touches nothing, so a text selection or a press survives it.
-    const waiting = pendingNow(rowKey(curHost(), detail.pane), currentAgent()).map((p) => [`wait:${p.at}`, pendingBubble(p)]);
     const box = body.querySelector('.msgs');
     // Scrolled up: the message at the top of the view stays where it is, whatever comes in
     // above it (the older messages after a short first copy) or below.
     const anchor = nearBottom ? null : topMessage(body, box);
-    patchList(box, [...t.messages.map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting]);
+    patchList(box, [...t.messages.map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting.map((p) => [`wait:${p.at}`, pendingBubble(p)])]);
     if (anchor && anchor.el.isConnected) body.scrollTop += anchor.el.getBoundingClientRect().top - anchor.top;
   }
   if (nearBottom) body.scrollTop = body.scrollHeight;

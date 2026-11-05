@@ -30,7 +30,27 @@ async function renamePane(x, isAgent) {
   if (r) toast('이름을 바꿨습니다');
 }
 
+// An agent started from this tab and never used (quick.js unused: nothing sent to it from here,
+// no user message in its chat, nothing waiting) closes without the sheet: a Ctrl+N taken back.
+function unusedAgent(host, pane) {
+  const a = state.agents.find((x) => same(x, host, pane));
+  if (!a) return false;
+  const open = view.name === 'agent' && curHost() === host && detail.pane === pane;
+  const t = open ? detail.transcript : null;
+  return Quick.unused({
+    state: Quick.stateOf(rowKey(host, pane)),
+    messages: t && t.supported ? (t.found ? t.messages : []) : null,
+    pending: open ? pendingNow(rowKey(host, pane), a).length : 0,
+    noTranscript: screenBody(a),
+    working: a.status === 'working',
+  });
+}
+
 async function closePane(host, pane, label, isAgent) {
+  if (isAgent && unusedAgent(host, pane)) {
+    if ((await act(hp(`/panes/${encodeURIComponent(pane)}/close`, host), {}, '새 대화를 닫았습니다', '에이전트를 닫지 못했습니다')) && leaveFor(host, pane)) goBack(homeHash());
+    return;
+  }
   const ok = await sheet({
     title: isAgent ? '에이전트 닫기' : '셸 닫기',
     text: `‘${label}’ ${isAgent ? '패널을 닫으면 에이전트와 그 대화가 끝납니다' : '셸을 닫으면 그 안에서 돌던 것이 끝납니다'}. 되돌릴 수 없습니다.`,
