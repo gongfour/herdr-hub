@@ -164,8 +164,11 @@ function screenColors(pre) {
 const htmlEsc = (t) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 function drawScreen(s, p) {
   const lines = p.view === 'ansi' ? window.Ansi.toHtmlLines(p.text, screenColors(s.pre), s.htmlCache || (s.htmlCache = {})) : (p.view === 'strip' ? window.Ansi.strip(p.text) : p.text).split('\n').map(htmlEsc);
+  // A line drawn over (shell.js: 셸 예측 입력) goes back to the host's first, and comes back after.
+  if (s.overlay) s.overlay.clear();
   patchLines(s, lines);
   paneBackground(s, p.view === 'ansi');
+  if (s.overlay) s.overlay.draw();
 }
 
 const lineEl = (html) => {

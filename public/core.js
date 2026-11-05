@@ -272,6 +272,7 @@ const PREF_EFFECTS = {
   shellInput(v) {
     if (view.name === 'term' && detail.setRaw) detail.setRaw(v === 'raw');
   },
+  shellPredict: () => predRender(), // shell.js
   chatW: (v) => applyChatWidth(v),
   listW() {
     applyListWidth();

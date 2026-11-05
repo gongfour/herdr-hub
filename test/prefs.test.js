@@ -39,6 +39,7 @@ test('storage keys are the ones the app always used', () => {
   assert.deepEqual(Object.fromEntries(PREFS.map((p) => [p.key, p.store])), {
     enter: 'herdr-hub.enter',
     shellInput: 'herdr-hub.shellInput',
+    shellPredict: 'herdr-hub.shellPredict',
     theme: 'herdr-hub.theme',
     color: 'herdr-hub.color',
     'wrap.term': 'herdr-hub.wrap.term',
@@ -60,6 +61,7 @@ test('values written by the old code read the same (and unknown or missing ones 
   const old = {
     enter: (s) => (s === 'send' ? 'send' : 'newline'),
     shellInput: (s) => (s === 'line' ? 'line' : 'raw'),
+    shellPredict: () => 'auto', // new: no sample is one of its values
     theme: (s) => (s === 'light' || s === 'dark' ? s : 'system'),
     color: (s) => s !== '0',
     'wrap.term': (s) => (s === '1' || s === '0' ? s === '1' : true),

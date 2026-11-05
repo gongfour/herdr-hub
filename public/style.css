@@ -1911,3 +1911,7 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 /* A page's header (설정, 단축키, a workspace, 새 워크스페이스, 에이전트 시작) is the chat's: title and ✕
    at the column's edges, so neither moves when the right pane goes from a chat to a page. */
 .split #detail-pane > .bar:has(+ .panel) { padding-left: var(--gut); padding-right: var(--gut); }
+
+/* 셸 예측 입력 (shell.js): a typed character drawn before the host's echo. Plain while the echo is
+   quick; underlined once it has waited long (predict.js FLAG_MS), as mosh does. */
+.screen .pred.flag { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }

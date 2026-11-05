@@ -117,6 +117,7 @@ function renderTerminal() {
   // app: a tap on the screen (or ⌨) brings up the keyboard and the hidden field passes each key
   // on. 한 줄 입력 shows the line, run with Enter.
   const setRaw = (on) => {
+    predEnd();
     detail.raw = on;
     detail.mods = {};
     input.value = '';
@@ -260,6 +261,7 @@ function renderTerminal() {
     if (!a || a === document.body || a.id === 't-more') typeHere();
   };
   mountScreen(document.getElementById('t-body'), 'term', document.getElementById('s-tools'));
+  scr.overlay = { clear: predClear, draw: predDraw };
   document.getElementById('t-body').addEventListener('scroll', termScrolled);
   document.getElementById('t-sending').onclick = () => {
     rawFailed = null;
@@ -526,6 +528,7 @@ function rawSend(press) {
   const pane = detail.pane;
   // Keys held from a channel that dropped wait for the next one to resume them: these go after.
   if (liveHeldFor(host, pane)) {
+    predEnd();
     liveHeld.later.push({ text: press.text || '', keys: press.key ? [press.key] : [] });
     drawSending();
     return;
@@ -533,10 +536,13 @@ function rawSend(press) {
   // Over the live channel when it is open and nothing for this shell is still on the HTTP way
   // (which would be overtaken).
   if (liveFeeds(host, pane) && ![rawInFlight, ...rawQ].some((x) => x && x.host === host && x.pane === pane)) {
-    liveKey(press);
+    const s = liveKey(press);
+    liveCh.pred.typed(press, s, performance.now());
+    predRender();
     drawSending();
     return;
   }
+  predEnd();
   Keys.queueRaw(rawQ, { host, pane }, press);
   drawSending();
   pumpRaw();
@@ -769,7 +775,8 @@ function liveEnsure() {
   } catch {
     return;
   }
-  const ch = { ws: sock, host, pane, open: false, resume: false, cur: null, sent: [], heardAt: Date.now(), shape, gone: false };
+  const ch = { ws: sock, host, pane, open: false, resume: false, cur: null, sent: [], heardAt: Date.now(), shape, gone: false, pred: predictorFor(host, pane) };
+  ch.pred.end();
   liveCh = ch;
   sock.onmessage = (e) => liveMessage(ch, e.data);
   sock.onclose = () => liveClosed(ch);
@@ -811,7 +818,9 @@ function liveSyncShape() {
 const liveTracing = () => Array.isArray(window.liveTrace) && window.liveTrace.length < 5000;
 function liveKey(press) {
   const ch = liveCh;
-  liveSendKey(ch, { s: liveNextSeq(ch.host, ch.pane), text: press.text || '', keys: press.key ? [press.key] : [] });
+  const s = liveNextSeq(ch.host, ch.pane);
+  liveSendKey(ch, { s, text: press.text || '', keys: press.key ? [press.key] : [] });
+  return s;
 }
 function liveSendKey(ch, it) {
   ch.sent.push(it);
@@ -855,6 +864,7 @@ function liveMessage(ch, data) {
     return;
   }
   if (m.t === 'ack') {
+    ch.pred.acked(m.s, performance.now());
     ch.sent = Live.acked(ch.sent, m.s);
     detail.keyAt = Date.now();
     return drawSending();
@@ -882,7 +892,9 @@ function liveMessage(ch, data) {
   ch.cur = f;
   // A whole screen read with the longer scrollback is the one that goes on above (drawTerminal).
   if (!termHere(ch.host, ch.pane)) return;
+  ch.pred.screen(f.lines, performance.now()); // the screen confirms or drops what was predicted
   drawTerminal(f.screen, ++termReads, m.t === 'f' && ch.shape.lines === TERM_LINES_DEEP);
+  predRender();
   if (tr) {
     tr.drawn = performance.now();
     requestAnimationFrame(() => (tr.frame = performance.now()));
@@ -893,6 +905,8 @@ function liveClosed(ch) {
   if (ch !== liveCh) return; // stopped on purpose, or replaced
   liveCh = null;
   clearInterval(liveWatch);
+  ch.pred.end();
+  predRender();
   if (ch.gone || !liveHold(ch)) liveLost(ch, ch.sent, '연결이 끊겼습니다');
   drawSending();
   if (ch.gone) return liveHeldFor(ch.host, ch.pane) && liveGiveUp('셸이 닫혔습니다'); // the shell closed: its state says so
@@ -909,4 +923,93 @@ function liveClosed(ch) {
     }, r.delay);
   // HTTP in the meantime.
   if (view.name === 'term') loadTerminal();
+}
+
+
+// ------------------------------------------------------------ 셸 예측 입력 (predict.js)
+// What is typed at the prompt is drawn at the caret before the host's echo, over the line the
+// host drew (one line element of the screen box, screen.js); the host's next screen confirms or
+// drops it. Only over the live channel, in 키 직접 입력, with the box following the prompt and
+// not held (a selection, a finger on it). 설정 → 입력 → 셸 예측 입력: 자동 (a round trip above
+// 30 ms) / 켜기 / 끄기.
+const predictors = new Map(); // host + pane → Predict (its round trip lasts across channels)
+function predictorFor(host, pane) {
+  const k = liveSeqKey(host, pane);
+  let p = predictors.get(k);
+  if (!p) {
+    if (predictors.size > 16) predictors.delete(predictors.keys().next().value);
+    predictors.set(k, (p = Predict.create({ strip: (l) => Ansi.strip(l) })));
+  }
+  return p;
+}
+let predDrawn = null; // { el, html, flag }: the line drawn over and what the host had there
+let predTimer = null;
+function predEnd() {
+  if (liveCh) liveCh.pred.end();
+  predRender();
+}
+function predClear() {
+  const d = predDrawn;
+  predDrawn = null;
+  if (!d || !d.el.isConnected) return;
+  d.el.innerHTML = d.html;
+  d.el._bg = null;
+}
+function predDraw() {
+  const s = scr;
+  const ch = liveCh;
+  if (!s || s.kind !== 'term' || !ch || !detail.raw || !termHere(ch.host, ch.pane)) return;
+  if (s.pending != null || !s.follow || !ch.pred.show(Prefs.get('shellPredict'))) return;
+  const v = ch.pred.view(performance.now());
+  const el = v && s.pre.children[v.row];
+  if (!el) return;
+  predDrawn = { el, html: el.innerHTML, flag: v.flag };
+  overLine(el, v);
+}
+// Draw a view over a line element (its text ends in a newline): keep `keep` characters, then the
+// predicted text (blanks first if the line is shorter), `skip` of the line's characters gone.
+// The prediction joins the run before it, so it takes the colour of what was typed before.
+function overLine(el, v) {
+  const at = (off) => {
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let left = off;
+    for (let n; (n = w.nextNode()); ) {
+      if (left <= n.data.length) return [n, left];
+      left -= n.data.length;
+    }
+    return [el, el.childNodes.length];
+  };
+  const len = el.textContent.length - 1;
+  const from = Math.min(v.keep, len);
+  const to = Math.max(from, Math.min(len, v.keep + v.skip));
+  const r = document.createRange();
+  r.setStart(...at(from));
+  r.setEnd(...at(to));
+  r.deleteContents();
+  const text = ' '.repeat(v.keep - from) + v.text;
+  if (text) {
+    const sp = document.createElement('span');
+    sp.className = v.flag ? 'pred flag' : 'pred';
+    sp.textContent = text;
+    r.insertNode(sp);
+  }
+  el._bg = null;
+}
+function predRender() {
+  predClear();
+  predDraw();
+  if (predDrawn && scr && scr.follow) scr.body.scrollTop = scr.body.scrollHeight;
+  // While predictions wait: time ends one that never echoes, and underlines a slow one.
+  const waiting = Boolean(liveCh && liveCh.pred.pending);
+  if (waiting && !predTimer)
+    predTimer = setInterval(() => {
+      const ch = liveCh;
+      if (!ch || !ch.pred.pending) {
+        clearInterval(predTimer);
+        predTimer = null;
+        return;
+      }
+      const v = ch.pred.view(performance.now());
+      if (ch.pred.tick(performance.now()) || (predDrawn && v && v.flag !== predDrawn.flag)) predRender();
+    }, 50);
 }

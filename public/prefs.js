@@ -46,6 +46,15 @@
       },
     },
     {
+      key: 'shellPredict', store: 'herdr-hub.shellPredict', group: 'input', label: '셸 예측 입력', type: 'choice',
+      options: { auto: '자동', on: '켜기', off: '끄기' }, default: 'auto',
+      hint: {
+        auto: '키 직접 입력에서 셸이 멀어 메아리가 늦을 때(왕복 30ms 넘게)만, 친 글자를 셸의 답보다 먼저 그립니다. 셸이 다르게 그리면 바로 지웁니다.',
+        on: '왕복 시간과 상관없이 늘 먼저 그립니다. 오래 기다리는 글자에는 밑줄이 붙습니다.',
+        off: '셸이 그린 화면만 봅니다.',
+      },
+    },
+    {
       key: 'theme', store: 'herdr-hub.theme', group: 'screen', label: '화면 모드', type: 'choice',
       options: { system: '시스템', light: '밝게', dark: '어둡게' }, default: 'system', clearOnDefault: true,
       hint: { system: '기기의 밝게·어둡게 설정을 따릅니다.', light: '', dark: '' },
