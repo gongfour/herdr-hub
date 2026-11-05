@@ -258,3 +258,20 @@ test('typedChoice: the option the composer answers, and how', () => {
   assert.equal(typedChoice(parseChoices(BASH_NEW)), null);
   assert.equal(typedChoice(null), null);
 });
+
+test('promptParts: the kind, what it is for, the command and the question in Korean', () => {
+  const { promptParts, shownLabel } = require('../public/choices.js');
+  const newer = promptParts(parseChoices(BASH_NEW));
+  assert.deepEqual(newer, { kind: '셸 명령', intent: 'Write "hi" to note2.txt in the working directory', body: 'echo hi > note2.txt', question: '진행할까요?' });
+  const older = promptParts(parseChoices(BASH));
+  assert.deepEqual(older, { kind: '셸 명령', intent: 'Write "hi" to note.txt', body: 'echo hi > note.txt', question: '진행할까요?' });
+  // A command the terminal wrapped comes back as one line.
+  const wide = 'x'.repeat(60);
+  const wrapped = promptParts(parseChoices(` Bash command\n\n   cd /a && ${wide}\n   && ls\n   List it\n\n Do you want to proceed?\n ❯ 1. Yes\n   2. No`));
+  assert.equal(wrapped.body, `cd /a && ${wide} && ls`);
+  assert.equal(wrapped.intent, 'List it');
+  // Not a known kind: the context as it came, the question untouched when not a stock one.
+  const other = promptParts(parseChoices(' Something odd\n\n Shall we?\n ❯ 1. Yes\n   2. No'));
+  assert.deepEqual(other, { kind: null, intent: '', body: 'Something odd', question: 'Shall we?' });
+  assert.equal(shownLabel('No, and tell Claude what to do differently (esc)'), 'No, and tell Claude what to do differently');
+});

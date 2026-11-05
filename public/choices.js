@@ -129,20 +129,22 @@
         continue;
       }
       tip = null;
-      if (l.trim() && !RULE.test(l)) para.push(l.trim());
+      if (l.trim() && !RULE.test(l)) para.push({ text: l.trim(), len: l.length });
       else if (para.length) paras.push(para), (para = []);
     }
     if (para.length) paras.push(para);
     // The question: the last paragraph with a "?", cut after its first question mark;
     // else the paragraph right above the list. What comes before it is context (a command, a path).
     let qi = -1;
-    for (let i = paras.length - 1; i >= 0 && qi < 0; i--) if (/[?？](\s|$)/.test(paras[i].join(' '))) qi = i;
+    const joined = (p) => p.map((x) => x.text).join(' ');
+    for (let i = paras.length - 1; i >= 0 && qi < 0; i--) if (/[?？](\s|$)/.test(joined(paras[i]))) qi = i;
     let question = '';
-    if (qi >= 0) question = paras[qi].join(' ').replace(/\s+/g, ' ').match(/^.*?[?？](?=\s|$)/)[0];
-    else if (paras.length) question = paras[(qi = paras.length - 1)].join(' ').replace(/\s+/g, ' ');
+    if (qi >= 0) question = joined(paras[qi]).replace(/\s+/g, ' ').match(/^.*?[?？](?=\s|$)/)[0];
+    else if (paras.length) question = joined(paras[(qi = paras.length - 1)]).replace(/\s+/g, ' ');
     // All of it (at most the 20 lines above): the app folds a long one and says so (answer.js);
     // cutting its head would hide the start of the command being allowed.
-    const context = qi > 0 ? paras.slice(0, qi).flat() : [];
+    const blocks = qi > 0 ? paras.slice(0, qi) : [];
+    const context = blocks.flat().map((x) => x.text);
 
     const items = list.items.map(({ n, label, cursor, rows }) => {
       const { name, desc } = rows ? splitItem(rows, width) : { name: label, desc: '' };
@@ -152,8 +154,58 @@
       return item;
     });
     const sel = items.find((x) => x.cursor);
-    return { question, context, items, cursor: sel ? sel.n : null, numbered: list.numbered };
+    return { question, context, items, cursor: sel ? sel.n : null, numbered: list.numbered, blocks, width };
   }
+
+  // What a permission prompt asks, laid out for reading: the kind of request (「셸 명령」), what it
+  // is for in a sentence (Claude Code's description of a Bash command), the command itself with
+  // the terminal's wrapping undone, and the question in Korean when it is a stock one. Anything
+  // not recognised stays as it came: no kind, no intent, the context as the body.
+  const KINDS = {
+    'bash command': '셸 명령', 'edit file': '파일 고치기', 'create file': '파일 만들기', 'write file': '파일 쓰기',
+    'read file': '파일 읽기', fetch: '웹 가져오기', 'web search': '웹 검색', 'tool use': '도구 사용', 'mcp tool': 'MCP 도구',
+  };
+  const QUESTIONS = [
+    [/^do you want to proceed\?$/i, '진행할까요?'],
+    [/^do you want to make this edit to (.+)\?$/i, (m) => `${m[1]} — 이렇게 고칠까요?`],
+    [/^do you want to create (.+)\?$/i, (m) => `${m[1]} — 만들까요?`],
+    [/^do you want to allow (.+)\?$/i, (m) => `${m[1]} — 허락할까요?`],
+  ];
+  function koQuestion(q) {
+    for (const [re, ko] of QUESTIONS) {
+      const m = String(q || '').match(re);
+      if (m) return typeof ko === 'function' ? ko(m) : ko;
+    }
+    return q || '';
+  }
+  // Lines the terminal wrapped, joined again (a line ended there when the next word would have fit).
+  function unwrap(lines, width) {
+    const out = [];
+    lines.forEach((l, i) => {
+      if (i && wrapped(lines[i - 1], l, width)) out[out.length - 1] += ` ${l.text}`;
+      else out.push(l.text);
+    });
+    return out;
+  }
+  function promptParts(ch) {
+    const blocks = (ch && ch.blocks) || [];
+    const first = blocks[0] && blocks[0][0];
+    const kind = first ? KINDS[first.text.toLowerCase()] || null : null;
+    const question = ch ? koQuestion(ch.question) : '';
+    if (!kind) return { kind: null, intent: '', body: ch ? ch.context.join('\n') : '', question };
+    const head = blocks[0].slice(1); // what shares the kind's paragraph (2.1.3xx: the description)
+    let rest = blocks.slice(1);
+    let intent = head.map((x) => x.text).join(' ');
+    // The older Bash layout: the command, then its description as the paragraph's last line.
+    if (!intent && kind === '셸 명령' && rest.length === 1 && rest[0].length >= 2) {
+      intent = rest[0][rest[0].length - 1].text;
+      rest = [rest[0].slice(0, -1)];
+    }
+    const body = rest.map((b) => unwrap(b, ch.width).join('\n')).join('\n\n');
+    return { kind, intent, body, question };
+  }
+  // An option as shown: Claude Code's 「(esc)」 tail is a key hint, not part of the answer.
+  const shownLabel = (label) => String(label || '').replace(/\s*\(esc\)\s*$/i, '');
 
   // The keys that pick item n. A digit picks and confirms a numbered Claude Code menu;
   // a menu without numbers is walked with the arrows from the cursor, then Enter.
@@ -220,7 +272,7 @@
     return Boolean(ch && ch.items.length && /[?？]/.test(ch.question));
   }
 
-  const api = { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN };
+  const api = { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN });
+  else Object.assign(root, { parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel });
 })(typeof self !== 'undefined' ? self : this);

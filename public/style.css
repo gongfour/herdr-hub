@@ -449,8 +449,10 @@ div.tool { background: none; padding: 2px 8px; }
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.22);
 }
 
-.blocked-box { margin: 10px 16px 0; padding: 12px; border-radius: var(--radius); background: var(--blocked-bg); color: var(--text); }
-.blocked-box strong { color: var(--blocked); }
+.blocked-box {
+  margin: 10px 16px 0; padding: 12px 16px 16px; border-radius: var(--radius); color: var(--text);
+  background: color-mix(in srgb, var(--blocked) 5%, var(--surface)); border: 1px solid color-mix(in srgb, var(--blocked) 28%, var(--line));
+}
 .blocked-box pre { font: 12px/1.35 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; margin: 8px 0; background: var(--surface); padding: 8px; border-radius: 8px; }
 .keys { display: flex; flex-wrap: wrap; gap: 8px; }
 .key {
@@ -462,26 +464,33 @@ div.tool { background: none; padding: 2px 8px; }
 /* Choices read off the prompt: one full-width button per option. A long prompt scrolls inside
    its box so the conversation below keeps some room. */
 /* Between the conversation and the composer, where the question comes last. */
-#d-blocked { flex: none; max-height: min(42%, 440px); overflow-y: auto; overscroll-behavior: contain; }
-.blocked-box .b-title { display: block; font-size: 16px; line-height: 1.4; }
+/* While a question waits it is what matters: up to 60% of the view, the chat keeps the rest. */
+#d-blocked { flex: none; max-height: min(60%, 560px); overflow-y: auto; overscroll-behavior: contain; }
+/* The answer box, top-down: 「● 답 필요 · 셸 명령」 (with 화면 · 키 at its right), what it is for in
+   a sentence, the command, the question, then the answers as one list. */
+.blocked-box .b-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
+.blocked-box .b-eyebrow { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--blocked); }
+.blocked-box .b-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent); }
+.blocked-box .b-title { display: block; margin-top: 2px; font-size: 17px; font-weight: 600; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
+.blocked-box .b-q { margin: 14px 0 0; font-size: 13px; color: var(--muted); }
 #d-blocked:not(:empty) { padding-bottom: 10px; border-top: 1px solid var(--line); }
 .detail .scroll { min-height: 0; }
 .blocked-box .question { margin: 8px 0 0; font-size: 16px; font-weight: 600; line-height: 1.4; }
 .blocked-box .question.muted { color: var(--muted); font-weight: 400; font-size: 14px; }
 /* The command asked about: 8 lines, then a fade and 「명령 전체 보기」 (answer.js foldContext). */
-.blocked-box .ctx { position: relative; margin: 8px 0 0; }
-.blocked-box pre.context { max-height: calc(8 * 1.35em + 16px); overflow: hidden; margin: 0; color: var(--text); }
+.blocked-box .ctx { position: relative; margin: 10px 0 0; }
+.blocked-box pre.context { max-height: calc(5 * 1.45em + 20px); overflow: hidden; margin: 0; padding: 10px 12px; border-radius: 10px; font: 12.5px/1.45 var(--mono); color: var(--text); background: var(--surface-2); }
 .blocked-box .ctx.open pre.context { max-height: none; }
 .blocked-box .ctx.cut pre.context { -webkit-mask-image: linear-gradient(#000 calc(100% - 2.4em), transparent); mask-image: linear-gradient(#000 calc(100% - 2.4em), transparent); }
-.ctx-more { min-height: 44px; margin-top: 2px; padding: 0 12px; border: 1px solid var(--field-line); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; }
+.ctx-more { min-height: 40px; margin-top: 2px; padding: 0 4px; border: 0; background: none; color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer; }
 /* More of the box below (the last choices, the toggles): its bottom fades out. */
 #d-blocked.more { -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), rgb(0 0 0 / 0.25)); mask-image: linear-gradient(#000 calc(100% - 36px), rgb(0 0 0 / 0.25)); }
 /* The keyboard is up: the question and its choices get the room, not the chat above. */
 :root.kb #d-blocked { max-height: 62%; }
-:root.kb .blocked-box pre.context { max-height: calc(4 * 1.35em + 16px); }
+:root.kb .blocked-box pre.context { max-height: calc(3 * 1.45em + 20px); }
 @media (max-height: 520px) {
   #d-blocked { max-height: 62%; }
-  .blocked-box pre.context { max-height: calc(4 * 1.35em + 16px); }
+  .blocked-box pre.context { max-height: calc(3 * 1.45em + 20px); }
 }
 .blocked-box .keys { margin-top: 10px; }
 .blocked-box .key, .blocked-box .toggle { border-color: var(--field-line); }
@@ -509,6 +518,19 @@ div.tool { background: none; padding: 2px 8px; }
 .choice.sent { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
 .choice.negative.sent { outline-color: var(--blocked); }
 .toggles { display: flex; gap: 6px; margin-top: 10px; }
+.blocked-box .b-head .toggles { margin: 0; gap: 4px; }
+.blocked-box .b-head .toggle { min-height: 32px; padding: 0 12px; font-size: 13px; }
+/* One list, as 설정's cards: rows with a rule between, the first plain Yes tinted, refusals red. */
+.blocked-box .choices { gap: 0; margin-top: 8px; border: 1px solid var(--field-line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.blocked-box .choice { min-height: 50px; padding: 10px 14px; border: 0; border-radius: 0; background: none; font-size: 15px; font-weight: 500; gap: 12px; }
+.blocked-box .choice + .choice { border-top: 1px solid var(--line); }
+.blocked-box .choice .num { width: 24px; height: 24px; border-radius: 7px; font-size: 13px; background: var(--surface-2); color: var(--muted); }
+.blocked-box .choice code { font: 12.5px var(--mono); overflow-wrap: anywhere; }
+.blocked-box .choice.primary { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); font-weight: 600; }
+.blocked-box .choice.primary .num { background: var(--accent); color: var(--accent-text); }
+.blocked-box .choice.negative { background: none; color: var(--blocked); }
+.blocked-box .choice.negative .num { background: color-mix(in srgb, var(--blocked) 14%, transparent); color: var(--blocked); }
+.blocked-box .choice.sent { outline-offset: -2px; }
 .toggle {
   min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line);
   background: transparent; color: var(--muted); font-size: 13px; cursor: pointer;

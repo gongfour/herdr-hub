@@ -70,6 +70,9 @@ async function answerChoice(host, a, item) {
 // refusals are tinted as a warning.
 const primaryChoice = (items) => items.find((x) => !x.negative && /^yes\b/i.test(x.label)) || null;
 
+// An option's words as shown: without 「(esc)」, a path set in the code face.
+const choiceName = (label) => esc(shownLabel(label)).replace(/(^|\s)((?:[A-Za-z]:\\|~?\/)\S+)/g, '$1<code>$2</code>');
+
 // One choice button: name (bold) over its description (muted), when the menu has one. In the
 // agent view each shows its number, the key that picks it (1–9, keymap.js), numbered menu or not.
 // press: pressedOn() for this agent (every button waits; the pressed one says so).
@@ -78,7 +81,7 @@ function choiceButton(choices, x, { press, primary, compact = false }) {
   const sent = Boolean(press) && press.n === x.n;
   const kind = x.negative ? ' negative' : x === primary ? ' primary' : '';
   return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}" data-n="${x.n}"${press || !ok ? ' disabled' : ''}>
-    ${choices.numbered || (!compact && x.n <= 9) ? `<span class="num"${choices.numbered ? '' : ' title="숫자 키로 고르기"'}>${x.n}</span>` : ''}<span class="label"><span class="name">${esc(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? `<span class="state">${press.until === Infinity ? '보내는 중' : '보냄'}</span>` : ''}</button>`;
+    ${choices.numbered || (!compact && x.n <= 9) ? `<span class="num"${choices.numbered ? '' : ' title="숫자 키로 고르기"'}>${x.n}</span>` : ''}<span class="label"><span class="name">${choiceName(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? `<span class="state">${press.until === Infinity ? '보내는 중' : '보냄'}</span>` : ''}</button>`;
 }
 
 // Re-drawn only when what it shows changed: a poll must not swallow a tap or a selection.
@@ -119,20 +122,23 @@ function renderBlocked() {
   } else {
     const press = pressedOn(curHost(), a);
     const primary = primaryChoice(choices.items);
-    // What the question is about (the command to allow): folded at 8 lines, never cut silently.
+    // Read top-down: what kind of request and what it is for, the command itself (folded at
+    // 5 lines, never cut silently), the question, then the answers as one list.
+    const parts = promptParts(choices);
+    const title = parts.intent || parts.question || '답 필요';
     if (detail.ctxFor !== text) Object.assign(detail, { ctxFor: text, ctxOpen: false });
-    const n = choices.context.length;
+    const n = parts.body ? parts.body.split('\n').length : 0;
     const ctx = n
-      ? `<div class="ctx${detail.ctxOpen ? ' open' : ''}"><pre class="context">${esc(choices.context.join('\n'))}</pre><button type="button" class="ctx-more" aria-expanded="false" hidden>명령 전체 보기 (${n}줄)</button></div>`
+      ? `<div class="ctx${detail.ctxOpen ? ' open' : ''}"><pre class="context">${esc(parts.body)}</pre><button type="button" class="ctx-more" aria-expanded="false" hidden>전체 보기${n > 1 ? ` (${n}줄)` : ''}</button></div>`
       : '';
+    const toggle = (k, label) => `<button type="button" class="toggle" data-toggle="${k}" aria-expanded="${Boolean(detail[k])}">${label}</button>`;
     html = `<div class="blocked-box">
-        <strong class="b-title">${esc(choices.question || '답 필요')}</strong>
+        <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>답 필요${parts.kind ? ` · ${esc(parts.kind)}` : ''}</span>
+          <span class="toggles">${toggle('showScreen', '화면')}${toggle('showKeys', '키')}</span></div>
+        <strong class="b-title">${esc(title)}</strong>
         ${ctx}
-        <div class="choices">${choices.items.map((x) => choiceButton(choices, x, { press, primary })).join('')}</div>
-        <div class="toggles">
-          <button type="button" class="toggle" data-toggle="showScreen" aria-expanded="${Boolean(detail.showScreen)}">화면 보기</button>
-          <button type="button" class="toggle" data-toggle="showKeys" aria-expanded="${Boolean(detail.showKeys)}">직접 입력</button>
-        </div>
+        ${parts.intent && parts.question ? `<p class="b-q">${esc(parts.question)}</p>` : ''}
+        <div class="choices" role="group" aria-label="${esc(parts.question || '답')}">${choices.items.map((x) => choiceButton(choices, x, { press, primary })).join('')}</div>
         ${detail.showScreen ? screen : ''}
         ${detail.showKeys ? keys : ''}
       </div>`;
@@ -165,7 +171,7 @@ function renderBlocked() {
   sayBlocked(a, choices);
 }
 
-// A context taller than its 8 lines shows that it is cut (a fade and 「명령 전체 보기」), and until
+// A context taller than its 5 lines shows that it is cut (a fade and 「명령 전체 보기」), and until
 // it is opened no answer is filled in: the eye shouldn't land on Yes before the whole command.
 function foldContext(box) {
   const wrap = box.querySelector('.ctx');
