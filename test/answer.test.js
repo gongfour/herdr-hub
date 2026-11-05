@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startHub, until, sleep } = require('./fixtures/hub');
+const { startHub, until } = require('./fixtures/hub');
 const { parseChoices, choiceKeys } = require('../public/choices');
 
 const ASK = path.join(__dirname, 'fixtures', 'ask');
@@ -85,15 +85,7 @@ test('answer: refusals press nothing; one of two at once goes; a second within 5
   assert.deepEqual(keysSent(herdr, 'w1-p2'), [keysFor(BASH, 1), keysFor(BASH, 2)]);
 });
 
-test('answer: the same prompt takes an answer again once 5 s have passed', { timeout: 20000 }, async (t) => {
-  const hub = await startHub(t, { id: 'ans5', agents: [agent('w1-p2', 'blocked', 5)] });
-  hub.herdr.screens['w1-p2'] = BASH;
-  assert.equal((await hub.request('POST', '/api/agents/w1-p2/answer', { stateSeq: 5, n: 1 })).status, 200);
-  assert.equal((await hub.request('POST', '/api/agents/w1-p2/answer', { stateSeq: 5, n: 1 })).status, 409);
-  await sleep(5100);
-  assert.equal((await hub.request('POST', '/api/agents/w1-p2/answer', { stateSeq: 5, n: 1 })).status, 200);
-  assert.equal(keysSent(hub.herdr, 'w1-p2').length, 2);
-});
+// Once 5 s have passed the same prompt takes an answer again: test/hub.test.js (the hub's clock).
 
 test('answer: "Type something" needs own:true (the app), never from a notification; a failed send frees the claim', async (t) => {
   const hub = await startHub(t, { id: 'ansown', agents: [agent('w1-p2', 'blocked', 9)] });

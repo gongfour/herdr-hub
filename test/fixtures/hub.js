@@ -2,6 +2,8 @@
 // A real Herdr Hub process (node server.js) over a fake herdr (fakeherdr.js), for the tests of its
 // routes: each one in its own temp data folder and port, killed when the test ends.
 // startHub(t, { id, agents, env }) -> { port, herdr, out(), request(method, path, body, headers), stop() }
+// hubInProcess(t, { id, agents, env, now }): the same in this process (lib/hub.js createServer),
+// with herdr's calls going to the fake one and a clock the test may move.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -41,6 +43,8 @@ function request(port, method, p, body, headers = {}) {
   for (const k of Object.keys(h)) if (h[k] == null) delete h[k];
   const data = body == null ? null : Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body));
   if (data) h['Content-Type'] = h['Content-Type'] || 'application/json';
+  // As a browser sends it (a chunked body the server never reads ends in Node's own 400).
+  if (data) h['Content-Length'] = data.length;
   return new Promise((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: h, agent: false }, (res) => {
       const chunks = [];
@@ -117,4 +121,40 @@ async function agentState(hub, host, pane, test = () => true) {
   }, `agent ${host}/${pane}`);
 }
 
-module.exports = { startHub, request, until, sleep, freePort, agentState };
+// lib/herdr with its calls on that socket, the Node way.
+function herdrAt(socketPath) {
+  const lib = require('../../lib/herdr');
+  return {
+    ...lib,
+    call: (m, p, o = {}) => lib.callNode(m, p, { ...o, socketPath }),
+    subscribe: (s, f, o = {}) => lib.subscribe(s, f, { ...o, socketPath }),
+    direct: () => false,
+    helperOn: () => false,
+  };
+}
+
+async function hubInProcess(t, { id = 'inproc', agents = [], env = {}, now } = {}) {
+  const { createServer } = require('../../lib/hub');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `hub-${id}-`));
+  const sock = path.join(tmp, 'h.sock');
+  const herdr = await fakeHerdr(sock);
+  herdr.agents.push(...agents);
+  const port = await freePort();
+  const h = createServer({
+    herdr: herdrAt(sock),
+    port,
+    dataDir: path.join(tmp, 'data'),
+    now,
+    env: { HERDR_HUB_ALLOW_LOCAL: '1', HERDR_HUB_PUSH: '0', HERDR_HUB_HOST_ID: id, HERDR_HUB_HOST_LABEL: id, HERDR_HUB_AWAKE_MS: '0', ...env },
+  });
+  await new Promise((r) => h.listen('127.0.0.1', r));
+  t.after(async () => {
+    await h.close();
+    herdr.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+  await until(async () => (await request(port, 'GET', '/api/state')).body?.herdr === 'up', 'first refresh');
+  return { port, herdr, tmp, hub: h, request: (...a) => request(port, ...a) };
+}
+
+module.exports = { startHub, hubInProcess, herdrAt, request, until, sleep, freePort, agentState };
