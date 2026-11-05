@@ -892,28 +892,6 @@ const KEY_ACTIONS = {
     return true;
   },
 };
-// Ctrl or Alt held alone for a moment: each button with a shortcut shows its keys (data-keyhint,
-// style.css), as iPadOS does for ⌘. Any other key, letting go, or leaving the page hides them.
-let hintTimer = 0;
-function hideKeyHints() {
-  clearTimeout(hintTimer);
-  hintTimer = 0;
-  document.documentElement.classList.remove('show-keys');
-}
-document.addEventListener(
-  'keydown',
-  (e) => {
-    if (e.key === 'Control' || e.key === 'Alt') {
-      // Held, a modifier comes again and again, on some keyboards (a Galaxy Tab cover) with
-      // e.repeat false: a timer already running (or the badges up) is left as it is.
-      if (!hintTimer && !document.documentElement.classList.contains('show-keys')) hintTimer = setTimeout(() => document.documentElement.classList.add('show-keys'), 500);
-    } else if (e.key !== 'Shift') hideKeyHints();
-  },
-  true,
-);
-document.addEventListener('keyup', (e) => (e.key === 'Control' || e.key === 'Alt') && hideKeyHints(), true);
-window.addEventListener('blur', hideKeyHints);
-
 // Where a key is pressed, for Keymap.match. The shell's field in 키 직접 입력 is the shell, not a
 // field one types into: there a binding with shell decides alone (shell.js asks the same).
 function keyContext() {

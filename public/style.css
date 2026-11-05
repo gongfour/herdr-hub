@@ -774,11 +774,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    a long name ends in …, never breaks between letters. */
 .seg.hosts { margin: 10px 16px 0; position: relative; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
 .seg.hosts::-webkit-scrollbar { display: none; }
-/* More hosts past an edge (list.js hostSegEdges): that edge fades, as the shell's key row does.
-   Not while the key badges are up: the mask would fade the segment's badge with it. */
-:root:not(.show-keys) .seg.hosts.more-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
-:root:not(.show-keys) .seg.hosts.more-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
-:root:not(.show-keys) .seg.hosts.more-l.more-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
+/* More hosts past an edge (list.js hostSegEdges): that edge fades, as the shell's key row does. */
+.seg.hosts.more-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.seg.hosts.more-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+.seg.hosts.more-l.more-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
 .seg.hosts button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; max-width: 40vw; white-space: nowrap; }
 .seg.hosts .hl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .hdot { width: 7px; height: 7px; border-radius: 50%; background: var(--done); flex: none; }
@@ -1485,30 +1484,6 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 .bar h1 .st-dot.blocked { background: var(--blocked); }
 .bar h1 .st-dot.working { background: var(--working); }
 .bar h1 .st-dot.done { background: var(--done); }
-
-/* Ctrl or Alt held (app.js): each button with a shortcut shows its keys in a badge. A small
-   button gets it just outside, as a tooltip, above at the composer; in a header and on the rail
-   over its own lower edge, so it neither hangs onto what is below (the activity line, the host
-   row, with their badges) nor covers the title beside it. A wide one (the activity line, the
-   pills, the host row) inside its corner. */
-.show-keys [data-keyhint] { position: relative; }
-.show-keys [data-keyhint]::after {
-  content: attr(data-keyhint); position: absolute; z-index: 40; pointer-events: none;
-  top: calc(100% + 4px); right: 0; /* lined up with the button's right edge, so one at the
-  screen's right edge isn't cut off */
-  font: 600 11px/1 var(--mono); padding: 3px 6px; border-radius: 6px; white-space: nowrap;
-  /* A keycap in the theme's colours, as the 단축키 page draws keys: the surface, an accent edge
-     and accent letters, so it reads as the app's own in light and dark. */
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-bottom-width: 2px;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--text) 14%, transparent);
-}
-.show-keys .composer [data-keyhint]::after { top: auto; bottom: calc(100% + 4px); }
-/* 중단 sits just left of 보내기: its badge goes to its left, so the two don't overlap. */
-.show-keys .composer .stop[data-keyhint]::after { bottom: auto; top: 50%; right: calc(100% + 6px); transform: translateY(-50%); }
-.show-keys :is(.bar, .rail) [data-keyhint]::after { top: calc(100% - 12px); }
-.show-keys .rail-btn[data-keyhint]::after { right: auto; left: 0; }
-.show-keys :is(.activity, .new-out, .seg.hosts)[data-keyhint]::after { top: 2px; right: 2px; }
 
 /* 단축키 page (keyspage.js), in 설정's cards: the action and where it works on the left, its keys
    (× to take off, + to add) on the right; stacked when narrow. */

@@ -102,26 +102,20 @@ const settingsShown = () => view.name === 'settings';
 
 // ------------------------------------------------------------ utilities
 
-// A button's shortcut: its title says it ("중단 (Alt+. ×2)"), and data-keyhint is the badge shown
-// while Ctrl or Alt is held (app.js, style.css). keymap.js gives the keys, or hint for a key
+// A button's shortcut: its title says it ("중단 (Alt+. ×2)"). keymap.js gives the keys, or hint for a key
 // its own field handles. Nothing when the action has no key.
 const keyAttrs = (action, label, hint) => {
   const h = hint ?? (action ? Keymap.hint(action) : '');
   // An action's own hint follows changed keys (refreshKeyHints); a given one stays.
   const act = action && hint == null ? ` data-keyact="${esc(action)}" data-keylabel="${esc(label)}"` : '';
-  return (h ? ` title="${esc(label)} (${esc(h)})" data-keyhint="${esc(h)}"` : '') + act;
+  return (h ? ` title="${esc(label)} (${esc(h)})"` : '') + act;
 };
 // After keys change: the buttons on screen say the new ones.
 function refreshKeyHints() {
   for (const el of document.querySelectorAll('[data-keyact]')) {
     const h = Keymap.hint(el.dataset.keyact);
-    if (h) {
-      el.dataset.keyhint = h;
-      el.title = `${el.dataset.keylabel} (${h})`;
-    } else {
-      delete el.dataset.keyhint;
-      el.removeAttribute('title');
-    }
+    if (h) el.title = `${el.dataset.keylabel} (${h})`;
+    else el.removeAttribute('title');
   }
 }
 
