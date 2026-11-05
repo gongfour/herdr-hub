@@ -32,6 +32,7 @@ const fsq = require('./lib/fsq');
 const awake = require('./lib/awake');
 const ws = require('./lib/ws');
 const { liveSession } = require('./lib/live');
+const wsdirs = require('./lib/wsdirs');
 
 // The contract between this server and its pages, and between a hub and its peers. Bumped by
 // hand when either changes (AGENTS.md); 설정 → 연결 shows a peer whose number differs from the hub's.
@@ -131,6 +132,26 @@ let watchedPanes = '';
 const TIMES_FILE = path.join(DATA, 'times.json');
 let { local: localTimes, merged: mergedTimes } = times.load(readJsonFile(TIMES_FILE), ['local', 'merged'], Date.now(), 6 * 3600e3);
 let timesSaved = { body: '', at: 0 };
+// Each workspace's default folder (lib/wsdirs): kept while its workspace is, written when changed.
+const WSDIRS_FILE = path.join(DATA, 'wsdirs.json');
+let wsDirs = wsdirs.clean(readJsonFile(WSDIRS_FILE));
+let wsSeen = null; // the workspace ids in the last list read
+let wsDirsWrite = Promise.resolve();
+let wsDirsGen = 0; // bumped on every set: a list read before it may not know that workspace yet
+function saveWsDirs() {
+  wsDirsGen++;
+  const body = JSON.stringify(wsDirs);
+  wsDirsWrite = wsDirsWrite.then(async () => {
+    try {
+      await fs.promises.mkdir(DATA, { recursive: true });
+      await fs.promises.writeFile(WSDIRS_FILE + '.tmp', body);
+      await fs.promises.rename(WSDIRS_FILE + '.tmp', WSDIRS_FILE);
+    } catch (err) {
+      console.error('wsdirs save failed:', err.message);
+    }
+  });
+  return wsDirsWrite;
+}
 function readJsonFile(file) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -193,6 +214,7 @@ let refreshSeq = 0;
 let appliedSeq = 0;
 async function refresh() {
   const seq = ++refreshSeq;
+  const gen = wsDirsGen;
   try {
     const [agents, workspaces, panes] = await Promise.all([herdr.call('agent.list'), herdr.call('workspace.list'), herdr.call('pane.list')]);
     const labels = new Map(workspaces.workspaces.map((w) => [w.workspace_id, w.label]));
@@ -208,7 +230,19 @@ async function refresh() {
     if (seq < appliedSeq) return;
     appliedSeq = seq;
     notifyTransitions(HOST_ID, HOSTNAME, list);
-    local = { herdr: 'up', error: null, agents: list, terminals, workspaces: workspaces.workspaces };
+    // Not against a list read before the last set (a workspace created meanwhile): the next one.
+    const r = gen === wsDirsGen ? wsdirs.reconcile(wsDirs, workspaces.workspaces, wsSeen) : { changed: false };
+    wsSeen = new Set(workspaces.workspaces.map((w) => w.workspace_id));
+    if (r.changed) {
+      wsDirs = r.entries;
+      saveWsDirs();
+    }
+    // defaultCwd: its 기본 폴더, when one is set (only added: an older page or hub ignores it).
+    const wsList = workspaces.workspaces.map((w) => {
+      const d = wsdirs.get(wsDirs, w.workspace_id);
+      return d ? { ...w, defaultCwd: d } : w;
+    });
+    local = { herdr: 'up', error: null, agents: list, terminals, workspaces: wsList };
     publish();
     watchStatuses(list);
   } catch (err) {
@@ -533,8 +567,12 @@ async function api(req, res, url) {
     const cwd = await cleanCwd(body.cwd);
     const label = cleanLabel(body.label);
     const spec = body.agent ? cleanAgentSpec(body.agent, [label, path.basename(cwd)]) : null;
-    const r = await herdr.call('workspace.create', { cwd, label: label || path.basename(cwd) || cwd, focus: false });
+    const wsLabel = label || path.basename(cwd) || cwd;
+    const r = await herdr.call('workspace.create', { cwd, label: wsLabel, focus: false });
     const pane = r.root_pane.pane_id;
+    // Its folder becomes its 기본 폴더: where its next tabs open too, until changed.
+    wsDirs = wsdirs.set(wsDirs, r.workspace.workspace_id, cwd, r.workspace.label || wsLabel);
+    saveWsDirs();
     let agentError = null;
     if (spec) await startAgent(pane, spec).catch((err) => (agentError = err.message));
     await refresh();
@@ -549,6 +587,12 @@ async function api(req, res, url) {
       await herdr.call('workspace.rename', { workspace_id: ws.workspace_id, label: cleanLabel(body.label, { required: true }) });
     } else if (parts[2] === 'close') {
       await herdr.call('workspace.close', { workspace_id: ws.workspace_id });
+    } else if (parts[2] === 'dir') {
+      // Its 기본 폴더 (lib/wsdirs): { cwd } sets it (the same rules as a new workspace's folder),
+      // empty or null clears it.
+      const cwd = body.cwd == null || body.cwd === '' ? null : await cleanCwd(body.cwd);
+      wsDirs = wsdirs.set(wsDirs, ws.workspace_id, cwd, ws.label);
+      await saveWsDirs();
     } else if (parts[2] === 'tabs' || parts[2] === 'agents') {
       // New tab, optionally with an agent started in its root pane. cwd (optional, the same rules
       // as a new workspace): where the tab opens. Without it herdr opens it in the folder of the

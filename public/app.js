@@ -983,17 +983,18 @@ function workspaceHere() {
 // nothing more. The page moved on meanwhile: a toast to open it instead.
 let quickBusy = false;
 // Where Ctrl+N (and the start form, prefilled) opens the new tab on host, in workspace ws
-// (quick.js startFolder): the open agent's or shell's folder, else that of the one in ws viewed
-// last here, else '' (herdr's active tab there).
+// (quick.js startFolder): the open agent's or shell's folder, else the workspace's 기본 폴더, else
+// that of the one in ws viewed last here, else '' (herdr's active tab there).
 function startFolderFor(host, ws) {
   const open = view.name === 'agent' ? currentAgent() : view.name === 'term' ? currentTerminal() : null;
+  const w = wsFor(host, ws);
   const href = (kind, x) => link(host, `/${kind}/${encodeURIComponent(x.pane)}`);
   const mine = (x) => (x.host || localId()) === host && x.workspace === ws;
   const panes = [
     ...(state.agents || []).filter(mine).map((a) => ({ href: href('agent', a), workspace: a.workspace, cwd: a.cwd })),
     ...(state.terminals || []).filter(mine).map((t) => ({ href: href('term', t), workspace: t.workspace, cwd: t.cwd })),
   ];
-  return Quick.startFolder({ open: open && (open.host || localId()) === host ? open : null, ws, panes, recent: recentList() });
+  return Quick.startFolder({ open: open && (open.host || localId()) === host ? open : null, ws, def: (w && w.defaultCwd) || '', panes, recent: recentList() });
 }
 async function quickStart(host, ws) {
   if (quickBusy) return toast('새 에이전트를 시작하는 중입니다', { id: 'quick' });

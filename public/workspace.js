@@ -1,6 +1,6 @@
 'use strict';
 // The workspace page, in 설정's grouped cards: where it is (its host; a herdr workspace has no
-// folder, each row shows its own), its agents and
+// folder, each row shows its own — its 기본 폴더 is the Hub's, lib/wsdirs), its agents and
 // shells as the list draws them (list.js agentRow / termRow: icon, unread dot, time, status), the
 // rare and the destructive (이름 바꾸기, 워크스페이스 닫기) as quiet rows rather than big buttons,
 // and what to do here (에이전트 시작, 새 셸 열기) in a row at the bottom, where a thumb reaches.
@@ -44,6 +44,7 @@ function renderWorkspace() {
       <section class="pgroup" aria-labelledby="ws-mg">
         <h2 id="ws-mg">워크스페이스</h2>
         <div class="pcard">
+          <button type="button" class="pref-link" id="w-dir"${w.defaultCwd ? ` title="${esc(w.defaultCwd)}"` : ''}><span>기본 폴더</span><span class="pl-end"><span class="ws-dir-v">${w.defaultCwd ? esc(RowText.homePath(w.defaultCwd, '')) : '없음'}</span><span aria-hidden="true">›</span></span></button>
           <button type="button" class="pref-link" id="w-rename"><span>이름 바꾸기</span><span class="pl-end" aria-hidden="true">›</span></button>
           <button type="button" class="pref-link danger-text" id="w-close"${keyAttrs('closeWorkspace', '워크스페이스 닫기')}><span>워크스페이스 닫기</span><span class="pl-end ws-close-note">안의 에이전트·셸이 모두 끝납니다</span></button>
         </div>
@@ -60,6 +61,7 @@ function renderWorkspace() {
   if (!w) return;
   tickList();
   document.getElementById('w-tab').onclick = () => newTab(w);
+  document.getElementById('w-dir').onclick = () => (location.hash = link(host, `/dir/ws/${id}`));
   document.getElementById('w-rename').onclick = () => renameWorkspace(w);
   document.getElementById('w-close').onclick = () => closeWorkspace(w);
 }

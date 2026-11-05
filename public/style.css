@@ -1665,6 +1665,8 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 .ws-page .pcard > .pref-link + .pref-link { border-top: 1px solid var(--line); } /* .pref-link's border: 0 would drop the card's rule */
 .ws-none { margin: 0; padding: var(--sp-4); font-size: 14px; color: var(--muted); }
 .ws-close-note { font-size: 12px; }
+#w-dir .pl-end { min-width: 0; }
+.ws-dir-v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12.5px var(--mono); }
 /* ---- sideways gestures (backswipe.js, tabswipe.js): only transform and opacity change per frame.
    Back swipe: the moving page is opaque (its header is see-through) and casts a shadow on the
    page behind; the page behind is the kept 작업공간 page (phone) or the empty right pane. */

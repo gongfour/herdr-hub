@@ -109,7 +109,9 @@ async function closeWorkspace(w, key = 'closeView') {
 
 async function newTab(w) {
   const host = w.host || localId();
-  const r = await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/tabs`, host), {}, '새 탭을 열었습니다', '새 셸을 열지 못했습니다');
+  // Where Ctrl+N would start (app.js startFolderFor): the open one's folder, else the 기본 폴더 …
+  const cwd = startFolderFor(host, w.workspace_id);
+  const r = await act(hp(`/workspaces/${encodeURIComponent(w.workspace_id)}/tabs`, host), cwd ? { cwd } : {}, '새 탭을 열었습니다', '새 셸을 열지 못했습니다');
   if (r && r.pane) location.hash = link(host, `/term/${encodeURIComponent(r.pane)}`);
 }
 
@@ -221,6 +223,7 @@ function wsMenuItems(w, { fromRow = false, here = false } = {}) {
     ['agent', '에이전트 시작', false, '', here ? 'newAgent' : null],
     ['tab', '새 셸 열기', false, '새 탭에'],
     '-',
+    ['dir', '기본 폴더 정하기', false, w.defaultCwd ? basename(w.defaultCwd) : '없음'],
     ['rename', '이름 바꾸기'],
     ['close', '워크스페이스 닫기', true, '안의 에이전트·셸이 모두 끝납니다', here ? 'closeWorkspace' : null],
   ];
@@ -238,6 +241,7 @@ function wsAction(w, k) {
   if (k === 'open') location.hash = link(w.host, `/ws/${id}`);
   if (k === 'agent') location.hash = link(w.host, `/start/ws/${id}`);
   if (k === 'tab') newTab(w);
+  if (k === 'dir') location.hash = link(w.host, `/dir/ws/${id}`);
   if (k === 'rename') renameWorkspace(w);
   if (k === 'close') closeWorkspace(w);
 }

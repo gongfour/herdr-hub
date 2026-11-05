@@ -1,10 +1,12 @@
 'use strict';
 // A stand-in herdr API socket for server tests: one workspace, no agents, newline-delimited JSON
 // like the real one. Every request is kept in `calls`; events.subscribe stays open and quiet.
+// `workspaces` is the list herdr gives (a test may change it); workspace.create adds one.
 const net = require('net');
 
 function fakeHerdr(socketPath) {
   const calls = [];
+  const workspaces = [{ workspace_id: 'w1', label: 'proj' }];
   let tabs = 0;
   // The shell pane's screen: what pane.read gives; typed text lands on its last line.
   const shell = { screen: '$ ' };
@@ -13,7 +15,12 @@ function fakeHerdr(socketPath) {
       case 'agent.list':
         return { agents: [] };
       case 'workspace.list':
-        return { workspaces: [{ workspace_id: 'w1', label: 'proj' }] };
+        return { workspaces: workspaces.map((w) => ({ ...w })) };
+      case 'workspace.create': {
+        const w = { workspace_id: `w${workspaces.length + 1}`, label: params.label };
+        workspaces.push(w);
+        return { workspace: w, root_pane: { pane_id: `${w.workspace_id}-p1` } };
+      }
       case 'pane.list':
         return { panes: [{ pane_id: 'w1-p1', workspace_id: 'w1', tab_id: 't1', cwd: '/', terminal_title: 'zsh' }] };
       case 'tab.create':
@@ -50,7 +57,7 @@ function fakeHerdr(socketPath) {
       conn.end(JSON.stringify({ id: msg.id, result: answer(msg.method, msg.params) }) + '\n');
     });
   });
-  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, close: () => server.close() })));
+  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, workspaces, close: () => server.close() })));
 }
 
 module.exports = { fakeHerdr };

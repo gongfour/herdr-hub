@@ -1,6 +1,8 @@
 'use strict';
 // POST /api/workspaces/<id>/tabs|agents with an optional cwd: checked like a new workspace's
 // folder and passed to herdr's tab.create; without it herdr picks (its active tab's folder).
+// And each workspace's 기본 폴더 (POST …/dir, lib/wsdirs): in the state as defaultCwd, kept
+// while its workspace is.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -12,8 +14,12 @@ const { fakeHerdr } = require('./fixtures/fakeherdr');
 
 const ROOT = path.join(__dirname, '..');
 
-async function start(t) {
+async function start(t, { data = null } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-tabcwd-'));
+  if (data) {
+    fs.mkdirSync(path.join(tmp, 'data'));
+    for (const [name, v] of Object.entries(data)) fs.writeFileSync(path.join(tmp, 'data', name), JSON.stringify(typeof v === 'function' ? v(tmp) : v));
+  }
   const sock = path.join(tmp, 'h.sock');
   const herdr = await fakeHerdr(sock);
   const port = 20000 + Math.floor(Math.random() * 20000);
@@ -104,4 +110,85 @@ test('tabs/agents: cwd is checked and passed to tab.create; without it, none is 
     assert.equal(r.body.error, error);
   }
   assert.equal(tabCreates(herdr).length, before, 'no tab for a bad folder');
+});
+
+function get(port, p) {
+  return new Promise((resolve, reject) => {
+    http
+      .get({ host: '127.0.0.1', port, path: p, headers: { Host: `127.0.0.1:${port}`, 'X-Herdr-Hub': '1' } }, (res) => {
+        let s = '';
+        res.on('data', (d) => (s += d));
+        res.on('end', () => resolve(JSON.parse(s)));
+      })
+      .on('error', reject);
+  });
+}
+const defaultOf = async (port, id) => ((await get(port, '/api/state')).workspaces.find((w) => w.workspace_id === id) || {}).defaultCwd;
+const saved = (tmp) => JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'wsdirs.json'), 'utf8'));
+// Something that refreshes the state (the rename route does, after herdr answers).
+const touch = (port) => post(port, '/api/workspaces/w1/rename', { label: 'proj' });
+
+test('기본 폴더: set, cleared, checked; a new workspace\'s folder becomes its own', async (t) => {
+  const { port, herdr, tmp } = await start(t);
+  const dir = fs.realpathSync(tmp);
+  assert.equal(await defaultOf(port, 'w1'), undefined);
+
+  let r = await post(port, '/api/workspaces/w1/dir', { cwd: dir + path.sep });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(await defaultOf(port, 'w1'), dir);
+  assert.deepEqual(saved(tmp), { w1: { cwd: dir, label: 'proj' } });
+
+  for (const [cwd, error] of [
+    ['relative/dir', 'cwd_not_absolute'],
+    [path.join(dir, 'nope'), 'cwd_not_found'],
+  ]) {
+    r = await post(port, '/api/workspaces/w1/dir', { cwd });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.error, error);
+  }
+  assert.equal(await defaultOf(port, 'w1'), dir, 'a bad folder changes nothing');
+  r = await post(port, '/api/workspaces/nope/dir', { cwd: dir });
+  assert.equal(r.status, 404);
+
+  r = await post(port, '/api/workspaces/w1/dir', { cwd: '' });
+  assert.equal(r.status, 200);
+  assert.equal(await defaultOf(port, 'w1'), undefined);
+  assert.deepEqual(saved(tmp), {});
+
+  r = await post(port, '/api/workspaces', { cwd: dir, label: 'made' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(await defaultOf(port, r.body.workspace), dir);
+  // The default is the page's to send: tab.create still gets only what was asked.
+  await post(port, `/api/workspaces/${r.body.workspace}/tabs`, {});
+  assert.ok(!('cwd' in tabCreates(herdr).at(-1)));
+});
+
+test('기본 폴더: a rename moves it along; a closed workspace\'s goes with it', async (t) => {
+  const { port, herdr, tmp } = await start(t);
+  const dir = fs.realpathSync(tmp);
+  await post(port, '/api/workspaces/w1/dir', { cwd: dir });
+  herdr.workspaces[0].label = 'renamed';
+  await touch(port);
+  assert.equal(await defaultOf(port, 'w1'), dir);
+  await new Promise((r) => setTimeout(r, 100)); // the write after the refresh
+  assert.deepEqual(saved(tmp), { w1: { cwd: dir, label: 'renamed' } });
+
+  const w2 = (await post(port, '/api/workspaces', { cwd: dir, label: 'two' })).body.workspace;
+  assert.equal(await defaultOf(port, w2), dir);
+  herdr.workspaces.splice(1, 1); // closed in herdr
+  await touch(port);
+  await new Promise((r) => setTimeout(r, 100)); // the write after the refresh
+  assert.deepEqual(Object.keys(saved(tmp)), ['w1']);
+});
+
+test('기본 폴더: one saved under another label (its id given to a new workspace while the Hub was down) is dropped', async (t) => {
+  const { port, tmp } = await start(t, { data: { 'wsdirs.json': (d) => ({ w1: { cwd: fs.realpathSync(d), label: 'gone' }, w9: { cwd: '/x', label: 'w9' } }) } });
+  assert.equal(await defaultOf(port, 'w1'), undefined);
+  await new Promise((r) => setTimeout(r, 100));
+  assert.deepEqual(saved(tmp), {});
+});
+
+test('기본 폴더: kept across a Hub restart when the workspace is the same', async (t) => {
+  const { port } = await start(t, { data: { 'wsdirs.json': (d) => ({ w1: { cwd: fs.realpathSync(d), label: 'proj' } }) } });
+  assert.ok(await defaultOf(port, 'w1'));
 });

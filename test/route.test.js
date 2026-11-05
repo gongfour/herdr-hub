@@ -27,6 +27,7 @@ test('shells, workspaces and the forms', () => {
   assert.deepEqual(parse('/new'), { name: 'form', host: null, mode: 'new' });
   assert.deepEqual(parse('/h/server/new'), { name: 'form', host: 'server', mode: 'new' });
   assert.deepEqual(parse('/h/server/start/ws/w1'), { name: 'form', host: 'server', mode: 'ws', target: 'w1' });
+  assert.deepEqual(parse('/h/server/dir/ws/w%3A1'), { name: 'form', host: 'server', mode: 'dir', target: 'w:1' });
   assert.deepEqual(parse('/start/pane/w1%3Ap4'), { name: 'form', host: null, mode: 'pane', target: 'w1:p4' });
 });
 

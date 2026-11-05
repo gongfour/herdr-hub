@@ -96,4 +96,9 @@ test('Ctrl+N starts in the open pane\'s folder, else the last viewed in that wor
   assert.equal(Q.startFolder({ ws: 'w1', panes, recent: ['#/h/mac/agent/w2-p1', '#/h/mac/agent/gone'] }), '');
   assert.equal(Q.startFolder({ ws: 'w3', panes, recent }), '');
   assert.equal(Q.startFolder(), '');
+  // The workspace's 기본 폴더: after what is open, before the last one viewed.
+  assert.equal(Q.startFolder({ open: { workspace: 'w1', cwd: '/here' }, ws: 'w1', def: '/def', panes, recent }), '/here');
+  assert.equal(Q.startFolder({ open: { workspace: 'w2', cwd: '/c' }, ws: 'w1', def: '/def', panes, recent }), '/def');
+  assert.equal(Q.startFolder({ ws: 'w1', def: '/def', panes, recent }), '/def');
+  assert.equal(Q.startFolder({ ws: 'w3', def: '/def' }), '/def');
 });
