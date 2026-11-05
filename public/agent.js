@@ -97,8 +97,9 @@ function renderDetail() {
     const x = e.target.closest('[data-drop]');
     if (x) removeFile(Number(x.dataset.drop));
   };
-  document.getElementById('d-body').addEventListener('scroll', (e) => updateJump(e.currentTarget), { passive: true });
+  document.getElementById('d-body').addEventListener('scroll', (e) => (updateJump(e.currentTarget), olderOnScroll(e.currentTarget)), { passive: true });
   document.getElementById('d-body').addEventListener('click', (e) => {
+    if (e.target.closest('[data-older]')) return loadOlder();
     if (e.target.closest('[data-sendnow]')) return sendQueuedNow();
     const pic = e.target.closest('.pic');
     if (pic) openViewer(pic.dataset.src);
@@ -848,27 +849,30 @@ function renderDetailBody(reset) {
     if (body._html !== html) body.innerHTML = body._html = html;
   } else {
     if (body._html !== 'chat' || !body.querySelector('.msgs')) {
-      body.innerHTML = '<p class="note trunc" hidden></p><div class="msgs"></div>' +
+      body.innerHTML = '<div class="older" hidden></div><div class="msgs"></div>' +
         `<div class="pill-dock"><button type="button" class="new-out jump"${keyAttrs('jumpEnd', '맨 아래로')} hidden>↓ 최신 대화</button></div>`;
       body._html = 'chat';
       body._seen = null;
       body.querySelector('.jump').onclick = () => jumpLatest(keyboardLikely()); // a phone's keyboard stays down
     }
-    // A short copy (the latest few, more on the way) says nothing about older ones yet.
-    // How many, and that the older ones are not to be had here (the server reads the file's tail).
-    const trunc = body.querySelector('.trunc');
-    trunc.hidden = !t.truncated || Boolean(t.partial);
-    const truncText = `최근 메시지 ${t.messages.length}개만 보입니다 · 그보다 앞의 대화는 여기서 불러오지 않습니다`;
-    if (!trunc.hidden && trunc.textContent !== truncText) trunc.textContent = truncText;
+    // Above the first message: the way to the older ones (olderHtml), or that the chat starts there.
+    const older = body.querySelector('.older');
+    const top = olderHtml(t);
+    older.hidden = !top;
+    if (older._html !== top) older.innerHTML = older._html = top;
     // One element per message, replaced only when its HTML changed: a poll that brings
     // nothing new touches nothing, so a text selection or a press survives it.
     const box = body.querySelector('.msgs');
     // Scrolled up: the message at the top of the view stays where it is, whatever comes in
     // above it (the older messages after a short first copy) or below.
-    const anchor = nearBottom ? null : topMessage(body, box);
+    // Older ones just put above (loadOlder): the message that was on top stays there too.
+    const keepTop = detail.keepTop;
+    detail.keepTop = false;
+    const anchor = nearBottom && !keepTop ? null : topMessage(body, box);
     const nowAt = canSendQueued(currentAgent()) && waiting.some((p) => !p.now) ? waiting.length - 1 : -1; // 지금 보내기
-    patchList(box, [...t.messages.map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting.map((p, i) => [`wait:${p.at}`, pendingBubble(p, i === nowAt)])]);
+    patchList(box, [...(t.older || []).concat(t.messages).map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting.map((p, i) => [`wait:${p.at}`, pendingBubble(p, i === nowAt)])]);
     if (anchor && anchor.el.isConnected) body.scrollTop += anchor.el.getBoundingClientRect().top - anchor.top;
+    if (keepTop) return updateJump(body);
   }
   if (nearBottom) body.scrollTop = body.scrollHeight;
   updateJump(body);
@@ -882,6 +886,61 @@ function topMessage(body, box) {
     if (r.bottom > top) return { el, top: r.top };
   }
   return null;
+}
+
+// ---- 앞 대화: the messages before the window, a page at a time (?before=, ChatKeep.addOlder)
+const OLDER_PAGE = 100;
+function olderHtml(t) {
+  if (detail.olderLoading) return '<p class="note">앞 대화를 불러오는 중…</p>';
+  const st = ChatKeep.olderState(t, { stale: Boolean(currentAgent()?.stale) });
+  const shown = (t.older || []).length + t.messages.length;
+  if (st === 'more') {
+    const note = detail.olderErr ? '앞 대화를 불러오지 못했습니다' : `최근 메시지 ${shown}개가 보입니다`;
+    return `<p class="note">${note}</p><button type="button" class="older-more" data-older>${detail.olderErr ? '다시 시도' : '앞 대화 더 보기'}</button>`;
+  }
+  if (st === 'start') return '<p class="note">대화의 처음입니다</p>';
+  if (st === 'ghost') return `<p class="note">최근 메시지 ${shown}개만 보입니다 · 호스트가 돌아오면 앞 대화를 볼 수 있습니다</p>`;
+  if (st === 'old') return `<p class="note">최근 메시지 ${shown}개만 보입니다 · 이 호스트는 앞 대화를 불러오지 못합니다(배포가 필요합니다)</p>`;
+  return '';
+}
+
+// One page (or a few, while the host is still searching back for where the window starts).
+async function loadOlder() {
+  const d = detail;
+  const a = currentAgent();
+  const t = d.transcript;
+  if (!a || d.olderLoading || ChatKeep.olderState(t, { stale: Boolean(a.stale) }) !== 'more') return;
+  const host = curHost();
+  d.olderLoading = true;
+  d.olderErr = false;
+  renderDetailBody(false);
+  try {
+    for (let tries = 0; tries < 6; tries++) {
+      const before = ChatKeep.oldestId(d.transcript);
+      const r = await api(hp(`/agents/${encodeURIComponent(d.pane)}/transcript?limit=${OLDER_PAGE}&before=${encodeURIComponent(before)}`, host));
+      if (d !== detail) return;
+      d.transcript = ChatKeep.addOlder(d.transcript, r);
+      if (!(r.more && !(r.messages || []).length && 'before' in r)) break;
+    }
+  } catch {
+    if (d === detail) d.olderErr = true;
+  } finally {
+    d.olderLoading = false;
+  }
+  if (d !== detail) return;
+  d.keepTop = true;
+  renderDetailBody(false);
+  keepChat(d, a);
+}
+
+// Scrolled up near the top: the next page, by itself. Only on a scroll upwards (a person's), so
+// the page put above (which moves the view down) or a short chat never loads on and on.
+const OLDER_NEAR = 400;
+function olderOnScroll(body) {
+  const was = body._lastTop ?? body.scrollTop;
+  body._lastTop = body.scrollTop;
+  if (body.scrollTop >= was || body.scrollTop > OLDER_NEAR || body._html !== 'chat' || detail.olderErr) return;
+  if (detail.transcript && ChatKeep.olderState(detail.transcript, { stale: Boolean(currentAgent()?.stale) }) === 'more') loadOlder();
 }
 
 // ---- 최신 대화: back to the end of the conversation
@@ -1029,6 +1088,8 @@ function jumpTop() {
   stopHold();
   box._goal = null;
   box.scrollTop = 0;
+  // In a chat, the top is also where the older messages are asked for (already there: no scroll).
+  if (box.id === 'd-body') loadOlder();
   return true;
 }
 

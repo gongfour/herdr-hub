@@ -53,7 +53,7 @@
     nextBlocked: { group: '어디서나', name: '다음 답 필요', label: '다음 답 필요 에이전트 열기 (목록 순서로 돌아가며)' },
     prevBlocked: { group: '어디서나', name: '이전 답 필요', label: '이전 답 필요 에이전트 열기' },
     jumpEnd: { group: '대화·터미널 화면', name: '맨 아래로', label: '맨 아래로, 그리고 입력 칸으로' },
-    jumpTop: { group: '대화·터미널 화면', name: '맨 위로', label: '맨 위로' },
+    jumpTop: { group: '대화·터미널 화면', name: '맨 위로', label: '맨 위로 (대화에서는 앞 대화를 한 쪽 더 불러온다)' },
     prevMine: { group: '대화·터미널 화면', name: '내 이전 메시지', label: '내가 보낸 이전 메시지로 (터미널 화면은 한 화면 위로)', noCommand: true },
     nextMine: { group: '대화·터미널 화면', name: '내 다음 메시지', label: '내가 보낸 다음 메시지로 (마지막 다음은 맨 아래, 입력 칸으로)', noCommand: true },
     scrollUp: { group: '대화·터미널 화면', name: '위로 스크롤', label: '위로 스크롤 (누르고 있으면 계속)', noCommand: true },

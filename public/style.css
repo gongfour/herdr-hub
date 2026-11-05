@@ -344,6 +344,12 @@ button:disabled { cursor: default; }
 
 .scroll { flex: 1; overflow-y: auto; padding: var(--sp-3) var(--sp-4) var(--sp-4); -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .msgs { display: flex; flex-direction: column; gap: var(--sp-4); }
+/* Above the first message: how many are shown, and 앞 대화 더 보기 (agent.js olderHtml). */
+.older { display: flex; flex-direction: column; align-items: center; margin-bottom: var(--sp-3); }
+.older .note { margin: 0 0 var(--sp-1); }
+.older-more { min-height: 32px; padding: 0 var(--sp-3); border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; }
+.older-more:hover { background: var(--surface-2); }
+@media (pointer: coarse) { .older-more { min-height: 44px; padding: 0 var(--sp-4); } }
 .msg.user { align-self: flex-end; max-width: 85%; padding: var(--sp-2) var(--sp-3); border-radius: 16px; background: var(--bubble-me); color: var(--bubble-me-text); border-bottom-right-radius: 5px; white-space: pre-wrap; }
 /* Replies use the full width like a terminal transcript; only what you sent is a bubble. */
 .msg.assistant { align-self: stretch; line-height: 1.55; }

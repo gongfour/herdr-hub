@@ -66,3 +66,43 @@ test('gone: only for hosts that report; a pane with another session counts as go
   const out = gone(Object.keys(sessions), state, (a) => `${a.host}|${a.pane}`, (k) => sessions[k]);
   assert.deepEqual(out, ['d|p2', 'd|p3']);
 });
+
+// ---- older pages
+const { oldestId, addOlder, joinSince, olderState, WINDOW_MAX } = require('../public/chatkeep.js');
+const page = (before, ids, more) => ({ supported: true, found: true, before, messages: ids.map((id) => ({ role: 'user', id, text: id })), more });
+
+test('older pages go above the window, one run, and only for the oldest id here', () => {
+  let t = { ...T(3), truncated: true };
+  assert.equal(olderState(t), 'more');
+  assert.equal(oldestId(t), 'm0');
+  t = addOlder(t, page('m0', ['o3', 'o4'], true));
+  assert.deepEqual(t.older.map((m) => m.id), ['o3', 'o4']);
+  assert.equal(oldestId(t), 'o3');
+  // An answer for an id that is no longer the oldest (asked twice, or the window was replaced).
+  assert.equal(addOlder(t, page('m0', ['x'], true)), t);
+  t = addOlder(t, page('o3', ['o1', 'o2'], false));
+  assert.deepEqual(t.older.map((m) => m.id), ['o1', 'o2', 'o3', 'o4']);
+  assert.equal(olderState(t), 'start');
+  // A ghost (host offline) and a host from before paging (it answers with its window).
+  assert.equal(olderState({ ...T(3), truncated: true }, { stale: true }), 'ghost');
+  assert.equal(olderState(addOlder({ ...T(3), truncated: true }, { supported: true, found: true, before: 'm0', messages: [], more: false, ghost: true })), 'ghost');
+  assert.equal(olderState(addOlder({ ...T(3), truncated: true }, { supported: true, found: true, truncated: true, messages: msgs(3) })), 'old');
+  // Nothing older: the whole chat is in the window; a short copy says nothing yet.
+  assert.equal(olderState(T(3)), null);
+  assert.equal(olderState({ ...T(3), truncated: true, partial: true }), null);
+});
+
+test('a since answer keeps the older pages; what drops off the window joins them', () => {
+  const win = { ...T(WINDOW_MAX), truncated: true };
+  const t = addOlder(win, page('m0', ['o1'], true));
+  const r = { supported: true, found: true, rev: '11:1', since: `m${WINDOW_MAX - 1}`, messages: [{ role: 'assistant', id: `m${WINDOW_MAX - 1}`, text: 'grown' }, { role: 'user', id: 'n1', text: 'new' }] };
+  const out = joinSince(t, r, WINDOW_MAX - 1);
+  assert.equal(out.messages.length, WINDOW_MAX);
+  assert.deepEqual(out.older.map((m) => m.id), ['o1', 'm0']);
+  assert.equal(out.messages[out.messages.length - 2].text, 'grown');
+  assert.equal(out.olderMore, true);
+  // No older pages: the top just drops off, as before.
+  const plain = joinSince(win, r, WINDOW_MAX - 1);
+  assert.equal(plain.older, undefined);
+  assert.equal(plain.messages[0].id, 'm1');
+});

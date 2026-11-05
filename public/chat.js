@@ -36,7 +36,7 @@ function mergeTranscript(old, r) {
   if (r.unchanged) return old;
   const i = old.messages.findIndex((m) => m.id === r.since);
   if (i < 0) return r;
-  return { ...r, truncated: old.truncated || r.truncated, messages: old.messages.slice(0, i).concat(r.messages).slice(-300) };
+  return ChatKeep.joinSince(old, r, i); // older pages loaded above stay (chatkeep.js)
 }
 
 // Output of a "!" command (bash mode), under its line: monospace, folded after SHELL_FOLD lines.

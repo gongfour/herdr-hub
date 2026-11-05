@@ -88,7 +88,51 @@
     });
   }
 
-  const api = { Lru, entryFor, restore, prune, gone, STORE_MESSAGES };
+
+  // ---- older pages (?before=): t.older, the messages loaded above the window
+  //   t.older: oldest first, right before t.messages[0]; t.olderMore: the host said there are more
+  //   before them (false: the start of the chat); t.olderNone: 'ghost' (its host is offline: the
+  //   hub keeps only the last window) or 'old' (the host predates paging: it sent its window).
+  const WINDOW_MAX = 300; // the window's messages; with older pages loaded the overflow joins them
+  const oldestId = (t) => {
+    const m = (t && t.older && t.older[0]) || (t && t.messages && t.messages[0]);
+    return m ? m.id : null;
+  };
+
+  // A page onto t. A page for an id that is no longer the oldest here (the window was replaced
+  // meanwhile) is dropped: t as it is.
+  function addOlder(t, page) {
+    if (!t || !page || !page.supported || !page.found) return t;
+    if (!('before' in page)) return { ...t, olderNone: 'old' };
+    if (page.before !== oldestId(t)) return t;
+    const older = (page.messages || []).concat(t.older || []);
+    const out = { ...t, older, olderMore: Boolean(page.more) && !page.missing };
+    if (page.ghost) out.olderNone = 'ghost';
+    return out;
+  }
+
+  // The window after a ?since= answer r (old.messages up to its index i, then r's): it keeps
+  // WINDOW_MAX messages; what drops off its top joins the older pages when there are any (they
+  // must stay one run with the window), else goes as before.
+  function joinSince(old, r, i) {
+    const all = old.messages.slice(0, i).concat(r.messages);
+    const cut = Math.max(0, all.length - WINDOW_MAX);
+    const out = { ...r, truncated: old.truncated || r.truncated, messages: all.slice(cut) };
+    if (old.older) Object.assign(out, { older: old.older.concat(all.slice(0, cut)), olderMore: old.olderMore, olderNone: old.olderNone });
+    return out;
+  }
+
+  // What the top of the chat offers: 'more' (a button), 'start' (the chat begins here), 'ghost',
+  // 'old', or null (nothing older: the window is all of it, or a short copy says nothing yet).
+  function olderState(t, { stale = false } = {}) {
+    if (!t || t.partial) return null;
+    if (t.olderNone) return t.olderNone;
+    if (t.older) return t.olderMore ? (stale ? 'ghost' : 'more') : 'start';
+    if (!t.truncated) return null;
+    return stale ? 'ghost' : 'more';
+  }
+
+  const api = { Lru, entryFor, restore, prune, gone, STORE_MESSAGES, oldestId, addOlder, joinSince, olderState, WINDOW_MAX };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.ChatKeep = api;
 })(typeof self !== 'undefined' ? self : this);
