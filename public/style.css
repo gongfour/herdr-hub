@@ -964,6 +964,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* A readable column on a wide pane: a name and its control stay close (설정, 단축키, 워크스페이스).
    760px, the same column as the forms and the chat's narrowest (split: the .panel padding below). */
 .panel.settings > * { width: 100%; max-width: 760px; margin-inline: auto; }
+.split #detail-pane > .panel.settings > * { margin-inline: 0; }
 /* Focused as a whole when 설정 opens (settings.js): the place to start from, not a control. */
 .panel.settings:focus { outline: none; }
 .panel.settings section.pgroup { background: none; border: 0; padding: 0; }
@@ -1393,9 +1394,13 @@ button.tool:active { filter: brightness(0.95); }
 .split .list-grip:focus-visible::after { background: var(--accent); }
 :root.list-dragging, :root.list-dragging * { cursor: col-resize !important; user-select: none !important; }
 :root.split.side-off .list-grip { display: none; }
-/* 설정, 단축키, the workspace page and the forms keep one readable measure in the wide column:
-   760px (the chat's narrowest), its title and the workspace's bottom bar on the same lines. */
-.split #detail-pane > .panel, .split #detail-pane > main.list { padding-inline: max(24px, calc((100% - 760px) / 2)); }
+/* 설정, 단축키, the workspace page and the forms sit in the chat's column (--col, --gut below, set
+   on #detail-pane too): the header's title and ✕ in the very places the chat has them, and the
+   page from the same left line. A page keeps a readable measure of 760px from there (a name and its
+   control stay close), so on a wider column it leaves room on the right, not on both sides. */
+.split #detail-pane > .panel, .split #detail-pane > main.list, .split #detail-pane > .ws-dock {
+  padding-left: var(--gut); padding-right: max(var(--gut), calc(100% - var(--gut) - 760px));
+}
 /* The chat, split: one column of about 760px for everything in it — the header's contents, the
    activity line, the messages (and the 최신 대화 pill), the answer box, the photos, the command
    suggestions and the composer. Rules and backgrounds still run edge to edge; only the contents
@@ -1405,10 +1410,10 @@ button.tool:active { filter: brightness(0.95); }
    16–24px the list, the settings cards and the sheets keep; Material 3's 24dp on wide screens),
    within 760–1280px; 좁게 stays 760; 넓게 less 16px a side, up to 1680px; 꽉 차게 all.
    The chat's text grows a little with the screen too (16px on a laptop, up to 18px on a monitor). */
-.split .detail.chat { container-type: inline-size; --col: clamp(760px, 100cqw - 48px, 1280px); --gut: max(16px, (100cqw - var(--col)) / 2); }
-:root[data-chatw="narrow"] .detail.chat { --col: 760px; }
-:root[data-chatw="wide"] .detail.chat { --col: clamp(760px, 100cqw - 32px, 1680px); }
-:root[data-chatw="full"] .detail.chat { --col: 100cqw; }
+.split :is(#detail-pane, .detail.chat) { container-type: inline-size; --col: clamp(760px, 100cqw - 48px, 1280px); --gut: max(16px, (100cqw - var(--col)) / 2); }
+:root[data-chatw="narrow"] :is(#detail-pane, .detail.chat) { --col: 760px; }
+:root[data-chatw="wide"] :is(#detail-pane, .detail.chat) { --col: clamp(760px, 100cqw - 32px, 1680px); }
+:root[data-chatw="full"] :is(#detail-pane, .detail.chat) { --col: 100cqw; }
 .split .detail.chat .msgs { font-size: clamp(16px, 0.25vw + 12.4px, 18px); }
 .split .detail.chat .msg pre { font-size: clamp(13px, 0.15vw + 10.8px, 15px); }
 .split .detail.chat > .bar,
@@ -1564,7 +1569,6 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 }
 .ws-dock .btn { flex: 1; justify-content: center; margin: 0; min-height: 48px; }
 :is(#app, .col) > main.panel:has(+ .ws-dock) { padding-bottom: 16px; }
-.split #detail-pane > .ws-dock { padding-inline: max(24px, calc((100% - 760px) / 2)); }
 /* The name may take two lines (a long one isn't cut off with no way to read it). */
 .ws-bar h1 { white-space: normal; }
 .ws-bar h1 .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
@@ -1724,6 +1728,6 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
    chip alone tells the stream is down (the right column's header would say it a second time). */
 :root.split.has-down .live-chip, :root.split #detail-pane .live-chip { display: none; }
 
-/* A page in the 760px column (설정, 단축키, a workspace, 새 워크스페이스, 에이전트 시작): its title
-   lined up with the cards below it (the same padding as the .panel); ✕ stays at the pane's edge. */
-.split #detail-pane > .bar:has(+ .panel) { padding-left: max(24px, calc((100% - 760px) / 2)); }
+/* A page's header (설정, 단축키, a workspace, 새 워크스페이스, 에이전트 시작) is the chat's: title and ✕
+   at the column's edges, so neither moves when the right pane goes from a chat to a page. */
+.split #detail-pane > .bar:has(+ .panel) { padding-left: var(--gut); padding-right: var(--gut); }
