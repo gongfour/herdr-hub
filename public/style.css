@@ -1908,10 +1908,15 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 @media (hover: hover) and (pointer: fine) {
   .sw > .row-more {
     display: grid; position: absolute; z-index: 2; top: calc(var(--row-pad) + var(--row-lh) / 2); right: 6px; transform: translateY(-50%); opacity: 0; pointer-events: none;
-    width: 36px; height: 36px; color: var(--muted); background: none;
+    /* A mouse's 32px, all of it inside the row: not .icon-btn's 44px finger target and the -8px margin
+       that goes with it, which made it 44px, pushed it up and right past the row's edge, and left its
+       hover square cut off by the row's top and the card's side. */
+    width: 32px; height: 32px; min-width: 0; min-height: 0; margin: 0; border-radius: 8px; color: var(--muted); background: none;
   }
+  .sw > .row-more svg { width: 18px; height: 18px; }
   .sw:hover > .row-more, .sw.menu-target > .row-more { opacity: 1; pointer-events: auto; }
-  .sw > .row-more:hover { background: var(--surface-2); color: var(--text); }
+  /* A shade of the row under it (the open row's green too), not a grey square of its own colour. */
+  .sw > .row-more:hover, .sw.menu-target > .row-more { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
   /* It takes the status's place while shown (the row says it again once the pointer leaves). */
   .sw:is(:hover, .menu-target) > .sw-front > .pane-end { visibility: hidden; }
 }
