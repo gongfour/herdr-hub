@@ -65,6 +65,7 @@ const ERROR_TEXT = {
   pane_not_found: '셸이 닫혔습니다.',
   workspace_not_found: '워크스페이스가 닫혔습니다.',
   agent_blocked: '에이전트가 답을 기다리는 중입니다. 위 버튼으로 먼저 답해 주세요.',
+  dialog_open: '선택 창이 열려 있습니다 — 먼저 답하거나 Esc 를 보내 주세요. 글은 그대로 있습니다.',
   not_subscribed: '이 기기는 알림이 꺼져 있습니다.',
   forbidden: '이 기기는 허용되지 않았습니다.',
   bad_url: 'https://이름:포트 꼴의 주소만 됩니다(경로·로그인 없이).',

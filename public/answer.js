@@ -147,9 +147,11 @@ function renderBlocked() {
     const steps = ask ? `<p class="b-steps">${ask.tabs.map((t) => `<span class="${t.done ? 'done' : ''}">${t.done ? '✓ ' : ''}${esc(t.label)}</span>`).join('<span aria-hidden="true"> · </span>')}</p>` : '';
     // A multiSelect goes on with its own row (Submit, or Next while more questions follow).
     const nk = nextKeys(choices);
-    const next = nk
+    let next = nk
       ? `<p class="b-q">여러 개 고를 수 있습니다. 다 고르면 「${choices.next.label === 'Next' ? '다음 질문' : '다음'}」을 누르세요.</p>`
       : '';
+    // A settings dialog (choices.js heldPrompt): values change with ←/→, and any row's Enter goes on.
+    if (!nk && /←\/→ to change/i.test(text)) next = '<p class="b-q">값은 「키 직접 보내기」의 ← → 로 바꿉니다. 고르면 그 줄에서 Enter 를 보냅니다(Esc: 취소).</p>';
     const nextBtn = nk ? `<button type="button" class="choice primary b-next"${press ? ' disabled' : ''}><span class="label"><span class="name">${choices.next.label === 'Next' ? '다음 질문' : '다음 (답 확인)'}</span></span></button>` : '';
     const toggle = (k, label) => `<button type="button" class="toggle" data-toggle="${k}" aria-expanded="${Boolean(detail[k])}">${label}</button>`;
     html = `<div class="blocked-box">

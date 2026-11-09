@@ -1,0 +1,14 @@
+● Done. The worktree is removed and master is pushed.
+
+────────────────────────────────────────────────────────────────────────────────
+ Teach auto mode about your environment?
+
+ Auto mode decides on its own which actions are safe. Telling it how you use
+ Claude here helps it decide.
+
+   How you use Claude here     Mixed
+ ❯ Also scan shell history     false
+   Also scan your other repos  false
+   Continue
+
+ ←/→ to change · Enter to continue · Esc to cancel

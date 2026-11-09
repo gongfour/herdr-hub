@@ -115,7 +115,9 @@
     while (start > 0 && sibling(lines[start - 1])) start--;
     while (end < lines.length - 1 && sibling(lines[end + 1])) end++;
     if (end === start) return null;
-    const items = lines.slice(start, end + 1).map((l, k) => ({ n: k + 1, label: l.trim().replace(MENU_CURSOR_GLYPH, ''), cursor: start + k === at }));
+    // A settings row shows its value in a column of its own ("Also scan shell history     false").
+    const named = (l) => l.trim().replace(MENU_CURSOR_GLYPH, '').replace(/^(\S.*?)\s{2,}(\S.*)$/, '$1 · $2');
+    const items = lines.slice(start, end + 1).map((l, k) => ({ n: k + 1, label: named(l), cursor: start + k === at }));
     return { start, end, items, numbered: false };
   }
 
@@ -236,11 +238,22 @@
   // A prompt herdr may take for Claude's input box (lib/hub.js holdAsk): AskUserQuestion (its tab
   // bar) or the plan approval, at the bottom of the screen with no empty input line under it.
   // Not any numbered menu: a reply's own list sits right above the input box too.
+  // Also any of Claude Code's select dialogs, which herdr reports as idle (or working): a menu
+  // with its cursor, and under it the dialog's key hint ("←/→ to change · Enter to continue · Esc
+  // to cancel"), the last line on the screen. A reply's own list has no such hint, and the empty
+  // input line ("❯ ") under it is never a menu.
   function heldPrompt(text) {
     const ch = parseChoices(text);
-    if (!ch || !(ch.ask || /written up a plan/i.test(ch.question))) return null;
-    const below = String(text).split(/\r?\n/).slice(-12);
-    return below.some((l) => /^\s*[❯>]\s*$/.test(clean(l))) ? null : ch;
+    if (!ch) return null;
+    const lines = String(text).split(/\r?\n/).map(clean);
+    if (lines.slice(-12).some((l) => /^\s*[❯>]\s*$/.test(l))) return null;
+    if (ch.ask || /written up a plan/i.test(ch.question)) return ch;
+    return ch.cursor && dialogHint(lines) ? { ...ch, dialog: true } : null;
+  }
+  const DIALOG_HINT = /\bEnter to (?:continue|confirm|select|submit|choose|apply|save)\b.*\bEsc to (?:cancel|exit|go back|close|skip)\b/i;
+  function dialogHint(lines) {
+    const last = lines.filter((l) => l.trim() && !RULE.test(l)).pop();
+    return Boolean(last && DIALOG_HINT.test(last));
   }
 
   // A prompt's step, for telling one screen of a prompt from the next while herdr's state stays

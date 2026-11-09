@@ -211,6 +211,11 @@ function renderDetail() {
     } catch (err) {
       const retry = { label: '다시 보내기', run: () => here() && sendNow() };
       if (err.code === 'agent_blocked') toastErr(errText(err));
+      else if (err.code === 'dialog_open') {
+        // Nothing was typed: the hub shows the dialog as 답 필요 from its next refresh.
+        toastErr(errText(err));
+        setTimeout(loadDetail, 600);
+      }
       else if (err.network) toastErr(`연결이 끊겨 ${err.upload ? '사진을 올리지' : '보내지'} 못했습니다. 글은 그대로 있습니다.`, retry);
       else toastErr(`${err.upload ? '사진을 올리지' : '보내지'} 못했습니다: ${errText(err)} 글은 그대로 있습니다.`, retry);
     } finally {
