@@ -161,19 +161,83 @@ function folderMissing() {
   if (first) first.focus({ preventScroll: true });
 }
 
+// The folders a new tab / workspace on host may start in: the workspace's own agents' and shells'
+// first, then the host's recent ones, without the ones taken out of 최근 폴더 (lib/hiddencwds; the
+// host leaves them out of recentCwds already, but not the workspace's own).
+const dirKey = (p, platform) => {
+  const n = p.replace(/[\\/]+$/, '') || p;
+  return platform === 'win32' ? n.replace(/\//g, '\\').toLowerCase() : n;
+};
+function recentFor(host, info) {
+  const wsId = view.mode === 'ws' || view.mode === 'dir' ? view.target : null;
+  const here = wsId ? [...(state.agents || []), ...(state.terminals || [])].filter((x) => (x.host || localId()) === host && x.workspace === wsId && x.cwd).map((x) => x.cwd) : [];
+  const hidden = new Set((info.hiddenCwds || []).map((p) => dirKey(p, info.platform)));
+  return [...new Set([...here.filter((p) => !hidden.has(dirKey(p, info.platform))), ...info.recentCwds])];
+}
+
+let recentAll = false; // 「N개 더 보기」 pressed in this form
 function renderRecent(list, all = false) {
   const box = document.getElementById('f-recent');
   if (!box) return;
+  recentAll = all;
   const rows = all ? list : list.slice(0, RECENT_SHOWN);
   box.innerHTML = rows.length
-    ? `<div class="dir-cap">최근 폴더</div>${rows.map((c) => `<button type="button" class="dir-row" data-cwd="${esc(c)}"><b>${esc(basename(c))}</b><span>${esc(c)}</span></button>`).join('')}${
-        list.length > rows.length ? `<button type="button" class="dir-more" id="f-more">${list.length - rows.length}개 더 보기</button>` : ''
-      }`
+    ? `<div class="dir-cap">최근 폴더</div>${rows
+        .map(
+          (c) =>
+            `<div class="dir-line"><button type="button" class="dir-row" data-cwd="${esc(c)}"><b>${esc(basename(c))}</b><span>${esc(c)}</span></button><button type="button" class="dir-x" data-cwd="${esc(c)}" aria-label="${esc(basename(c))} 최근 폴더에서 빼기" title="최근 폴더에서 빼기">${ICON.x}</button></div>`
+        )
+        .join('')}${list.length > rows.length ? `<button type="button" class="dir-more" id="f-more">${list.length - rows.length}개 더 보기</button>` : ''}`
     : '';
   box.querySelectorAll('.dir-row').forEach((b) => (b.onclick = () => pickCwd(b.dataset.cwd)));
+  box.querySelectorAll('.dir-x').forEach((b, i) => (b.onclick = () => hideRecent(b.dataset.cwd, i)));
   const more = document.getElementById('f-more');
   if (more) more.onclick = () => renderRecent(list, true);
   showPicked();
+}
+
+// The form's 최근 폴더 drawn again from the host's info (after a hide or its 되돌리기).
+function redrawRecent(host, focusAt = -1) {
+  const info = hostCache.get(host);
+  if (view.name !== 'form' || view.formHost !== host || !info || !document.getElementById('f-recent')) return;
+  const list = recentFor(host, info);
+  document.getElementById('f-cwds').innerHTML = list.map((c) => `<option value="${esc(c)}">`).join('');
+  renderRecent(list, recentAll);
+  if (focusAt < 0) return;
+  // The keyboard stays where it was: the ✕ now in that place, the one above, or 폴더 찾아보기.
+  const xs = document.querySelectorAll('#f-recent .dir-x');
+  const next = xs[Math.min(focusAt, xs.length - 1)] || document.getElementById('f-browse');
+  if (next) next.focus({ preventScroll: true });
+}
+
+// The ✕: the folder hidden from 최근 폴더 on its host, for every device; a toast to undo. The
+// 선택됨 box keeps it if it was chosen (it still works, as when typed or browsed to).
+async function hideRecent(cwd, at) {
+  const host = view.formHost || curHost();
+  const call = async (what) => {
+    const r = await api(hp(`/recent/${what}`, host), { method: 'POST', body: JSON.stringify({ cwd }) });
+    const info = hostCache.get(host);
+    if (info) hostCache.set(host, { ...info, recentCwds: r.recentCwds, hiddenCwds: r.hiddenCwds });
+    return r;
+  };
+  try {
+    await call('hide');
+  } catch (err) {
+    return toastErr(`최근 폴더에서 빼지 못했습니다: ${errText(err)}`);
+  }
+  const hadFocus = document.activeElement && document.activeElement.classList.contains('dir-x');
+  redrawRecent(host, hadFocus ? at : -1);
+  toast(`${basename(cwd)} 를 최근 폴더에서 뺐습니다`, {
+    ms: 8000,
+    action: {
+      label: '되돌리기',
+      run: () =>
+        call('show').then(
+          () => redrawRecent(host),
+          (err) => toastErr(`되돌리지 못했습니다: ${errText(err)}`)
+        ),
+    },
+  });
 }
 
 // A tall sheet over the form: breadcrumb, shortcuts, subfolders, and a sticky footer.
@@ -307,8 +371,7 @@ async function fillForm(host) {
     cwd.placeholder = info.platform === 'win32' ? 'C:\\Users\\…\\project' : `${info.home || '/home/…'}/project`;
     // A new tab: the folders its workspace's agents and shells are in first, then the host's recent ones.
     const wsId = view.mode === 'ws' || view.mode === 'dir' ? view.target : null;
-    const here = wsId ? [...(state.agents || []), ...(state.terminals || [])].filter((x) => (x.host || localId()) === host && x.workspace === wsId && x.cwd).map((x) => x.cwd) : [];
-    const recent = [...new Set([...here, ...info.recentCwds])];
+    const recent = recentFor(host, info);
     document.getElementById('f-cwds').innerHTML = recent.map((c) => `<option value="${esc(c)}">`).join('');
     // One recent folder: that is very likely the one, chosen already (still changeable).
     if (!cwd.value && !wsId && recent.length === 1) cwd.value = recent[0];
@@ -377,6 +440,7 @@ async function submitForm(e) {
     const cwd = val('f-cwd');
     if (cwd && document.getElementById('f-keep')?.checked) await act(hp(`/workspaces/${encodeURIComponent(view.target)}/dir`, host), { cwd }, null, '기본 폴더를 정하지 못했습니다');
     r = await act(hp(`/workspaces/${encodeURIComponent(view.target)}/agents`, host), cwd ? { ...agent, cwd } : agent, null, '에이전트를 시작하지 못했습니다');
+    if (r && cwd) hostCache.delete(host); // a folder taken out of 최근 폴더 is back in it
   }
   else r = await act(hp(`/panes/${encodeURIComponent(view.target)}/agent`, host), agent, null, '에이전트를 시작하지 못했습니다');
   syncSubmit();
