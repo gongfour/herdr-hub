@@ -2,7 +2,9 @@
 # Deploy Herdr Hub. node_modules and data/ stay on each host.
 #   ./deploy.sh            desktop (Windows hub, scheduled task "HerdrHub")
 #   ./deploy.sh server     this Mac (LaunchAgent local.herdr-hub, ~/.local/share/herdr-hub)
-#   ./deploy.sh all        both
+#   ./deploy.sh macbook    the MacBook Air over ssh (same LaunchAgent; on its own, opened at
+#                          http://localhost:8787, so it works offline; settings in data/host.env)
+#   ./deploy.sh all        desktop and server, then macbook if it answers
 set -e
 cd "$(dirname "$0")"
 target="${1:-desktop}"
@@ -47,10 +49,43 @@ deploy_server() {
   # HTTPS 8443 on this node -> Herdr Hub. 443 is left alone: it already serves something else.
   tailscale serve status --json | grep -q '"server.uaru-monster.ts.net:8443"' || tailscale serve --bg --https=8443 http://127.0.0.1:8787
 }
+# The MacBook Air: its own Hub for its own herdr, not a peer of the hub (it travels; nothing on
+# it needs server or desktop). ALLOW_LOCAL: http://localhost:8787 needs no Tailscale login, so
+# it works with no network. data/host.env is written once and then left to the host.
+deploy_macbook() {
+  ssh -o ConnectTimeout=8 macbook 'mkdir -p ~/.local/share/herdr-hub/data'
+  rsync -a --delete --exclude=node_modules --exclude=data --exclude=.git --exclude=deploy.sh --exclude=run.cmd ./ macbook:.local/share/herdr-hub/
+  ssh macbook 'set -e
+    dir="$HOME/.local/share/herdr-hub"
+    cd "$dir"
+    [ -f data/host.env ] || cat > data/host.env <<ENV
+# Read by mac/run.sh. This Hub runs on its own (no peers); open http://localhost:8787.
+HERDR_HUB_HOST_ID=macbook
+HERDR_HUB_HOST_LABEL=macbook
+HERDR_HUB_HOSTS=macbook.uaru-monster.ts.net:8443
+HERDR_HUB_ALLOW_LOCAL=1
+HERDR_HUB_PUSH=0
+HERDR_HUB_NODE=/opt/homebrew/bin/node
+ENV
+    PATH="/opt/homebrew/bin:$PATH" npm ci --silent --omit=dev >/dev/null
+    plist="$HOME/Library/LaunchAgents/local.herdr-hub.plist"
+    mkdir -p "$HOME/Library/LaunchAgents"
+    sed "s#__DIR__#$dir#g" mac/local.herdr-hub.plist > "$plist"
+    launchctl bootout "gui/$(id -u)/local.herdr-hub" 2>/dev/null || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do launchctl print "gui/$(id -u)/local.herdr-hub" >/dev/null 2>&1 || break; sleep 0.5; done
+    launchctl bootstrap "gui/$(id -u)" "$plist"
+    sleep 2
+    launchctl print "gui/$(id -u)/local.herdr-hub" | grep -E "^\s+(state|pid) ="'
+}
 
 case "$target" in
   desktop) deploy_desktop ;;
   server) deploy_server ;;
-  all) deploy_server; deploy_desktop ;;
-  *) echo "usage: $0 [desktop|server|all]" >&2; exit 2 ;;
+  macbook) deploy_macbook ;;
+  all)
+    deploy_server
+    deploy_desktop
+    if ssh -o ConnectTimeout=5 -o BatchMode=yes macbook true 2>/dev/null; then deploy_macbook; else echo "macbook: not reachable, skipped"; fi
+    ;;
+  *) echo "usage: $0 [desktop|server|macbook|all]" >&2; exit 2 ;;
 esac
