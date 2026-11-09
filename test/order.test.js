@@ -64,7 +64,7 @@ test('move and moveTo (the page): one step, to a place, not past the ends', () =
   assert.equal(Order.moveTo(['a', 'b'], 'a', 0), null);
 });
 
-test('the list model: cards by rank, then the stored order inside a host; reordering shows the stored order alone', () => {
+test('the list model: cards in the hosts\' order, then the stored order inside a host; status never moves a card', () => {
   const cards = [
     { host: 'd', id: 'w1', rank: 2 },
     { host: 'd', id: 'w2', rank: 2 },
@@ -74,11 +74,10 @@ test('the list model: cards by rank, then the stored order inside a host; reorde
   const hostIds = ['d', 's'];
   const stored = { d: ['w2', 'w3', 'w1'] };
   const key = (c) => `${c.host}/${c.id}`;
-  // Nothing stored: as before (rank, then herdr's order).
-  assert.deepEqual(Order.sortCards(cards, {}, hostIds).map(key), ['d/w3', 'd/w1', 'd/w2', 's/x1']);
-  assert.deepEqual(Order.sortCards(cards, stored, hostIds).map(key), ['d/w3', 'd/w2', 'd/w1', 's/x1']);
-  // Reordering: no rank, grouped by host in the hosts' order.
-  assert.deepEqual(Order.sortCards(cards, stored, ['s', 'd'], { plain: true }).map(key), ['s/x1', 'd/w2', 'd/w3', 'd/w1']);
+  // Nothing stored: herdr's order (a blocked w3 stays where it is).
+  assert.deepEqual(Order.sortCards(cards, {}, hostIds).map(key), ['d/w1', 'd/w2', 'd/w3', 's/x1']);
+  assert.deepEqual(Order.sortCards(cards, stored, hostIds).map(key), ['d/w2', 'd/w3', 'd/w1', 's/x1']);
+  assert.deepEqual(Order.sortCards(cards, stored, ['s', 'd']).map(key), ['s/x1', 'd/w2', 'd/w3', 'd/w1']);
 });
 
 test('/api/order: stored on the hub, in the state at once, kept over a restart; bad bodies change nothing', async (t) => {

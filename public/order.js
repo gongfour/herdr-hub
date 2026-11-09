@@ -12,11 +12,11 @@
     return items.map((x, i) => [x, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([x]) => x);
   }
 
-  // The cards: { host, id, rank } (rank 0 a blocked agent, 1 working, 2 the rest). As the list
-  // always had them: by rank, then in the hosts' order, then (new) the stored order of that host's
-  // cards, then as they came. plain (순서 바꾸기): no rank, so what is moved stays where it is put.
+  // The cards: { host, id }. In the hosts' order, then the stored order of that host's cards, then
+  // as they came. A card's status never moves it (an agent turning 답 필요 or 작업 중 used to
+  // lift its card to the top; the user found the list jumping around harder to read).
   // stored: { host: [wsId…] }, hostIds: the hosts in their order.
-  function sortCards(cards, stored, hostIds, { plain = false } = {}) {
+  function sortCards(cards, stored, hostIds) {
     const hostAt = new Map((hostIds || []).map((h, i) => [h, i]));
     const pos = (c) => {
       const ids = (stored && stored[c.host]) || [];
@@ -26,7 +26,7 @@
     const ha = (c) => (hostAt.has(c.host) ? hostAt.get(c.host) : hostAt.size);
     return cards
       .map((c, i) => [c, i])
-      .sort(([x, i], [y, j]) => (plain ? 0 : x.rank - y.rank) || ha(x) - ha(y) || pos(x) - pos(y) || i - j)
+      .sort(([x, i], [y, j]) => ha(x) - ha(y) || pos(x) - pos(y) || i - j)
       .map(([c]) => c);
   }
 

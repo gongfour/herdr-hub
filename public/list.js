@@ -12,7 +12,6 @@
 const rowKey = (host, id) => `${host || localId()}|${id}`;
 // herdr pane ids count up in base 36 (p9, pA, … pZ, p10): shorter first, then by character.
 const paneOrder = (x, y) => x.pane.length - y.pane.length || (x.pane < y.pane ? -1 : x.pane > y.pane ? 1 : 0);
-const wsRank = (agents) => (agents.some((a) => a.status === 'blocked') ? 0 : agents.some((a) => a.status === 'working') ? 1 : 2);
 
 // How long an agent has worked and when it finished: the hub keeps both (workingSince, doneAt;
 // lib/times.js), so they show as soon as the app opens. Spans carry the time and tick() fills
@@ -240,8 +239,8 @@ function listModel() {
   };
   for (const a of agents) into(a).agents.push(a);
   for (const t of (state.terminals || []).filter(shown)) into(t).terms.push(t);
-  const cards = [...spaces.values()].map((s) => ({ ...s, host: s.w.host || localId(), id: s.w.workspace_id, rank: wsRank(s.agents) }));
-  const list = Order.sortCards(cards, (state.order || {}).workspaces, hosts().map((h) => h.id), { plain: reorder.on });
+  const cards = [...spaces.values()].map((s) => ({ ...s, host: s.w.host || localId(), id: s.w.workspace_id }));
+  const list = Order.sortCards(cards, (state.order || {}).workspaces, hosts().map((h) => h.id));
   for (const s of list) {
     s.agents = paneSort(s.agents, s.host, s.id);
     s.terms = paneSort(s.terms, s.host, s.id);
