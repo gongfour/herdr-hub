@@ -71,7 +71,7 @@
     nextHost: { group: '목록', name: '다음 호스트', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
     prevRow: { group: '목록', name: '이전 줄 열기', label: '두 칸: 목록의 이전 에이전트·셸 열기', cmd: '목록의 이전 에이전트·셸 열기' },
     nextRow: { group: '목록', name: '다음 줄 열기', label: '두 칸: 목록의 다음 에이전트·셸 열기', cmd: '목록의 다음 에이전트·셸 열기' },
-    reorder: { group: '목록', name: '순서 바꾸기', label: '순서 바꾸기 켜기·끄기: 목록의 워크스페이스 카드와 그 안의 에이전트·셸 줄을 옮긴다 (손잡이를 끌거나 ▲ ▼; 모든 기기에 같게 보인다. 호스트 순서는 설정 → 연결)', noShell: true },
+    reorder: { group: '목록', name: '순서 바꾸기', label: '순서 바꾸기 켜기·끄기: 목록의 워크스페이스 카드와 그 안의 에이전트·셸 줄을 옮긴다 (손잡이를 끌어서; 모든 기기에 같게 보인다. 호스트 순서는 설정 → 연결)', noShell: true },
     toggleSide: { group: '목록', name: '사이드바', label: '두 칸: 사이드바 접기·펴기 (입력 칸에서도)', cmd: '사이드바 접기·펴기' },
     nextPane: { group: '목록', name: '다음 칸으로', label: '두 칸: 다음 칸으로 포커스 (활동 막대 → 목록의 고른 줄 → 오른쪽의 입력 칸, VS Code 의 F6)', noCommand: true },
     prevPane: { group: '목록', name: '이전 칸으로', label: '두 칸: 이전 칸으로 포커스', noCommand: true },

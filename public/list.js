@@ -334,7 +334,7 @@ function render() {
     <header class="bar">
       <h1>작업공간${sub ? `<span class="sub">${sub}</span>` : ''}</h1>
       ${liveChip()}
-      ${reorder.on ? `<button type="button" class="btn ro-done"${keyAttrs('reorder', '순서 바꾸기 끝내기')}>완료</button>` : `<a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스"${keyAttrs('newWorkspace', '새 워크스페이스')}>${ICON.plus}</a>`}
+      ${reorder.on ? '' : `<a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스"${keyAttrs('newWorkspace', '새 워크스페이스')}>${ICON.plus}</a>`}
     </header>${hostSeg(f)}`;
   const parts = homeParts(f);
   let main = root.querySelector(':scope > main.home');
@@ -352,6 +352,7 @@ function render() {
   main._top = top;
   showChosenHost(root.querySelector(':scope > .seg.hosts'), segLeft);
   patchList(main, parts);
+  mountReorderDone(root);
   // The live stream down: what is listed may be old (style.css main.home.stale, tickList).
   main.classList.toggle('stale', !live && state.herdr !== 'connecting');
   // #/new open on the right: the + is marked as what is open.
@@ -381,8 +382,9 @@ function homeParts(f = filter()) {
   // Peers in view that are offline or whose herdr is down.
   const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
   return [
-    ...(reorder.on && list.length ? [['reorder', `<p class="hint-row ro-note" role="note"><span>손잡이를 끌거나 ▲ ▼ 로 옮깁니다${multi() && f === 'all' ? '. 카드는 같은 호스트 안에서' : '. 카드는 카드끼리'}, 줄은 같은 카드 안에서 움직이고 모든 기기에 같게 보입니다. 끝내면 답 필요·작업 중인 카드는 평소처럼 위로 올라옵니다.</span></p>`]] : []),
-    ...(swipeHintShown() && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>${RowText.hintText(multi())}</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
+    ...(reorder.on && list.length ? [['reorder', '<p class="hint-row ro-note" role="note"><span>손잡이를 끌어 옮깁니다</span></p>']] : []),
+    // Off while reordering: the swipe and the long press it tells of are off then.
+    ...(swipeHintShown() && !reorder.on && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>${RowText.hintText(multi())}</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
     ...trouble.map((x) => [`off|${x.id}`, `<div class="offline" role="status"><p><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김 — 그 기기에서 herdr 가 실행 중인지 확인하세요' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다${x.staleAt ? `. 아래 흐린 줄은 ${esc(RowText.asOf(x.staleAt))} 모습입니다` : ''}`}</p>${connLink('연결 상태 보기')}</div>`]),
     ...spacesParts(list, down, f),
   ];
@@ -433,9 +435,7 @@ document.addEventListener('click', (e) => {
 // (homeParts) and nothing more here.
 function spacesParts(list, down, f) {
   if (list.length) {
-    // 순서 바꾸기: where each card stands among its host's (its ▲ ▼).
-    const edge = (s, i, d) => !list[i + d] || list[i + d].host !== s.host;
-    return list.map((s, i) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s, reorder.on && { first: edge(s, i, -1), last: edge(s, i, 1) })]);
+    return list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s, reorder.on)]);
   }
   const peer = f !== 'all' && f !== localId() ? hostOf(f) : null;
   if (peer && (!peer.online || peer.herdr !== 'up')) return [];
@@ -521,9 +521,8 @@ const rowData = (kind, host, id) => `data-kind="${kind}" data-host="${esc(host |
 // opens where it is told), so each row shows its own (paneDir).
 // An offline peer's card (a ghost, lib/peers.js staleView) is drawn greyed with when it was so
 // (「오후 10:47 기준」); its rows open read-only and its menus only look (actions.js).
-function wsSection({ w, agents, terms }, ro = null) {
-  const at1 = (xs, i) => ro && { first: i === 0, last: i === xs.length - 1 };
-  const rows = [...agents.map((a, i) => agentRow(a, at1(agents, i))), ...terms.map((t, i) => termRow(t, at1(terms, i)))].join('');
+function wsSection({ w, agents, terms }, ro = false) {
+  const rows = [...agents.map((a) => agentRow(a, ro)), ...terms.map((t) => termRow(t, ro))].join('');
   const at = ghostAt(w, agents, terms);
   const asof = at ? `<span class="ws-asof">${esc(RowText.asOf(at))}</span>` : '';
   const chip = [filter() === 'all' ? hostChip(w) : '', asof].filter(Boolean).join('');
@@ -534,7 +533,7 @@ function wsSection({ w, agents, terms }, ro = null) {
           <div class="ws-label">${esc(w.label)}</div>
           ${chip ? `<div class="ws-meta">${chip}</div>` : ''}
         </a>
-        ${ro ? reorderCtl(w.label, ro) : `<button type="button" class="icon-btn ws-more" aria-haspopup="dialog" aria-label="${esc(w.label)} 워크스페이스 메뉴">${ICON.more}</button>`}
+        ${ro ? reorderCtl(w.label) : `<button type="button" class="icon-btn ws-more" aria-haspopup="dialog" aria-label="${esc(w.label)} 워크스페이스 메뉴">${ICON.more}</button>`}
       </div>
     </div>
     <div class="ws-panes">${rows || '<p class="ws-empty">패널 없음</p>'}</div>
@@ -548,8 +547,8 @@ function wsSection({ w, agents, terms }, ro = null) {
 // answer now: a pill at the right says so in the time's place (it is answered by opening it, the
 // chat's blocked box). A finish not opened yet: a dot before the icon and a bolder title, like an
 // unread message.
-// ro (순서 바꾸기, reorder.js): { first, last } — the grip and ▲ ▼ in place of the time and ⋯.
-function agentRow(a, ro = null) {
+// ro (순서 바꾸기, reorder.js): the grip in place of the time and ⋯.
+function agentRow(a, ro = false) {
   const ghost = Boolean(a.stale);
   const unread = !ghost && isUnread(a);
   const blocked = !ghost && a.status === 'blocked';
@@ -563,7 +562,7 @@ function agentRow(a, ro = null) {
       <span class="pane-main"><span class="pane-title">${esc(a.title || a.name || a.agent || a.pane)}</span>${meta ? `<span class="pane-meta">${meta}</span>` : ''}</span>
       ${end && !ro ? `<span class="pane-end">${end}</span>` : ''}
     </a>
-    ${ro ? reorderCtl(a.title || a.name || a.pane, ro) : rowMore(a.title || a.name || a.pane)}
+    ${ro ? reorderCtl(a.title || a.name || a.pane) : rowMore(a.title || a.name || a.pane)}
   </div>`;
 }
 
@@ -581,7 +580,7 @@ function paneDir(x, name) {
   return d ? `<span class="pane-dir" title="${esc(x.cwd)}">${esc(d)}</span>` : '';
 }
 
-function termRow(t, ro = null) {
+function termRow(t, ro = false) {
   const dir = paneDir(t, termTitle(t));
   return `<div class="sw${t.stale ? ' ghost' : ''}" ${rowData('term', t.host, t.pane)}>
     <a class="sw-front pane-row term" href="${link(t.host, `/term/${encodeURIComponent(t.pane)}`)}">
@@ -589,6 +588,6 @@ function termRow(t, ro = null) {
       <span class="pane-main"><span class="pane-title">${esc(termTitle(t))}</span>${dir ? `<span class="pane-meta">${dir}</span>` : ''}</span>
       ${ro ? '' : '<span class="pane-end"><span class="pane-kind">셸</span></span>'}
     </a>
-    ${ro ? reorderCtl(termTitle(t), ro) : rowMore(termTitle(t))}
+    ${ro ? reorderCtl(termTitle(t)) : rowMore(termTitle(t))}
   </div>`;
 }

@@ -74,7 +74,7 @@ function rowTouchEnd(e) {
 }
 
 function rowClick(e) {
-  // 순서 바꾸기 (reorder.js): the rows don't open; only their ▲ ▼ and grips do anything.
+  // 순서 바꾸기 (reorder.js): the rows don't open; only their grips do anything.
   if (reorder.on && !e.target.closest('.ro-ctl')) {
     e.preventDefault();
     e.stopPropagation();

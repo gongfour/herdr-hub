@@ -24,8 +24,6 @@ const ICON = {
   file: '<svg viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /></svg>', // file
   panel: '<svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" /></svg>', // panel-left
   check: '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>', // check
-  up: '<svg viewBox="0 0 24 24"><path d="m18 15-6-6-6 6" /></svg>', // chevron-up
-  down: '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>', // chevron-down
   grip: '<svg viewBox="0 0 24 24"><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg>', // grip-vertical
 };
 // Logos for herdr agent kinds, from Simple Icons 16.36 (CC0; the marks belong to their owners).

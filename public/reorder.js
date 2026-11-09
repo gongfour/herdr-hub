@@ -1,11 +1,12 @@
 'use strict';
 // 순서 바꾸기: the order of the workspace cards and of the rows in them (the list), and of the
 // hosts (설정 → 연결). The hub keeps it for every device (lib/order.js, /api/order); the list sorts
-// by it (order.js). In the mode each card and row has a grip and ▲ ▼ in place of its ⋯ and time:
-// drag the grip (a mouse or a finger: the grip alone takes the touch, so the list still scrolls
-// and nothing else moves), press ▲ ▼, or ↑ ↓ with the focus on the grip. Rows don't open, long
-// presses and the host swipe are off; 완료 or Esc ends it. A card moves among its host's cards,
-// a row among its card's agents (or shells).
+// by it (order.js). In the mode each card and row has a grip in place of its ⋯ and time: drag it
+// (a mouse or a finger: the grip alone takes the touch, so the list still scrolls and nothing else
+// moves), or ↑ ↓ with the focus on it. One way to move for a pointer, not a grip and ▲ ▼ side by
+// side. Rows don't open, long presses and the host swipe are off; 완료 (floating at the list's
+// bottom right, mountReorderDone) or Esc ends it. A card moves among its host's cards, a row among
+// its card's agents (or shells).
 
 const reorder = { on: false, drag: null, pending: false };
 
@@ -18,14 +19,19 @@ function setReorder(on) {
 }
 const toggleReorder = () => (setReorder(!reorder.on), true);
 
-// The grip and ▲ ▼ of one thing. first/last: it can't go further that way.
-function reorderCtl(name, { first, last }) {
-  const n = esc(name);
-  return `<span class="ro-ctl">
-    <button type="button" class="icon-btn ro-step" data-dir="-1" aria-label="${n} 위로"${first ? ' disabled' : ''}>${ICON.up}</button>
-    <button type="button" class="icon-btn ro-step" data-dir="1" aria-label="${n} 아래로"${last ? ' disabled' : ''}>${ICON.down}</button>
-    <button type="button" class="icon-btn ro-grip" aria-label="${n} 옮기기 (끌거나 ↑ ↓ 키)">${ICON.grip}</button>
-  </span>`;
+// The grip of one thing.
+function reorderCtl(name) {
+  return `<span class="ro-ctl"><button type="button" class="icon-btn ro-grip" aria-label="${esc(name)} 옮기기 (끌거나 ↑ ↓ 키)">${ICON.grip}</button></span>`;
+}
+
+// 완료 while the mode is on: floating at the list's bottom right (style.css .ro-dock), on a dock of
+// no height between the list and the phone's tab bar; gone with the mode.
+function mountReorderDone(root) {
+  const old = root.querySelector(':scope > .ro-dock');
+  if (!reorder.on) return void (old && old.remove());
+  if (old) return;
+  const main = root.querySelector(':scope > main.home');
+  if (main) main.insertAdjacentHTML('afterend', `<div class="ro-dock"><button type="button" class="btn ro-done"${keyAttrs('reorder', '순서 바꾸기 끝내기')}>완료</button></div>`);
 }
 
 // What a control in the list moves: { scope, id, ids } — scope 'ws' (a host's cards) or 'pane'
@@ -89,31 +95,23 @@ function hostTarget(el) {
   return li ? { id: li.dataset.orderHost, ids: hosts().map((h) => h.id) } : null;
 }
 
-// One move (▲ ▼, a key, a drop), then the focus back on that thing's same control.
+// One move (a key, a drop), then the focus back on that thing's grip.
 function reorderMove(el, dir, to) {
   const host = el.closest('#s-conn');
   const t = host ? hostTarget(el) : listTarget(el);
   if (!t) return false;
   const ids = to == null ? Order.move(t.ids, t.id, dir) : Order.moveTo(t.ids, t.id, to);
   if (!ids) return false;
-  const which = el.classList.contains('ro-grip') ? '.ro-grip' : `.ro-step[data-dir="${el.dataset.dir}"]`;
   const row = !host && el.closest('[data-kind]');
   const keyOf = host ? `[data-order-host="${CSS.escape(t.id)}"]` : `[data-kind="${row.dataset.kind}"][data-id="${CSS.escape(t.id)}"][data-host="${CSS.escape(row.dataset.host)}"]`;
   if (host) saveHostOrder(ids);
   else saveListOrder(t, ids);
-  const again = document.querySelector(`${keyOf} ${which}`);
-  if (again && !again.disabled) again.focus({ preventScroll: true });
-  else if (again) again.closest('.ro-ctl').querySelector('.ro-grip').focus({ preventScroll: true });
+  const again = document.querySelector(`${keyOf} .ro-grip`);
+  if (again) again.focus({ preventScroll: true });
   return true;
 }
 
 document.addEventListener('click', (e) => {
-  const step = e.target.closest && e.target.closest('.ro-step');
-  if (step) {
-    e.preventDefault();
-    e.stopPropagation();
-    return void reorderMove(step, Number(step.dataset.dir));
-  }
   if (e.target.closest && e.target.closest('.ro-done')) setReorder(false);
 }, true);
 

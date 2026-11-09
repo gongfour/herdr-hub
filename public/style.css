@@ -1959,24 +1959,26 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 .composer.ghost .input { cursor: default; color: var(--muted); }
 .composer.ghost .attach, .composer.ghost .send { opacity: 0.4; }
 
-/* 순서 바꾸기 (reorder.js): a grip and ▲ ▼ in place of a card's ⋯ and a row's time and ⋯; the
-   row doesn't open. A finger's 44px each, a mouse's 32px. Only the grip takes a touch for itself
+/* 순서 바꾸기 (reorder.js): a grip in place of a card's ⋯ and a row's time and ⋯; the row doesn't
+   open. A finger's 44px, a mouse's 32px. Only the grip takes a touch for itself
    (touch-action: none), so the list still scrolls under the rest. Dragged, the thing follows the
    pointer above the rest and the others slide to make room. */
 .ro-ctl { flex: none; display: flex; align-items: center; gap: 0; padding-right: var(--sp-1); }
 .ro-ctl .icon-btn { margin: 0; color: var(--muted); }
 .ro-ctl .icon-btn svg { width: 20px; height: 20px; }
-.ro-ctl .icon-btn:disabled { opacity: 0.3; cursor: default; }
 .ro-ctl .ro-grip { touch-action: none; cursor: grab; }
 .ro-dragging .ro-grip { cursor: grabbing; }
 @media (hover: hover) and (pointer: fine) {
   .ro-ctl .icon-btn { min-width: 32px; min-height: 32px; padding: var(--sp-1); border-radius: 8px; }
-  .ro-ctl .icon-btn:not(:disabled):hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+  .ro-ctl .icon-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
 }
 .sw:has(> .ro-ctl) { display: flex; align-items: center; background: var(--surface); }
 .sw:has(> .ro-ctl) > .sw-front { flex: 1; min-width: 0; cursor: default; }
 .sw:has(> .ro-ctl):has(> .pane-row.term), .sw:has(> .ro-ctl) > .pane-row.term:is(:hover, :active) { background: color-mix(in srgb, var(--surface-2) 40%, var(--surface)); }
 .sw:has(> .ro-ctl) > .pane-row.agent:is(:hover, :active) { background: var(--surface); }
+/* The open row's tint and bar run under its grip too: the grip sits beside the row's link, not on it. */
+.split main.home .sw:has(> .ro-ctl):has(> .sw-front[aria-current="page"]) { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.split main.home .sw:has(> .ro-ctl) > .sw-front[aria-current="page"] { background: transparent; }
 .ws-front > .ro-ctl { margin-right: calc(-1 * var(--sp-1)); }
 .reordering main.home section.ws, .reordering main.home .sw, [data-order-host] { transition: transform 150ms ease; }
 .ro-dragging { position: relative; z-index: 5; transition: none !important; box-shadow: 0 6px 20px rgb(0 0 0 / 0.18); }
@@ -1985,5 +1987,11 @@ main.home.stale .ws { opacity: 0.6; transition: opacity .3s; }
 }
 .conn-list li[data-order-host] { background: var(--surface); }
 .conn-list li[data-order-host] > .ro-ctl { margin: -8px -12px -8px 0; }
-.bar .ro-done { flex: none; min-height: 36px; padding: 0 var(--sp-4); }
+/* 완료 (reorder.js mountReorderDone): floating at the list's bottom right, over the cards. Its dock
+   has no height and sits at the column's foot, above the phone's tab bar; the list keeps room under
+   its last card so the button never covers a grip. */
+.ro-dock { flex: none; position: relative; height: 0; z-index: 6; }
+.ro-dock > .ro-done { position: absolute; right: var(--sp-4); bottom: var(--sp-4); padding: 0 var(--sp-5); border-radius: 999px; box-shadow: 0 4px 14px rgb(0 0 0 / 0.2); }
+.split .ro-dock > .ro-done { bottom: calc(var(--sp-4) + var(--safe-bottom)); }
+:root.reordering :is(#app, .col, .peek-page) > main.home { padding-bottom: calc(var(--sp-7) + var(--sp-6)); }
 .ro-note { padding-right: var(--sp-4); }
