@@ -905,8 +905,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    laptop's list (a touch screen keeps 44px). */
 @media (hover: hover) and (pointer: fine) { .seg.hosts button { min-height: 32px; padding: var(--sp-1) var(--sp-3); font-size: 13px; } }
 /* A host's dot (list.js hostDot), in the host picker and on 설정 → 연결. Online: green, a ring
-   breathing out of it every 2.4 s (transform and opacity only, on its own layer); coming on (the
-   page opening, or back): one pop and a bright ripple first. Cut off (offline, or herdr not
+   breathing out of it every 2.4 s to under twice its size (transform and opacity only, on its own
+   layer; a wider ring read as too much); coming on (the page opening, or back): one small pop and
+   a ripple to 2.4 times first. Cut off (offline, or herdr not
    answering): red and still, the name beside it muted (not the colour alone: the green one moves,
    the red one doesn't); a peer still being reached blinks as a grey ring. Reduced motion or a
    hidden page: the colours alone. */
@@ -920,9 +921,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .hdot.up.came { animation: hdot-pop 0.5s cubic-bezier(.3, 1.6, .5, 1) 1; }
 .hdot.up.came::after { animation: hdot-ripple 1s ease-out 1, hdot-breathe 2.4s ease-out 1s infinite; }
 .hdot.connecting { animation: hdot-blink 1.6s ease-in-out infinite; }
-@keyframes hdot-breathe { 0% { transform: scale(1); opacity: 0.5; } 70%, 100% { transform: scale(2.6); opacity: 0; } }
-@keyframes hdot-ripple { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(3.8); opacity: 0; } }
-@keyframes hdot-pop { 0% { transform: scale(0.4); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@keyframes hdot-breathe { 0% { transform: scale(1); opacity: 0.45; } 70%, 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes hdot-ripple { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(2.4); opacity: 0; } }
+@keyframes hdot-pop { 0% { transform: scale(0.5); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }
 @keyframes hdot-blink { 50% { opacity: 0.35; } }
 :root.page-hidden .hdot, :root.page-hidden .hdot::after { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .hdot, .hdot::after { animation: none !important; } .hdot.up::after { display: none; } }
