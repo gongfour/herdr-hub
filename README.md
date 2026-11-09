@@ -152,9 +152,9 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 | --- | --- | --- | --- |
 | desktop (Windows) | 허브, 알림 | `https://desktop.uaru-monster.ts.net` | 0.9.5 |
 | server (이 맥북) | 피어 | `https://server.uaru-monster.ts.net:8443` | 0.9.5 |
-| macbook (MacBook Air) | 혼자 (허브에 안 붙음) | `http://localhost:8787` (그 기기에서만) | 0.9.5 |
+| macbook (MacBook Air) | 자기 허브 (desktop·server 를 피어로) | `http://localhost:8787` (그 기기에서만) | 0.9.5 |
 
-- macbook 은 들고 다니는 기기라 허브의 피어가 아니고 혼자 돈다: 자기 herdr 의 에이전트만 보이고, server·desktop 이 꺼져 있거나 인터넷이 없어도 그 기기의 브라우저에서 `http://localhost:8787` 로 연다(`HERDR_HUB_ALLOW_LOCAL=1`, loopback 만 로그인 없이). 알림은 없다. 설정은 그 기기의 `data/host.env`(`mac/run.sh` 가 읽는다, 배포가 덮어쓰지 않는다)에 있고, `./deploy.sh macbook`(ssh)이 처음에 쓴다. `./deploy.sh all` 은 macbook 이 답할 때만 함께 배포한다.
+- macbook 은 들고 다니는 기기라 desktop 허브의 피어가 아니고 자기 허브다: 자기 herdr 의 에이전트에 desktop·server 를 피어로 붙여 함께 보인다(피어 목록의 씨앗은 그 기기 `data/host.env` 의 `HERDR_HUB_PEERS`, 그 뒤로는 설정 → 연결). server·desktop 이 꺼져 있거나 인터넷이 없어도 그 기기의 브라우저에서 `http://localhost:8787` 로 열리고(`HERDR_HUB_ALLOW_LOCAL=1`, loopback 만 로그인 없이), 그동안 두 호스트는 마지막으로 들은 상태로 흐리게 남는다. 알림은 없다. 설정은 그 기기의 `data/host.env`(`mac/run.sh` 가 읽는다, 배포가 덮어쓰지 않는다)에 있고, `./deploy.sh macbook`(ssh)이 처음에 쓴다. `./deploy.sh all` 은 macbook 이 답할 때만 함께 배포한다.
 
 - 피어 목록(`lib/hoststore.js`, 시험은 `npm test`)은 허브의 데이터다: `data/peers.json`(`[{ id, url, label? }]`, 임시 파일에 쓰고 바꿔 끼운다). 설정 → 연결에서 고치고, 바꾸면 다시 시작하지 않아도 그 피어의 연결을 열거나 닫는다. 파일이 없을 때 한 번만 `HERDR_HUB_PEERS` 로 채우고(씨앗), 그 뒤로는 파일이 이긴다 — `run.cmd` 의 줄을 바꿔도 이미 있는 목록은 그대로다(다시 씨앗을 쓰려면 `data/peers.json` 을 지운다). 파일도 씨앗도 없는 호스트는 피어다: 연결 칸이 읽기 전용이고 「호스트는 허브에서 관리합니다」. 피어를 모두 빼도 빈 파일이 남아 허브로 남는다. 손으로 고친 파일에서 맞지 않는 줄은 로그에 남기고 건너뛴다(JSON 이 깨졌으면 `peers.json.bad` 로 두고 빈 목록).
   - 설정 → 연결: 호스트 줄마다 점·이름·herdr·에이전트 수·주소, 피어 줄의 ⋯ → 이름 바꾸기(비우면 피어가 스스로 쓰는 이름) / 주소 바꾸기(곧바로 새 주소로 다시 붙고 연결 시험) / 연결 시험 / 빼기(확인). 「호스트 추가」 는 이름·주소 칸과 「연결 시험」, 「추가」(시험하지 않았으면 먼저 시험하고, 실패하면 「그래도 추가」 — 잠든 피어도 넣을 수 있다). 새 호스트의 id(주소 `#/h/<id>/…`)는 연결 시험에서 그 호스트가 밝힌 자기 id, 없으면 이름, 없으면 주소의 첫 이름이다. 주소는 바꿀 수 있고 id 는 그대로다.

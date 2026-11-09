@@ -2,11 +2,12 @@
 # Started by the LaunchAgent local.herdr-hub (see mac/local.herdr-hub.plist). launchd sends
 # stdout/stderr to data/herdr-hub.log. The values below are server's (a peer of the desktop hub:
 # no notifications here). Another Mac sets its own in data/host.env (shell assignments, kept
-# across deploys: data/ is never copied over), e.g. the macbook, which runs on its own and is
-# opened at http://localhost:8787 without Tailscale (./deploy.sh macbook writes it).
+# across deploys: data/ is never copied over), e.g. the macbook, its own hub with desktop and server
+# as peers, opened at http://localhost:8787 without Tailscale (./deploy.sh macbook writes it).
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p data
-[ -f data/host.env ] && . ./data/host.env
+# set -a: every name there reaches node, not only the ones exported again below (HERDR_HUB_PEERS).
+if [ -f data/host.env ]; then set -a; . ./data/host.env; set +a; fi
 export HERDR_HUB_ALLOWED_LOGINS="${HERDR_HUB_ALLOWED_LOGINS-kangwonjin.dev@gmail.com}"
 export HERDR_HUB_HOST_ID="${HERDR_HUB_HOST_ID-server}"
 export HERDR_HUB_HOST_LABEL="${HERDR_HUB_HOST_LABEL-server}"
