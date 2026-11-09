@@ -106,3 +106,25 @@ test('a since answer keeps the older pages; what drops off the window joins them
   assert.equal(plain.older, undefined);
   assert.equal(plain.messages[0].id, 'm1');
 });
+
+const { cmdSeen, lastCmd } = require('../public/chatkeep.js');
+test('cmdSeen: a slash command sent from here is answered by a command after where it was sent', () => {
+  const t = { messages: [{ id: 'u1' }, { id: 'a1' }], commands: [{ text: '/clear', id: 'c0', after: null }, { text: '/model opus', id: 'c1', after: 'a1' }] };
+  assert.equal(cmdSeen({ text: '/model  opus ', after: 'a1' }, t), true);
+  assert.equal(cmdSeen({ text: '/model opus', after: 'u1' }, t), true);
+  assert.equal(cmdSeen({ text: '/model sonnet', after: 'a1' }, t), false);
+  // Sent after a1 and after the command c1 was known: the same command again is still to come.
+  assert.equal(cmdSeen({ text: '/model opus', after: 'a1', cmd: 'c1' }, t), false);
+  assert.equal(lastCmd(t), 'c1');
+  // /clear opens a new conversation with the command at its top: the old message and command are not in it.
+  const fresh = { messages: [], commands: [{ text: '/clear', id: 'c9', after: null }] };
+  assert.equal(cmdSeen({ text: '/clear', after: 'a1', cmd: 'c1' }, fresh), true);
+  // Before the message it was sent after (an older /clear in this window): not this one.
+  assert.equal(cmdSeen({ text: '/clear', after: 'a1' }, t), false);
+  // A command after a message out of the window is older than the window.
+  assert.equal(cmdSeen({ text: '/x' }, { messages: [{ id: 'u5' }], commands: [{ text: '/x', id: 'c', after: 'gone' }] }), false);
+  // Not a command, or a host that sends none.
+  assert.equal(cmdSeen({ text: 'hi' }, { messages: [], commands: [{ text: 'hi', id: 'c', after: null }] }), false);
+  assert.equal(cmdSeen({ text: '/clear' }, { messages: [] }), false);
+  assert.equal(lastCmd({ messages: [] }), null);
+});

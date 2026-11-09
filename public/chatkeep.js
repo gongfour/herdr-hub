@@ -132,7 +132,31 @@
     return stale ? 'ghost' : 'more';
   }
 
-  const api = { Lru, entryFor, restore, prune, gone, STORE_MESSAGES, oldestId, addOlder, joinSince, olderState, WINDOW_MAX };
+  // ---- a slash command sent from here (a pending bubble p = { text, after, cmd }): Claude Code
+  // logs it as a command, never as a user message, and the server lists those on the side
+  // (t.commands: { text, id, after }, after = the id of the message before it, null at the top).
+  // The bubble is answered by a command with its text that came after the message p was sent
+  // after and after the last command known then (p.cmd). A command after a message not in this
+  // window is older than the window: it answers nothing.
+  const sameText = (s) => String(s).replace(/\s+/g, ' ').trim();
+  const lastCmd = (t) => {
+    const c = t && Array.isArray(t.commands) ? t.commands : [];
+    return c.length ? c[c.length - 1].id : null;
+  };
+  function cmdSeen(p, t) {
+    const cmds = t && Array.isArray(t.commands) ? t.commands : [];
+    if (!cmds.length || !p || !/^\//.test(sameText(p.text))) return false;
+    const msgs = (t && t.messages) || [];
+    const at = (id) => (id ? msgs.findIndex((m) => m.id === id) : -1);
+    const from = p.after ? at(p.after) + 1 : 0;
+    const start = p.cmd ? cmds.findIndex((c) => c.id === p.cmd) + 1 : 0;
+    return cmds.slice(start).some((c) => {
+      const pos = c.after ? (at(c.after) < 0 ? -1 : at(c.after) + 1) : 0;
+      return pos >= from && sameText(c.text) === sameText(p.text);
+    });
+  }
+
+  const api = { cmdSeen, lastCmd, Lru, entryFor, restore, prune, gone, STORE_MESSAGES, oldestId, addOlder, joinSince, olderState, WINDOW_MAX };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.ChatKeep = api;
 })(typeof self !== 'undefined' ? self : this);

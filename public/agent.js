@@ -706,7 +706,8 @@ const sameText = (s) => String(s).replace(/\s+/g, ' ').trim();
 function addPending(key, text, pics) {
   const msgs = (detail.transcript && detail.transcript.messages) || [];
   const last = msgs[msgs.length - 1];
-  pendingSent.set(key, [...(pendingSent.get(key) || []), { text, after: last ? last.id : null, at: Date.now(), pics }]);
+  const cmd = ChatKeep.lastCmd(detail.transcript);
+  pendingSent.set(key, [...(pendingSent.get(key) || []), { text, after: last ? last.id : null, ...(cmd ? { cmd } : {}), at: Date.now(), pics }]);
   savePending();
 }
 function pendingNow(key, a) {
@@ -716,6 +717,8 @@ function pendingNow(key, a) {
   const idle = a && a.status !== 'working' && a.status !== 'blocked';
   const keep = list.filter((p) => {
     if (idle && Date.now() - p.at > 60000) return false;
+    // A slash command (/clear, /model …) never comes back as a message: as a command (chatkeep.js).
+    if (ChatKeep.cmdSeen(p, detail.transcript)) return false;
     const from = p.after ? msgs.findIndex((m) => m.id === p.after) + 1 : 0;
     return !msgs.slice(from).some((m) => m.role === 'user' && !m.bash && sameText(userParts(m).text) === sameText(p.text));
   });
