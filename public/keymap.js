@@ -71,6 +71,7 @@
     nextHost: { group: '목록', name: '다음 호스트', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
     prevRow: { group: '목록', name: '이전 줄 열기', label: '두 칸: 목록의 이전 에이전트·셸 열기', cmd: '목록의 이전 에이전트·셸 열기' },
     nextRow: { group: '목록', name: '다음 줄 열기', label: '두 칸: 목록의 다음 에이전트·셸 열기', cmd: '목록의 다음 에이전트·셸 열기' },
+    reorder: { group: '목록', name: '순서 바꾸기', label: '순서 바꾸기 켜기·끄기: 목록의 워크스페이스 카드와 그 안의 에이전트·셸 줄을 옮긴다 (손잡이를 끌거나 ▲ ▼; 모든 기기에 같게 보인다. 호스트 순서는 설정 → 연결)', noShell: true },
     toggleSide: { group: '목록', name: '사이드바', label: '두 칸: 사이드바 접기·펴기 (입력 칸에서도)', cmd: '사이드바 접기·펴기' },
     nextPane: { group: '목록', name: '다음 칸으로', label: '두 칸: 다음 칸으로 포커스 (활동 막대 → 목록의 고른 줄 → 오른쪽의 입력 칸, VS Code 의 F6)', noCommand: true },
     prevPane: { group: '목록', name: '이전 칸으로', label: '두 칸: 이전 칸으로 포커스', noCommand: true },
@@ -200,6 +201,9 @@
       // Alt+` as an app switcher's last app; the backquote key by code too (a Mac's Option+` is a
       // dead key). No shell key either.
       b('lastView', 'Alt+`', { field: true, shell: true }),
+      // Alt+O (O for order): only with the focus on the page (a Mac's Option+O types ø in a field);
+      // the shell's in the shell view. Esc also ends it (KEY_ACTIONS.back).
+      b('reorder', 'Alt+o'),
     ];
   }
 
@@ -217,6 +221,7 @@
     { group: '셸', name: '칸에서 나가기', key: 'Escape', label: '한 줄 입력: 한 번이면 칸에서 나가고, 두 번이면 뒤로 (대화 화면과 같다)' },
     { group: '셸', name: '나머지 키는 셸로', key: '', label: '단축키 페이지의 「셸」 탭에 있는 키만 Hub 가 쓰고, 나머지는 모두 셸로 간다. 키 줄의 Alt·Ctrl 을 누르고 친 키는 언제나 셸로 (Alt 다음 B 는 셸의 alt+b)' },
     { group: '폼', name: '시작·만들기', key: 'Ctrl+Enter', label: '에이전트 시작·새 워크스페이스: 시작 / 만들기 (어느 칸에서나)' },
+    { group: '순서 바꾸기', name: '한 칸 옮기기', key: 'ArrowUp', label: '순서 바꾸기에서 손잡이에 포커스가 있을 때 ↑ / ↓ 로 그 카드·줄을 한 칸 위·아래로 (Esc 로 끝내기)' },
     { group: '목록 칸 폭', name: '목록 칸 폭', key: 'ArrowRight', label: '두 칸: 목록 칸 가장자리에 포커스가 있을 때 ←/→ 로 16px 씩 좁히고 넓힌다. 리턴(두 번 누르기)은 자동으로' },
     { group: '빠른 이동', name: '고른 것 열기', key: 'Enter', label: '고른 것 열기 (명령이면 하기). Esc·Ctrl+[ 로 닫기 (태블릿 키보드 덮개의 Esc·뒤로도)' },
     { group: '빠른 이동', name: '명령으로', key: '>', label: '맨 앞에 치면 명령: 할 수 있는 일을 찾는다 (> 를 지우면 다시 에이전트·셸)' },
@@ -625,7 +630,7 @@
     { id: 'list', name: '목록' },
   ];
   const GROUP_TAB = { 어디서나: 'any', '대화·터미널 화면': 'chat', 목록: 'list' };
-  const LOCAL_TAB = { '메시지 칸': 'chat', 셸: 'shell', 폼: 'any', '목록 칸 폭': 'list', '빠른 이동': 'any', '메뉴·확인 창': 'any' };
+  const LOCAL_TAB = { '메시지 칸': 'chat', 셸: 'shell', 폼: 'any', '목록 칸 폭': 'list', '순서 바꾸기': 'list', '빠른 이동': 'any', '메뉴·확인 창': 'any' };
   // The tabs an action is listed under: its group's (and also's), and 셸 when one of its keys is
   // the Hub's in the shell view now (the active table: a key switched off leaves it). 뒤로's keys
   // there are the shell's Esc (LOCAL says so), not the Hub's.

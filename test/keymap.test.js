@@ -356,6 +356,16 @@ test('Alt+`: the last agent or shell, the shell view and a field included; by co
   assert.equal(act('Alt+`', { layer: true }), null);
 });
 
+test('Alt+O: 순서 바꾸기 with the focus on the page only (a field types ø on a Mac; the shell keeps it); by code too', () => {
+  assert.equal(act('Alt+o', {}), 'reorder');
+  assert.equal(act('Alt+o', { split: true }), 'reorder');
+  assert.equal(act('Alt+o', {}, { key: 'ø', code: 'KeyO' }), 'reorder');
+  assert.equal(act('Alt+o', {}, { key: 'ㅐ', code: 'KeyO' }), 'reorder');
+  for (const ctx of [{ field: true }, { shell: true }, { layer: true }]) assert.equal(act('Alt+o', ctx), null, JSON.stringify(ctx));
+  assert.equal(act('o', {}), null);
+  assert.ok(ACTIONS.reorder.noShell);
+});
+
 test('hint: an action\'s own hint, else its first key, else nothing', () => {
   assert.equal(hint('stop'), 'Alt+. ×2');
   assert.equal(hint('terminal'), 'Alt+T');

@@ -817,6 +817,7 @@ const KEY_ACTIONS = {
     const top = topLayer();
     if (top) closeLayer(top);
     else if (editable(document.activeElement)) document.activeElement.blur();
+    else if (reorder.on && listShown()) setReorder(false); // 순서 바꾸기 ends (reorder.js)
     else {
       const back = view.name !== 'list' && $app.querySelector('a[data-back]');
       if (back) goBack(back.getAttribute('href'));
@@ -872,6 +873,7 @@ const KEY_ACTIONS = {
   switcher: () => toggleSwitcher(), // switcher.js
   commands: () => toggleSwitcher({ commands: true }),
   nextBlocked: () => stepBlocked(1), // list.js
+  reorder: () => toggleReorder(), // reorder.js
   prevBlocked: () => stepBlocked(-1),
   terminal: () => toggleScreenSheet(), // agent.js
   // The agent, shell or workspace open, after the same 닫기 sheet as its menu (actions.js): Enter

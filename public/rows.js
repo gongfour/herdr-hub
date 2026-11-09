@@ -24,7 +24,7 @@ function bindList(main) {
     const row = e.target.closest('[data-kind]');
     if (!row) return;
     e.preventDefault();
-    if ((swipe.g && swipe.g.long) || Date.now() < swipe.mute) return;
+    if ((swipe.g && swipe.g.long) || Date.now() < swipe.mute || reorder.on) return;
     // A mouse's right-click: the menu at the pointer; a long press: the row's sheet.
     rowMenu(row, e.button === 2 && lastPointer.type !== 'touch' ? { x: e.clientX, y: e.clientY } : null);
   });
@@ -36,7 +36,7 @@ function rowTouchStart(e) {
   const t = e.touches[0];
   const row = e.target.closest('[data-kind]');
   const g = { x: t.clientX, y: t.clientY, t0: Date.now(), axis: null, long: false, timer: null };
-  if (row) g.timer = setTimeout(() => {
+  if (row && !reorder.on) g.timer = setTimeout(() => {
     g.long = true;
     rowMenu(row);
   }, LONG_MS);
@@ -74,6 +74,12 @@ function rowTouchEnd(e) {
 }
 
 function rowClick(e) {
+  // 순서 바꾸기 (reorder.js): the rows don't open; only their ▲ ▼ and grips do anything.
+  if (reorder.on && !e.target.closest('.ro-ctl')) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
   if (Date.now() < swipe.mute) {
     e.preventDefault();
     e.stopPropagation();

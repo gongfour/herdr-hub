@@ -8,8 +8,8 @@
 function renderWorkspace() {
   const host = curHost();
   const w = (state.workspaces || []).find((x) => same(x, host, view.id, 'workspace_id'));
-  const agents = state.agents.filter((a) => same(a, host, view.id, 'workspace')).sort(paneOrder);
-  const terms = (state.terminals || []).filter((t) => same(t, host, view.id, 'workspace')).sort(paneOrder);
+  const agents = paneSort(state.agents.filter((a) => same(a, host, view.id, 'workspace')), host, view.id);
+  const terms = paneSort((state.terminals || []).filter((t) => same(t, host, view.id, 'workspace')), host, view.id);
   const id = encodeURIComponent(view.id);
   const counts = [agents.length && `에이전트 ${agents.length}`, terms.length && `셸 ${terms.length}`].filter(Boolean).join(' · ') || '패널 없음';
   const sub = w ? [multi() && hostLabel(host), counts].filter(Boolean).map(esc).join(' · ') : '';
@@ -38,9 +38,9 @@ function renderWorkspace() {
       </section>` : ''}
       <section class="pgroup" aria-labelledby="ws-ag">
         <h2 id="ws-ag">에이전트${agents.length ? ` · ${agents.length}` : ''}</h2>
-        <div class="pcard ws-rows">${agents.length ? agents.map(agentRow).join('') : `<p class="ws-none">아직 없습니다. 아래 「에이전트 시작」으로 여기서 시작합니다.</p>`}</div>
+        <div class="pcard ws-rows">${agents.length ? agents.map((a) => agentRow(a)).join('') : `<p class="ws-none">아직 없습니다. 아래 「에이전트 시작」으로 여기서 시작합니다.</p>`}</div>
       </section>
-      ${terms.length ? `<section class="pgroup" aria-labelledby="ws-sh"><h2 id="ws-sh">셸 · ${terms.length}</h2><div class="pcard ws-rows">${terms.map(termRow).join('')}</div></section>` : ''}
+      ${terms.length ? `<section class="pgroup" aria-labelledby="ws-sh"><h2 id="ws-sh">셸 · ${terms.length}</h2><div class="pcard ws-rows">${terms.map((t) => termRow(t)).join('')}</div></section>` : ''}
       <section class="pgroup" aria-labelledby="ws-mg">
         <h2 id="ws-mg">워크스페이스</h2>
         <div class="pcard">

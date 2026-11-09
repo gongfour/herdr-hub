@@ -134,7 +134,8 @@ document.addEventListener(
   'touchstart',
   (e) => {
     tabSwipe.g = null;
-    if (e.touches.length !== 1 || tabSwipe.anim || !tabPageShown() || document.querySelector('.sheet-back')) return;
+    // Not while 순서 바꾸기 (reorder.js): a finger there is moving cards and rows.
+    if (e.touches.length !== 1 || tabSwipe.anim || !tabPageShown() || document.querySelector('.sheet-back') || reorder.on) return;
     const t = e.touches[0];
     const root = listRoot();
     // The right edge may be the forward swipe's (fwdchip.js), when there is something to go to.

@@ -25,7 +25,7 @@ function ghostRefuse(x) {
   return true;
 }
 // Menu items of a ghost: what only looks or opens stays, the rest is shown off with the reason.
-const LOOKS = new Set(['open', 'ws', 'copy', 'wrap', 'input', 'color']);
+const LOOKS = new Set(['open', 'ws', 'copy', 'wrap', 'input', 'color', 'reorder']);
 const ghostOff = (items, x) => (x && x.stale ? items.map((it) => (Array.isArray(it) && !LOOKS.has(it[0]) ? [it[0], it[1], it[2], it[3], it[4], ghostWhy(x)] : it)) : items);
 
 // A mistake keeps the sheet (and what was typed) with the error in it, like 새 폴더.
@@ -194,6 +194,7 @@ function paneItems(kind, agent, x, fromRow, here) {
         '-',
         ['rename', '이름 바꾸기'],
         ['ws', '워크스페이스 보기'],
+        fromRow ? ['reorder', '순서 바꾸기', false, '', 'reorder'] : null,
         ['close', '에이전트 끝내기', true, '에이전트와 대화가 끝납니다', here ? 'closeView' : null],
       ]
     : [
@@ -216,6 +217,7 @@ function paneItems(kind, agent, x, fromRow, here) {
           : []),
         ['rename', '이름 바꾸기'],
         ['ws', '워크스페이스 보기'],
+        fromRow ? ['reorder', '순서 바꾸기', false, '', 'reorder'] : null,
         ['close', '셸 끝내기', true, '', here ? 'closeView' : null],
       ];
 }
@@ -251,6 +253,7 @@ async function paneAction(kind, x, k, { here = false } = {}) {
   if (k === 'input') setPref('shellInput', getShellInput() === 'raw' ? 'line' : 'raw');
   if (k === 'color') setPref('color', !getColor());
   if (k === 'copy') copyText(lastReply(), '마지막 답을 복사했습니다');
+  if (k === 'reorder') setReorder(true); // reorder.js
   if (k === 'rename') renamePane(x, agent);
   if (k === 'close') closePane(x.host, x.pane, agent ? x.name || x.title : termTitle(x), agent);
   if (k === 'agent') location.hash = link(x.host, `/start/pane/${pane}`);
@@ -276,6 +279,7 @@ function wsItems(w, fromRow, here) {
     '-',
     ['dir', '기본 폴더 정하기', false, w.defaultCwd ? basename(w.defaultCwd) : '없음'],
     ['rename', '이름 바꾸기'],
+    fromRow ? ['reorder', '순서 바꾸기', false, '카드와 그 안의 줄', 'reorder'] : null,
     ['close', '워크스페이스 닫기', true, '안의 에이전트·셸이 모두 끝납니다', here ? 'closeWorkspace' : null],
   ];
 }
@@ -295,5 +299,6 @@ function wsAction(w, k) {
   if (k === 'tab') newTab(w);
   if (k === 'dir') location.hash = link(w.host, `/dir/ws/${id}`);
   if (k === 'rename') renameWorkspace(w);
+  if (k === 'reorder') setReorder(true); // reorder.js
   if (k === 'close') closeWorkspace(w);
 }

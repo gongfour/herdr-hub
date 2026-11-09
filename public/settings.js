@@ -211,6 +211,9 @@ function renderPushBlock() {
 // (GET /api/hosts says manageable) each peer has ⋯ (이름·주소 바꾸기, 연결 시험, 빼기) and a
 // 「호스트 추가」 row follows; on a peer the block is read-only and says where hosts are managed.
 let hostAdmin = null; // GET /api/hosts: { manageable, self, peers: [{ id, url, label }] }, or null
+// 호스트 순서 바꾸기: each host row gets a grip and ▲ ▼ (reorder.js); the order is the hub's, for
+// every device, and the host chips, 전체's cards, 빠른 이동 and the notes follow it.
+let connOrder = false;
 let hostAdminAt = 0;
 async function loadHostAdmin(force = false) {
   if (!force && Date.now() - hostAdminAt < 30000) return;
@@ -230,8 +233,9 @@ function renderConn() {
   const manage = Boolean(hostAdmin && hostAdmin.manageable);
   // Peers in the list that the state doesn't carry yet (added a moment ago).
   const extra = manage ? hostAdmin.peers.filter((p) => !list.some((x) => x.id === p.id)).map((p) => ({ id: p.id, label: p.label || p.id, online: false, herdr: 'connecting', connecting: true })) : [];
+  const ordering = connOrder && multi();
   const lines = [...list, ...extra]
-    .map((x) => {
+    .map((x, i) => {
       const n = state.agents.filter((a) => (a.host || localId()) === x.id).length;
       const status = x.connecting ? '연결 중' : !x.online ? `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''}` : `herdr ${x.herdr === 'up' ? '연결됨' : esc(x.herdr)} · 에이전트 ${n}개`;
       const api = apiMismatch(x);
@@ -240,18 +244,29 @@ function renderConn() {
       const where = p ? p.url.replace(/^https:\/\//, '') : x.local ? location.host : '';
       const url = where ? `<span class="cl-url">${esc(where)}</span>` : '';
       const more = p ? `<button type="button" class="icon-btn cl-more" data-host="${esc(x.id)}" aria-label="${esc(x.label)} 메뉴" title="${esc(x.label)} 메뉴">${ICON.more}</button>` : '';
-      return `<li>${hostDot(x)}<span class="cl-main"><span class="cl-head"><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? '이 주소' : '허브'}</span>` : ''}<span class="cl-st">${status}</span></span>${url}${warn}</span>${more}</li>`;
+      const ctl = ordering && !x.connecting ? reorderCtl(x.label, { first: i === 0, last: i === list.length - 1 }) : more;
+      return `<li${ordering && !x.connecting ? ` data-order-host="${esc(x.id)}"` : ''}>${hostDot(x)}<span class="cl-main"><span class="cl-head"><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? '이 주소' : '허브'}</span>` : ''}<span class="cl-st">${status}</span></span>${url}${warn}</span>${ctl}</li>`;
     })
     .join('');
-  const add = manage ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-add"><span>호스트 추가</span><span class="pl-end" aria-hidden="true">+</span></button></li>` : '';
+  // Two hosts or more: their order (the hub's; a peer's page lists one host).
+  const order = multi() ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-order"><span>${ordering ? '순서 바꾸기 끝내기' : '호스트 순서 바꾸기'}</span><span class="pl-end" aria-hidden="true">${ordering ? '' : '›'}</span></button></li>` : '';
+  const add = manage && !ordering ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-add"><span>호스트 추가</span><span class="pl-end" aria-hidden="true">+</span></button></li>` : '';
   const ro = hostAdmin && !hostAdmin.manageable ? '<li class="cl-note">호스트는 허브에서 관리합니다. 허브의 설정 → 연결에서 추가·변경하세요.</li>' : '';
-  const html = lines + add + ro;
+  const html = lines + order + add + ro;
   if (box._html === html) return;
   // Redrawn in place: a focused ⋯ (or 호스트 추가) keeps the focus.
   const f = document.activeElement && box.contains(document.activeElement) ? document.activeElement.dataset.host || document.activeElement.id : null;
+  // A grip or ▲ ▼ (호스트 순서 바꾸기): the same one of the same host, or its grip when it can't go further.
+  const roLi = document.activeElement && box.contains(document.activeElement) && document.activeElement.closest('[data-order-host]');
+  const roWhich = roLi && (document.activeElement.classList.contains('ro-grip') ? '.ro-grip' : `.ro-step[data-dir="${document.activeElement.dataset.dir}"]`);
+  const roHost = roLi && roLi.dataset.orderHost;
   box._html = html;
   box.innerHTML = html;
-  if (f) {
+  if (roHost) {
+    const li = box.querySelector(`[data-order-host="${CSS.escape(roHost)}"]`);
+    const again = li && (li.querySelector(`${roWhich}:not(:disabled)`) || li.querySelector('.ro-grip'));
+    if (again) again.focus({ preventScroll: true });
+  } else if (f) {
     const again = box.querySelector(`[data-host="${CSS.escape(f)}"]`) || (f === 's-host-add' ? box.querySelector('#s-host-add') : null);
     if (again) again.focus({ preventScroll: true });
   }
@@ -261,6 +276,12 @@ function bindConn(main) {
     const more = e.target.closest('.cl-more');
     if (more) return hostMenu(more.dataset.host);
     if (e.target.closest('#s-host-add')) addHostSheet();
+    if (e.target.closest('#s-host-order')) {
+      connOrder = !connOrder;
+      renderConn();
+      const b = document.getElementById('s-host-order');
+      if (b) b.focus({ preventScroll: true });
+    }
   });
 }
 
