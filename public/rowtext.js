@@ -71,10 +71,11 @@
   }
 
   // A host's dot (list.js hostDot): 'up' (online, herdr answering), 'herdr' (online, herdr not),
-  // 'connecting' (a peer added a moment ago) or 'off'.
+  // 'connecting' (a peer added a moment ago, or one the hub has not reached yet since it started:
+  // nothing heard, its error still 'connecting') or 'off'.
   function hostState(h) {
     if (!h) return 'off';
-    if (h.connecting) return 'connecting';
+    if (h.connecting || (!h.online && h.error === 'connecting' && !h.staleAt)) return 'connecting';
     if (!h.online) return 'off';
     return h.herdr === 'up' ? 'up' : 'herdr';
   }

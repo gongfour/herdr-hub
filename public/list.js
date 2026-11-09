@@ -256,32 +256,38 @@ let listScroll = 0; // the list's scroll position, kept while a detail view is o
 const hostLine = () => (multi() ? '' : state.host || '');
 
 // A host's dot, the same in the host picker and on 설정 → 연결 (rowtext.js hostState, style.css
-// .hdot): online breathes slowly, herdr not answering is amber, offline a grey hollow ring, all
-// still. A host that has just come online (seen not up before, up now) pops once: 'came' stays on
-// its dot for the pop's length, so either screen drawn in that time shows it.
+// .hdot): online green and breathing, cut off (offline, or its herdr not answering) a still red dot,
+// and that is all the list says of it: no note above the cards (the button's title says why and
+// since when). A peer the hub is still reaching blinks as a ring. A host that comes on (first seen
+// up on this page, as the page opens, or up after it was not) pops once: 'came' stays on its dot
+// for the pop's length, so either screen drawn in that time shows it.
 const hostSeen = new Map(); // host id → { st, cameAt }
 const HOST_POP_MS = 1200;
 function hostDot(x) {
   const st = RowText.hostState(x);
-  const r = hostSeen.get(x.id);
-  if (!r) hostSeen.set(x.id, { st, cameAt: 0 });
+  let r = hostSeen.get(x.id);
+  if (!r) hostSeen.set(x.id, (r = { st, cameAt: st === 'up' ? Date.now() : 0 }));
   else if (r.st !== st) {
     if (st === 'up') r.cameAt = Date.now();
     r.st = st;
   }
-  const came = r && st === 'up' && Date.now() - r.cameAt < HOST_POP_MS;
+  const came = st === 'up' && Date.now() - r.cameAt < HOST_POP_MS;
   return `<span class="hdot ${st}${came ? ' came' : ''}" aria-hidden="true"></span>`;
 }
 // A hidden page keeps its dots still (no work for a screen nobody sees).
 document.addEventListener('visibilitychange', () => document.documentElement.classList.toggle('page-hidden', document.hidden));
 
 // The host segment: one button per host, scrolling sideways when they don't fit (style.css
-// .seg.hosts). Offline is a hollow grey dot (hostDot), and said in words to a screen reader (rowtext.js).
+// .seg.hosts). Cut off is a red dot and a muted name (hostDot), why and since when in its title, and
+// said in words to a screen reader (rowtext.js).
 function hostSeg(f) {
   if (!multi()) return '';
   const btn = (x) => {
     const warn = apiMismatch(x);
-    return `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${x.online ? '' : 'off'}" aria-label="${esc(RowText.hostAria(x, warn))}"${warn ? ` title="${esc(warn)} — 배포가 필요합니다"` : ''}>${hostDot(x)}<span class="hl">${esc(x.label)}</span>${warn ? '<span class="api-warn" aria-hidden="true">!</span>' : ''}</button>`;
+    const st = RowText.hostState(x);
+    const why = st === 'off' ? `오프라인${x.since ? ` · ${clock(x.since)}부터` : ''}` : st === 'herdr' ? 'herdr 연결 끊김' : st === 'connecting' ? '연결 중' : '';
+    const title = [why, warn ? `${warn} — 배포가 필요합니다` : ''].filter(Boolean).join(' · ');
+    return `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${st === 'up' ? '' : 'off'}" aria-label="${esc(RowText.hostAria(x, warn))}"${title ? ` title="${esc(title)}"` : ''}>${hostDot(x)}<span class="hl">${esc(x.label)}</span>${warn ? '<span class="api-warn" aria-hidden="true">!</span>' : ''}</button>`;
   };
   return `
     <nav class="seg hosts" role="group" aria-label="호스트"${keyAttrs('prevHost|nextHost', '호스트 바꾸기')}>
@@ -379,13 +385,12 @@ function render() {
 function homeParts(f = filter()) {
   const down = state.herdr !== 'up';
   const { list } = listModel();
-  // Peers in view that are offline or whose herdr is down.
-  const trouble = hosts().filter((h) => !h.local && (f === 'all' || f === h.id) && (!h.online || h.herdr !== 'up'));
+  // A peer offline or with its herdr down is said by its red dot alone (hostDot), not a note here;
+  // its cards stay greyed 「… 기준」 (ghosts).
   return [
     ...(reorder.on && list.length ? [['reorder', '<p class="hint-row ro-note" role="note"><span>손잡이를 끌어 옮깁니다</span></p>']] : []),
     // Off while reordering: the swipe and the long press it tells of are off then.
     ...(swipeHintShown() && !reorder.on && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>${RowText.hintText(multi())}</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
-    ...trouble.map((x) => [`off|${x.id}`, `<div class="offline" role="status"><p><b>${esc(x.label)}</b> ${x.online ? 'herdr 연결 끊김 — 그 기기에서 herdr 가 실행 중인지 확인하세요' : `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''} — 잠들었거나 Herdr Hub 가 꺼져 있습니다${x.staleAt ? `. 아래 흐린 줄은 ${esc(RowText.asOf(x.staleAt))} 모습입니다` : ''}`}</p>${connLink('연결 상태 보기')}</div>`]),
     ...spacesParts(list, down, f),
   ];
 }
@@ -431,14 +436,17 @@ document.addEventListener('click', (e) => {
   if (a) settingsAt = a.dataset.settingsAt;
 });
 
-// No cards: what to do next. A peer that is offline or whose herdr is down has its note above
-// (homeParts) and nothing more here.
+// No cards: what to do next. A peer that is offline or whose herdr is down, chosen alone with
+// nothing of it kept: one quiet line why (its dot is red too).
 function spacesParts(list, down, f) {
   if (list.length) {
     return list.map((s) => [`ws|${rowKey(s.w.host, s.w.workspace_id)}`, wsSection(s, reorder.on)]);
   }
   const peer = f !== 'all' && f !== localId() ? hostOf(f) : null;
-  if (peer && (!peer.online || peer.herdr !== 'up')) return [];
+  if (peer && (!peer.online || peer.herdr !== 'up')) {
+    const why = !peer.online ? `오프라인입니다${peer.since ? ` · ${esc(clock(peer.since))}부터` : ''}` : '의 herdr 에 연결되지 않았습니다';
+    return [['empty', `<div class="empty" role="status"><p>${esc(peer.label)} ${why}</p>${connLink('연결 상태 보기')}</div>`]];
+  }
   if (down && (f === localId() || (f === 'all' && !multi()))) {
     const where = hostLabel(localId()) || state.host || '이 기기';
     return [['empty', `<div class="empty" role="status"><p class="empty-t">${esc(where)} 의 herdr 에 연결하지 못했습니다</p><p>그 기기에서 herdr 가 실행 중인지 확인하세요.</p>${connLink('연결 상태 보기')}</div>`]];

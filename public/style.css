@@ -904,23 +904,24 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* With a mouse the host picker needs no finger-sized buttons: 32px, as the other controls of a
    laptop's list (a touch screen keeps 44px). */
 @media (hover: hover) and (pointer: fine) { .seg.hosts button { min-height: 32px; padding: var(--sp-1) var(--sp-3); font-size: 13px; } }
-/* A host's dot (list.js hostDot), in the host picker and on 설정 → 연결. Online: green, a faint ring
-   breathing out of it every 2.8 s (transform and opacity only, on its own layer); just come online:
-   one pop and a brighter ripple first. herdr not answering: amber, still. Offline: a grey hollow
-   ring (not only another colour), still; a peer still connecting blinks slowly. Reduced motion or a
+/* A host's dot (list.js hostDot), in the host picker and on 설정 → 연결. Online: green, a ring
+   breathing out of it every 2.4 s (transform and opacity only, on its own layer); coming on (the
+   page opening, or back): one pop and a bright ripple first. Cut off (offline, or herdr not
+   answering): red and still, the name beside it muted (not the colour alone: the green one moves,
+   the red one doesn't); a peer still being reached blinks as a grey ring. Reduced motion or a
    hidden page: the colours alone. */
 .hdot { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--done); flex: none; }
-.hdot.herdr { background: var(--working); }
-.hdot.off, .hdot.connecting { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+.hdot.herdr, .hdot.off { background: var(--blocked); }
+.hdot.connecting { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
 .hdot.up::after {
   content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--done); pointer-events: none;
-  opacity: 0; will-change: transform, opacity; animation: hdot-breathe 2.8s ease-out infinite;
+  opacity: 0; will-change: transform, opacity; animation: hdot-breathe 2.4s ease-out infinite;
 }
-.hdot.up.came { animation: hdot-pop 0.45s cubic-bezier(.3, 1.6, .5, 1) 1; }
-.hdot.up.came::after { animation: hdot-ripple 0.9s ease-out 1, hdot-breathe 2.8s ease-out 0.9s infinite; }
+.hdot.up.came { animation: hdot-pop 0.5s cubic-bezier(.3, 1.6, .5, 1) 1; }
+.hdot.up.came::after { animation: hdot-ripple 1s ease-out 1, hdot-breathe 2.4s ease-out 1s infinite; }
 .hdot.connecting { animation: hdot-blink 1.6s ease-in-out infinite; }
-@keyframes hdot-breathe { 0% { transform: scale(1); opacity: 0.3; } 60%, 100% { transform: scale(2.3); opacity: 0; } }
-@keyframes hdot-ripple { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(3.2); opacity: 0; } }
+@keyframes hdot-breathe { 0% { transform: scale(1); opacity: 0.5; } 70%, 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes hdot-ripple { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(3.8); opacity: 0; } }
 @keyframes hdot-pop { 0% { transform: scale(0.4); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
 @keyframes hdot-blink { 50% { opacity: 0.35; } }
 :root.page-hidden .hdot, :root.page-hidden .hdot::after { animation-play-state: paused; }
@@ -930,11 +931,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   display: inline-block; font-size: 12px; font-weight: 600; line-height: 1.5; padding: 0 var(--sp-1); margin-right: var(--sp-2); border-radius: 6px;
   background: var(--surface-2); color: var(--text); border: 1px solid var(--line); vertical-align: 1px;
 }
-.offline { margin: 0; padding: var(--sp-2) var(--sp-3) var(--sp-0); border-radius: 12px; background: var(--blocked-bg); color: var(--text); font-size: 14px; }
-.offline p { margin: 0; }
 .go-conn { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-weight: 600; text-decoration: none; }
 .go-conn span { margin-left: var(--sp-1); }
-.offline b { color: var(--blocked); }
 
 /* ---- folder choice (new workspace) */
 .picked {

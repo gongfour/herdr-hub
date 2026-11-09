@@ -70,6 +70,11 @@ test("a host's dot: up, herdr not answering, connecting or offline", () => {
   assert.equal(hostState({ online: true }), 'herdr');
   assert.equal(hostState({ online: false, herdr: 'up' }), 'off');
   assert.equal(hostState({ online: false, herdr: 'connecting', connecting: true }), 'connecting');
+  // A hub just started, its peer not reached yet: connecting, not offline (no red flash on a restart).
+  assert.equal(hostState({ online: false, herdr: 'offline', error: 'connecting', staleAt: null }), 'connecting');
+  // Heard before (a ghost) or failed since: offline.
+  assert.equal(hostState({ online: false, herdr: 'offline', error: 'connecting', staleAt: 1700000000000 }), 'off');
+  assert.equal(hostState({ online: false, herdr: 'offline', error: 'timeout' }), 'off');
   assert.equal(hostState(null), 'off');
 });
 
