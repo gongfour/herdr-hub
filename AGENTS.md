@@ -44,6 +44,7 @@
 
 - `server.js` 는 프로세스만(시작 명령 `node server.js` 는 launchd·`run.cmd` 모두 그대로), 허브는 `lib/hub.js` 의 `createServer`, API 경로는 `lib/routes/` 의 표다(`docs/design.md` 「서버」). 새 경로는 그 영역 파일에 `route(방법, 모양, 할 일)` 한 줄로 더하고 `api()` 안에 `if` 사슬을 다시 만들지 않는다. 경로마다 따로 하던 확인(그 에이전트·패널·워크스페이스가 있는가, 본문 읽기)은 앞 줄에서 하고 `NEXT` 로 넘긴다.
 - 경로·상태 코드·본문을 바꾸면 `test/routes.test.js`·`test/answer.test.js`·`test/proxy.test.js` 를 함께 고친다. 키·답이 엉뚱한 곳으로 갈 수 있는 길(답, prompt, 피어로 넘기기, 닫기, 실시간 연결)은 거절될 때 herdr 에 아무것도 안 보냈는지까지 본다.
+- 화면 흐름(목록, 대화, 답하기, 메뉴, 직접 입력)을 바꾸면 `test/ui.test.js` 도 함께 고친다: 허브를 가짜 herdr 위에 띄우고 이 기기의 Chrome 으로 페이지를 연다(페이지 안은 아무것도 바꿔치기하지 않는다). README 의 스크린샷이 달라 보이게 바뀌면 `npm run screenshots` 로 다시 만든다(예시 데이터만, 이 기기의 경로·이름이 들어가지 않게).
 - 모듈 수준에서 상태를 만들지 않는다: 허브마다의 상태는 `createServer` 안이나 영역 파일의 `(hub) => […]` 안에 둔다(시험이 한 프로세스에 허브를 여럿 띄운다).
 
 ## 파일 시스템 (멈추지 않기)

@@ -2,6 +2,12 @@
 
 **English summary** — Herdr Hub is a small web app (PWA) for watching and driving [herdr](https://herdr.dev) agents (Claude Code, Codex …) from a phone, tablet or another computer. It runs next to herdr on each host, talks to herdr's local API, and shows every agent's conversation, the prompts waiting for an answer (with one-tap answers and push notifications), and a live shell. One hub can merge several hosts. It has no login of its own: it is meant to sit behind [Tailscale](https://tailscale.com) (`tailscale serve`), which tells it who is asking. Never expose it to the public internet — it can type into your terminals. Node 20+, no build step, MIT licensed. The documentation below and in `docs/` is in Korean.
 
+<p>
+  <img src="docs/images/phone-list.png" width="260" alt="휴대폰의 작업공간 목록: 답 필요 2 줄과 워크스페이스 카드">
+  <img src="docs/images/phone-answer.png" width="260" alt="휴대폰의 대화 화면: 셸 명령 권한 묻기와 선택지 단추">
+</p>
+<img src="docs/images/wide.png" alt="넓은 화면의 두 칸 배치, 어두운 테마: 왼쪽 목록, 오른쪽 대화와 답 필요 상자">
+
 ---
 
 [herdr](https://herdr.dev) 에이전트(Claude Code, Codex …)를 휴대폰·태블릿·다른 컴퓨터에서 보고 답하는 웹앱(PWA)이다. herdr 가 도는 호스트마다 하나씩 돌며 herdr 의 로컬 API 에 바로 붙는다(SSH 를 거치지 않는다).
@@ -59,7 +65,7 @@ Herdr Hub 는 에이전트와 셸에 키를 보낼 수 있다. 곧 그 호스트
 - [docs/operations.md](docs/operations.md) — 여러 호스트(허브·피어), 환경 변수, 멈추지 않기, 배포 예
 - [AGENTS.md](AGENTS.md) — 이 저장소에서 코드를 고칠 때의 규칙(사람과 코딩 에이전트 모두)
 
-시험은 `npm test`.
+시험은 `npm test`. 화면 시험(`test/ui.test.js`)은 이 기기에 설치된 Chrome 으로 페이지를 직접 열어 보고, Chrome 이 없으면 건너뛴다. 위 스크린샷은 예시 데이터로 `npm run screenshots` 가 다시 만든다.
 
 ## 라이선스
 
