@@ -4,7 +4,9 @@
 // api(), and the layers: sheets, menus, the 단축키 sheet and toasts.
 
 const $app = document.getElementById('app');
-const STATUS_LABEL = { blocked: '답 필요', done: '완료', working: '작업 중', idle: '쉬는 중', unknown: '알 수 없음', stale: '오프라인' };
+const STATUS_LABEL = { blocked: '답 필요', menu: '메뉴 열림', done: '완료', working: '작업 중', idle: '쉬는 중', unknown: '알 수 없음', stale: '오프라인' };
+// 답 필요 that waits for someone, and the status as shown: a menu is 「메뉴 열림」 (rowtext.js).
+const { needsAnswer, shownStatus } = RowText;
 const ICON = {
   // Lucide (ISC, lucide.dev) throughout, so stroke, corners and proportions match.
   back: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg>', // chevron-left

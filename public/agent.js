@@ -382,15 +382,16 @@ function renderDetailHeader() {
   // The status and its time sit beside the title on wide screens (#d-badge) and lead the
   // subtitle on the phone (.sub-st), where the title row is left to the name (style.css).
   const time = a.status === 'working' ? '' : timeTag(a);
-  const status = esc(STATUS_LABEL[a.status] || a.status);
-  const th = `<span class="t"><span class="st-dot ${esc(a.status)}" aria-hidden="true"></span>${esc(a.name || a.title)}</span><span class="sub"${a.cwd ? ` title="${esc(a.cwd)}"` : ''}><span class="sub-st"><b class="st ${esc(a.status)}">${status}</b>${time ? ` · ${time}` : ''} · </span>${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${a.agent === 'claude' ? '' : `${esc(a.agent)} · `}${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
+  const st = shownStatus(a);
+  const status = esc(STATUS_LABEL[st] || st);
+  const th = `<span class="t"><span class="st-dot ${esc(st)}" aria-hidden="true"></span>${esc(a.name || a.title)}</span><span class="sub"${a.cwd ? ` title="${esc(a.cwd)}"` : ''}><span class="sub-st"><b class="st ${esc(st)}">${status}</b>${time ? ` · ${time}` : ''} · </span>${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${a.agent === 'claude' ? '' : `${esc(a.agent)} · `}${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
   if (title._html !== th) {
     title._html = th;
     title.innerHTML = th;
     fillTimes(title);
   }
   const badge = document.getElementById('d-badge');
-  const bh = `${liveDot()}${time}<span class="badge ${esc(a.status)}">${status}</span>`;
+  const bh = `${liveDot()}${time}<span class="badge ${esc(st)}">${status}</span>`;
   if (badge._html !== bh) {
     badge._html = bh;
     badge.innerHTML = bh;

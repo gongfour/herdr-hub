@@ -118,7 +118,7 @@ function renderBlocked() {
     return;
   }
   box.setAttribute('role', 'region');
-  box.setAttribute('aria-label', '답 필요');
+  box.setAttribute('aria-label', a.menu ? '메뉴' : '답 필요');
   const text = detail.blockedText;
   const choices = text ? parseChoices(text) : null;
   const screen = text ? `<pre>${esc(text)}</pre>` : '';
@@ -131,7 +131,7 @@ function renderBlocked() {
   if (panel) {
     // A menu with no list read here (/status, /config's tabs, /privacy-settings): the panel as the
     // terminal shows it, its key hints, and the keys to move through it.
-    html = `<div class="blocked-box">
+    html = `<div class="blocked-box menu">
         <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>메뉴</span><span class="toggles">${leave}</span></div>
         <strong class="b-title">${esc(panel.title)}</strong>
         ${panel.main.length ? `<pre>${esc(panel.main.join('\n'))}</pre>` : ''}
@@ -177,7 +177,7 @@ function renderBlocked() {
     if (!nk && /←\/→ to change/i.test(text)) next = '<p class="b-q">값은 「키 직접 보내기」의 ← → 로 바꿉니다. 고르면 그 줄에서 Enter 를 보냅니다(Esc: 취소).</p>';
     const nextBtn = nk ? `<button type="button" class="choice primary b-next"${press ? ' disabled' : ''}><span class="label"><span class="name">${choices.next.label === 'Next' ? '다음 질문' : '다음 (답 확인)'}</span></span></button>` : '';
     const toggle = (k, label) => `<button type="button" class="toggle" data-toggle="${k}" aria-expanded="${Boolean(detail[k])}">${label}</button>`;
-    html = `<div class="blocked-box">
+    html = `<div class="blocked-box${menu ? ' menu' : ''}">
         <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>${menu ? '메뉴' : `답 필요${parts.kind ? ` · ${esc(parts.kind)}` : ''}`}</span>
           <span class="toggles">${menu ? leave : ''}${toggle('showScreen', '<span class="wide-only">터미널 </span>화면')}${toggle('showKeys', '키<span class="wide-only"> 직접 보내기</span>')}</span></div>
         <strong class="b-title">${esc(title)}</strong>
@@ -260,7 +260,7 @@ function sayBlocked(a, choices) {
   if (!choices || detail.saidFor === key) return;
   detail.saidFor = key;
   const say = document.getElementById('d-say');
-  if (say) say.textContent = `답이 필요합니다: ${choices.question || '선택지를 고르세요'}`;
+  if (say) say.textContent = a.menu ? `메뉴가 열렸습니다: ${(choices.panel && choices.panel.title) || choices.question || ''}` : `답이 필요합니다: ${choices.question || '선택지를 고르세요'}`;
 }
 
 // Choice n of the open agent's prompt, from its button or its number key (app.js answerKey).

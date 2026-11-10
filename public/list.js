@@ -71,7 +71,7 @@ function renderUpdateDot() {
   if (bar) mountTabBar(bar.querySelector('.tab[aria-current="page"][href="#/settings"]') ? 'settings' : 'spaces');
 }
 function tabBar(active) {
-  const n = state.agents.filter((a) => a.status === 'blocked' && shown(a)).length;
+  const n = state.agents.filter((a) => needsAnswer(a) && shown(a)).length;
   const tab = (key, href, icon, label, extra = '') =>
     `<a class="tab" href="${href}"${active === key ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${extra}</a>`;
   return `<nav class="tabbar" aria-label="탭">
@@ -158,7 +158,7 @@ function setSideOff(off) {
 function renderRail() {
   const rail = document.getElementById('rail');
   if (!rail) return;
-  const n = state.agents.filter((a) => a.status === 'blocked' && shown(a)).length;
+  const n = state.agents.filter((a) => needsAnswer(a) && shown(a)).length;
   const open = !sideOff();
   // Finishes not opened yet, on 작업공간 while its list is out of sight.
   const dot = !open && state.agents.some((a) => shown(a) && isUnread(a));
@@ -245,7 +245,7 @@ function listModel() {
     s.agents = paneSort(s.agents, s.host, s.id);
     s.terms = paneSort(s.terms, s.host, s.id);
   }
-  return { blocked: agents.filter((a) => a.status === 'blocked'), list };
+  return { blocked: agents.filter(needsAnswer), list };
 }
 
 let listScroll = 0; // the list's scroll position, kept while a detail view is open
@@ -414,7 +414,7 @@ function stepHostFilter(dir) {
 // Alt+Shift+↓/↑: the next (previous) agent waiting for an answer, in the list's order, round
 // from either end; from anything else, the first (last). A toast when none is waiting.
 function stepBlocked(dir) {
-  const waiting = listModel().list.flatMap((s) => s.agents.filter((a) => a.status === 'blocked'));
+  const waiting = listModel().list.flatMap((s) => s.agents.filter(needsAnswer));
   if (!waiting.length) {
     toast('답이 필요한 에이전트가 없습니다');
     return true;
@@ -558,9 +558,10 @@ function wsSection({ w, agents, terms }, ro = false) {
 function agentRow(a, ro = false) {
   const ghost = Boolean(a.stale);
   const unread = !ghost && isUnread(a);
-  const blocked = !ghost && a.status === 'blocked';
+  const blocked = !ghost && needsAnswer(a);
+  const status = shownStatus(a);
   const end = blocked ? `<span class="badge blocked">${esc(STATUS_LABEL.blocked)}</span>` : ghost ? '' : timeTag(a);
-  const st = blocked ? '' : ghost ? `<span class="st stale"><i class="st-dot" aria-hidden="true"></i>${esc(RowText.lastStatus(a))}</span>` : `<span class="st ${esc(a.status)}"><i class="st-dot" aria-hidden="true"></i>${esc(STATUS_LABEL[a.status] || a.status)}</span>`;
+  const st = blocked ? '' : ghost ? `<span class="st stale"><i class="st-dot" aria-hidden="true"></i>${esc(RowText.lastStatus(a))}</span>` : `<span class="st ${esc(status)}"><i class="st-dot" aria-hidden="true"></i>${esc(STATUS_LABEL[status] || status)}</span>`;
   const name = RowText.metaName(a.name, a.title);
   const meta = [st, name ? `<span>${esc(name)}</span>` : '', paneDir(a, a.name)].filter(Boolean).join('<span class="sep"> · </span>');
   return `<div class="sw${ghost ? ' ghost' : ''}" ${rowData('agent', a.host, a.pane)}>

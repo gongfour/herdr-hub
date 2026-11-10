@@ -99,5 +99,17 @@ test('asOf: a ghost\'s time as 「오후 10:47 기준」, yesterday and older wi
   assert.equal(asOf(null, now), '');
   assert.equal(lastStatus({ lastStatus: 'working' }), '마지막: 작업 중');
   assert.equal(lastStatus({ lastStatus: 'blocked' }), '마지막: 답 필요');
+  assert.equal(lastStatus({ lastStatus: 'blocked', menu: true }), '마지막: 메뉴 열림');
   assert.equal(lastStatus({ lastStatus: 'unknown' }), '마지막 모습');
+});
+
+test('a slash command menu is no 답 필요: not counted, shown as 메뉴 열림', () => {
+  const { needsAnswer, shownStatus } = require('../public/rowtext.js');
+  assert.equal(needsAnswer({ status: 'blocked' }), true);
+  assert.equal(needsAnswer({ status: 'blocked', menu: true }), false);
+  assert.equal(needsAnswer({ status: 'idle' }), false);
+  assert.equal(needsAnswer(null), false);
+  assert.equal(shownStatus({ status: 'blocked', menu: true }), 'menu');
+  assert.equal(shownStatus({ status: 'blocked' }), 'blocked');
+  assert.equal(shownStatus({ status: 'working' }), 'working');
 });

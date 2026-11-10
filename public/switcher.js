@@ -55,7 +55,7 @@ function switcherRows() {
   const rows = [];
   for (const a of state.agents || []) {
     const href = link(a.host, `/agent/${encodeURIComponent(a.pane)}`);
-    rows.push({ href, kind: 'agent', x: a, name: a.name || a.title || a.pane, title: a.name ? a.title : '', ws: a.workspaceLabel, host: a.hostLabel || hostLabel(a.host), status: a.status, unread: isUnread(a), recent: rank(href), here: href === now });
+    rows.push({ href, kind: 'agent', x: a, name: a.name || a.title || a.pane, title: a.name ? a.title : '', ws: a.workspaceLabel, host: a.hostLabel || hostLabel(a.host), status: shownStatus(a), unread: isUnread(a), recent: rank(href), here: href === now });
   }
   for (const t of state.terminals || []) {
     const href = link(t.host, `/term/${encodeURIComponent(t.pane)}`);
@@ -180,8 +180,8 @@ const COMMAND_CAN = {
   focusInput: () => visible('d-input') || visible('t-input'),
   menu: (o) => Boolean(o),
   lastView: () => Boolean(view.name === 'agent' || view.name === 'term' ? visits.prev : visits.cur),
-  nextBlocked: () => state.agents.some((a) => a.status === 'blocked'),
-  prevBlocked: () => state.agents.some((a) => a.status === 'blocked'),
+  nextBlocked: () => state.agents.some(needsAnswer),
+  prevBlocked: () => state.agents.some(needsAnswer),
   jumpEnd: (o) => Boolean(o && o.kind !== 'ws'),
   jumpTop: (o) => Boolean(o && o.kind !== 'ws'),
   stop: (o) => Boolean(o && o.kind === 'agent' && o.x.status === 'working'),

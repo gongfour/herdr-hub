@@ -230,7 +230,7 @@ button:disabled { cursor: default; }
 .badge.blocked { color: var(--blocked); background: var(--blocked-bg); }
 .badge.done { color: var(--done); background: var(--done-bg); }
 .badge.working { color: var(--working); background: var(--working-bg); }
-.badge.idle, .badge.unknown { color: var(--idle); background: var(--idle-bg); }
+.badge.idle, .badge.unknown, .badge.menu { color: var(--idle); background: var(--idle-bg); }
 .empty { color: var(--muted); text-align: center; padding: var(--sp-7) var(--sp-4); }
 .empty p { margin: 0 0 var(--sp-1); }
 .empty .empty-t { color: var(--text); font-weight: 600; font-size: 16px; }
@@ -554,6 +554,10 @@ div.tool { background: none; padding: var(--sp-0) var(--sp-2); }
 .blocked-box .b-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 36px; }
 .blocked-box .b-eyebrow { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: 13px; font-weight: 600; color: var(--blocked); }
 .blocked-box .b-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent); }
+/* A slash command's menu someone just opened (/model …): nobody is waited for, so a plain card
+   with no 답 필요 tint; only real prompts wear --blocked. */
+.blocked-box.menu { background: var(--surface); border-color: var(--line); }
+.blocked-box.menu .b-eyebrow { color: var(--muted); }
 .blocked-box .b-title { display: block; margin-top: var(--sp-0); font-size: 17px; font-weight: 600; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
 .blocked-box .b-q { margin: var(--sp-3) 0 0; font-size: 13px; color: var(--muted); }
 /* AskUserQuestion asking several things: each question's header, ✓ once answered. */
