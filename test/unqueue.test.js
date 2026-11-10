@@ -241,7 +241,7 @@ ${RULE}
   assert.equal(CQ.promptBox('no prompt here'), null);
 
   assert.ok(CQ.sameQueued('fix  this\n/home/k/herdr-hub-uploads/20261110-163000-0123abcd.jpg', 'fix this'));
-  assert.ok(CQ.sameQueued('fix  this\n/home/k/.local/share/herdr-hub/data/uploads/20261110-163000-0123abcd.jpg', 'fix this')); // data/uploads since 1.0.299
+  assert.ok(CQ.sameQueued('fix  this\n/home/k/.local/share/herdr-hub/data/uploads/20261110-163000-0123abcd.jpg', 'fix this')); // data/uploads since 1.0.300
   assert.ok(CQ.sameQueued('fix this [Image #1]', 'fix this'));
   assert.ok(!CQ.sameQueued('fix that', 'fix this'));
   assert.ok(CQ.typed('fix') && !CQ.typed('<task-notification>x</task-notification>'));
