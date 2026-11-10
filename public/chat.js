@@ -24,8 +24,8 @@ function openViewer(src) {
   const el = document.createElement('div');
   el.className = 'viewer';
   el.setAttribute('role', 'dialog');
-  el.setAttribute('aria-label', '사진');
-  el.innerHTML = `<img src="${esc(src)}" alt="첨부 사진"><button type="button" class="icon-btn x" aria-label="닫기">${ICON.x}</button>`;
+  el.setAttribute('aria-label', T('사진'));
+  el.innerHTML = `<img src="${esc(src)}" alt="${T('첨부 사진')}"><button type="button" class="icon-btn x" aria-label="${T('닫기')}">${ICON.x}</button>`;
   const layer = openLayer(el, { focus: '.x' });
   el.onclick = () => closeLayer(layer);
 }
@@ -45,12 +45,12 @@ function shellOut(m) {
   // A failed command's output is all recorded as stderr: tinted only next to real stdout.
   const tint = Boolean(m.text);
   const lines = [...(m.text ? m.text.split('\n') : []), ...(m.err ? m.err.split('\n').map((l) => (tint ? { err: l } : l)) : [])];
-  if (!lines.length) return `<div class="msg shell-out empty"><span class="muted">(출력 없음)</span></div>`;
+  if (!lines.length) return `<div class="msg shell-out empty"><span class="muted">${T('(출력 없음)')}</span></div>`;
   const open = Boolean(detail.openShell && detail.openShell.has(m.id));
   const shown = open || lines.length <= SHELL_FOLD + 2 ? lines : lines.slice(0, SHELL_FOLD);
   const body = shown.map((l) => (typeof l === 'string' ? esc(l) : `<span class="err">${esc(l.err)}</span>`)).join('\n');
   const fold = lines.length > SHELL_FOLD + 2
-    ? `<button type="button" class="shell-more" data-shell="${esc(m.id)}" aria-expanded="${open}">${open ? '접기' : `${lines.length - SHELL_FOLD}줄 더 보기`}</button>`
+    ? `<button type="button" class="shell-more" data-shell="${esc(m.id)}" aria-expanded="${open}">${open ? T('접기') : T('{n}줄 더 보기', { n: lines.length - SHELL_FOLD })}</button>`
     : '';
   return `<div class="msg shell-out"><pre>${body}</pre>${fold}</div>`;
 }
@@ -58,21 +58,21 @@ function shellOut(m) {
 function message(m) {
   if (m.role === 'note') return `<p class="note">${esc(m.text)}</p>`;
   if (m.role === 'shell') return shellOut(m);
-  if (m.role === 'user' && m.bash) return `<div class="msg user bash"><span class="sr-only">나: </span><span>${esc(m.text)}</span></div>`;
+  if (m.role === 'user' && m.bash) return `<div class="msg user bash"><span class="sr-only">${T('나: ')}</span><span>${esc(m.text)}</span></div>`;
   if (m.role === 'user') {
     const { text, pics } = userParts(m);
     const imgs = pics.map((n) => {
       const src = `/api${hp(`/uploads/${n}`)}`;
-      return `<button type="button" class="pic" data-src="${esc(src)}" aria-label="사진 크게 보기"><img src="${esc(src)}" alt="첨부 사진" loading="lazy"></button>`;
+      return `<button type="button" class="pic" data-src="${esc(src)}" aria-label="${T('사진 크게 보기')}"><img src="${esc(src)}" alt="${T('첨부 사진')}" loading="lazy"></button>`;
     });
     // Inline images with no upload behind them (pasted on the host): a chip each, never the bytes.
-    const chips = Array.from({ length: Math.max(0, (m.images || 0) - pics.length) }, () => '<span class="img-chip">이미지</span>');
+    const chips = Array.from({ length: Math.max(0, (m.images || 0) - pics.length) }, () => `<span class="img-chip">${T('이미지')}</span>`);
     const media = imgs.length || chips.length ? `<div class="pics">${imgs.join('')}${chips.join('')}</div>` : '';
     // No whitespace between tags: the bubble keeps line breaks (pre-wrap).
-    return `<div class="msg user"><span class="sr-only">나: </span>${media}${text ? `<span>${esc(text)}</span>` : ''}</div>`;
+    return `<div class="msg user"><span class="sr-only">${T('나: ')}</span>${media}${text ? `<span>${esc(text)}</span>` : ''}</div>`;
   }
   const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map((t, i) => toolLine(t, `${m.id}:${i}`)).join('')}</div>` : '';
-  return `<div class="msg assistant"><span class="sr-only">에이전트: </span>${m.text ? Markdown.md(m.text) : ''}${tools}</div>`;
+  return `<div class="msg assistant"><span class="sr-only">${T('에이전트: ')}</span>${m.text ? Markdown.md(m.text) : ''}${tools}</div>`;
 }
 
 // A tool line; AskUserQuestion shows what was chosen ("Pick a color? → Red"). One with a
@@ -87,7 +87,7 @@ function toolLine(t, key) {
   if (!t.result) return `<div class="${cls}">${head}</div>${plan}`;
   const open = Boolean(detail.openTools && detail.openTools.has(key));
   return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span><span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${
-    open ? `<pre class="tool-out">${t.cmd ? `<span class="tool-cmd">$ ${esc(t.cmd)}</span>\n` : ''}${esc(t.result)}${t.cut ? '\n… (뒤는 잘림)' : ''}</pre>` : ''
+    open ? `<pre class="tool-out">${t.cmd ? `<span class="tool-cmd">$ ${esc(t.cmd)}</span>\n` : ''}${esc(t.result)}${t.cut ? `\n${T('… (뒤는 잘림)')}` : ''}</pre>` : ''
   }</div>${plan}`;
 }
 

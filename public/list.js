@@ -18,22 +18,22 @@ const paneOrder = (x, y) => x.pane.length - y.pane.length || (x.pane < y.pane ? 
 // in the words, so a card's HTML stays the same from one second to the next.
 function durKo(sec) {
   sec = Math.max(0, Math.floor(sec));
-  if (sec < 60) return `${sec}초`;
+  if (sec < 60) return T('{n}초', { n: sec });
   const m = Math.floor(sec / 60);
-  if (m < 60) return `${m}분`;
-  return `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}`;
+  if (m < 60) return T('{n}분', { n: m });
+  return m % 60 ? T('{h}시간 {m}분', { h: Math.floor(m / 60), m: m % 60 }) : T('{h}시간', { h: Math.floor(m / 60) });
 }
 function agoKo(t) {
   const sec = (Date.now() - t) / 1000;
-  if (sec < 45) return '방금';
-  if (sec < 3600) return `${Math.max(1, Math.round(sec / 60))}분 전`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}시간 전`;
-  return new Date(t).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }); // 11월 4일, not 11. 4.
+  if (sec < 45) return T('방금');
+  if (sec < 3600) return T('{n}분 전', { n: Math.max(1, Math.round(sec / 60)) });
+  if (sec < 86400) return T('{n}시간 전', { n: Math.floor(sec / 3600) });
+  return new Date(t).toLocaleDateString(I18n.locale, { month: 'long', day: 'numeric' }); // 11월 4일, not 11. 4.
 }
 // "12분" (working) / "3분 전" (finished) at a row's right end; nothing when the hub doesn't know.
 function timeTag(a) {
   if (a.status === 'working' && a.workingSince) return `<span class="el" data-since="${Number(a.workingSince)}"></span>`;
-  if ((a.status === 'done' || a.status === 'idle') && a.doneAt) return `<span class="el ago" data-ago="${Number(a.doneAt)}" title="${esc(clock(a.doneAt))} 완료"></span>`;
+  if ((a.status === 'done' || a.status === 'idle') && a.doneAt) return `<span class="el ago" data-ago="${Number(a.doneAt)}" title="${T('{time} 완료', { time: esc(clock(a.doneAt)) })}"></span>`;
   return '';
 }
 function fillTimes(root) {
@@ -57,14 +57,14 @@ const homeHash = () => '#/';
 // 뒤로 in a detail header. Split, the list is already beside it: a detail that leads back to
 // the list gets ✕ (닫기) at the end of the header instead, and closing it goes to the list route.
 // close: ✕ for a page that leads back elsewhere too (에이전트 시작 goes back to what it was opened over).
-function backLink(href, label = '작업공간', close = split && href === homeHash()) {
-  if (close) return `<a class="icon-btn close-detail" href="${href}" data-back aria-label="닫기"${keyAttrs('back', '닫기')}>${ICON.x}</a>`;
-  return `<a class="icon-btn" href="${href}" data-back aria-label="${label}"${keyAttrs('back', '뒤로')}>${ICON.back}</a>`;
+function backLink(href, label = T('작업공간'), close = split && href === homeHash()) {
+  if (close) return `<a class="icon-btn close-detail" href="${href}" data-back aria-label="${T('닫기')}"${keyAttrs('back', T('닫기'))}>${ICON.x}</a>`;
+  return `<a class="icon-btn" href="${href}" data-back aria-label="${label}"${keyAttrs('back', T('뒤로'))}>${ICON.back}</a>`;
 }
 
 // A new build waiting (app.js markUpdate): a dot on 설정, as VS Code's on its gear. No number (a
 // count of deploys means nothing) and not the app icon's badge (that is for 답 필요).
-const updateDot = () => (updateReady ? '<span class="rail-dot" role="img" aria-label="새 버전 있음"></span>' : '');
+const updateDot = () => (updateReady ? `<span class="rail-dot" role="img" aria-label="${T('새 버전 있음')}"></span>` : '');
 function renderUpdateDot() {
   if (split) return renderRail();
   const bar = listRoot().querySelector(':scope > .tabbar');
@@ -74,9 +74,9 @@ function tabBar(active) {
   const n = state.agents.filter((a) => needsAnswer(a) && shown(a)).length;
   const tab = (key, href, icon, label, extra = '') =>
     `<a class="tab" href="${href}"${active === key ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${extra}</a>`;
-  return `<nav class="tabbar" aria-label="탭">
-    ${tab('spaces', '#/', ICON.grid, '작업공간', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : '')}
-    ${tab('settings', '#/settings', ICON.gear, '설정', updateDot())}
+  return `<nav class="tabbar" aria-label="${T('탭')}">
+    ${tab('spaces', '#/', ICON.grid, T('작업공간'), n ? `<span class="tab-badge" aria-label="${T('답 필요 {n}', { n })}">${n}</span>` : '')}
+    ${tab('settings', '#/settings', ICON.gear, T('설정'), updateDot())}
   </nav>`;
 }
 // Each tab's page is kept once drawn: switching puts the other tab's tree back as it was (its
@@ -164,12 +164,12 @@ function renderRail() {
   const dot = !open && state.agents.some((a) => shown(a) && isUnread(a));
   const btn = (key, icon, label, extra = '') => {
     const on = key === 'spaces' ? open : view.name === 'settings';
-    const what = key === 'spaces' ? `${label} 사이드바 ${open ? '접기' : '열기'}` : `${label} ${on ? '닫기' : '열기'}${updateReady ? ' — 새 버전 있음' : ''}`;
-    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}"${keyAttrs(key === 'spaces' ? 'toggleSide' : 'settings', key === 'settings' && updateReady ? `${label} — 새 버전 있음` : label)}>${icon}${extra}</button>`;
+    const what = key === 'spaces' ? (open ? T('{label} 사이드바 접기', { label }) : T('{label} 사이드바 열기', { label })) : `${on ? T('{label} 닫기', { label }) : T('{label} 열기', { label })}${updateReady ? ` — ${T('새 버전 있음')}` : ''}`;
+    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}"${keyAttrs(key === 'spaces' ? 'toggleSide' : 'settings', key === 'settings' && updateReady ? `${label} — ${T('새 버전 있음')}` : label)}>${icon}${extra}</button>`;
   };
-  const html = `${btn('spaces', ICON.grid, '작업공간', n ? `<span class="tab-badge" aria-label="답 필요 ${n}">${n}</span>` : dot ? '<span class="rail-dot" role="img" aria-label="새 결과"></span>' : '')}
+  const html = `${btn('spaces', ICON.grid, T('작업공간'), n ? `<span class="tab-badge" aria-label="${T('답 필요 {n}', { n })}">${n}</span>` : dot ? `<span class="rail-dot" role="img" aria-label="${T('새 결과')}"></span>` : '')}
     <span class="rail-gap"></span>
-    ${btn('settings', ICON.gear, '설정', updateDot())}`;
+    ${btn('settings', ICON.gear, T('설정'), updateDot())}`;
   if (rail._html === html) return;
   rail.innerHTML = rail._html = html;
 }
@@ -284,13 +284,13 @@ function hostSeg(f) {
   const btn = (x) => {
     const warn = apiMismatch(x);
     const st = RowText.hostState(x);
-    const why = st === 'off' ? `오프라인${x.since ? ` · ${clock(x.since)}부터` : ''}` : st === 'herdr' ? 'herdr 연결 끊김' : st === 'connecting' ? '연결 중' : '';
-    const title = [why, warn ? `${warn} — 배포가 필요합니다` : ''].filter(Boolean).join(' · ');
+    const why = st === 'off' ? (x.since ? T('오프라인 · {time}부터', { time: clock(x.since) }) : T('오프라인')) : st === 'herdr' ? T('herdr 연결 끊김') : st === 'connecting' ? T('연결 중') : '';
+    const title = [why, warn ? T('{warn} — 배포가 필요합니다', { warn }) : ''].filter(Boolean).join(' · ');
     return `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${st === 'up' ? '' : 'off'}" aria-label="${esc(RowText.hostAria(x, warn))}"${title ? ` title="${esc(title)}"` : ''}>${hostDot(x)}<span class="hl">${esc(x.label)}</span>${warn ? '<span class="api-warn" aria-hidden="true">!</span>' : ''}</button>`;
   };
   return `
-    <nav class="seg hosts" role="group" aria-label="호스트"${keyAttrs('prevHost|nextHost', '호스트 바꾸기')}>
-      <button data-host="all" aria-pressed="${f === 'all'}">전체</button>
+    <nav class="seg hosts" role="group" aria-label="${T('호스트')}"${keyAttrs('prevHost|nextHost', T('호스트 바꾸기'))}>
+      <button data-host="all" aria-pressed="${f === 'all'}">${T('전체')}</button>
       ${hosts().map(btn).join('')}
     </nav>`;
 }
@@ -337,10 +337,10 @@ function render() {
   const sub = esc(hostLine());
   const top = `
     <header class="bar">
-      <h1>작업공간${sub ? `<span class="sub">${sub}</span>` : ''}</h1>
+      <h1>${T('작업공간')}${sub ? `<span class="sub">${sub}</span>` : ''}</h1>
       ${liveChip()}
-      ${reorder.on ? '' : `<button type="button" class="icon-btn" data-find aria-label="빠른 이동"${keyAttrs('switcher', '빠른 이동')}>${ICON.search}</button>`}
-      ${reorder.on ? '' : canStartHere(f) ? `<a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스"${keyAttrs('newWorkspace', '새 워크스페이스')}>${ICON.plus}</a>` : `<button type="button" class="icon-btn" disabled aria-label="새 워크스페이스 (herdr 에 연결되지 않음)" title="herdr 에 연결되지 않아 새로 시작할 수 없습니다">${ICON.plus}</button>`}
+      ${reorder.on ? '' : `<button type="button" class="icon-btn" data-find aria-label="${T('빠른 이동')}"${keyAttrs('switcher', T('빠른 이동'))}>${ICON.search}</button>`}
+      ${reorder.on ? '' : canStartHere(f) ? `<a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="${T('새 워크스페이스')}"${keyAttrs('newWorkspace', T('새 워크스페이스'))}>${ICON.plus}</a>` : `<button type="button" class="icon-btn" disabled aria-label="${T('새 워크스페이스 (herdr 에 연결되지 않음)')}" title="${T('herdr 에 연결되지 않아 새로 시작할 수 없습니다')}">${ICON.plus}</button>`}
     </header>${hostSeg(f)}`;
   const parts = homeParts(f);
   let main = root.querySelector(':scope > main.home');
@@ -389,9 +389,9 @@ function homeParts(f = filter()) {
   // A peer offline or with its herdr down is said by its red dot alone (hostDot), not a note here;
   // its cards stay greyed 「… 기준」 (ghosts).
   return [
-    ...(reorder.on && list.length ? [['reorder', '<p class="hint-row ro-note" role="note"><span>손잡이를 끌어 옮깁니다</span></p>']] : []),
+    ...(reorder.on && list.length ? [['reorder', `<p class="hint-row ro-note" role="note"><span>${T('손잡이를 끌어 옮깁니다')}</span></p>`]] : []),
     // Off while reordering: the swipe and the long press it tells of are off then.
-    ...(swipeHintShown() && !reorder.on && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>${RowText.hintText(multi())}</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
+    ...(swipeHintShown() && !reorder.on && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>${RowText.hintText(multi())}</span><button type="button" class="icon-btn hint-x" aria-label="${T('안내 닫기')}">${ICON.x}</button></p>`]] : []),
     ...(blocked.length && !reorder.on ? [['blocked', blockedLine(blocked)]] : []),
     ...spacesParts(list, down, f),
   ];
@@ -402,8 +402,8 @@ function homeParts(f = filter()) {
 // Only while there are some; a slash command's menu is not counted (needsAnswer).
 function blockedLine(blocked) {
   const names = [...new Set(blocked.map((a) => a.workspaceLabel || a.name || a.title).filter(Boolean))];
-  const shown = names.slice(0, 2).join(', ') + (names.length > 2 ? ` 외 ${names.length - 2}` : '');
-  return `<button type="button" class="blocked-line" data-next-blocked${keyAttrs('nextBlocked', '다음 답 필요 열기')}><span class="bl-dot" aria-hidden="true"></span><span class="bl-t">답 필요 ${blocked.length}${shown ? `<span class="bl-who"> · ${esc(shown)}</span>` : ''}</span><span class="bl-go">열기<span aria-hidden="true"> ›</span></span></button>`;
+  const shown = names.length > 2 ? T('{names} 외 {n}', { names: names.slice(0, 2).join(', '), n: names.length - 2 }) : names.join(', ');
+  return `<button type="button" class="blocked-line" data-next-blocked${keyAttrs('nextBlocked', T('다음 답 필요 열기'))}><span class="bl-dot" aria-hidden="true"></span><span class="bl-t">${T('답 필요 {n}', { n: blocked.length })}${shown ? `<span class="bl-who"> · ${esc(shown)}</span>` : ''}</span><span class="bl-go">${T('열기')}<span aria-hidden="true"> ›</span></span></button>`;
 }
 
 // Alt+←/→ (split.js hostKey): the host segment one step along. Phone: on the list view only.
@@ -428,12 +428,12 @@ function stepHostFilter(dir) {
 function stepBlocked(dir) {
   const waiting = listModel().list.flatMap((s) => s.agents.filter(needsAnswer));
   if (!waiting.length) {
-    toast('답이 필요한 에이전트가 없습니다');
+    toast(T('답이 필요한 에이전트가 없습니다'));
     return true;
   }
   const i = view.name === 'agent' ? waiting.findIndex((a) => same(a, curHost(), detail.pane)) : -1;
   const a = i < 0 ? waiting[dir > 0 ? 0 : waiting.length - 1] : waiting[(i + (dir > 0 ? 1 : waiting.length - 1)) % waiting.length];
-  if (i >= 0 && waiting.length === 1) return toast('답이 필요한 에이전트는 이것 하나입니다'), true;
+  if (i >= 0 && waiting.length === 1) return toast(T('답이 필요한 에이전트는 이것 하나입니다')), true;
   stepFocus = true; // the caret into its composer, as Alt+↑/↓
   location.hash = link(a.host, `/agent/${encodeURIComponent(a.pane)}`);
   return true;
@@ -444,7 +444,7 @@ let settingsAt = null;
 // Why this host's herdr can't be reached (the hub's own error: the socket it tried) and what to do.
 function herdrHelp() {
   const err = String(state.error || '').trim();
-  return `${err ? `<p class="empty-err"><code>${esc(err.length > 160 ? `${err.slice(0, 160)}…` : err)}</code></p>` : ''}<p>그 호스트에서 herdr 가 실행 중인지 확인하세요. 처음이면 <a href="https://herdr.dev" target="_blank" rel="noopener">herdr 설치·실행 방법</a>을 보세요.</p>`;
+  return `${err ? `<p class="empty-err"><code>${esc(err.length > 160 ? `${err.slice(0, 160)}…` : err)}</code></p>` : ''}<p>${T('그 호스트에서 herdr 가 실행 중인지 확인하세요. 처음이면 {link}을 보세요.', { link: `<a href="https://herdr.dev" target="_blank" rel="noopener">${T('herdr 설치·실행 방법')}</a>` })}</p>`;
 }
 // Whether a new workspace can start where the list is (herdr up there): the + is off otherwise.
 function canStartHere(f = filter()) {
@@ -467,17 +467,22 @@ function spacesParts(list, down, f) {
   }
   const peer = f !== 'all' && f !== localId() ? hostOf(f) : null;
   if (peer && (!peer.online || peer.herdr !== 'up')) {
-    const why = !peer.online ? `오프라인입니다${peer.since ? ` · ${esc(clock(peer.since))}부터` : ''}` : '의 herdr 에 연결되지 않았습니다';
-    return [['empty', `<div class="empty" role="status"><p>${esc(peer.label)} ${why}</p>${connLink('연결 상태 보기')}</div>`]];
+    const host = esc(peer.label);
+    const why = !peer.online
+      ? peer.since
+        ? T('{host} 오프라인입니다 · {time}부터', { host, time: esc(clock(peer.since)) })
+        : T('{host} 오프라인입니다', { host })
+      : T('{host} 의 herdr 에 연결되지 않았습니다', { host });
+    return [['empty', `<div class="empty" role="status"><p>${why}</p>${connLink(T('연결 상태 보기'))}</div>`]];
   }
   if (down && (f === localId() || (f === 'all' && !multi()))) {
-    const where = hostLabel(localId()) || state.host || '이 호스트';
-    return [['empty', `<div class="empty" role="status"><p class="empty-t">${esc(where)} 의 herdr 에 연결하지 못했습니다</p>${herdrHelp()}${connLink('연결 상태 보기')}</div>`]];
+    const where = hostLabel(localId()) || state.host || T('이 호스트');
+    return [['empty', `<div class="empty" role="status"><p class="empty-t">${T('{host} 의 herdr 에 연결하지 못했습니다', { host: esc(where) })}</p>${herdrHelp()}${connLink(T('연결 상태 보기'))}</div>`]];
   }
   // Split: the right column says it in full, with the button; here a short line.
-  if (split) return [['empty', '<div class="empty"><p class="empty-t">워크스페이스가 없습니다</p><p>머리글의 + 로 새로 시작합니다.</p></div>']];
+  if (split) return [['empty', `<div class="empty"><p class="empty-t">${T('워크스페이스가 없습니다')}</p><p>${T('머리글의 + 로 새로 시작합니다.')}</p></div>`]];
   const href = f === 'all' ? '#/new' : link(f, '/new');
-  return [['empty', `<div class="empty"><p class="empty-t">워크스페이스가 없습니다</p><p>폴더를 고르면 에이전트까지 바로 시작합니다.</p><a class="btn" href="${href}"${keyAttrs('newWorkspace', '새 워크스페이스')}>새 워크스페이스</a></div>`]];
+  return [['empty', `<div class="empty"><p class="empty-t">${T('워크스페이스가 없습니다')}</p><p>${T('폴더를 고르면 에이전트까지 바로 시작합니다.')}</p><a class="btn" href="${href}"${keyAttrs('newWorkspace', T('새 워크스페이스'))}>${T('새 워크스페이스')}</a></div>`]];
 }
 
 // Hint about the hidden row gestures: shown for the first few starts of the app (each for the
@@ -568,10 +573,10 @@ function wsSection({ w, agents, terms }, ro = false) {
           <div class="ws-label">${esc(w.label)}</div>
           ${chip ? `<div class="ws-meta">${chip}</div>` : ''}
         </a>
-        ${ro ? reorderCtl(w.label) : `<button type="button" class="icon-btn ws-more" aria-haspopup="dialog" aria-label="${esc(w.label)} 워크스페이스 메뉴">${ICON.more}</button>`}
+        ${ro ? reorderCtl(w.label) : `<button type="button" class="icon-btn ws-more" aria-haspopup="dialog" aria-label="${T('{name} 워크스페이스 메뉴', { name: esc(w.label) })}">${ICON.more}</button>`}
       </div>
     </div>
-    <div class="ws-panes">${rows || '<p class="ws-empty">패널 없음</p>'}</div>
+    <div class="ws-panes">${rows || `<p class="ws-empty">${T('패널 없음')}</p>`}</div>
   </section>`;
 }
 
@@ -594,7 +599,7 @@ function agentRow(a, ro = false) {
   const meta = [st, name ? `<span>${esc(name)}</span>` : '', paneDir(a, a.name)].filter(Boolean).join('<span class="sep"> · </span>');
   return `<div class="sw${ghost ? ' ghost' : ''}" ${rowData('agent', a.host, a.pane)}>
     <a class="sw-front pane-row agent${unread ? ' unread' : ''}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
-      ${unread ? '<span class="unread-dot" role="img" aria-label="새 결과"></span>' : ''}<span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
+      ${unread ? `<span class="unread-dot" role="img" aria-label="${T('새 결과')}"></span>` : ''}<span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
       <span class="pane-main"><span class="pane-title">${esc(a.title || a.name || a.agent || a.pane)}</span>${meta ? `<span class="pane-meta">${meta}</span>` : ''}</span>
       ${end && !ro ? `<span class="pane-end">${end}</span>` : ''}
     </a>
@@ -607,7 +612,7 @@ const ghostAt = (w, agents = [], terms = []) => (w && w.stale) || [...agents, ..
 
 // A row's ⋯, shown while the pointer is over the row (style.css): the same menu as a right-click or
 // a long press (rows.js). Out of the Tab order: Alt+M opens the focused row's menu.
-const rowMore = (name) => `<button type="button" class="icon-btn row-more" tabindex="-1" aria-haspopup="dialog" aria-label="${esc(name)} 메뉴">${ICON.more}</button>`;
+const rowMore = (name) => `<button type="button" class="icon-btn row-more" tabindex="-1" aria-haspopup="dialog" aria-label="${T('{name} 메뉴', { name: esc(name) })}">${ICON.more}</button>`;
 
 // A row's folder, where it is now: its last folder, none when the folder is named like the
 // workspace or the row (rowtext.js rowDir); the whole path on hover.
@@ -622,7 +627,7 @@ function termRow(t, ro = false) {
     <a class="sw-front pane-row term" href="${link(t.host, `/term/${encodeURIComponent(t.pane)}`)}">
       <span class="pane-ic" aria-hidden="true">${ICON.term}</span>
       <span class="pane-main"><span class="pane-title">${esc(termTitle(t))}</span>${dir ? `<span class="pane-meta">${dir}</span>` : ''}</span>
-      ${ro ? '' : '<span class="pane-end"><span class="pane-kind">셸</span></span>'}
+      ${ro ? '' : `<span class="pane-end"><span class="pane-kind">${T('셸')}</span></span>`}
     </a>
     ${ro ? reorderCtl(termTitle(t)) : rowMore(termTitle(t))}
   </div>`;

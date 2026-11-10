@@ -71,15 +71,15 @@ const fold = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 // leads; then 완료 (finished, or a result not yet read) and 작업 중 in the chosen order, 쉬는 중,
 // shells last — or, 「최근 연 순」, everything after 답 필요 by recency alone.
 const SWITCH_ORDERS = {
-  done: { blocked: [0, '답 필요'], done: [1, '완료'], working: [2, '작업 중'], idle: [3, '쉬는 중'], term: [4, '셸'] },
-  working: { blocked: [0, '답 필요'], working: [1, '작업 중'], done: [2, '완료'], idle: [3, '쉬는 중'], term: [4, '셸'] },
-  recent: { blocked: [0, '답 필요'], done: [1, '최근'], working: [1, '최근'], idle: [1, '최근'], term: [1, '최근'] },
+  done: { blocked: [0, T('답 필요')], done: [1, T('완료')], working: [2, T('작업 중')], idle: [3, T('쉬는 중')], term: [4, T('셸')] },
+  working: { blocked: [0, T('답 필요')], working: [1, T('작업 중')], done: [2, T('완료')], idle: [3, T('쉬는 중')], term: [4, T('셸')] },
+  recent: { blocked: [0, T('답 필요')], done: [1, T('최근')], working: [1, T('최근')], idle: [1, T('최근')], term: [1, T('최근')] },
 };
 const switcherKind = (r) => (r.status === 'blocked' ? 'blocked' : r.kind === 'term' ? 'term' : r.unread || r.status === 'done' ? 'done' : r.status === 'working' ? 'working' : 'idle');
 const switcherPlace = (r) => (SWITCH_ORDERS[Prefs.get('paletteOrder')] || SWITCH_ORDERS.done)[switcherKind(r)];
 const switcherOrder = (r) => switcherPlace(r)[0];
 // The heading a row goes under with nothing typed.
-const switcherGroup = (r) => (r.here ? '지금 보는 중' : switcherPlace(r)[1]);
+const switcherGroup = (r) => (r.here ? T('지금 보는 중') : switcherPlace(r)[1]);
 
 function switcherFilter(rows, query) {
   const words = fold(query).split(' ').filter(Boolean);
@@ -88,7 +88,7 @@ function switcherFilter(rows, query) {
   const out = [];
   for (const r of rows) {
     const name = fold(r.name);
-    const hay = `${name} ${fold(r.title)} ${fold(r.ws)} ${fold(r.host)} ${r.kind === 'term' ? '셸' : ''}`;
+    const hay = `${name} ${fold(r.title)} ${fold(r.ws)} ${fold(r.host)} ${r.kind === 'term' ? fold(T('셸')) : ''}`;
     if (!words.every((w) => hay.includes(w))) continue;
     // A name that starts with the first word first, then a name that has it, then the rest.
     r.score = name.startsWith(words[0]) ? 0 : name.includes(words[0]) ? 1 : 2;
@@ -110,7 +110,7 @@ function switcherRowHtml(r, i) {
     meta.className = 'pane-meta';
     main.appendChild(meta);
   }
-  const where = [r.here ? '지금 보는 중' : '', r.ws, multi() ? r.host : ''].filter(Boolean).map(esc);
+  const where = [r.here ? T('지금 보는 중') : '', r.ws, multi() ? r.host : ''].filter(Boolean).map(esc);
   if (where.length) meta.insertAdjacentHTML('beforeend', (meta.childNodes.length ? '<span class="sep"> · </span>' : '') + where.join('<span class="sep"> · </span>'));
   const cls = front.className.replace(/\bsw-front\b/, '').trim();
   return `<div class="qs-row ${cls}${r.here ? ' here' : ''}" role="option" id="qs-${i}" data-i="${i}" aria-selected="${i === qs.sel}">${front.innerHTML}</div>`;
@@ -122,9 +122,9 @@ function switcherMode() {
   if (cmd === qs.cmd) return cmd;
   qs.cmd = cmd;
   qs.sel = 0;
-  qs.input.placeholder = cmd ? '명령 이름 (예: 끝내기, 설정, 줄바꿈)' : PLACEHOLDER;
-  qs.input.setAttribute('aria-label', cmd ? '명령 검색' : '빠른 이동 검색');
-  qs.list.setAttribute('aria-label', cmd ? '명령' : '에이전트·셸');
+  qs.input.placeholder = cmd ? T('명령 이름 (예: 끝내기, 설정, 줄바꿈)') : PLACEHOLDER;
+  qs.input.setAttribute('aria-label', cmd ? T('명령 검색') : T('빠른 이동 검색'));
+  qs.list.setAttribute('aria-label', cmd ? T('명령') : T('에이전트·셸'));
   qs.el.querySelector('.qs').classList.toggle('commands', cmd);
   const keys = qs.el.querySelector('.qs-keys');
   if (keys) keys.innerHTML = switcherKeys();
@@ -153,7 +153,7 @@ function renderSwitcher() {
           return head + switcherRowHtml(r, i);
         })
         .join('')
-    : `<p class="qs-none">${state.agents.length || (state.terminals || []).length ? '맞는 에이전트·셸이 없습니다' : '아직 에이전트·셸이 없습니다'}</p>`;
+    : `<p class="qs-none">${state.agents.length || (state.terminals || []).length ? T('맞는 에이전트·셸이 없습니다') : T('아직 에이전트·셸이 없습니다')}</p>`;
   fillTimes(qs.list); // list.js: 「방금」, 「4분」
   moveSwitcher(0);
 }
@@ -205,10 +205,10 @@ const COMMAND_CAN = {
 };
 // A command's name where it is, when its words depend on what is open.
 function commandNameHere(action, o) {
-  if (action === 'closeView' && o) return o.kind === 'agent' ? '에이전트 끝내기' : '셸 끝내기';
-  if (action === 'wrap' && scr) return Prefs.get(scr.kind === 'term' ? 'wrap.term' : 'wrap.agent') ? '줄바꿈 끄기' : '줄바꿈 켜기';
-  if (action === 'toggleSide') return sideOff() ? '사이드바 펴기' : '사이드바 접기';
-  if (action === 'settings') return view.name === 'settings' ? '설정 닫기' : '설정 열기';
+  if (action === 'closeView' && o) return o.kind === 'agent' ? T('에이전트 끝내기') : T('셸 끝내기');
+  if (action === 'wrap' && scr) return Prefs.get(scr.kind === 'term' ? 'wrap.term' : 'wrap.agent') ? T('줄바꿈 끄기') : T('줄바꿈 켜기');
+  if (action === 'toggleSide') return sideOff() ? T('사이드바 펴기') : T('사이드바 접기');
+  if (action === 'settings') return view.name === 'settings' ? T('설정 닫기') : T('설정 열기');
   return '';
 }
 // What a command is about, on its small line: the agent, shell or workspace it acts on.
@@ -236,7 +236,8 @@ function switcherCommands() {
   const cmds = [];
   if (o) {
     const items = o.kind === 'ws' ? wsMenuItems(o.x, { here: true }) : paneMenuItems(o.kind, o.x, { here: true });
-    const group = `${o.kind === 'agent' ? '이 에이전트' : o.kind === 'term' ? '이 셸' : '이 워크스페이스'}: ${rowLabel(o.kind, o.x)}`;
+    const on = { name: rowLabel(o.kind, o.x) };
+    const group = o.kind === 'agent' ? T('이 에이전트: {name}', on) : o.kind === 'term' ? T('이 셸: {name}', on) : T('이 워크스페이스: {name}', on);
     for (const it of items) {
       if (!Array.isArray(it) || it[4] || it[5] || it[0] === 'close') continue; // an action's own command says it, with its key; it[5]: can't now (a ghost)
       const [k, name, , note] = it;
@@ -279,7 +280,7 @@ function renderCommands() {
           return head + commandRowHtml(c, i);
         })
         .join('')
-    : '<p class="qs-none">맞는 명령이 없습니다</p>';
+    : `<p class="qs-none">${T('맞는 명령이 없습니다')}</p>`;
   moveSwitcher(0);
 }
 
@@ -325,10 +326,15 @@ function switcherKeys() {
   const jk = [Keymap.keysFor('scrollDown')[0], Keymap.keysFor('scrollUp')[0]].filter(Boolean).map(Keymap.label);
   const back = Keymap.hint('back').split(' · ');
   const cmd = qs && qs.cmd;
-  const other = cmd ? '' : ` · ${kbd('>')} 명령`;
-  return `${kbd('↑')}${kbd('↓')}${jk.length ? ` ${jk.map(kbd).join('')}` : ''} 고르기 · ${kbd('리턴')} ${cmd ? '하기' : '열기'}${other} · ${back.map(kbd).join('')} 닫기`;
+  const keys = {
+    pick: `${kbd('↑')}${kbd('↓')}${jk.length ? ` ${jk.map(kbd).join('')}` : ''}`,
+    enter: kbd(T('리턴')),
+    other: cmd ? '' : ` · ${T('{key} 명령', { key: kbd('>') })}`,
+    back: back.map(kbd).join(''),
+  };
+  return cmd ? T('{pick} 고르기 · {enter} 하기{other} · {back} 닫기', keys) : T('{pick} 고르기 · {enter} 열기{other} · {back} 닫기', keys);
 }
-const PLACEHOLDER = '에이전트·셸 이름, 워크스페이스, 호스트 (> 명령)';
+const PLACEHOLDER = T('에이전트·셸 이름, 워크스페이스, 호스트 (> 명령)');
 
 // Ctrl+P / Alt+P; commands: Ctrl+Shift+P / F1, straight into 명령 (the field starts with >).
 // Again while it is open: closed; the other one's key turns it to the other mode. Under another
@@ -353,13 +359,13 @@ function toggleSwitcher({ commands = false } = {}) {
   const touch = !keyboardLikely() && lastInput === 'pointer';
   // 취소 only when a finger opened it (a key has Esc and Ctrl+[), as a menu's.
   const byKey = lastInput === 'key';
-  el.innerHTML = `<div class="qs${touch ? ' by-touch' : ''}" role="dialog" aria-modal="true" aria-label="빠른 이동">
+  el.innerHTML = `<div class="qs${touch ? ' by-touch' : ''}" role="dialog" aria-modal="true" aria-label="${T('빠른 이동')}">
       <div class="qs-top">
         <input class="field search-field qs-field" type="text" placeholder="${PLACEHOLDER}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
-          role="combobox" aria-expanded="true" aria-controls="qs-list" aria-autocomplete="list" aria-label="빠른 이동 검색">
-        ${byKey ? '' : '<button type="button" class="qs-cancel" data-cancel>취소</button>'}
+          role="combobox" aria-expanded="true" aria-controls="qs-list" aria-autocomplete="list" aria-label="${T('빠른 이동 검색')}">
+        ${byKey ? '' : `<button type="button" class="qs-cancel" data-cancel>${T('취소')}</button>`}
       </div>
-      <div class="qs-list" id="qs-list" role="listbox" aria-label="에이전트·셸"></div>
+      <div class="qs-list" id="qs-list" role="listbox" aria-label="${T('에이전트·셸')}"></div>
       ${keyboardLikely() ? `<p class="qs-keys" aria-hidden="true">${switcherKeys()}</p>` : ''}
     </div>`;
   const input = el.querySelector('input');

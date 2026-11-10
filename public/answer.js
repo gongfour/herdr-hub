@@ -10,7 +10,7 @@ const AGENT_KEYS = [['esc', 'Esc'], ['shift+tab', '⇧Tab'], ['enter', 'Enter'],
 const SHEET_KEYS = [['esc', 'Esc'], ['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['shift+tab', '⇧Tab'], ['1', '1'], ['2', '2'], ['3', '3']];
 // A slash command's menu (/config, /status …) without a list read here is moved through with these.
 const MENU_KEYS = [['esc', 'Esc'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['enter', 'Enter'], ['space', 'Space'], ['tab', 'Tab']];
-const keyRow = (keys, cls = '') => `<div class="keys ${cls}">${keys.map(([k, label]) => `<button type="button" class="key" data-key="${k}" aria-label="${esc(label)} 키 보내기">${esc(label)}</button>`).join('')}</div>`;
+const keyRow = (keys, cls = '') => `<div class="keys ${cls}">${keys.map(([k, label]) => `<button type="button" class="key" data-key="${k}" aria-label="${T('{key} 키 보내기', { key: esc(label) })}">${esc(label)}</button>`).join('')}</div>`;
 function bindKeyRow(row) {
   if (row) row.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
 }
@@ -59,9 +59,9 @@ async function answerChoice(host, a, item, choices = null, alt = false) {
   } catch (err) {
     if (err.code === 'answered') ok = true; // it went already (the other tap, or a notification)
     else if (err.status === 409) {
-      toast('질문이 바뀌었습니다. 새 질문을 보고 다시 고르세요');
+      toast(T('질문이 바뀌었습니다. 새 질문을 보고 다시 고르세요'));
       questionChanged(host, a.pane);
-    } else toastErr(`답을 보내지 못했습니다: ${errText(err)}`);
+    } else toastErr(T('답을 보내지 못했습니다: {error}', { error: errText(err) }));
   }
   if (ok) {
     press.until = Date.now() + PRESS_MS;
@@ -70,7 +70,7 @@ async function answerChoice(host, a, item, choices = null, alt = false) {
     // Others still waiting: the way on to the next (as 다음 답 필요, Alt+Shift+↓, and the list's
     // 답 필요 line). A slash command's menu is no wait (needsAnswer).
     const others = state.agents.filter((x) => needsAnswer(x) && !same(x, host, a.pane)).length;
-    if (others) toast(`답 필요 ${others}개가 더 있습니다`, { id: 'next-blocked', action: { label: '다음 열기', run: () => stepBlocked(1) } });
+    if (others) toast(T('답 필요 {n}개가 더 있습니다', { n: others }), { id: 'next-blocked', action: { label: T('다음 열기'), run: () => stepBlocked(1) } });
     // The screen read again: the same prompt may now show its next step (a status change reads anyway).
     if (view.name === 'agent' && detail.pane === a.pane && curHost() === host) for (const ms of [500, PRESS_MS + 100]) setTimeout(loadDetail, ms);
   } else if (pressed.get(k) === press) pressed.delete(k); // not sent: the buttons come back at once
@@ -96,7 +96,7 @@ function choiceButton(choices, x, { press, primary, compact = false, alt = false
   const box = x.checked === undefined ? '' : ` aria-pressed="${x.checked}"`;
   const tick = x.checked === undefined ? '' : `<span class="tick" aria-hidden="true">${x.checked ? '☑' : '☐'}</span>`;
   return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}${x.checked ? ' checked' : ''}" data-n="${x.n}"${box}${press || !ok ? ' disabled' : ''}>
-    ${choices.numbered || (!compact && x.n <= 9) ? `<span class="num"${choices.numbered ? '' : ' title="숫자 키로 고르기"'}>${x.n}</span>` : ''}${tick}<span class="label"><span class="name">${choiceName(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? `<span class="state">${press.until === Infinity ? '보내는 중' : '보냄'}</span>` : ''}</button>`;
+    ${choices.numbered || (!compact && x.n <= 9) ? `<span class="num"${choices.numbered ? '' : ` title="${T('숫자 키로 고르기')}"`}>${x.n}</span>` : ''}${tick}<span class="label"><span class="name">${choiceName(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? `<span class="state">${press.until === Infinity ? T('보내는 중') : T('보냄')}</span>` : ''}</button>`;
 }
 
 // Re-drawn only when what it shows changed: a poll must not swallow a tap or a selection.
@@ -122,7 +122,7 @@ function renderBlocked() {
     return;
   }
   box.setAttribute('role', 'region');
-  box.setAttribute('aria-label', a.menu ? '메뉴' : '답 필요');
+  box.setAttribute('aria-label', a.menu ? T('메뉴') : T('답 필요'));
   const text = detail.blockedText;
   const choices = text ? parseChoices(text) : null;
   const screen = text ? `<pre>${esc(text)}</pre>` : '';
@@ -130,13 +130,13 @@ function renderBlocked() {
   let html;
   const panel = !choices && text ? screenPanel(text) : null;
   // Esc leaves a slash command's menu (Claude Code's 「Esc to cancel」).
-  const leave = `<button type="button" class="toggle b-leave" aria-label="메뉴 취소 (Esc 보내기)"${keyAttrs('back', '메뉴 취소')}>취소<span class="wide-only"> (Esc)</span></button>`;
+  const leave = `<button type="button" class="toggle b-leave" aria-label="${T('메뉴 취소 (Esc 보내기)')}"${keyAttrs('back', T('메뉴 취소'))}>${T('취소')}<span class="wide-only"> (Esc)</span></button>`;
   const hintOf = (p) => (p && p.hint ? `<p class="b-hint">${esc(p.hint)}</p>` : '');
   if (panel) {
     // A menu with no list read here (/status, /config's tabs, /privacy-settings): the panel as the
     // terminal shows it, its key hints, and the keys to move through it.
     html = `<div class="blocked-box menu">
-        <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>메뉴</span><span class="toggles">${leave}</span></div>
+        <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>${T('메뉴')}</span><span class="toggles">${leave}</span></div>
         <strong class="b-title">${esc(panel.title)}</strong>
         ${panel.main.length ? `<pre>${esc(panel.main.join('\n'))}</pre>` : ''}
         ${hintOf(panel)}
@@ -144,8 +144,8 @@ function renderBlocked() {
       </div>`;
   } else if (!choices) {
     html = `<div class="blocked-box">
-        <strong class="b-title">답 필요</strong>
-        ${text == null ? '<p class="question muted">화면을 불러오는 중…</p>' : screen}
+        <strong class="b-title">${T('답 필요')}</strong>
+        ${text == null ? `<p class="question muted">${T('화면을 불러오는 중…')}</p>` : screen}
         ${keys}
       </div>`;
   } else {
@@ -155,7 +155,7 @@ function renderBlocked() {
     // 5 lines, never cut silently), the question, then the answers as one list.
     const parts = promptParts(choices);
     const menu = choices.panel && !parts.kind && !choices.ask && !/written up a plan/i.test(choices.question) ? choices.panel : null;
-    const title = menu ? menu.title : parts.intent || parts.question || '답 필요';
+    const title = menu ? menu.title : parts.intent || parts.question || T('답 필요');
     // A menu's own key (choices.alt): picked rows take it instead of Enter while 「이 세션만」 is on.
     const alt = Boolean(choices.alt && detail.menuAlt);
     // A menu's line under its title (/model: 「Switch between Claude models. …」).
@@ -167,7 +167,7 @@ function renderBlocked() {
     // word wider than the box scrolls sideways.
     const tokens = (s) => s.split(/(\s+)/).map((w, i) => (i % 2 ? w : w && `<span class="tok">${esc(w)}</span>`)).join('');
     const ctx = n
-      ? `<div class="ctx${detail.ctxOpen ? ' open' : ''}"><pre class="context">${tokens(parts.body)}</pre><button type="button" class="ctx-more" aria-expanded="false" hidden>전체 보기${n > 1 ? ` (${n}줄)` : ''}</button></div>`
+      ? `<div class="ctx${detail.ctxOpen ? ' open' : ''}"><pre class="context">${tokens(parts.body)}</pre><button type="button" class="ctx-more" aria-expanded="false" hidden>${n > 1 ? T('전체 보기 ({n}줄)', { n }) : T('전체 보기')}</button></div>`
       : '';
     // AskUserQuestion asking several things: which are answered (☒ on the terminal's tab bar).
     const ask = choices.ask && choices.ask.tabs.length > 1 ? choices.ask : null;
@@ -175,16 +175,16 @@ function renderBlocked() {
     // A multiSelect goes on with its own row (Submit, or Next while more questions follow).
     const nk = nextKeys(choices);
     let next = nk
-      ? `<p class="b-q">여러 개 고를 수 있습니다. 다 고르면 「${choices.next.label === 'Next' ? '다음 질문' : '다음'}」을 누르세요.</p>`
+      ? `<p class="b-q">${T('여러 개 고를 수 있습니다. 다 고르면 「{next}」을 누르세요.', { next: choices.next.label === 'Next' ? T('다음 질문') : T('다음') })}</p>`
       : '';
     // A settings dialog (choices.js heldPrompt): values change with ←/→, and any row's Enter goes on.
-    if (!nk && /←\/→ to change/i.test(text)) next = '<p class="b-q">값은 「키 직접 보내기」의 ← → 로 바꿉니다. 고르면 그 줄에서 Enter 를 보냅니다(Esc: 취소).</p>';
-    const nextBtn = nk ? `<button type="button" class="choice primary b-next"${press ? ' disabled' : ''}><span class="label"><span class="name">${choices.next.label === 'Next' ? '다음 질문' : '다음 (답 확인)'}</span></span></button>` : '';
+    if (!nk && /←\/→ to change/i.test(text)) next = `<p class="b-q">${T('값은 「키 직접 보내기」의 ← → 로 바꿉니다. 고르면 그 줄에서 Enter 를 보냅니다(Esc: 취소).')}</p>`;
+    const nextBtn = nk ? `<button type="button" class="choice primary b-next"${press ? ' disabled' : ''}><span class="label"><span class="name">${choices.next.label === 'Next' ? T('다음 질문') : T('다음 (답 확인)')}</span></span></button>` : '';
     // 「터미널」「키 입력」 on the phone, the whole words where there is room; read out in full.
     const toggle = (k, label, aria) => `<button type="button" class="toggle" data-toggle="${k}" aria-expanded="${Boolean(detail[k])}" aria-label="${aria}">${label}</button>`;
     html = `<div class="blocked-box${menu ? ' menu' : ''}">
-        <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>${menu ? '메뉴' : `답 필요${parts.kind ? ` · ${esc(parts.kind)}` : ''}`}</span>
-          <span class="toggles">${menu ? leave : ''}${toggle('showScreen', '터미널<span class="wide-only"> 화면</span>', '터미널 화면 보기')}${toggle('showKeys', '키<span class="wide-only"> 직접 보내기</span><span class="phone-only"> 입력</span>', '키 직접 보내기')}</span></div>
+        <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>${menu ? T('메뉴') : `${T('답 필요')}${parts.kind ? ` · ${esc(parts.kind)}` : ''}`}</span>
+          <span class="toggles">${menu ? leave : ''}${toggle('showScreen', T('터미널<span class="wide-only"> 화면</span>'), T('터미널 화면 보기'))}${toggle('showKeys', T('키<span class="wide-only"> 직접 보내기</span><span class="phone-only"> 입력</span>'), T('키 직접 보내기'))}</span></div>
         <strong class="b-title">${esc(title)}</strong>
         ${steps}
         ${ctx}
@@ -192,7 +192,7 @@ function renderBlocked() {
         ${menuNote ? `<p class="b-q">${esc(menuNote)}</p>` : ''}
         ${choices.alt ? `<label class="b-alt"><input type="checkbox"${alt ? ' checked' : ''}> ${esc(choices.alt.label)}</label>` : ''}
         ${next}
-        <div class="choices" role="group" aria-label="${esc(parts.question || '답')}">${choices.items.map((x) => choiceButton(choices, x, { press, primary: nk || menu ? null : primary, alt })).join('')}${nextBtn}</div>
+        <div class="choices" role="group" aria-label="${esc(parts.question || T('답'))}">${choices.items.map((x) => choiceButton(choices, x, { press, primary: nk || menu ? null : primary, alt })).join('')}${nextBtn}</div>
         ${menu ? hintOf(menu) : ''}
         ${detail.showScreen ? screen : ''}
         ${detail.showKeys ? keys : ''}
@@ -265,7 +265,7 @@ function sayBlocked(a, choices) {
   if (!choices || detail.saidFor === key) return;
   detail.saidFor = key;
   const say = document.getElementById('d-say');
-  if (say) say.textContent = a.menu ? `메뉴가 열렸습니다: ${(choices.panel && choices.panel.title) || choices.question || ''}` : `답이 필요합니다: ${choices.question || '선택지를 고르세요'}`;
+  if (say) say.textContent = a.menu ? T('메뉴가 열렸습니다: {title}', { title: (choices.panel && choices.panel.title) || choices.question || '' }) : T('답이 필요합니다: {question}', { question: choices.question || T('선택지를 고르세요') });
 }
 
 // Choice n of the open agent's prompt, from its button or its number key (app.js answerKey).
@@ -318,7 +318,7 @@ function startAnswer(choices = null) {
   updateComposer();
   const input = document.getElementById('d-input');
   if (input) input.focus();
-  toast('답을 아래 입력 칸에 적어 보내세요');
+  toast(T('답을 아래 입력 칸에 적어 보내세요'));
 }
 
 // True when the keys went through. A failure says so in Korean and changes nothing else.
@@ -328,7 +328,7 @@ async function sendKeys(keys, host = curHost(), pane = detail.pane) {
     if (view.name === 'agent' && detail.pane === pane && curHost() === host) setTimeout(loadDetail, 500);
     return true;
   } catch (err) {
-    toastErr(`키를 보내지 못했습니다: ${errText(err)}`);
+    toastErr(T('키를 보내지 못했습니다: {error}', { error: errText(err) }));
     return false;
   }
 }

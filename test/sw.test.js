@@ -113,7 +113,7 @@ test('a page load that fails gets offline.html; a working one, the API and asset
   let net = (req) => ({ ok: true, status: 200, body: `net ${req.url}` });
   const w = loadNav((req) => net(req));
   await w.install();
-  assert.deepEqual(w.added, ['/offline.html', '/conn.js', '/style.css']);
+  assert.deepEqual(w.added, ['/offline.html', '/i18n.en.js', '/i18n.js', '/conn.js', '/style.css']);
   assert.deepEqual(await w.get('https://hub.invalid/#/'), { ok: true, status: 200, body: 'net https://hub.invalid/#/' });
   assert.equal(await w.get('https://hub.invalid/api/stream', 'cors'), 'not handled');
   assert.equal(await w.get('https://hub.invalid/app.js?v=1234abcd', 'no-cors'), 'not handled');

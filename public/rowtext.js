@@ -69,7 +69,7 @@
 
   // A host button's name as read aloud: the dot's colour and the ! say this in pictures.
   function hostAria(h, mismatch) {
-    return [h.label, h.online ? '' : T('오프라인'), mismatch ? T('API 버전 다름, 배포 필요') : ''].filter(Boolean).join(', ');
+    return [h.label, h.online ? '' : T('오프라인@@inline'), mismatch ? T('API 버전 다름, 배포 필요') : ''].filter(Boolean).join(', ');
   }
 
   // A host's dot (list.js hostDot): 'up' (online, herdr answering), 'herdr' (online, herdr not),

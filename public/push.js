@@ -4,14 +4,16 @@
 // The top part is pure: window.PushView in the page, required by the tests.
 
 (function (root) {
+  const I18n = root.I18n || require('./i18n.js');
+  const T = I18n.t;
   // 'ios' | 'android' | 'desktop' (prefs.js, which also keeps a default per platform).
   const platformOf = (ua = '', touchPoints = 0) => (typeof module === 'object' && module.exports ? require('./prefs.js') : root.Prefs).platformOf(ua, touchPoints);
 
   // Where to allow notifications again once they were refused.
   function deniedFix(platform, standalone) {
-    if (platform === 'ios') return 'iPhone 설정 → 알림 → Herdr Hub 에서 허용하세요.';
-    if (platform === 'android') return standalone ? '앱 정보(아이콘을 길게 누름) → 알림에서 허용하세요.' : '주소창 왼쪽 사이트 설정 → 알림에서 허용하세요.';
-    return '주소창 왼쪽 사이트 설정 → 알림에서 허용하세요.';
+    if (platform === 'ios') return T('iPhone 설정 → 알림 → Herdr Hub 에서 허용하세요.');
+    if (platform === 'android') return standalone ? T('앱 정보(아이콘을 길게 누름) → 알림에서 허용하세요.') : T('주소창 왼쪽 사이트 설정 → 알림에서 허용하세요.');
+    return T('주소창 왼쪽 사이트 설정 → 알림에서 허용하세요.');
   }
 
   // What the 알림 block shows. env:
@@ -24,24 +26,24 @@
   // The status is one line; lines only say what to do about it. A button only when it can work.
   function pushView(env) {
     const { platform, standalone, supported, off, hub, alone, perm, sub, maxActions } = env;
-    if (off && alone) return { tone: 'off', status: '이 호스트는 알림이 꺼져 있습니다', lines: ['HERDR_HUB_PUSH=0 으로 꺼 두었습니다. 알림을 받으려면 그 설정을 빼고 Hub 를 다시 시작하세요.'], actions: [] };
-    if (off) return { tone: 'off', status: '이 호스트는 알림을 보내지 않습니다', lines: [`알림은 허브${hub ? `(${hub})` : ''}에서 켜세요.`], actions: [] };
+    if (off && alone) return { tone: 'off', status: T('이 호스트는 알림이 꺼져 있습니다'), lines: [T('HERDR_HUB_PUSH=0 으로 꺼 두었습니다. 알림을 받으려면 그 설정을 빼고 Hub 를 다시 시작하세요.')], actions: [] };
+    if (off) return { tone: 'off', status: T('이 호스트는 알림을 보내지 않습니다'), lines: [hub ? T('알림은 허브({hub})에서 켜세요.', { hub }) : T('알림은 허브에서 켜세요.')], actions: [] };
     // iOS has web push only in a home-screen app (Safari itself has no PushManager).
-    if (platform === 'ios' && !standalone) return { tone: 'off', status: '설치한 앱에서만 받을 수 있습니다', lines: ['Safari 공유 버튼 → 홈 화면에 추가로 설치한 뒤, 그 앱의 설정에서 켜세요.'], actions: [] };
-    if (!supported || perm === 'unsupported') return { tone: 'off', status: '이 브라우저는 알림을 받을 수 없습니다', lines: [], actions: [] };
-    if (perm === 'denied') return { tone: 'bad', status: '알림이 거부되어 있습니다', lines: [deniedFix(platform, standalone)], actions: [] };
-    if (sub === undefined) return { tone: 'wait', status: '이 기기 알림을 확인하는 중…', lines: [], actions: [] };
+    if (platform === 'ios' && !standalone) return { tone: 'off', status: T('설치한 앱에서만 받을 수 있습니다'), lines: [T('Safari 공유 버튼 → 홈 화면에 추가로 설치한 뒤, 그 앱의 설정에서 켜세요.')], actions: [] };
+    if (!supported || perm === 'unsupported') return { tone: 'off', status: T('이 브라우저는 알림을 받을 수 없습니다'), lines: [], actions: [] };
+    if (perm === 'denied') return { tone: 'bad', status: T('알림이 거부되어 있습니다'), lines: [deniedFix(platform, standalone)], actions: [] };
+    if (sub === undefined) return { tone: 'wait', status: T('이 기기 알림을 확인하는 중…'), lines: [], actions: [] };
     if (sub)
       return {
         tone: 'on',
-        status: '이 기기는 알림을 받습니다',
-        lines: [Number(maxActions) > 0 ? '답 필요 알림에 Yes · No 같은 답 버튼이 붙습니다(질문이 그대로일 때만 보냄).' : '이 기기의 알림에는 답 버튼이 없습니다. 누르면 그 에이전트가 열립니다.'],
+        status: T('이 기기는 알림을 받습니다'),
+        lines: [Number(maxActions) > 0 ? T('답 필요 알림에 Yes · No 같은 답 버튼이 붙습니다(질문이 그대로일 때만 보냄).') : T('이 기기의 알림에는 답 버튼이 없습니다. 누르면 그 에이전트가 열립니다.')],
         actions: ['test', 'disable'],
       };
     return {
       tone: 'off',
-      status: '이 기기는 알림이 꺼져 있습니다',
-      lines: [`에이전트가 답을 기다리거나 일을 끝내면 알려 줍니다.${perm === 'default' ? ' 켜면 권한을 묻습니다.' : ''}`],
+      status: T('이 기기는 알림이 꺼져 있습니다'),
+      lines: [perm === 'default' ? T('에이전트가 답을 기다리거나 일을 끝내면 알려 줍니다. 켜면 권한을 묻습니다.') : T('에이전트가 답을 기다리거나 일을 끝내면 알려 줍니다.')],
       actions: ['enable'],
     };
   }
@@ -72,6 +74,8 @@ async function lookupSub() {
     if (!sub) return (devSub = null);
     const r = await api('/push/status', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) });
     devSub = r.subscribed ? sub : null;
+    // Its notifications in the language this page shows now (a host from before English says no lang).
+    if (devSub && r.lang && r.lang !== I18n.lang) api('/push/subscribe', { method: 'POST', body: JSON.stringify({ ...sub.toJSON(), lang: I18n.lang }) }).catch(() => {});
   } catch {
     devSub = null;
   }
@@ -114,18 +118,18 @@ async function testPush() {
   const sub = await lookupSub();
   if (!sub) {
     renderPushBlock();
-    return toast('이 기기는 알림이 꺼져 있습니다', { action: { label: '알림 켜기', run: enablePush } });
+    return toast(T('이 기기는 알림이 꺼져 있습니다'), { action: { label: T('알림 켜기'), run: enablePush } });
   }
   try {
     await api('/push/test', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) });
-    toast('이 기기로 시험 알림을 보냈습니다');
+    toast(T('이 기기로 시험 알림을 보냈습니다'));
   } catch (err) {
     if (err.code === 'not_subscribed') {
       devSub = null;
       renderPushBlock();
-      return toast('이 기기는 알림이 꺼져 있습니다', { action: { label: '알림 켜기', run: enablePush } });
+      return toast(T('이 기기는 알림이 꺼져 있습니다'), { action: { label: T('알림 켜기'), run: enablePush } });
     }
-    toastErr(`시험 알림을 보내지 못했습니다: ${errText(err)}`);
+    toastErr(T('시험 알림을 보내지 못했습니다: {err}', { err: errText(err) }));
   }
 }
 
@@ -148,9 +152,9 @@ async function disablePush() {
       await sub.unsubscribe();
     }
     devSub = null;
-    toast('이 기기 알림을 껐습니다.');
+    toast(T('이 기기 알림을 껐습니다.'));
   } catch (err) {
-    toastErr(`알림을 끄지 못했습니다: ${errText(err)}`);
+    toastErr(T('알림을 끄지 못했습니다: {err}', { err: errText(err) }));
   }
   renderPushBlock();
 }
@@ -160,17 +164,17 @@ async function enablePush() {
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') {
       renderPushBlock();
-      return toastErr(perm === 'denied' ? `알림이 거부됐습니다. ${PushView.deniedFix(devicePlatform(), isStandalone())}` : '알림 권한을 받지 못했습니다.');
+      return toastErr(perm === 'denied' ? T('알림이 거부됐습니다. {fix}', { fix: PushView.deniedFix(devicePlatform(), isStandalone()) }) : T('알림 권한을 받지 못했습니다.'));
     }
     const reg = await navigator.serviceWorker.ready;
     const { publicKey } = await api('/push/key');
     let sub = await reg.pushManager.getSubscription();
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) });
-    await api('/push/subscribe', { method: 'POST', body: JSON.stringify(sub.toJSON()) });
+    await api('/push/subscribe', { method: 'POST', body: JSON.stringify({ ...sub.toJSON(), lang: I18n.lang }) });
     devSub = sub;
-    toast('이 기기 알림을 켰습니다.');
+    toast(T('이 기기 알림을 켰습니다.'));
     renderPushBlock();
   } catch (err) {
-    toastErr(`알림을 켜지 못했습니다: ${errText(err)}`);
+    toastErr(T('알림을 켜지 못했습니다: {err}', { err: errText(err) }));
   }
 }

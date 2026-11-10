@@ -3,6 +3,8 @@
 // shell's 키 직접 입력 sends (and how those queue up).
 // Pure: loaded as a plain script in the page (window.Keys), required by the tests.
 (function (root) {
+  const I18n = root.I18n || require('./i18n.js');
+  const T = I18n.t;
   // What Enter does in the composer: 'send', 'newline' or null (leave it to the IME).
   // Korean (and other) IMEs send Enter while a syllable is still being composed: never act then.
   // ⌘/Ctrl+Enter on a syllable still being composed (the last one typed) says to send once the
@@ -56,18 +58,18 @@
   // What a shell (readline, zsh, nushell's emacs mode) does with a key rawKeyName names, in words
   // for the 단축키 page when the Hub takes that key in the shell view; '' when nothing well known.
   const SHELL_MEANINGS = {
-    'ctrl+a': '줄 맨 앞으로', 'ctrl+e': '줄 끝으로', 'ctrl+b': '한 글자 뒤로', 'ctrl+f': '한 글자 앞으로',
-    'ctrl+p': '이전 명령', 'ctrl+n': '다음 명령', 'ctrl+r': '기록 찾기', 'ctrl+s': '기록 앞으로 찾기',
-    'ctrl+k': '줄 끝까지 지우기', 'ctrl+u': '줄 앞까지 지우기', 'ctrl+w': '한 단어 지우기', 'ctrl+y': '지운 것 붙여넣기',
-    'ctrl+l': '화면 지우기', 'ctrl+d': '글자 지우기·셸 끝내기', 'ctrl+c': '중단', 'ctrl+z': '일시 정지',
-    'ctrl+t': '두 글자 바꾸기', 'ctrl+h': '한 글자 지우기', 'ctrl+j': '줄바꿈', 'ctrl+o': '실행하고 다음 기록',
-    'ctrl+g': '취소', 'ctrl+x': '두 키 명령의 시작', 'ctrl+q': '다음 키 그대로', 'ctrl+v': '다음 키 그대로',
-    'alt+b': '한 단어 뒤로', 'alt+f': '한 단어 앞으로', 'alt+d': '다음 단어 지우기', 'alt+.': '마지막 인자',
-    'alt+t': '두 단어 바꾸기', 'alt+u': '단어를 대문자로', 'alt+l': '단어를 소문자로', 'alt+c': '단어 첫 글자를 대문자로',
-    'alt+y': '그 전에 지운 것 붙여넣기', 'alt+w': '단어 복사', 'alt+p': '앞부분이 같은 이전 명령', 'alt+n': '앞부분이 같은 다음 명령',
-    'alt+left': '한 단어 뒤로', 'alt+right': '한 단어 앞으로', 'ctrl+left': '한 단어 뒤로', 'ctrl+right': '한 단어 앞으로',
-    up: '이전 명령', down: '다음 명령', left: '한 글자 뒤로', right: '한 글자 앞으로', home: '줄 맨 앞으로', end: '줄 끝으로',
-    tab: '완성', 'shift+tab': '이전 완성', enter: '실행', backspace: '한 글자 지우기', delete: '글자 지우기', esc: 'Esc',
+    'ctrl+a': T('줄 맨 앞으로'), 'ctrl+e': T('줄 끝으로'), 'ctrl+b': T('한 글자 뒤로'), 'ctrl+f': T('한 글자 앞으로'),
+    'ctrl+p': T('이전 명령'), 'ctrl+n': T('다음 명령'), 'ctrl+r': T('기록 찾기'), 'ctrl+s': T('기록 앞으로 찾기'),
+    'ctrl+k': T('줄 끝까지 지우기'), 'ctrl+u': T('줄 앞까지 지우기'), 'ctrl+w': T('한 단어 지우기'), 'ctrl+y': T('지운 것 붙여넣기'),
+    'ctrl+l': T('화면 지우기'), 'ctrl+d': T('글자 지우기·셸 끝내기'), 'ctrl+c': T('중단@@signal'), 'ctrl+z': T('일시 정지'),
+    'ctrl+t': T('두 글자 바꾸기'), 'ctrl+h': T('한 글자 지우기'), 'ctrl+j': T('줄바꿈@@keyname'), 'ctrl+o': T('실행하고 다음 기록'),
+    'ctrl+g': T('취소'), 'ctrl+x': T('두 키 명령의 시작'), 'ctrl+q': T('다음 키 그대로'), 'ctrl+v': T('다음 키 그대로'),
+    'alt+b': T('한 단어 뒤로'), 'alt+f': T('한 단어 앞으로'), 'alt+d': T('다음 단어 지우기'), 'alt+.': T('마지막 인자'),
+    'alt+t': T('두 단어 바꾸기'), 'alt+u': T('단어를 대문자로'), 'alt+l': T('단어를 소문자로'), 'alt+c': T('단어 첫 글자를 대문자로'),
+    'alt+y': T('그 전에 지운 것 붙여넣기'), 'alt+w': T('단어 복사'), 'alt+p': T('앞부분이 같은 이전 명령'), 'alt+n': T('앞부분이 같은 다음 명령'),
+    'alt+left': T('한 단어 뒤로'), 'alt+right': T('한 단어 앞으로'), 'ctrl+left': T('한 단어 뒤로'), 'ctrl+right': T('한 단어 앞으로'),
+    up: T('이전 명령'), down: T('다음 명령'), left: T('한 글자 뒤로'), right: T('한 글자 앞으로'), home: T('줄 맨 앞으로'), end: T('줄 끝으로'),
+    tab: T('완성'), 'shift+tab': T('이전 완성'), enter: T('실행@@keyname'), backspace: T('한 글자 지우기'), delete: T('글자 지우기'), esc: 'Esc',
   };
   const shellMeaning = (name) => SHELL_MEANINGS[name] || '';
 

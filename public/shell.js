@@ -7,15 +7,15 @@
 // reader says: VoiceOver skips some signs or reads them its own way).
 // 한 줄 입력 keeps Esc, Tab and ↑ where 키 직접 입력 has them; Ctrl+C, which stops the running
 // program without asking, goes last, away from the thumb's first key.
-const TERM_KEYS = [['esc', 'Esc'], ['tab', 'Tab'], ['up', '↑', '위 화살표'], ['down', '↓', '아래 화살표'], ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C']];
+const TERM_KEYS = [['esc', 'Esc'], ['tab', 'Tab'], ['up', '↑', T('위 화살표')], ['down', '↓', T('아래 화살표')], ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C']];
 // 키 직접 입력 (raw), the shell view's default: every key goes to the pane as it is pressed,
 // so the shell's own completion, history and suggestions work, as do full-screen programs
 // (helix, vim, less). What the phone's keyboard lacks comes first, so a 390px row shows it
 // without scrolling: Esc, the sticky Ctrl and Alt, Tab and the arrows. A ":text" entry types
 // that text, "mod:" ones are the sticky modifiers; the rest are herdr key names.
 const RAW_TERM_KEYS = [
-  ['esc', 'Esc'], ['mod:ctrl', 'Ctrl'], ['mod:alt', 'Alt'], ['tab', 'Tab'], ['up', '↑', '위 화살표'], ['down', '↓', '아래 화살표'], ['left', '←', '왼쪽 화살표'], ['right', '→', '오른쪽 화살표'],
-  ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C'], ['ctrl+r', 'Ctrl+R'], ['pageup', 'PgUp', 'Page Up'], ['pagedown', 'PgDn', 'Page Down'], [':text', ':', '쌍점'], ['/text', '/', '빗금'], ['ctrl+x', 'Ctrl+X'],
+  ['esc', 'Esc'], ['mod:ctrl', 'Ctrl'], ['mod:alt', 'Alt'], ['tab', 'Tab'], ['up', '↑', T('위 화살표')], ['down', '↓', T('아래 화살표')], ['left', '←', T('왼쪽 화살표')], ['right', '→', T('오른쪽 화살표')],
+  ['enter', 'Enter'], ['ctrl+c', 'Ctrl+C'], ['ctrl+r', 'Ctrl+R'], ['pageup', 'PgUp', 'Page Up'], ['pagedown', 'PgDn', 'Page Down'], [':text', ':', T('쌍점')], ['/text', '/', T('빗금')], ['ctrl+x', 'Ctrl+X'],
 ];
 const MOD_LABEL = { ctrl: 'Ctrl', alt: 'Alt' };
 const LOCK_ICON = '<svg class="lk" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -32,23 +32,23 @@ function renderTerminal() {
         ${backLink(homeHash())}
         <h1 id="t-title"></h1>
         <span id="t-live"></span>
-        <button class="icon-btn" id="t-more" aria-label="더 보기" aria-haspopup="dialog"${keyAttrs('menu', '더 보기')}>${ICON.more}</button>
+        <button class="icon-btn" id="t-more" aria-label="${T('더 보기')}" aria-haspopup="dialog"${keyAttrs('menu', T('더 보기'))}>${ICON.more}</button>
       </header>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="term-gone" id="t-gone" hidden></div>
-      <div class="scroll" id="t-body" role="region" aria-label="셸 화면"></div>
+      <div class="scroll" id="t-body" role="region" aria-label="${T('셸 화면')}"></div>
       <div class="term-bar">
         <div class="raw-chip" id="t-sending" hidden></div>
         <p class="term-state" id="t-state"></p>
         <div class="keys term-keys" id="t-keys"></div>
         <div class="term-side">
-          <button type="button" class="key fold" id="t-fold" aria-expanded="true" aria-controls="t-keys" hidden>키 줄</button>
-          <button type="button" class="key" id="t-kbd" aria-pressed="false" aria-label="키보드 올리기" title="키보드 올리기">${ICON.keyboard}</button>
+          <button type="button" class="key fold" id="t-fold" aria-expanded="true" aria-controls="t-keys" hidden>${T('키 줄')}</button>
+          <button type="button" class="key" id="t-kbd" aria-pressed="false" aria-label="${T('키보드 올리기')}" title="${T('키보드 올리기')}">${ICON.keyboard}</button>
         </div>
       </div>
       <form class="composer" id="t-form">
-        <input class="cmd" id="t-input" aria-label="셸 명령" placeholder="명령 (Enter 로 실행)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
-        <button type="submit" class="send" id="t-send" aria-label="실행">${ICON.send}</button>
+        <input class="cmd" id="t-input" aria-label="${T('셸 명령')}" placeholder="${T('명령 (Enter 로 실행)')}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
+        <button type="submit" class="send" id="t-send" aria-label="${T('실행')}">${ICON.send}</button>
       </form>
     </div>`;
   const input = document.getElementById('t-input');
@@ -59,7 +59,7 @@ function renderTerminal() {
       .map(([k, label, spoken]) =>
         k.startsWith('mod:')
           ? `<button type="button" class="key mod" data-key="${esc(k)}" aria-pressed="false">${esc(label)}</button>`
-          : `<button type="button" class="key" data-key="${esc(k)}" aria-label="${esc(spoken || label)} 키 보내기">${esc(label)}</button>`,
+          : `<button type="button" class="key" data-key="${esc(k)}" aria-label="${T('{key} 키 보내기', { key: esc(spoken || label) })}">${esc(label)}</button>`,
       )
       .join('');
     keysBox.scrollLeft = 0;
@@ -108,7 +108,7 @@ function renderTerminal() {
     if (!currentTerminal()) return;
     if (detail.raw) return rawPress(k.endsWith('text') ? { text: k.slice(0, -4) } : { key: k });
     followTerm();
-    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [k], text: input.value }, null, '키를 보내지 못했습니다')) {
+    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/keys`), { keys: [k], text: input.value }, null, T('키를 보내지 못했습니다'))) {
       input.value = '';
       setTimeout(loadTerminal, 300);
     }
@@ -121,8 +121,8 @@ function renderTerminal() {
     detail.raw = on;
     detail.mods = {};
     input.value = '';
-    input.placeholder = on ? '누르는 키가 바로 갑니다' : '명령 (리턴으로 실행 · Tab 은 셸의 완성)';
-    input.setAttribute('aria-label', on ? '셸에 키 입력' : '셸 명령');
+    input.placeholder = on ? T('누르는 키가 바로 갑니다') : T('명령 (리턴으로 실행 · Tab 은 셸의 완성)');
+    input.setAttribute('aria-label', on ? T('셸에 키 입력') : T('셸 명령'));
     input.setAttribute('enterkeyhint', on ? 'enter' : 'send');
     document.getElementById('t-send').hidden = on;
     detailRoot().querySelector('.detail').classList.toggle('raw', on);
@@ -145,8 +145,8 @@ function renderTerminal() {
     const up = document.activeElement === input;
     kbd.innerHTML = up ? ICON.keyboardOff : ICON.keyboard;
     kbd.setAttribute('aria-pressed', String(up));
-    kbd.setAttribute('aria-label', up ? '키보드 내리기' : '키보드 올리기');
-    kbd.title = up ? '키보드 내리기' : '키보드 올리기';
+    kbd.setAttribute('aria-label', up ? T('키보드 내리기') : T('키보드 올리기'));
+    kbd.title = up ? T('키보드 내리기') : T('키보드 올리기');
   };
   // 키 줄 접기·펴기 (two columns or a mouse): the choice lasts while the app is open.
   document.getElementById('t-fold').onclick = () => {
@@ -168,7 +168,7 @@ function renderTerminal() {
     e.preventDefault();
     if (detail.raw || !currentTerminal()) return;
     followTerm();
-    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: input.value }, null, '셸에 보내지 못했습니다')) {
+    if (await act(hp(`/panes/${encodeURIComponent(detail.pane)}/input`), { text: input.value }, null, T('셸에 보내지 못했습니다'))) {
       input.value = '';
       setTimeout(loadTerminal, 400);
     }
@@ -299,9 +299,9 @@ function drawKeyRow() {
   d.classList.toggle('keys-folded', folded);
   fold.hidden = !detail.raw || !(split || matchMedia('(hover: hover) and (pointer: fine)').matches);
   fold.setAttribute('aria-expanded', String(!folded));
-  fold.textContent = folded ? '키 줄 ▴' : '키 줄 ▾';
-  fold.title = folded ? '키 줄 펴기 (Esc·Ctrl·Tab·화살표…)' : '키 줄 접기';
-  fold.setAttribute('aria-label', folded ? '키 줄 펴기' : '키 줄 접기');
+  fold.textContent = folded ? T('키 줄 ▴') : T('키 줄 ▾');
+  fold.title = folded ? T('키 줄 펴기 (Esc·Ctrl·Tab·화살표…)') : T('키 줄 접기');
+  fold.setAttribute('aria-label', folded ? T('키 줄 펴기') : T('키 줄 접기'));
 }
 addEventListener(
   'pointerdown',
@@ -329,7 +329,7 @@ function drawTyping() {
   const on = Boolean(detail.raw && keysReachShell());
   d.classList.toggle('typing', on);
   st.classList.toggle('on', on);
-  st.textContent = on ? '치는 키가 셸로 갑니다' : '셸 화면을 누르면 키가 셸로 갑니다';
+  st.textContent = on ? T('치는 키가 셸로 갑니다') : T('셸 화면을 누르면 키가 셸로 갑니다');
 }
 for (const ev of ['focusin', 'focusout']) addEventListener(ev, () => view.name === 'term' && setTimeout(drawTyping, 0));
 
@@ -420,7 +420,7 @@ function drawMods() {
     b.classList.toggle('lock', lock);
     // Locked shows a padlock, so it reads apart from 한 번 (filled only) at a phone's distance.
     b.innerHTML = `${esc(MOD_LABEL[name])}${lock ? LOCK_ICON : ''}`;
-    b.setAttribute('aria-label', lock ? `${MOD_LABEL[name]} 고정됨, 누르면 풀림` : modOn(m) ? `${MOD_LABEL[name]} 켜짐, 다음 키에 붙음` : `${MOD_LABEL[name]}, 한 번 누르면 다음 키에만, 두 번 누르면 고정`);
+    b.setAttribute('aria-label', lock ? T('{mod} 고정됨, 누르면 풀림', { mod: MOD_LABEL[name] }) : modOn(m) ? T('{mod} 켜짐, 다음 키에 붙음', { mod: MOD_LABEL[name] }) : T('{mod}, 한 번 누르면 다음 키에만, 두 번 누르면 고정', { mod: MOD_LABEL[name] }));
   }
 }
 // A raw-mode press with the sticky modifiers applied; a one-shot modifier is used up by it.
@@ -460,16 +460,16 @@ function renderTerminalHeader() {
   const more = document.getElementById('t-more');
   if (more) more.hidden = !t; // nothing to do with a shell that is gone
   if (!t && !stateIn) {
-    title.innerHTML = '<span class="t">셸</span><span class="sub">불러오는 중…</span>';
+    title.innerHTML = `<span class="t">${T('셸')}</span><span class="sub">${T('불러오는 중…')}</span>`;
     return;
   }
   title.innerHTML = t
-    ? `<span class="t">${esc(termTitle(t))}</span><span class="sub"${t.cwd ? ` title="${esc(t.cwd)}"` : ''}>${multi() ? `${esc(hostLabel(t.host))} · ` : ''}셸 · ${esc(wsAndDir(t.workspaceLabel, t.cwd))}</span>`
+    ? `<span class="t">${esc(termTitle(t))}</span><span class="sub"${t.cwd ? ` title="${esc(t.cwd)}"` : ''}>${multi() ? `${esc(hostLabel(t.host))} · ` : ''}${T('셸 · {where}', { where: esc(wsAndDir(t.workspaceLabel, t.cwd)) })}</span>`
     : offline
-      ? `<span class="t">${esc(hostLabel(curHost()))} 오프라인</span><span class="sub">호스트가 돌아오면 다시 보입니다</span>`
+      ? `<span class="t">${T('{host} 오프라인', { host: esc(hostLabel(curHost())) })}</span><span class="sub">${T('호스트가 돌아오면 다시 보입니다')}</span>`
       : detail.lastTerm
-        ? `<span class="t">${esc(termTitle(detail.lastTerm))}</span><span class="sub">닫힘 · ${esc(wsAndDir(detail.lastTerm.workspaceLabel, detail.lastTerm.cwd))}</span>`
-        : '<span class="t">셸 없음</span><span class="sub">닫혔거나 없는 셸입니다</span>';
+        ? `<span class="t">${esc(termTitle(detail.lastTerm))}</span><span class="sub">${T('닫힘 · {where}', { where: esc(wsAndDir(detail.lastTerm.workspaceLabel, detail.lastTerm.cwd)) })}</span>`
+        : `<span class="t">${T('셸 없음')}</span><span class="sub">${T('닫혔거나 없는 셸입니다')}</span>`;
   const dot = document.getElementById('t-live');
   if (dot) dot.innerHTML = liveDot();
   termGone(t ? null : offline ? 'offline' : 'closed');
@@ -506,9 +506,9 @@ function termGone(kind) {
   box.hidden = false;
   box.innerHTML =
     kind === 'offline'
-      ? `<p class="g-main">${esc(hostLabel(curHost()))}에 닿지 않습니다</p><p class="g-sub">호스트가 돌아오면 이 셸이 다시 보입니다</p>`
+      ? `<p class="g-main">${T('{host}에 닿지 않습니다', { host: esc(hostLabel(curHost())) })}</p><p class="g-sub">${T('호스트가 돌아오면 이 셸이 다시 보입니다')}</p>`
       : // Back to the list in one tap (in two columns too: this side then empties).
-        `<div class="g-text"><p class="g-main">이 셸은 닫혔습니다</p>${d.classList.contains('kept') ? '<p class="g-sub">아래는 닫히기 전의 마지막 화면입니다</p>' : ''}</div><a class="btn secondary" href="${esc(homeHash())}">작업공간으로</a>`;
+        `<div class="g-text"><p class="g-main">${T('이 셸은 닫혔습니다')}</p>${d.classList.contains('kept') ? `<p class="g-sub">${T('아래는 닫히기 전의 마지막 화면입니다')}</p>` : ''}</div><a class="btn secondary" href="${esc(homeHash())}">${T('작업공간으로')}</a>`;
 }
 
 // Raw-mode keys in order: text runs merge, one request at a time, the screen read soon after.
@@ -564,7 +564,7 @@ function drawSending() {
     sendingTimer = null;
     chip.className = 'raw-chip err';
     chip.setAttribute('role', 'alert');
-    chip.innerHTML = `보내지 못한 키: <b>${esc(rawFailed.text)}</b> · ${esc(rawFailed.why)}`;
+    chip.innerHTML = T('보내지 못한 키: {keys} · {why}', { keys: `<b>${esc(rawFailed.text)}</b>`, why: esc(rawFailed.why) });
     chip.hidden = false;
     return;
   }
@@ -577,7 +577,7 @@ function drawSending() {
   }
   chip.className = 'raw-chip';
   chip.removeAttribute('role');
-  chip.innerHTML = `보내는 중: <b>${esc(Keys.describeRaw(items))}</b><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
+  chip.innerHTML = `${T('보내는 중: {keys}', { keys: `<b>${esc(Keys.describeRaw(items))}</b>` })}<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
   if (chip.hidden && !sendingTimer)
     sendingTimer = setTimeout(() => {
       sendingTimer = null;
@@ -728,8 +728,8 @@ const liveHeldFor = (host, pane) => Boolean(liveHeld && liveHeld.host === host &
 const liveHeldItems = () => (liveHeld ? [...liveHeld.keys, ...liveHeld.later].map((x) => ({ host: liveHeld.host, pane: liveHeld.pane, text: x.text, keys: x.keys })) : []);
 function liveHold(ch) {
   if (!ch.resume || !ch.sent.length) return false;
-  if (liveHeld && !liveHeldFor(ch.host, ch.pane)) liveGiveUp('연결이 끊겼습니다');
-  if (!liveHeld) liveHeld = { host: ch.host, pane: ch.pane, keys: [], later: [], timer: setTimeout(() => liveGiveUp('연결이 끊겼습니다'), Live.RESUME_WAIT_MS) };
+  if (liveHeld && !liveHeldFor(ch.host, ch.pane)) liveGiveUp(T('연결이 끊겼습니다'));
+  if (!liveHeld) liveHeld = { host: ch.host, pane: ch.pane, keys: [], later: [], timer: setTimeout(() => liveGiveUp(T('연결이 끊겼습니다')), Live.RESUME_WAIT_MS) };
   liveHeld.keys.push(...ch.sent);
   ch.sent = [];
   return true;
@@ -753,7 +753,7 @@ function liveResumed(ch, applied) {
   liveHeld = null;
   clearTimeout(h.timer);
   const r = Live.resumeSplit(h.keys, applied);
-  liveLost(ch, r.lost, '연결이 끊겼습니다');
+  liveLost(ch, r.lost, T('연결이 끊겼습니다'));
   for (const it of r.resend) liveSendKey(ch, it);
   for (const x of h.later) liveKey(x.keys.length ? { key: x.keys[0] } : { text: x.text });
   drawSending();
@@ -839,7 +839,7 @@ function liveLost(ch, lost, why) {
 // Keys lost on a shell no longer on screen: only a notice can say so, naming that shell.
 function lostElsewhere(host, pane, why) {
   const t = (state.terminals || []).find((x) => same(x, host, pane));
-  toastErr(`「${t ? termTitle(t) : pane}」 셸에 키를 보내지 못했습니다: ${why}`);
+  toastErr(T('「{name}」 셸에 키를 보내지 못했습니다: {why}', { name: t ? termTitle(t) : pane, why }));
 }
 
 function liveMessage(ch, data) {
@@ -862,7 +862,7 @@ function liveMessage(ch, data) {
     ch.resume = Boolean(m.resume);
     liveLog[ch.host] = { ...(liveLog[ch.host] || {}), fails: 0 };
     if (ch.resume) ch.ws.send(JSON.stringify({ t: 'resume', c: liveCid, s: liveSeqs.get(liveSeqKey(ch.host, ch.pane)) || 0 }));
-    else if (liveHeldFor(ch.host, ch.pane)) liveGiveUp('연결이 끊겼습니다');
+    else if (liveHeldFor(ch.host, ch.pane)) liveGiveUp(T('연결이 끊겼습니다'));
     return drawSending();
   }
   if (m.t === 'resumed') {
@@ -913,13 +913,13 @@ function liveClosed(ch) {
   clearInterval(liveWatch);
   ch.pred.end();
   predRender();
-  if (ch.gone || !liveHold(ch)) liveLost(ch, ch.sent, '연결이 끊겼습니다');
+  if (ch.gone || !liveHold(ch)) liveLost(ch, ch.sent, T('연결이 끊겼습니다'));
   drawSending();
-  if (ch.gone) return liveHeldFor(ch.host, ch.pane) && liveGiveUp('셸이 닫혔습니다'); // the shell closed: its state says so
+  if (ch.gone) return liveHeldFor(ch.host, ch.pane) && liveGiveUp(T('셸이 닫혔습니다')); // the shell closed: its state says so
   const r = Live.ended(liveLog[ch.host] || {}, { opened: ch.open, now: Date.now() });
   liveLog[ch.host] = r.log;
   if (r.off) {
-    if (liveHeldFor(ch.host, ch.pane)) liveGiveUp('연결이 끊겼습니다');
+    if (liveHeldFor(ch.host, ch.pane)) liveGiveUp(T('연결이 끊겼습니다'));
     liveOff[ch.host] = Date.now() + Live.OFF_MS;
     console.warn(`[live] ${ch.host}: the channel ${ch.open ? 'keeps dropping' : 'does not open'}; reading over HTTP for now`);
   } else

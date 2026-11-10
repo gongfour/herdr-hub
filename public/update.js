@@ -7,6 +7,8 @@
 // These are the pure parts; app.js does the wiring.
 // Pure: loaded as a plain script in the page (window.Update), required by the tests.
 (function (root) {
+  const I18n = root.I18n || require('./i18n.js');
+  const T = I18n.t;
   // A build: { version: '1.0.523', commit: 'ae7dc0a', sha, time: ISO, dirty, api, id }.
   // From the meta's content (JSON), or null.
   function parseBuild(text) {
@@ -86,7 +88,7 @@
   // on its line, e.g. "API 2 (허브는 3)"; '' when they agree, it's offline, or either is unknown.
   function apiNote(host, hub) {
     if (!host || !hub || host.local || !host.online || host.api == null || !Number.isInteger(hub.api) || host.api === hub.api) return '';
-    return `API ${host.api || '없음'} (허브는 ${hub.api})`;
+    return T('API {api} (허브는 {hub})', { api: host.api || T('없음@@inline'), hub: hub.api });
   }
 
   const api = { apiNote, parseBuild, buildOf, differs, when, buildLabel, shortLabel, safeToReload, away, AWAY_MS, mustReload, mayTry, RETRY_MS };

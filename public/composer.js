@@ -7,7 +7,7 @@
 // Typing "/" at the start lists what this Claude agent's Claude Code accepts as a command
 // (built-in, project, user, skills, plugins: read on the agent's host); "@" completes paths
 // under its folder; "!" says the line runs in its shell. Tap or ↑↓ + Enter/Tab inserts.
-const SOURCE_LABEL = { builtin: '기본', project: '프로젝트', user: '사용자', skill: '스킬', plugin: '플러그인' };
+const SOURCE_LABEL = { builtin: T('기본'), project: T('프로젝트'), user: T('사용자'), skill: T('스킬'), plugin: T('플러그인') };
 const PAL_MAX = 80; // rows drawn; the filter narrows long lists
 const cmdCache = new Map(); // host|pane -> { at, list } for 60 s, like the host's own cache
 const fileCache = new Map(); // host|pane|q -> { at, list }
@@ -130,7 +130,7 @@ async function updatePalette() {
       items = filterCommands(await loadCommands(host, pane), want.q);
     } catch (err) {
       items = [];
-      want.error = `명령 목록을 읽지 못했습니다: ${errText(err)}`;
+      want.error = T('명령 목록을 읽지 못했습니다: {error}', { error: errText(err) });
     }
   } else if (want.kind === 'file') {
     // Typing fast asks once the letters settle.
@@ -139,7 +139,7 @@ async function updatePalette() {
     try {
       items = await loadFiles(host, pane, want.q);
     } catch (err) {
-      want.error = `파일 목록을 읽지 못했습니다: ${errText(err)}`;
+      want.error = T('파일 목록을 읽지 못했습니다: {error}', { error: errText(err) });
     }
   }
   if (seq !== palSeq || document.getElementById('d-pal') !== box) return;
@@ -160,8 +160,8 @@ function hidePalette(dismissed = null) {
 // Where a command comes from, in a word at the row's end: the built-in ones say nothing (most of
 // the list is built in); 「메뉴」 first for a command that opens a menu in the terminal.
 function sourceText(c) {
-  const src = c.source === 'builtin' ? '' : c.scope === 'project' ? '프로젝트 스킬' : SOURCE_LABEL[c.source] || c.source || '';
-  const parts = [c.menu ? '<span class="menu">메뉴</span>' : '', src ? esc(src) : ''].filter(Boolean);
+  const src = c.source === 'builtin' ? '' : c.scope === 'project' ? T('프로젝트 스킬') : SOURCE_LABEL[c.source] || c.source || '';
+  const parts = [c.menu ? `<span class="menu">${T('메뉴')}</span>` : '', src ? esc(src) : ''].filter(Boolean);
   return parts.length ? `<span class="pal-src">${parts.join(' · ')}</span>` : '';
 }
 
@@ -175,10 +175,10 @@ function renderPalette() {
   const box = document.getElementById('d-pal');
   if (!box || !pal) return;
   let html = '';
-  if (pal.kind === 'bang') html = `<div class="pal-note"><b>!</b> 셸 모드: 이 줄은 에이전트의 세션에서 셸 명령으로 실행되고, 그 출력이 대화에 들어갑니다.</div>`;
-  else if (pal.kind === 'hash') html = `<div class="pal-note"><b>#</b> 메모리 단축은 이제 없어 그대로 글로 갑니다. 기억시키려면 <b>/memory</b> 를 쓰거나 「기억해 줘」라고 하세요.</div>`;
+  if (pal.kind === 'bang') html = `<div class="pal-note"><b>!</b> ${T('셸 모드: 이 줄은 에이전트의 세션에서 셸 명령으로 실행되고, 그 출력이 대화에 들어갑니다.')}</div>`;
+  else if (pal.kind === 'hash') html = `<div class="pal-note"><b>#</b> ${T('메모리 단축은 이제 없어 그대로 글로 갑니다. 기억시키려면 {memory} 를 쓰거나 「기억해 줘」라고 하세요.', { memory: '<b>/memory</b>' })}</div>`;
   else if (pal.error) html = `<div class="pal-note err">${esc(pal.error)}</div>`;
-  else if (!pal.items.length) html = `<div class="pal-note">${pal.kind === 'cmd' ? '맞는 명령이 없습니다' : '맞는 파일이 없습니다'}</div>`;
+  else if (!pal.items.length) html = `<div class="pal-note">${pal.kind === 'cmd' ? T('맞는 명령이 없습니다') : T('맞는 파일이 없습니다')}</div>`;
   else
     html = pal.items
       .map((c, i) =>
@@ -192,7 +192,7 @@ function renderPalette() {
               <span class="pal-ic" aria-hidden="true">${c.dir ? ICON.folder : ICON.file}</span><span class="pal-name">${pathParts(c.path)}</span>
             </div>`
       )
-      .join('') + (pal.total > pal.items.length ? `<div class="pal-note">${pal.total - pal.items.length}개 더 — 더 적어서 좁히세요</div>` : '');
+      .join('') + (pal.total > pal.items.length ? `<div class="pal-note">${T('{n}개 더 — 더 적어서 좁히세요', { n: pal.total - pal.items.length })}</div>` : '');
   box.innerHTML = html;
   box.hidden = false;
   box.dataset.kind = pal.kind;
@@ -211,7 +211,7 @@ function choosePalette(i) {
   if (pal.kind === 'cmd') {
     text = `/${c.name} ${value.slice(pal.end).replace(/^\s+/, '')}`;
     caret = c.name.length + 2;
-    if (c.menu) toast(`/${c.name} 은 메뉴를 엽니다. 보내면 입력 칸 위에 그 메뉴가 뜹니다.`);
+    if (c.menu) toast(T('/{name} 은 메뉴를 엽니다. 보내면 입력 칸 위에 그 메뉴가 뜹니다.', { name: c.name }));
   } else {
     const ins = `@${c.path}${c.dir ? '' : ' '}`;
     text = value.slice(0, pal.start) + ins + value.slice(pal.end);
@@ -313,7 +313,7 @@ function pastedImages(dt) {
 let fileSeq = 0;
 function addFiles(list) {
   const room = MAX_FILES - detail.files.length;
-  if (list.length > room) toast(`사진은 한 번에 ${MAX_FILES}장까지 보낼 수 있습니다.`);
+  if (list.length > room) toast(T('사진은 한 번에 {n}장까지 보낼 수 있습니다.', { n: MAX_FILES }));
   for (const file of list.slice(0, Math.max(0, room))) {
     const f = { id: ++fileSeq, name: file.name, url: URL.createObjectURL(file), blob: null, path: null };
     const files = detail.files;
@@ -330,7 +330,7 @@ function addFiles(list) {
         const i = files.indexOf(f);
         if (i >= 0) files.splice(i, 1);
         URL.revokeObjectURL(f.url);
-        toast(`사진을 읽지 못했습니다${file.name ? `: ${file.name}` : ''}. 다른 형식(JPEG·PNG)으로 골라 주세요.`);
+        toast(file.name ? T('사진을 읽지 못했습니다: {name}. 다른 형식(JPEG·PNG)으로 골라 주세요.', { name: file.name }) : T('사진을 읽지 못했습니다. 다른 형식(JPEG·PNG)으로 골라 주세요.'));
       })
       .finally(() => files === detail.files && renderTray());
   }
@@ -355,7 +355,7 @@ function renderTray() {
   if (!tray) return;
   tray.hidden = !detail.files.length;
   tray.innerHTML = detail.files
-    .map((f) => `<div class="thumb${f.blob ? '' : ' busy'}"><img src="${esc(f.url)}" alt="${esc(f.name || '사진')}"><button type="button" class="x" data-drop="${f.id}" aria-label="사진 빼기">✕</button></div>`)
+    .map((f) => `<div class="thumb${f.blob ? '' : ' busy'}"><img src="${esc(f.url)}" alt="${esc(f.name || T('사진'))}"><button type="button" class="x" data-drop="${f.id}" aria-label="${T('사진 빼기')}">✕</button></div>`)
     .join('');
   updateComposer();
 }

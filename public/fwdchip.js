@@ -53,13 +53,13 @@ function chipHtml() {
   const t = fwd.target;
   const x = fwdItem();
   const name = rowLabel(t.kind, x);
-  const what = t.kind === 'agent' ? '방금 본 대화' : '방금 본 셸';
-  return `<button type="button" class="fwd-go" aria-label="${esc(`${what} 다시 열기: ${name}`)}"${keyAttrs('lastView', '다시 열기')}>
+  const what = t.kind === 'agent' ? T('방금 본 대화') : T('방금 본 셸');
+  return `<button type="button" class="fwd-go" aria-label="${esc(T('{what} 다시 열기: {name}', { what, name }))}"${keyAttrs('lastView', T('다시 열기'))}>
       <span class="fwd-ic" aria-hidden="true">${t.kind === 'agent' ? agentIcon(x) : ICON.term}</span>
       <span class="fwd-k">${what}</span><span class="fwd-name">${esc(name)}</span>
       <span class="fwd-arrow" aria-hidden="true">${ICON.back}</span>
     </button>
-    <button type="button" class="fwd-x" aria-label="${what} 알림 닫기">${ICON.x}</button>`;
+    <button type="button" class="fwd-x" aria-label="${T('{what} 알림 닫기', { what })}">${ICON.x}</button>`;
 }
 
 // The chip as it should be now: drawn, refreshed (a rename), or gone.
@@ -71,7 +71,7 @@ function syncChip() {
     const el = document.createElement('div');
     el.className = 'fwd-chip';
     el.setAttribute('role', 'group');
-    el.setAttribute('aria-label', '방금 본 대화');
+    el.setAttribute('aria-label', T('방금 본 대화'));
     document.body.appendChild(el);
     fwd.el = el;
     bindChip(el);

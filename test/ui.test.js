@@ -156,3 +156,46 @@ test('the pages run under their CSP: nothing blocked on the list, an agent, sett
   assert.deepEqual(csp, []);
   noErrors(page);
 });
+
+// English: every screen, opened with 언어 · Language set to English, shows no Korean (the example
+// data is English too). What is left Korean on purpose is the 언어 setting's own labels.
+test('English: no Korean left on the list, an agent, its answer box, quick switch, settings, shortcuts', async (t) => {
+  const h = await hubInProcess(t, { id: 'ui6', agents: [agent('w1-p2', 'blocked', 5, 'Payments refactor', 'shop-api'), agent('w1-p3', 'working', 4, 'Order API cleanup', 'shop-api-2')] });
+  h.herdr.screens['w1-p2'] = BASH;
+  if (why.skip) return t.skip(why.skip);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+  t.after(() => ctx.close());
+  await ctx.addInitScript(() => localStorage.setItem('herdr-hub.lang', 'en'));
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.goto(`http://127.0.0.1:${h.port}/`);
+  await page.waitForFunction(() => typeof state !== 'undefined' && state.herdr === 'up');
+  assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
+  const korean = async (where) => {
+    const text = await page.evaluate(() => {
+      const keep = document.querySelector('[data-pref="lang"], #s-lang');
+      return [...document.querySelectorAll('body *')]
+        .filter((el) => !el.children.length && el.offsetParent && !(keep && keep.contains(el)))
+        .map((el) => `${el.textContent} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''} ${el.getAttribute('placeholder') || el.dataset.placeholder || ''}`)
+        .join('\n');
+    });
+    const left = text.split('\n').filter((l) => /[가-힣]/.test(l) && !/언어 · Language|기기 따라|한국어/.test(l));
+    assert.deepEqual(left, [], `Korean on ${where}`);
+  };
+  await page.locator('.blocked-line').waitFor();
+  await korean('the list');
+  await page.locator('[data-find]').click();
+  await page.locator('.qs').waitFor();
+  await korean('quick switch');
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => (location.hash = '#/h/ui6/agent/w1-p2'));
+  await page.locator('#d-blocked .choice[data-n="1"]').waitFor();
+  await korean('the agent and its answer box');
+  for (const hash of ['#/settings', '#/keys']) {
+    await page.evaluate((x) => (location.hash = x), hash);
+    await page.waitForTimeout(500);
+    await korean(hash);
+  }
+  assert.deepEqual(errors, []);
+});

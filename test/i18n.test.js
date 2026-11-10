@@ -15,11 +15,17 @@ const CALL = /\bT\(\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|`((?:[^`\\$]|\\
 const unq = (s) => s.replace(/\\(.)/g, (m, c) => ({ n: '\n', t: '\t' })[c] || c);
 const holes = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
 
+// The server's words for a device (lib/notify.js, routes): tIn(lang, '…').
+const LIB = path.join(__dirname, '..', 'lib');
+const libFiles = [...fs.readdirSync(LIB).filter((f) => f.endsWith('.js')).map((f) => path.join(LIB, f)), ...fs.readdirSync(path.join(LIB, 'routes')).map((f) => path.join(LIB, 'routes', f))];
+const TIN = /\btIn\([^,]+,\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|`((?:[^`\\$]|\\.)*)`)/g;
+
 function keysUsed() {
   const out = new Map(); // key -> first file:line
-  for (const f of files) {
-    const src = fs.readFileSync(path.join(PUB, f), 'utf8');
-    for (const m of src.matchAll(CALL)) {
+  for (const full of [...files.map((f) => path.join(PUB, f)), ...libFiles]) {
+    const f = path.relative(path.join(__dirname, '..'), full);
+    const src = fs.readFileSync(full, 'utf8');
+    for (const m of [...src.matchAll(CALL), ...src.matchAll(TIN)]) {
       const key = unq(m[1] ?? m[2] ?? m[3]);
       if (!out.has(key)) out.set(key, `${f}:${src.slice(0, m.index).split('\n').length}`);
     }

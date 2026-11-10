@@ -179,3 +179,18 @@ test('transitionKind: a question, a finish, and a refused question that is neith
   assert.equal(transitionKind(st('done', 6), st('done', 6)), null);
   assert.equal(transitionKind(undefined, st('done', 6)), null); // first sight
 });
+
+// A device that shows the page in English gets its notifications in English (lib/push.js keeps
+// each device's language): the status word, and Claude Code's question as it asked it.
+test('buildPayload in English: the status word and the question as Claude Code asked it', () => {
+  const choices = parseChoices(BASH);
+  const ko = buildPayload('blocked', host, agent, { choices });
+  const en = buildPayload('blocked', host, agent, { choices, lang: 'en' });
+  assert.match(ko.title, /: 답 필요$/);
+  assert.match(en.title, /: Needs answer$/);
+  assert.match(ko.body, /진행할까요\?/);
+  assert.match(en.body, /Do you want to proceed\?/);
+  assert.equal(en.lang, 'en');
+  assert.deepEqual(en.actions, ko.actions); // the buttons are Claude Code's own words
+  assert.match(buildPayload('done', host, agent, { lang: 'en' }).title, /: Done$/);
+});

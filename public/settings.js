@@ -51,35 +51,35 @@ function settingsHtml() {
   // Split, 설정 is a detail on the right: ✕ (Esc) closes it back to what was open there.
   return `
     <header class="bar">
-      <h1 id="s-title">설정</h1>
-      ${split ? `<a class="icon-btn close-detail" href="${settingsBack()}" data-back aria-label="닫기"${keyAttrs('back', '닫기')}>${ICON.x}</a>` : ''}
+      <h1 id="s-title">${T('설정')}</h1>
+      ${split ? `<a class="icon-btn close-detail" href="${settingsBack()}" data-back aria-label="${T('닫기')}"${keyAttrs('back', T('닫기'))}>${ICON.x}</a>` : ''}
     </header>
     <main class="panel settings" tabindex="-1" aria-labelledby="s-title">
       <section class="pgroup" aria-labelledby="g-push">
-        <h2 id="g-push">알림</h2>
+        <h2 id="g-push">${T('알림')}</h2>
         <div class="pcard" id="s-push"></div>
       </section>
       ${groups}
       <section class="pgroup" id="s-kbd" aria-labelledby="g-kbd">
-        <h2 id="g-kbd">키보드</h2>
-        <div class="pcard"><button type="button" class="pref-link" id="s-keys"><span>단축키 보기·바꾸기</span><span class="pl-end"><kbd></kbd><span aria-hidden="true">›</span></span></button></div>
+        <h2 id="g-kbd">${T('키보드')}</h2>
+        <div class="pcard"><button type="button" class="pref-link" id="s-keys"><span>${T('단축키 보기·바꾸기')}</span><span class="pl-end"><kbd></kbd><span aria-hidden="true">›</span></span></button></div>
       </section>
       <section class="pgroup" aria-labelledby="g-conn">
-        <h2 id="g-conn">연결</h2>
+        <h2 id="g-conn">${T('연결')}</h2>
         <div class="pcard"><ul class="conn-list" id="s-conn"></ul></div>
       </section>
       <section class="pgroup" aria-labelledby="g-info">
-        <h2 id="g-info">정보</h2>
+        <h2 id="g-info">${T('정보')}</h2>
         <div class="pcard">
-          <div class="pref-ver"><button type="button" class="pref-info ver-line" id="s-ver"><span class="ver-k">버전</span><span class="ver-v"></span></button><button type="button" class="btn secondary" id="s-reload">새로고침</button></div>
-          <div class="pref-ver ver-next" id="s-ver-next" hidden><span class="vn-text"><span class="vn-t"></span><span class="vn-h"></span></span><button type="button" class="btn" id="s-update">지금 바꾸기</button></div>
+          <div class="pref-ver"><button type="button" class="pref-info ver-line" id="s-ver"><span class="ver-k">${T('버전')}</span><span class="ver-v"></span></button><button type="button" class="btn secondary" id="s-reload">${T('새로고침')}</button></div>
+          <div class="pref-ver ver-next" id="s-ver-next" hidden><span class="vn-text"><span class="vn-t"></span><span class="vn-h"></span></span><button type="button" class="btn" id="s-update">${T('지금 바꾸기')}</button></div>
         </div>
       </section>
       <section class="pgroup" aria-labelledby="g-dev">
-        <h2 id="g-dev">이 기기</h2>
+        <h2 id="g-dev">${T('이 기기')}</h2>
         <div class="pcard">
-          <p class="pref-info">이 화면의 설정과 보관한 대화, 안 보낸 글은 이 기기에만 있습니다. 호스트 목록은 허브에 있어 어느 기기에서나 같습니다.</p>
-          <button type="button" class="pref-link danger-text" id="s-clear"><span>이 기기 저장 데이터 지우기</span><span class="pl-end" aria-hidden="true">›</span></button>
+          <p class="pref-info">${T('이 화면의 설정과 보관한 대화, 안 보낸 글은 이 기기에만 있습니다. 호스트 목록은 허브에 있어 어느 기기에서나 같습니다.')}</p>
+          <button type="button" class="pref-link danger-text" id="s-clear"><span>${T('이 기기 저장 데이터 지우기')}</span><span class="pl-end" aria-hidden="true">›</span></button>
         </div>
       </section>
     </main>`;
@@ -196,7 +196,7 @@ function renderPushBlock() {
   const box = document.getElementById('s-push');
   if (!box) return;
   const v = PushView.pushView(pushEnv(renderPushBlock));
-  const btn = { enable: '<button type="button" class="btn" id="s-enable">알림 켜기</button>', test: '<button type="button" class="btn secondary" id="s-test">시험 알림</button>', disable: '<button type="button" class="btn secondary" id="s-disable">알림 끄기</button>' };
+  const btn = { enable: `<button type="button" class="btn" id="s-enable">${T('알림 켜기')}</button>`, test: `<button type="button" class="btn secondary" id="s-test">${T('시험 알림')}</button>`, disable: `<button type="button" class="btn secondary" id="s-disable">${T('알림 끄기')}</button>` };
   const html = `<div class="push-row">
       <p class="push-status ${v.tone}"><span class="pdot" aria-hidden="true"></span>${esc(v.status)}</p>
       ${v.actions.length ? `<div class="row push-acts">${v.actions.map((a) => btn[a]).join('')}</div>` : ''}
@@ -238,25 +238,31 @@ function renderConn() {
   const lines = [...list, ...extra]
     .map((x) => {
       const n = state.agents.filter((a) => (a.host || localId()) === x.id).length;
-      const status = x.connecting ? '연결 중' : !x.online ? `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''}` : `herdr ${x.herdr === 'up' ? '연결됨' : x.herdr === 'down' ? '연결 안 됨' : x.herdr === 'connecting' ? '연결 중' : esc(x.herdr)} · 에이전트 ${n}개`;
+      const status = x.connecting
+        ? T('연결 중')
+        : !x.online
+          ? x.since
+            ? T('오프라인 · {time}부터', { time: esc(clock(x.since)) })
+            : T('오프라인')
+          : T('herdr {herdr} · 에이전트 {n}개', { herdr: x.herdr === 'up' ? T('연결됨') : x.herdr === 'down' ? T('연결 안 됨') : x.herdr === 'connecting' ? T('연결 중') : esc(x.herdr), n });
       const api = apiMismatch(x);
-      const warn = api ? `<span class="cl-warn">${esc(api)} — 배포가 필요합니다</span>` : '';
+      const warn = api ? `<span class="cl-warn">${T('{api} — 배포가 필요합니다', { api: esc(api) })}</span>` : '';
       const p = !x.local && manage ? adminPeer(x.id) : null;
       const where = p ? p.url.replace(/^https:\/\//, '') : x.local ? location.host : '';
       const url = where ? `<span class="cl-url">${esc(where)}</span>` : '';
-      const more = p ? `<button type="button" class="icon-btn cl-more" data-host="${esc(x.id)}" aria-label="${esc(x.label)} 메뉴" title="${esc(x.label)} 메뉴">${ICON.more}</button>` : '';
+      const more = p ? `<button type="button" class="icon-btn cl-more" data-host="${esc(x.id)}" aria-label="${T('{name} 메뉴', { name: esc(x.label) })}" title="${T('{name} 메뉴', { name: esc(x.label) })}">${ICON.more}</button>` : '';
       const ctl = ordering && !x.connecting ? reorderCtl(x.label) : more;
-      return `<li${ordering && !x.connecting ? ` data-order-host="${esc(x.id)}"` : ''}>${hostDot(x)}<span class="cl-main"><span class="cl-head"><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? '이 주소' : '허브'}</span>` : ''}<span class="cl-st">${status}</span></span>${url}${warn}</span>${ctl}</li>`;
+      return `<li${ordering && !x.connecting ? ` data-order-host="${esc(x.id)}"` : ''}>${hostDot(x)}<span class="cl-main"><span class="cl-head"><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? T('이 주소') : T('허브')}</span>` : ''}<span class="cl-st">${status}</span></span>${url}${warn}</span>${ctl}</li>`;
     })
     .join('');
   // Two hosts or more: their order (the hub's; a peer's page lists one host).
-  const order = multi() ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-order"><span>${ordering ? '순서 바꾸기 끝내기' : '호스트 순서 바꾸기'}</span><span class="pl-end" aria-hidden="true">${ordering ? '' : '›'}</span></button></li>` : '';
-  const add = manage && !ordering ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-add"><span>호스트 추가</span><span class="pl-end" aria-hidden="true">+</span></button></li>` : '';
+  const order = multi() ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-order"><span>${ordering ? T('순서 바꾸기 끝내기') : T('호스트 순서 바꾸기')}</span><span class="pl-end" aria-hidden="true">${ordering ? '' : '›'}</span></button></li>` : '';
+  const add = manage && !ordering ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-add"><span>${T('호스트 추가')}</span><span class="pl-end" aria-hidden="true">+</span></button></li>` : '';
   // A peer: the hub that follows it (its stream says so) keeps the list. On its own (no hub
   // follows it) it may add hosts; with none yet, what that does.
   const by = hostAdmin && Array.isArray(hostAdmin.followedBy) ? hostAdmin.followedBy.map((f) => f.label || f.id) : [];
-  const ro = hostAdmin && !hostAdmin.manageable ? `<li class="cl-note">${by.length ? `이 호스트는 ${esc(by.join('·'))} 허브의 피어입니다. 호스트는 그 허브의 설정 → 연결에서 추가·변경하세요.` : '호스트는 허브에서 관리합니다. 허브의 설정 → 연결에서 추가·변경하세요.'}</li>` : '';
-  const alone = manage && !hostAdmin.peers.length && !ordering ? '<li class="cl-note">다른 호스트에서 도는 Herdr Hub 를 더하면 이 호스트가 허브가 되어, 그 호스트의 에이전트도 이 화면에 함께 보입니다.</li>' : '';
+  const ro = hostAdmin && !hostAdmin.manageable ? `<li class="cl-note">${by.length ? T('이 호스트는 {hubs} 허브의 피어입니다. 호스트는 그 허브의 설정 → 연결에서 추가·변경하세요.', { hubs: esc(by.join('·')) }) : T('호스트는 허브에서 관리합니다. 허브의 설정 → 연결에서 추가·변경하세요.')}</li>` : '';
+  const alone = manage && !hostAdmin.peers.length && !ordering ? `<li class="cl-note">${T('다른 호스트에서 도는 Herdr Hub 를 더하면 이 호스트가 허브가 되어, 그 호스트의 에이전트도 이 화면에 함께 보입니다.')}</li>` : '';
   const html = lines + order + add + alone + ro;
   if (box._html === html) return;
   // Redrawn in place: a focused ⋯ (or 호스트 추가) keeps the focus.
@@ -308,20 +314,20 @@ async function showTest(label, url) {
   } catch (err) {
     text = errText(err);
   }
-  await sheet({ title: `연결 시험 — ${label}`, text: `${text} (${url.replace(/^https:\/\//, '')})`, ok: '닫기', cancel: null });
+  await sheet({ title: T('연결 시험 — {name}', { name: label }), text: `${text} (${url.replace(/^https:\/\//, '')})`, ok: T('닫기'), cancel: null });
 }
 async function hostMenu(id) {
   const p = adminPeer(id);
   if (!p) return;
   const label = hostLabel(id) || p.label || id;
-  const k = await menu(label, [['rename', '이름 바꾸기'], ['url', '주소 바꾸기', false, p.url], ['test', '연결 시험'], '-', ['remove', '빼기', true]], { sub: p.url });
+  const k = await menu(label, [['rename', T('이름 바꾸기')], ['url', T('주소 바꾸기'), false, p.url], ['test', T('연결 시험')], '-', ['remove', T('빼기'), true]], { sub: p.url });
   if (k === 'rename') {
-    const r = await askLoop({ title: '이름 바꾸기', text: '비우면 그 호스트가 스스로 쓰는 이름으로 돌아갑니다.', input: { value: p.label || label, placeholder: id }, ok: '바꾸기' }, (v) =>
+    const r = await askLoop({ title: T('이름 바꾸기'), text: T('비우면 그 호스트가 스스로 쓰는 이름으로 돌아갑니다.'), input: { value: p.label || label, placeholder: id }, ok: T('바꾸기') }, (v) =>
       api(`/hosts/${encodeURIComponent(id)}/rename`, { method: 'POST', body: JSON.stringify({ label: v }) })
     );
     if (r && r !== true) hostChanged(r);
   } else if (k === 'url') {
-    const r = await askLoop({ title: '주소 바꾸기', text: `${label} 를 따라갈 주소입니다. 바꾸면 곧바로 새 주소로 다시 붙습니다.`, input: { value: p.url, placeholder: 'https://server.example.ts.net:8443' }, ok: '바꾸기' }, (v) =>
+    const r = await askLoop({ title: T('주소 바꾸기'), text: T('{name} 를 따라갈 주소입니다. 바꾸면 곧바로 새 주소로 다시 붙습니다.', { name: label }), input: { value: p.url, placeholder: 'https://server.example.ts.net:8443' }, ok: T('바꾸기') }, (v) =>
       api(`/hosts/${encodeURIComponent(id)}/url`, { method: 'POST', body: JSON.stringify({ url: v }) })
     );
     if (r && r !== true) {
@@ -331,11 +337,11 @@ async function hostMenu(id) {
     }
   } else if (k === 'test') showTest(label, p.url);
   else if (k === 'remove') {
-    const ok = await sheet({ title: `${label} 빼기`, text: `${p.url} 를 이 허브의 호스트에서 뺍니다. 그 컴퓨터의 Herdr Hub 와 에이전트는 그대로이고, 다시 추가할 수 있습니다.`, ok: '빼기', danger: true });
+    const ok = await sheet({ title: T('{name} 빼기', { name: label }), text: T('{url} 를 이 허브의 호스트에서 뺍니다. 그 컴퓨터의 Herdr Hub 와 에이전트는 그대로이고, 다시 추가할 수 있습니다.', { url: p.url }), ok: T('빼기'), danger: true });
     if (!ok) return;
     try {
       hostChanged(await api(`/hosts/${encodeURIComponent(id)}/remove`, { method: 'POST', body: '{}' }));
-      toast(`${label} 를 뺐습니다`);
+      toast(T('{name} 를 뺐습니다', { name: label }));
     } catch (err) {
       toastErr(errText(err));
     }
@@ -348,15 +354,15 @@ function addHostSheet() {
   const el = document.createElement('div');
   el.className = 'sheet-back';
   el.innerHTML = `<form class="sheet host-form" role="dialog" aria-modal="true" aria-labelledby="ha-t" tabindex="-1" novalidate>
-      <h2 id="ha-t">호스트 추가</h2>
-      <p>다른 컴퓨터에서 도는 Herdr Hub 를 이 허브에 더합니다. 그 컴퓨터의 Tailscale 주소를 적으세요.</p>
-      <label class="hf"><span>이름</span><input class="field" name="label" placeholder="server" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40"></label>
-      <label class="hf"><span>주소</span><input class="field" name="url" type="url" inputmode="url" placeholder="https://server.example.ts.net:8443" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="ha-r"></label>
+      <h2 id="ha-t">${T('호스트 추가')}</h2>
+      <p>${T('다른 컴퓨터에서 도는 Herdr Hub 를 이 허브에 더합니다. 그 컴퓨터의 Tailscale 주소를 적으세요.')}</p>
+      <label class="hf"><span>${T('이름')}</span><input class="field" name="label" placeholder="server" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40"></label>
+      <label class="hf"><span>${T('주소')}</span><input class="field" name="url" type="url" inputmode="url" placeholder="https://server.example.ts.net:8443" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="ha-r"></label>
       <p class="ha-result" id="ha-r" role="status" aria-live="polite"></p>
       <div class="row end">
-        <button type="button" class="btn secondary" data-cancel>취소</button>
-        <button type="button" class="btn secondary" data-test>연결 시험</button>
-        <button type="submit" class="btn" data-add>추가</button>
+        <button type="button" class="btn secondary" data-cancel>${T('취소')}</button>
+        <button type="button" class="btn secondary" data-test>${T('연결 시험')}</button>
+        <button type="submit" class="btn" data-add>${T('추가')}</button>
       </div>
     </form>`;
   const form = el.querySelector('form');
@@ -373,7 +379,7 @@ function addHostSheet() {
   };
   const sync = () => {
     const same = tested && tested.url === addr.value.trim();
-    addBtn.textContent = same && !tested.ok ? '그래도 추가' : '추가';
+    addBtn.textContent = same && !tested.ok ? T('그래도 추가') : T('추가');
     addBtn.disabled = testBtn.disabled = busy || !addr.value.trim();
   };
   addr.oninput = () => {
@@ -384,7 +390,7 @@ function addHostSheet() {
     const url = addr.value.trim();
     busy = true;
     sync();
-    say('시험하는 중…', 'wait');
+    say(T('시험하는 중…'), 'wait');
     try {
       const r = await testHost(url);
       const t = Conn.testText(r);
@@ -392,7 +398,7 @@ function addHostSheet() {
       // Already followed under another entry: said, and 추가 becomes 그래도 추가.
       const dup = t.ok && r.id && hosts().some((h) => h.id === r.id);
       if (dup) tested.ok = false;
-      say(dup ? `${t.text} 이미 목록에 있는 호스트(${r.id})입니다.` : t.text, dup ? 'warn' : t.tone);
+      say(dup ? T('{result} 이미 목록에 있는 호스트({id})입니다.', { result: t.text, id: r.id }) : t.text, dup ? 'warn' : t.tone);
     } catch (err) {
       tested = { url, ok: false };
       say(errText(err), 'bad');
@@ -419,7 +425,7 @@ function addHostSheet() {
       const r = await api('/hosts', { method: 'POST', body: JSON.stringify({ id: Conn.idFor(label, url, hostIds(), tested && tested.url === url ? tested.id : ''), url, label }) });
       closeLayer(layer);
       hostChanged(r);
-      toast(`${label || (r.peer && r.peer.id) || '호스트'} 를 더했습니다`);
+      toast(T('{name} 를 더했습니다', { name: label || (r.peer && r.peer.id) || T('호스트') }));
     } catch (err) {
       busy = false;
       sync();
@@ -435,12 +441,12 @@ function renderVersionInfo() {
   const el = document.getElementById('s-ver');
   if (!el) return;
   const mine = Update.buildLabel(myBuild);
-  const text = mine || '알 수 없음';
+  const text = mine || T('알 수 없음');
   const v = el.querySelector('.ver-v');
   if (v.textContent !== text) v.textContent = text;
   const copy = Boolean(myBuild && myBuild.sha);
-  el.title = copy ? `${myBuild.sha} — 눌러서 복사` : '';
-  el.setAttribute('aria-label', copy ? `버전 ${text}. 누르면 커밋 해시를 복사합니다` : `버전 ${text}`);
+  el.title = copy ? T('{sha} — 눌러서 복사', { sha: myBuild.sha }) : '';
+  el.setAttribute('aria-label', copy ? T('버전 {version}. 누르면 커밋 해시를 복사합니다', { version: text }) : T('버전 {version}', { version: text }));
   el.classList.toggle('ver-copy', copy);
   // A new build waiting: a row of its own under the version, saying which and that nothing needs
   // doing (it comes by itself the next time the app comes back), with its button 「지금 바꾸기」
@@ -448,11 +454,11 @@ function renderVersionInfo() {
   const next = document.getElementById('s-ver-next');
   if (next) {
     const must = hasNew() && mustReload();
-    const t = !hasNew() ? '' : must ? '이 화면이 서버와 맞지 않습니다' : `새 버전 ${Update.shortLabel(serverBuild)}`;
-    const h = !hasNew() ? '' : must ? '새로고침하면 고쳐집니다. 쓰던 글은 남습니다.' : '앱으로 다시 돌아오면 저절로 바뀝니다.';
+    const t = !hasNew() ? '' : must ? T('이 화면이 서버와 맞지 않습니다') : T('새 버전 {version}', { version: Update.shortLabel(serverBuild) });
+    const h = !hasNew() ? '' : must ? T('새로고침하면 고쳐집니다. 쓰던 글은 남습니다.') : T('앱으로 다시 돌아오면 저절로 바뀝니다.');
     next.querySelector('.vn-t').textContent = t;
     next.querySelector('.vn-h').textContent = h;
-    next.querySelector('#s-update').textContent = must ? '새로고침' : '지금 바꾸기';
+    next.querySelector('#s-update').textContent = must ? T('새로고침') : T('지금 바꾸기');
     next.hidden = !t;
   }
   const r = document.getElementById('s-reload');
@@ -462,7 +468,7 @@ async function copyBuildSha() {
   if (!myBuild || !myBuild.sha) return;
   try {
     await navigator.clipboard.writeText(myBuild.sha);
-    toast(`커밋 ${myBuild.commit} 복사함`);
+    toast(T('커밋 {commit} 복사함', { commit: myBuild.commit }));
   } catch {}
 }
 
@@ -470,7 +476,7 @@ async function copyBuildSha() {
 // hint. Cleared behind a confirm, then the page loads again so nothing in memory writes them back.
 // Settings and push stay as they are.
 async function clearDeviceData() {
-  const ok = await sheet({ title: '이 기기 저장 데이터 지우기', text: '보관한 대화, 안 보낸 글, 읽음 표시를 이 기기에서 지우고 앱을 다시 엽니다. 설정과 알림은 그대로입니다.', ok: '지우기', danger: true });
+  const ok = await sheet({ title: T('이 기기 저장 데이터 지우기'), text: T('보관한 대화, 안 보낸 글, 읽음 표시를 이 기기에서 지우고 앱을 다시 엽니다. 설정과 알림은 그대로입니다.'), ok: T('지우기'), danger: true });
   if (!ok) return;
   try {
     for (const k of [STORE_KEY, DRAFTS_KEY, SEEN_KEY, HINT_KEY]) localStorage.removeItem(k);

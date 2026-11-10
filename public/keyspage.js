@@ -48,18 +48,18 @@ function renderKeys({ focus = false, from = null } = {}) {
     ).join('');
     root.innerHTML = `
       <header class="bar">
-        ${split ? '' : backLink(keysBack(), '뒤로')}
-        <h1 id="k-title">단축키</h1>
-        <button type="button" class="toggle k-edit" id="k-edit" aria-pressed="false">바꾸기</button>
-        ${split ? `<a class="icon-btn close-detail" href="${keysBack()}" data-back aria-label="닫기"${keyAttrs('back', '닫기')}>${ICON.x}</a>` : ''}
+        ${split ? '' : backLink(keysBack(), T('뒤로'))}
+        <h1 id="k-title">${T('단축키')}</h1>
+        <button type="button" class="toggle k-edit" id="k-edit" aria-pressed="false">${T('바꾸기@@edit')}</button>
+        ${split ? `<a class="icon-btn close-detail" href="${keysBack()}" data-back aria-label="${T('닫기')}"${keyAttrs('back', T('닫기'))}>${ICON.x}</a>` : ''}
       </header>
       <main class="panel settings keys-page" tabindex="-1" aria-labelledby="k-title">
         <div class="k-search">
-          <input type="search" id="k-q" class="search-field" placeholder="동작이나 키 이름으로 찾기" aria-label="단축키 찾기" autocomplete="off" enterkeyhint="search">
-          <button type="button" class="toggle" id="k-rec" aria-pressed="false" title="키를 눌러 그 키를 쓰는 동작 찾기">⌨ 키로 찾기</button>
+          <input type="search" id="k-q" class="search-field" placeholder="${T('동작이나 키 이름으로 찾기')}" aria-label="${T('단축키 찾기')}" autocomplete="off" enterkeyhint="search">
+          <button type="button" class="toggle" id="k-rec" aria-pressed="false" title="${T('키를 눌러 그 키를 쓰는 동작 찾기')}">${T('⌨ 키로 찾기')}</button>
         </div>
         <p class="k-heard" id="k-heard" role="status" hidden></p>
-        <div class="seg k-tabs" role="tablist" aria-label="화면">${tabs}</div>
+        <div class="seg k-tabs" role="tablist" aria-label="${T('화면@@tabs')}">${tabs}</div>
         <div id="k-list" role="tabpanel" tabindex="-1"></div>
       </main>`;
     main = root.querySelector(':scope > main.keys-page');
@@ -105,7 +105,7 @@ function drawKeysList() {
   const row = (r, tab, tabs = null) => {
     const rec = kp.rec === r.action;
     const onShell = tab === 'shell';
-    const dot = r.changed ? '<span class="k-dot" title="이 기기에서 바꾼 키" aria-label="바꿈"></span>' : '';
+    const dot = r.changed ? `<span class="k-dot" title="${T('이 기기에서 바꾼 키')}" aria-label="${T('바꿈')}"></span>` : '';
     const tabsLine = tabs ? `<span class="k-in">${esc(tabs.map(tabName).join(' · '))}</span>` : '';
     if (!edit) {
       // The cheat sheet: the name, the key that works here, the rest folded.
@@ -114,7 +114,7 @@ function drawKeysList() {
       const rest = ks.filter((k) => k !== first);
       let keys;
       if (r.fixed) keys = ks.length > 2 ? `<kbd>${esc(Keymap.label(ks[0]))}–${esc(Keymap.label(ks[ks.length - 1]))}</kbd>` : ks.map(kbd).join('');
-      else if (!first) keys = `<span class="k-none">${r.action === 'leaveView' && !Keymap.env.app ? '설치한 앱에서' : '키 없음'}</span>`;
+      else if (!first) keys = `<span class="k-none">${r.action === 'leaveView' && !Keymap.env.app ? T('설치한 앱에서') : T('키 없음')}</span>`;
       else {
         const open = kp.open.has(r.action);
         const twice = Keymap.ACTIONS[r.action].twice ? '<span class="k-twice">×2</span>' : '';
@@ -122,7 +122,7 @@ function drawKeysList() {
           rest.length
             ? open
               ? rest.map(kbd).join('')
-              : `<button type="button" class="k-more" data-more aria-expanded="false" title="${esc(rest.map(Keymap.label).join(' · '))}" aria-label="다른 키 ${rest.length}개: ${esc(rest.map(Keymap.label).join(', '))}">+${rest.length}</button>`
+              : `<button type="button" class="k-more" data-more aria-expanded="false" title="${esc(rest.map(Keymap.label).join(' · '))}" aria-label="${T('다른 키 {n}개: {keys}', { n: rest.length, keys: esc(rest.map(Keymap.label).join(', ')) })}">+${rest.length}</button>`
             : ''
         }`;
       }
@@ -145,23 +145,23 @@ function drawKeysList() {
           // Hub takes it there too) or an outlined 「셸로」 (the shell gets it). Only on 셸.
           const shBtn =
             onShell && sh && sh.can
-              ? `<button type="button" class="ksh" data-sh="${esc(k)}" role="switch" aria-checked="${sh.on}" aria-label="${esc(name)} 셸 화면에서도 Hub 가 씀" title="셸 화면에서: ${sh.on ? 'Hub 가 씀 (누르면 셸로 보냄)' : '셸로 감 (누르면 Hub 가 씀)'}">${sh.on ? 'Hub' : '셸로'}</button>`
+              ? `<button type="button" class="ksh" data-sh="${esc(k)}" role="switch" aria-checked="${sh.on}" aria-label="${T('{key} 셸 화면에서도 Hub 가 씀', { key: esc(name) })}" title="${T('셸 화면에서: {what}', { what: sh.on ? T('Hub 가 씀 (누르면 셸로 보냄)') : T('셸로 감 (누르면 Hub 가 씀)') })}">${sh.on ? 'Hub' : T('셸로')}</button>`
               : '';
           // 뒤로's Esc can't be taken off: said so where the others have their ×.
-          const end = lock ? '<span class="k-lock" title="뒤로는 늘 Esc 를 씁니다">고정</span>' : `<button type="button" class="kx" data-rm="${esc(k)}" aria-label="${esc(name)} 빼기" title="빼기">×</button>`;
+          const end = lock ? `<span class="k-lock" title="${T('뒤로는 늘 Esc 를 씁니다')}">${T('고정')}</span>` : `<button type="button" class="kx" data-rm="${esc(k)}" aria-label="${T('{key} 빼기', { key: esc(name) })}" title="${T('빼기')}">×</button>`;
           return `<span class="kchip">${kbd(k)}${shBtn}${end}</span>`;
         })
         .join('');
     const where = Keymap.whereText(r.action);
     const loses = r.fixed || !onShell ? [] : r.shells.filter((x) => x.loses).map((x) => `${Keymap.label(x.key)}: ${x.loses}`);
     const tools = r.fixed
-      ? '<span class="k-fixed">바꿀 수 없음</span>'
-      : `${rec ? `<span class="k-recnote" role="status">누를 키를 누르세요${keyboardLikely() ? ' · Esc 취소' : ''}</span><button type="button" class="k-reset k-cancel" data-cancel-rec>취소</button>` : '<button type="button" class="k-add" data-add aria-label="키 더하기" title="키 더하기">+</button>'}${
-          r.changed ? '<button type="button" class="k-reset" data-reset title="이 동작을 기본 키로">기본값</button>' : ''
+      ? `<span class="k-fixed">${T('바꿀 수 없음')}</span>`
+      : `${rec ? `<span class="k-recnote" role="status">${T('누를 키를 누르세요')}${keyboardLikely() ? ` · ${T('Esc 취소')}` : ''}</span><button type="button" class="k-reset k-cancel" data-cancel-rec>${T('취소')}</button>` : `<button type="button" class="k-add" data-add aria-label="${T('키 더하기')}" title="${T('키 더하기')}">+</button>`}${
+          r.changed ? `<button type="button" class="k-reset" data-reset title="${T('이 동작을 기본 키로')}">${T('기본값')}</button>` : ''
         }`;
     return `<div class="k-row${r.changed ? ' changed' : ''}${rec ? ' recording' : ''}" data-action="${esc(r.action)}">
         <div class="k-what"><span class="k-name">${esc(r.name)}${dot}</span>${tabsLine}<span class="k-label">${esc(r.label)}</span>${where ? `<span class="k-where">${esc(where)}</span>` : ''}${loses.map((t) => `<span class="k-loses">${esc(t)}</span>`).join('')}</div>
-        <div class="k-keys">${keys || '<span class="k-none">키 없음</span>'}${tools}</div>
+        <div class="k-keys">${keys || `<span class="k-none">${T('키 없음')}</span>`}${tools}</div>
       </div>`;
   };
   const localRow = (x, tabs = null) => {
@@ -183,9 +183,9 @@ function drawKeysList() {
     const acts = found.filter((x) => x.action && keep(rows.get(x.action)));
     const locals = kp.only ? [] : found.filter((x) => x.local);
     body =
-      card(`찾은 단축키 · 모든 화면`, acts.map((x) => row(rows.get(x.action), x.tabs.includes(kp.tab) ? kp.tab : x.tabs[0], x.tabs.length ? x.tabs : null)).join(''), cols) +
-      card('입력 칸·창 안의 키', locals.map((x) => localRow(x.local, x.tabs)).join(''), cols);
-    if (!acts.length && !locals.length) body = `<p class="k-empty">「${esc(q)}」에 맞는 단축키가 없습니다.</p>`;
+      card(T('찾은 단축키 · 모든 화면'), acts.map((x) => row(rows.get(x.action), x.tabs.includes(kp.tab) ? kp.tab : x.tabs[0], x.tabs.length ? x.tabs : null)).join(''), cols) +
+      card(T('입력 칸·창 안의 키'), locals.map((x) => localRow(x.local, x.tabs)).join(''), cols);
+    if (!acts.length && !locals.length) body = `<p class="k-empty">${T('「{q}」에 맞는 단축키가 없습니다.', { q: esc(q) })}</p>`;
   } else {
     const tab = kp.tab;
     const inTab = Object.keys(Keymap.ACTIONS).filter((a) => Keymap.tabsOf(a).includes(tab)).map((a) => rows.get(a)).filter(keep);
@@ -193,11 +193,14 @@ function drawKeysList() {
       // The keys the Hub takes in the shell view; editing, also those the shell gets that could be the Hub's.
       const off = edit ? Object.keys(Keymap.ACTIONS).filter((a) => !inTab.some((r) => r.action === a) && Keymap.canShellAction(a) && rows.get(a).keys.length).map((a) => rows.get(a)).filter(keep) : [];
       note = edit
-        ? '키마다 단추가 셸 화면에서 그 키가 가는 곳입니다: <span class="ksh-demo" aria-hidden="true">Hub</span>면 Hub 가 쓰고, <span class="ksh-demo off" aria-hidden="true">셸로</span>면 셸이 받습니다. 눌러서 바꿉니다.'
-        : '셸 화면에서는 이 키만 Hub 가 쓰고, 나머지 키는 모두 셸로 갑니다.';
-      body = card('셸 화면에서 Hub 가 쓰는 키', inTab.map((r) => row(r, tab)).join(''), cols) + card('셸로 가는 키 (켜면 Hub 가 씀)', off.map((r) => row(r, tab)).join(''));
+        ? T('키마다 단추가 셸 화면에서 그 키가 가는 곳입니다: {hub}면 Hub 가 쓰고, {shell}면 셸이 받습니다. 눌러서 바꿉니다.', {
+            hub: '<span class="ksh-demo" aria-hidden="true">Hub</span>',
+            shell: `<span class="ksh-demo off" aria-hidden="true">${T('셸로')}</span>`,
+          })
+        : T('셸 화면에서는 이 키만 Hub 가 쓰고, 나머지 키는 모두 셸로 갑니다.');
+      body = card(T('셸 화면에서 Hub 가 쓰는 키'), inTab.map((r) => row(r, tab)).join(''), cols) + card(T('셸로 가는 키 (켜면 Hub 가 씀)'), off.map((r) => row(r, tab)).join(''));
     } else body = card('', inTab.map((r) => row(r, tab)).join(''), cols);
-    if (kp.only && !body) body = `<p class="k-empty">이 화면에서 바꾼 키가 없습니다.</p>`;
+    if (kp.only && !body) body = `<p class="k-empty">${T('이 화면에서 바꾼 키가 없습니다.')}</p>`;
     // The keys handled inside a field or a window of this screen, by where.
     if (!kp.only) {
       const groups = new Map();
@@ -222,7 +225,7 @@ function drawKeysList() {
         .map(([g, xs]) => {
           const keyed = once(xs.filter((x) => x.key));
           const notes = xs.filter((x) => !x.key).map((x) => `<p class="pnote k-note">${esc(x.label)}</p>`).join('');
-          return card(`${g} 안에서`, keyed.map((x) => localRow(x)).join(''), cols).replace(/<\/section>$/, `${notes}</section>`) || (notes ? `<section class="pgroup"><h2>${esc(g)} 안에서</h2>${notes}</section>` : '');
+          return card(T('{group} 안에서', { group: g }), keyed.map((x) => localRow(x)).join(''), cols).replace(/<\/section>$/, `${notes}</section>`) || (notes ? `<section class="pgroup"><h2>${T('{group} 안에서', { group: esc(g) })}</h2>${notes}</section>` : '');
         })
         .join('');
     }
@@ -231,16 +234,16 @@ function drawKeysList() {
   // Which keys this window gets: the installed app has the browser's tab and window keys.
   const w = Keymap.env.mac ? '⌘W·⌘N' : 'Ctrl+W·Ctrl+N';
   const winNote = Keymap.env.app
-    ? `설치한 앱이라 브라우저의 탭·창 키(${w} 등)도 Hub 가 씁니다. 앱을 끝내는 키(${Keymap.env.mac ? '⌘Q' : 'Alt+F4'})는 쓸 수 없습니다.`
-    : `브라우저 탭에서는 ${w} 같은 탭·창 키를 브라우저가 가져갑니다. 설치한 앱으로 열면 Hub 가 씁니다 (대화창 닫기 등).`;
+    ? T('설치한 앱이라 브라우저의 탭·창 키({keys} 등)도 Hub 가 씁니다. 앱을 끝내는 키({quit})는 쓸 수 없습니다.', { keys: w, quit: Keymap.env.mac ? '⌘Q' : 'Alt+F4' })
+    : T('브라우저 탭에서는 {keys} 같은 탭·창 키를 브라우저가 가져갑니다. 설치한 앱으로 열면 Hub 가 씁니다 (대화창 닫기 등).', { keys: w });
   const head = edit
-    ? `<p class="pnote k-note">${esc(winNote)} 바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만 동작합니다.</p>`
+    ? `<p class="pnote k-note">${esc(winNote)} ${T('바꾼 키는 이 기기에만 저장됩니다. 글자 키는 입력 칸 밖에서만 동작합니다.')}</p>`
     : '';
   const only = changedAny
-    ? `<div class="k-filter"><button type="button" class="toggle" data-only aria-pressed="${kp.only}">바꾼 키만</button></div>`
+    ? `<div class="k-filter"><button type="button" class="toggle" data-only aria-pressed="${kp.only}">${T('바꾼 키만')}</button></div>`
     : '';
   const html = `${head}${only}${note ? `<p class="pnote k-note">${note}</p>` : ''}${body}
-    ${edit && changedAny ? '<section class="pgroup"><div class="pcard"><button type="button" class="pref-link danger-text" data-reset-all><span>모든 단축키를 기본값으로</span></button></div></section>' : ''}`;
+    ${edit && changedAny ? `<section class="pgroup"><div class="pcard"><button type="button" class="pref-link danger-text" data-reset-all><span>${T('모든 단축키를 기본값으로')}</span></button></div></section>` : ''}`;
   // What 키로 찾기 heard stays after the key it heard, until something else is recorded or it's turned off.
   if (kp.rec !== 'search' && kp.rec) showHeard('');
   drawKeysChrome();
@@ -261,20 +264,20 @@ function drawKeysChrome() {
   document.querySelector('.k-tabs')?.classList.toggle('searching', searching);
   const list = document.getElementById('k-list');
   if (list) {
-    if (searching) list.setAttribute('aria-label', '찾은 단축키');
+    if (searching) list.setAttribute('aria-label', T('찾은 단축키'));
     else list.removeAttribute('aria-label');
     list.setAttribute('aria-labelledby', searching ? 'k-title' : `k-tab-${kp.tab}`);
   }
   const ed = document.getElementById('k-edit');
   if (ed) {
     ed.setAttribute('aria-pressed', String(kp.edit));
-    ed.textContent = kp.edit ? '완료' : '바꾸기';
-    ed.title = kp.edit ? '키 바꾸기 끝내기' : '키 바꾸기: 빼기·더하기·기본값, 셸 탭에서는 셸 화면에서도';
+    ed.textContent = kp.edit ? T('완료') : T('바꾸기@@edit');
+    ed.title = kp.edit ? T('키 바꾸기 끝내기') : T('키 바꾸기: 빼기·더하기·기본값, 셸 탭에서는 셸 화면에서도');
   }
   const recBtn = document.getElementById('k-rec');
   if (recBtn) {
     recBtn.setAttribute('aria-pressed', String(kp.rec === 'search'));
-    recBtn.textContent = kp.rec === 'search' ? '키를 누르세요…' : '⌨ 키로 찾기';
+    recBtn.textContent = kp.rec === 'search' ? T('키를 누르세요…') : T('⌨ 키로 찾기');
   }
 }
 
@@ -299,7 +302,7 @@ function bindKeysPage(main) {
   };
   main.querySelector('#k-rec').onclick = () => {
     kp.rec = kp.rec === 'search' ? null : 'search';
-    showHeard(kp.rec ? '누를 키를 누르세요. 페이지가 받은 그대로 여기 보입니다 (아무것도 안 뜨면 기기가 먼저 가져간 키).' : '');
+    showHeard(kp.rec ? T('누를 키를 누르세요. 페이지가 받은 그대로 여기 보입니다 (아무것도 안 뜨면 기기가 먼저 가져간 키).') : '');
     drawKeysList();
   };
   root.querySelector('#k-edit').onclick = () => {
@@ -325,7 +328,7 @@ function bindKeysPage(main) {
   });
   main.onclick = (e) => {
     const t = e.target;
-    if (t.closest('[data-reset-all]')) return saveKeys({}), toast('모든 단축키를 기본값으로 되돌렸습니다'), drawKeysList();
+    if (t.closest('[data-reset-all]')) return saveKeys({}), toast(T('모든 단축키를 기본값으로 되돌렸습니다')), drawKeysList();
     if (t.closest('[data-only]')) return (kp.only = !kp.only), drawKeysList();
     // The cheat sheet: a tap anywhere on a row (but its +N) opens or closes its long label.
     const viewRow = !kp.edit && !t.closest('[data-more]') && t.closest('.k-row.view');
@@ -376,7 +379,7 @@ function bindKeysPage(main) {
       const before = JSON.parse(JSON.stringify(keyOverrides));
       try {
         saveKeys(Keymap.unassign(keyOverrides, action, rm.dataset.rm));
-        toast(`${Keymap.label(rm.dataset.rm)} 를 뺐습니다`, { action: { label: '되돌리기', run: () => (saveKeys(before), drawKeysList()) }, ms: 8000 });
+        toast(T('{key} 를 뺐습니다', { key: Keymap.label(rm.dataset.rm) }), { action: { label: T('되돌리기'), run: () => (saveKeys(before), drawKeysList()) }, ms: 8000 });
       } catch (err) {
         toastErr(err.message);
       }
@@ -395,9 +398,9 @@ function showHeard(text, raw = '', after = '') {
   el.hidden = !text;
 }
 function showHeardKey(e, note = '') {
-  const mods = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.metaKey && 'Meta', e.shiftKey && 'Shift'].filter(Boolean).join('+') || '없음';
+  const mods = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.metaKey && 'Meta', e.shiftKey && 'Shift'].filter(Boolean).join('+') || T('없음');
   const as = Keymap.keyOf(e);
-  showHeard('받은 키:', `key="${e.key}" code="${e.code || ''}" 보조키=${mods}`, `${e.repeat ? '(반복) ' : ''}→ ${as ? Keymap.label(as) : '단축키로 쓸 수 없는 키'}${note}`);
+  showHeard(T('받은 키:'), `key="${e.key}" code="${e.code || ''}" ${T('보조키')}=${mods}`, `${e.repeat ? `${T('(반복)')} ` : ''}→ ${as ? Keymap.label(as) : T('단축키로 쓸 수 없는 키')}${note}`);
 }
 
 // While recording, the next key is the page's alone: a new key for an action, or the key to
@@ -406,7 +409,7 @@ window.addEventListener(
   'keydown',
   (e) => {
     if (view.name !== 'keys' || !kp.rec) return;
-    if (kp.rec === 'search') showHeardKey(e, e.isComposing || e.keyCode === 229 ? ' (한글 입력기가 조합 중)' : '');
+    if (kp.rec === 'search') showHeardKey(e, e.isComposing || e.keyCode === 229 ? ` ${T('(한글 입력기가 조합 중)')}` : '');
     if (e.isComposing || e.keyCode === 229) return;
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -427,7 +430,7 @@ window.addEventListener(
     try {
       const r = Keymap.assign(keyOverrides, action, key);
       saveKeys(r.overrides);
-      if (r.from) toast(`${Keymap.label(key)}: 「${Keymap.ACTIONS[r.from].name}」에서 옮겼습니다`);
+      if (r.from) toast(T('{key}: 「{action}」에서 옮겼습니다', { key: Keymap.label(key), action: Keymap.ACTIONS[r.from].name }));
     } catch (err) {
       toastErr(err.message);
     }

@@ -4,7 +4,7 @@
 // api(), and the layers: sheets, menus, the 단축키 sheet and toasts.
 
 const $app = document.getElementById('app');
-const STATUS_LABEL = { blocked: '답 필요', menu: '메뉴 열림', done: '완료', working: '작업 중', idle: '쉬는 중', unknown: '알 수 없음', stale: '오프라인' };
+const STATUS_LABEL = { blocked: T('답 필요'), menu: T('메뉴 열림'), done: T('완료'), working: T('작업 중'), idle: T('쉬는 중'), unknown: T('알 수 없음'), stale: T('오프라인') };
 // 답 필요 that waits for someone, and the status as shown: a menu is 「메뉴 열림」 (rowtext.js).
 const { needsAnswer, shownStatus } = RowText;
 const ICON = {
@@ -43,49 +43,58 @@ const KIND_ICON = {
 };
 const agentIcon = (a) => KIND_ICON[a.agent] || ICON.agent;
 const ERROR_TEXT = {
-  cwd_not_absolute: '절대 경로를 적어 주세요.',
-  cwd_not_found: '그 폴더가 호스트에 없습니다.',
-  cwd_not_directory: '폴더가 아니라 파일입니다.',
-  bad_cwd: '폴더 경로가 올바르지 않습니다.',
-  bad_kind: '지원하지 않는 에이전트 종류입니다.',
-  bad_args: '인자에 쓸 수 없는 문자가 있습니다.',
-  bad_agent_name: '이름은 영문 소문자로 시작하고 소문자·숫자·-·_ 만 쓸 수 있습니다(32자까지).',
-  bad_label: '이름이 너무 길거나 쓸 수 없는 문자가 있습니다.',
-  empty_label: '이름을 적어 주세요.',
-  agent_name_taken: '같은 이름의 에이전트가 이미 있습니다.',
-  peer_offline: '그 호스트가 오프라인입니다.',
-  peer_unreachable: '그 호스트에 닿지 못했습니다.',
-  peer_timeout: '그 호스트가 제때 답하지 않았습니다.',
-  unknown_host: '모르는 호스트입니다.',
-  bad_dir_name: '폴더 이름이 올바르지 않습니다. / \\ : * ? " < > | 와 . 이나 .. 은 쓸 수 없고 100자까지입니다.',
-  dir_exists: '같은 이름의 폴더가 이미 있습니다.',
-  dir_forbidden: '그 위치에 폴더를 만들 권한이 없습니다.',
-  image_too_large: '사진이 너무 큽니다(10MB까지).',
-  body_too_large: '사진이 너무 큽니다(10MB까지).',
-  bad_image_type: 'JPEG·PNG·WebP 사진만 보낼 수 있습니다.',
-  network: '연결이 끊겼습니다. 다시 시도해 주세요.',
-  timeout: '응답이 늦어 기다리기를 멈췄습니다. 다시 시도해 주세요.',
-  agent_not_found: '에이전트가 끝났습니다.',
-  pane_not_found: '셸이 닫혔습니다.',
-  workspace_not_found: '워크스페이스가 닫혔습니다.',
-  agent_blocked: '에이전트가 답을 기다리는 중입니다. 위 버튼으로 먼저 답해 주세요.',
-  dialog_open: '선택 창이 열려 있습니다 — 먼저 답하거나 Esc 를 보내 주세요. 글은 그대로 있습니다.',
-  not_subscribed: '이 기기는 알림이 꺼져 있습니다.',
-  forbidden: '이 기기는 허용되지 않았습니다.',
-  bad_url: 'https://이름:포트 꼴의 주소만 됩니다(경로·로그인 없이).',
-  bad_host_id: '호스트 id 가 올바르지 않습니다.',
-  host_is_self: '이 허브 자신입니다.',
-  host_id_taken: '같은 id 의 호스트가 이미 있습니다.',
-  host_url_taken: '그 주소의 호스트가 이미 있습니다.',
-  too_many_hosts: '호스트는 16개까지입니다.',
-  not_hub: '이 호스트는 허브가 아니라서 호스트 목록을 바꿀 수 없습니다.',
-  not_claude: 'Claude 에이전트에서만 됩니다.',
-  input_busy: 'Claude Code 입력 칸에 글이 있어 손대지 않았습니다. 터미널에서 비운 뒤 다시 해 주세요. 메시지는 그대로 대기 중입니다.',
-  images_queued: '함께 대기 중인 메시지에 사진이 있어 다시 넣으면 사진이 빠집니다. 메시지는 그대로 대기 중입니다.',
-  unsure: '대기 중인 메시지가 Claude Code 입력 칸으로 돌아왔지만 정리하지 못했습니다. 터미널에서 입력 칸을 확인해 주세요(보내지도 지우지도 않았습니다).',
+  cwd_not_absolute: T('절대 경로를 적어 주세요.'),
+  cwd_not_found: T('그 폴더가 호스트에 없습니다.'),
+  cwd_not_directory: T('폴더가 아니라 파일입니다.'),
+  bad_cwd: T('폴더 경로가 올바르지 않습니다.'),
+  bad_kind: T('지원하지 않는 에이전트 종류입니다.'),
+  bad_args: T('인자에 쓸 수 없는 문자가 있습니다.'),
+  bad_agent_name: T('이름은 영문 소문자로 시작하고 소문자·숫자·-·_ 만 쓸 수 있습니다(32자까지).'),
+  bad_label: T('이름이 너무 길거나 쓸 수 없는 문자가 있습니다.'),
+  empty_label: T('이름을 적어 주세요.'),
+  agent_name_taken: T('같은 이름의 에이전트가 이미 있습니다.'),
+  peer_offline: T('그 호스트가 오프라인입니다.'),
+  peer_unreachable: T('그 호스트에 닿지 못했습니다.'),
+  peer_timeout: T('그 호스트가 제때 답하지 않았습니다.'),
+  unknown_host: T('모르는 호스트입니다.'),
+  bad_dir_name: T('폴더 이름이 올바르지 않습니다. / \\ : * ? " < > | 와 . 이나 .. 은 쓸 수 없고 100자까지입니다.'),
+  dir_exists: T('같은 이름의 폴더가 이미 있습니다.'),
+  dir_forbidden: T('그 위치에 폴더를 만들 권한이 없습니다.'),
+  image_too_large: T('사진이 너무 큽니다(10MB까지).'),
+  body_too_large: T('사진이 너무 큽니다(10MB까지).'),
+  bad_image_type: T('JPEG·PNG·WebP 사진만 보낼 수 있습니다.'),
+  network: T('연결이 끊겼습니다. 다시 시도해 주세요.'),
+  timeout: T('응답이 늦어 기다리기를 멈췄습니다. 다시 시도해 주세요.'),
+  agent_not_found: T('에이전트가 끝났습니다.'),
+  pane_not_found: T('셸이 닫혔습니다.'),
+  workspace_not_found: T('워크스페이스가 닫혔습니다.'),
+  agent_blocked: T('에이전트가 답을 기다리는 중입니다. 위 버튼으로 먼저 답해 주세요.'),
+  dialog_open: T('선택 창이 열려 있습니다 — 먼저 답하거나 Esc 를 보내 주세요. 글은 그대로 있습니다.'),
+  not_subscribed: T('이 기기는 알림이 꺼져 있습니다.'),
+  forbidden: T('이 기기는 허용되지 않았습니다.'),
+  bad_url: T('https://이름:포트 꼴의 주소만 됩니다(경로·로그인 없이).'),
+  bad_host_id: T('호스트 id 가 올바르지 않습니다.'),
+  host_is_self: T('이 허브 자신입니다.'),
+  host_id_taken: T('같은 id 의 호스트가 이미 있습니다.'),
+  host_url_taken: T('그 주소의 호스트가 이미 있습니다.'),
+  too_many_hosts: T('호스트는 16개까지입니다.'),
+  not_hub: T('이 호스트는 허브가 아니라서 호스트 목록을 바꿀 수 없습니다.'),
+  not_claude: T('Claude 에이전트에서만 됩니다.'),
+  input_busy: T('Claude Code 입력 칸에 글이 있어 손대지 않았습니다. 터미널에서 비운 뒤 다시 해 주세요. 메시지는 그대로 대기 중입니다.'),
+  images_queued: T('함께 대기 중인 메시지에 사진이 있어 다시 넣으면 사진이 빠집니다. 메시지는 그대로 대기 중입니다.'),
+  unsure: T('대기 중인 메시지가 Claude Code 입력 칸으로 돌아왔지만 정리하지 못했습니다. 터미널에서 입력 칸을 확인해 주세요(보내지도 지우지도 않았습니다).'),
 };
 // Korean for every failure: the server's code, else a plain 'try again' (never "Load failed").
-const errText = (err) => ERROR_TEXT[err.code] || (err.status >= 500 ? `호스트 오류(${err.status})입니다. 잠시 뒤에 다시 시도해 주세요.` : err.message && /[가-힣]/.test(err.message) ? err.message : `요청이 실패했습니다${err.code ? ` (${err.code})` : ''}. 다시 시도해 주세요.`);
+// The server's own Korean message only on a Korean page (the server isn't translated).
+const errText = (err) =>
+  ERROR_TEXT[err.code] ||
+  (err.status >= 500
+    ? T('호스트 오류({status})입니다. 잠시 뒤에 다시 시도해 주세요.', { status: err.status })
+    : I18n.lang === 'ko' && err.message && /[가-힣]/.test(err.message)
+      ? err.message
+      : err.code
+        ? T('요청이 실패했습니다 ({code}). 다시 시도해 주세요.', { code: err.code })
+        : T('요청이 실패했습니다. 다시 시도해 주세요.'));
 
 let state = { agents: [], terminals: [], workspaces: [], hosts: [], herdr: 'connecting' };
 let view = { name: 'list' };
@@ -329,7 +338,7 @@ function keepFocusTap(btn, run) {
   btn.addEventListener('mousedown', (e) => e.preventDefault()); // a mouse keeps the focus too
 }
 
-const clock = (t) => (t ? new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '');
+const clock = (t) => (t ? new Date(t).toLocaleTimeString(I18n.locale, { hour: '2-digit', minute: '2-digit' }) : '');
 
 async function hostInfo(id) {
   if (!hostCache.has(id)) hostCache.set(id, await api(hp('/host', id)));
@@ -494,7 +503,7 @@ const topLayer = () => layers[layers.length - 1] || null;
 // asked, with a keyboard), not a line of their own.
 // subject: what it is about (a name), at the head of the title in its own weight: 「‘hub-qtest’ 에이전트를 끝낼까요?」.
 // rows: [[name, value, note]] above the text, for a sheet that tells numbers (사용량).
-function sheet({ title, subject = '', rows = null, text = '', error = '', input = null, ok = '확인', cancel = '취소', danger = false, validate = null, again = false, key = null }) {
+function sheet({ title, subject = '', rows = null, text = '', error = '', input = null, ok = T('확인'), cancel = T('취소'), danger = false, validate = null, again = false, key = null }) {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     // Split, a dialog about what is open on the right sits over the right column; one asked from the
@@ -512,7 +521,7 @@ function sheet({ title, subject = '', rows = null, text = '', error = '', input 
         ${text ? `<p id="sheet-text">${esc(text)}</p>` : ''}
         ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
         ${input ? `<div class="field-wrap"><input class="field" name="v" value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="sheet-hint">
-        <button type="button" class="field-clear" data-clear aria-label="지우기"${input.value ? '' : ' hidden'}>${ICON.x}</button></div>
+        <button type="button" class="field-clear" data-clear aria-label="${T('지우기')}"${input.value ? '' : ' hidden'}>${ICON.x}</button></div>
         <p class="hint" id="sheet-hint" aria-live="polite"></p>` : ''}
         <div class="row end sheet-btns">
           ${cancel ? `<button type="button" class="btn secondary" data-cancel>${esc(cancel)}</button>` : ''}
@@ -584,7 +593,7 @@ function confirmKeys(action) {
   const enter = Keymap.deviceKey('Ctrl+Enter');
   const aria = (k) => k.replace(/\bCtrl\b/g, 'Control').replace(/⌘/g, 'Meta').replace(/리턴/g, 'Enter');
   const keys = [again, Keymap.label(enter)].filter(Boolean);
-  return { title: `확인: ${keys.join(' 또는 ')}`, aria: keys.map(aria).join(' '), cap: again };
+  return { title: T('확인: {keys}', { keys: keys.join(T(' 또는 ')) }), aria: keys.map(aria).join(' '), cap: again };
 }
 // A name cut to n characters with an ellipsis (a conversation's long title in a dialog's title).
 const clipName = (s, n) => {
@@ -655,7 +664,7 @@ function menu(title, items, { sub = '', anchor = null } = {}) {
     el.innerHTML = `<div class="sheet${pop ? ' pop' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1">
         <h2>${esc(title)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</h2>
         ${[...blocks.filter((b) => b.length), ...(risky.length ? [risky] : [])].map((b) => `<div class="actions">${b.map(row).join('')}</div>`).join('')}
-        ${pop || lastInput === 'key' ? '' : '<button class="btn secondary wide" data-k="">취소</button>'}
+        ${pop || lastInput === 'key' ? '' : `<button class="btn secondary wide" data-k="">${T('취소')}</button>`}
       </div>`;
     let layer = null;
     const mark = at && (at.mark || at.el);
@@ -753,7 +762,7 @@ function toast(text, { error = false, action = null, ms, id = '' } = {}) {
   if (error) el.setAttribute('role', 'alert');
   el.dataset.text = text;
   if (id) el.dataset.id = id;
-  el.innerHTML = `<span class="t">${esc(text)}</span>${action ? `<button type="button" class="t-act">${esc(action.label)}</button><button type="button" class="t-x" aria-label="알림 닫기">×</button>` : ''}`;
+  el.innerHTML = `<span class="t">${esc(text)}</span>${action ? `<button type="button" class="t-act">${esc(action.label)}</button><button type="button" class="t-x" aria-label="${T('알림 닫기')}">×</button>` : ''}`;
   const remove = () => {
     if (!el.isConnected) return;
     if (reduced()) return el.remove();

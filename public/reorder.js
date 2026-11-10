@@ -21,7 +21,7 @@ const toggleReorder = () => (setReorder(!reorder.on), true);
 
 // The grip of one thing.
 function reorderCtl(name) {
-  return `<span class="ro-ctl"><button type="button" class="icon-btn ro-grip" aria-label="${esc(name)} 옮기기 (끌거나 ↑ ↓ 키)">${ICON.grip}</button></span>`;
+  return `<span class="ro-ctl"><button type="button" class="icon-btn ro-grip" aria-label="${T('{name} 옮기기 (끌거나 ↑ ↓ 키)', { name: esc(name) })}">${ICON.grip}</button></span>`;
 }
 
 // 완료 while the mode is on: floating at the list's bottom right (style.css .ro-dock), on a dock of
@@ -31,7 +31,7 @@ function mountReorderDone(root) {
   if (!reorder.on) return void (old && old.remove());
   if (old) return;
   const main = root.querySelector(':scope > main.home');
-  if (main) main.insertAdjacentHTML('afterend', `<div class="ro-dock"><button type="button" class="btn ro-done"${keyAttrs('reorder', '순서 바꾸기 끝내기')}>완료</button></div>`);
+  if (main) main.insertAdjacentHTML('afterend', `<div class="ro-dock"><button type="button" class="btn ro-done"${keyAttrs('reorder', T('순서 바꾸기 끝내기'))}>${T('완료')}</button></div>`);
 }
 
 // What a control in the list moves: { scope, id, ids } — scope 'ws' (a host's cards) or 'pane'
@@ -71,7 +71,7 @@ async function saveListOrder(t, ids) {
   } catch (err) {
     state.order = was;
     if (listShown()) render();
-    toastErr(`순서를 저장하지 못했습니다: ${errText(err)}`);
+    toastErr(T('순서를 저장하지 못했습니다: {err}', { err: errText(err) }));
   }
 }
 
@@ -87,7 +87,7 @@ async function saveHostOrder(ids) {
     state.hosts = was;
     renderConn();
     if (listShown()) render();
-    toastErr(`순서를 저장하지 못했습니다: ${errText(err)}`);
+    toastErr(T('순서를 저장하지 못했습니다: {err}', { err: errText(err) }));
   }
 }
 function hostTarget(el) {

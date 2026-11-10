@@ -3,10 +3,10 @@
 **English summary** — Herdr Hub is a small web app (PWA) for watching and driving [herdr](https://herdr.dev) agents (Claude Code, Codex …) from a phone, tablet or another computer. It runs next to herdr on each host, talks to herdr's local API, and shows every agent's conversation, the prompts waiting for an answer (with one-tap answers and push notifications), and a live shell. One hub can merge several hosts. It has no login of its own: it is meant to sit behind [Tailscale](https://tailscale.com) (`tailscale serve`), which tells it who is asking. Never expose it to the public internet — it can type into your terminals. Node 20+, no build step, MIT licensed. The documentation below and in `docs/` is in Korean.
 
 <p>
-  <img src="docs/images/phone-list.png" width="260" alt="휴대폰의 작업공간 목록: 답 필요 2 줄과 워크스페이스 카드">
-  <img src="docs/images/phone-answer.png" width="260" alt="휴대폰의 대화 화면: 셸 명령 권한 묻기와 선택지 단추">
+  <img src="docs/images/ko/phone-list.png" width="260" alt="휴대폰의 작업공간 목록: 답 필요 2 줄과 워크스페이스 카드">
+  <img src="docs/images/ko/phone-answer.png" width="260" alt="휴대폰의 대화 화면: 셸 명령 권한 묻기와 선택지 단추">
 </p>
-<img src="docs/images/wide.png" alt="넓은 화면의 두 칸 배치, 어두운 테마: 왼쪽 목록, 오른쪽 대화와 답 필요 상자">
+<img src="docs/images/ko/wide.png" alt="넓은 화면의 두 칸 배치, 어두운 테마: 왼쪽 목록, 오른쪽 대화와 답 필요 상자">
 
 ---
 

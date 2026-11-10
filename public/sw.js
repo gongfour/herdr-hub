@@ -6,7 +6,7 @@
 // remembers (conn.js), instead of the browser's error page.
 
 const OFFLINE_CACHE = 'herdr-hub-offline';
-const OFFLINE_FILES = ['/offline.html', '/conn.js', '/style.css'];
+const OFFLINE_FILES = ['/offline.html', '/i18n.en.js', '/i18n.js', '/conn.js', '/style.css'];
 const REFRESH_MS = 3600e3;
 let refreshedAt = 0;
 // Fetched again, not from the HTTP cache: a deploy changes them without changing this file.
@@ -75,19 +75,37 @@ self.addEventListener('push', (event) => {
         pane: data.pane || null,
         stateSeq: data.stateSeq ?? null,
         answers: data.answers || null,
+        lang: data.lang === 'en' ? 'en' : 'ko',
       },
     })
   );
 });
 
-// What an answer request says back, in Korean.
-const ANSWER_ERR = {
-  stale: '그 질문은 이미 바뀌었습니다',
-  not_blocked: '이미 답했거나 더 기다리지 않습니다',
-  answered: '이미 답을 보냈습니다',
-  needs_text: '이 선택은 앱에서 답을 적어야 합니다',
-  agent_not_found: '에이전트가 없습니다',
-  peer_offline: '호스트가 오프라인입니다',
+// What an answer request says back, in the language the notification came in (its payload's lang,
+// lib/notify.js). The worker has no page and no i18n.js: its few words are here, in both.
+const SW_TEXT = {
+  ko: {
+    sent: '보냄: {x}',
+    failed: '보내지 못했습니다 — {why}',
+    check: '앱에서 확인하세요',
+    stale: '그 질문은 이미 바뀌었습니다',
+    not_blocked: '이미 답했거나 더 기다리지 않습니다',
+    answered: '이미 답을 보냈습니다',
+    needs_text: '이 선택은 앱에서 답을 적어야 합니다',
+    agent_not_found: '에이전트가 없습니다',
+    peer_offline: '호스트가 오프라인입니다',
+  },
+  en: {
+    sent: 'Sent: {x}',
+    failed: "Couldn't send — {why}",
+    check: 'Check in the app',
+    stale: 'That question has changed',
+    not_blocked: 'Already answered, or no longer waiting',
+    answered: 'The answer was already sent',
+    needs_text: 'This choice needs words: answer in the app',
+    agent_not_found: 'The agent is gone',
+    peer_offline: 'The host is offline',
+  },
 };
 
 // A button on a 답 필요 notification: send that option, guarded by stateSeq on the host.
@@ -110,7 +128,10 @@ async function answer(note, n) {
   }
   // A short confirmation in the same place (same tag), quiet; a failure says what to do.
   await self.registration.showNotification(note.title, {
-    body: ok ? `보냄: ${label || n}` : `보내지 못했습니다 — ${ANSWER_ERR[why] || '앱에서 확인하세요'}`,
+    body: (() => {
+      const w = SW_TEXT[d.lang === 'en' ? 'en' : 'ko'];
+      return ok ? w.sent.replace('{x}', label || n) : w.failed.replace('{why}', w[why] || w.check);
+    })(),
     tag: note.tag,
     renotify: false,
     silent: true,

@@ -26,8 +26,8 @@ const selecting = () => {
 function mountScreen(body, kind, tools, topHtml = '') {
   body.classList.add('screen-mode');
   const top = topHtml ? `<div class="screen-top">${topHtml}</div>` : '';
-  body.innerHTML = `<div class="note screen-note"><p class="n-main">불러오는 중…</p><p class="n-sub" hidden></p><button type="button" class="btn secondary n-retry" hidden>다시 시도</button></div>${top}<pre class="screen ${kind}" hidden></pre>
-    <div class="pill-dock"><button type="button" class="new-out to-start" hidden>← 처음으로</button><button type="button" class="new-out"${keyAttrs('jumpEnd', '맨 아래로')} hidden>↓ 새 출력</button></div>`;
+  body.innerHTML = `<div class="note screen-note"><p class="n-main">${T('불러오는 중…')}</p><p class="n-sub" hidden></p><button type="button" class="btn secondary n-retry" hidden>${T('다시 시도')}</button></div>${top}<pre class="screen ${kind}" hidden></pre>
+    <div class="pill-dock"><button type="button" class="new-out to-start" hidden>${T('← 처음으로')}</button><button type="button" class="new-out"${keyAttrs('jumpEnd', T('맨 아래로'))} hidden>${T('↓ 새 출력')}</button></div>`;
   const s = (scr = {
     kind, body, tools, wrap: getWrap(kind), color: getColor(), raw: null, shown: null, pending: null, follow: true, touching: false, error: null, note: '',
     pre: body.querySelector('.screen'), pill: body.querySelector('.new-out:not(.to-start)'), start: body.querySelector('.to-start'), loading: body.querySelector('.screen-note'),
@@ -42,7 +42,7 @@ function mountScreen(body, kind, tools, topHtml = '') {
     s.start.hidden = true;
   };
   s.loading.querySelector('.n-retry').onclick = () => {
-    s.loading.querySelector('.n-main').textContent = '다시 읽는 중…';
+    s.loading.querySelector('.n-main').textContent = T('다시 읽는 중…');
     s.retry();
   };
   body.onscroll = () => {
@@ -83,14 +83,14 @@ function screenStatus() {
   const first = scr.shown == null;
   const el = scr.tools && scr.tools.querySelector('.s-status');
   if (el) {
-    el.textContent = scr.error ? `화면을 새로 읽지 못했습니다: ${scr.error}. 자동으로 다시 시도합니다.` : scr.note || '';
+    el.textContent = scr.error ? T('화면을 새로 읽지 못했습니다: {error}. 자동으로 다시 시도합니다.', { error: scr.error }) : scr.note || '';
     el.classList.toggle('err', Boolean(scr.error));
     scr.tools.hidden = !scr.error || first; // a note alone is not worth a row
   }
   if (first) {
     const n = scr.loading;
     n.classList.toggle('err', Boolean(scr.error));
-    n.querySelector('.n-main').textContent = scr.error ? '화면을 읽지 못했습니다' : '불러오는 중…';
+    n.querySelector('.n-main').textContent = scr.error ? T('화면을 읽지 못했습니다') : T('불러오는 중…');
     n.querySelector('.n-sub').textContent = scr.error || '';
     n.querySelector('.n-sub').hidden = n.querySelector('.n-retry').hidden = !scr.error;
   }
@@ -99,17 +99,18 @@ function screenStatus() {
 // reason: a short why (errReason), or a whole sentence from an older caller (made short too).
 function screenError(reason) {
   if (!scr) return;
-  const r = shortReason(String(reason).replace(/^불러오지 못했습니다:\s*/, ''));
+  const r = shortReason(String(reason).replace(/^(불러오지 못했습니다|Couldn't load):\s*/, ''));
   if (scr.error === r && scr.shown != null) return;
   scr.error = r;
   screenStatus();
 }
 
 // A failure in a few words, for a line that says itself what happens next: 「호스트 오류(502)」,
-// 「연결이 끊겼습니다」, never 「다시 시도해 주세요」.
+// 「연결이 끊겼습니다」, never 「다시 시도해 주세요」 (in English: 「Host error (502)」, no 「Try again」).
 const shortReason = (text) =>
   String(text)
     .replace(/\s*(잠시 뒤에 )?다시 시도해 주세요\.?$/, '')
+    .replace(/\s*Try again( in a moment)?\.?$/, '')
     .replace(/(입니다)?\.$/, '');
 const errReason = (err) => shortReason(errText(err));
 
@@ -254,7 +255,7 @@ function flushScreen(force) {
     if (s.follow) s.body.scrollTop = s.body.scrollHeight;
   }
   // Scrolled up: the pill goes back to the end, and says when there is new output there.
-  s.pill.textContent = s.pending != null ? '↓ 새 출력' : '↓ 맨 아래로';
+  s.pill.textContent = s.pending != null ? T('↓ 새 출력') : T('↓ 맨 아래로');
   s.pill.hidden = s.follow;
 }
 

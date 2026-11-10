@@ -17,15 +17,15 @@ let live = false; // the live stream is open and has sent a state
 // tap explains in a toast. Nothing shows while all is well. liveDot: the agent, shell and workspace
 // headers (the stream only); liveChip: the list's header, which also tells a host's herdr being down.
 const LIVE_WHY = {
-  stream: '실시간 연결이 끊겨 다시 붙는 중입니다. 그동안 보이는 상태는 늦을 수 있습니다.',
-  connecting: '실시간 연결을 여는 중입니다.',
-  herdr: '허브에는 닿지만 herdr 에 연결하지 못했습니다. 에이전트 상태가 늦을 수 있습니다.',
+  stream: T('실시간 연결이 끊겨 다시 붙는 중입니다. 그동안 보이는 상태는 늦을 수 있습니다.'),
+  connecting: T('실시간 연결을 여는 중입니다.'),
+  herdr: T('허브에는 닿지만 herdr 에 연결하지 못했습니다. 에이전트 상태가 늦을 수 있습니다.'),
 };
-const liveChipHtml = (word, why) => `<button type="button" class="live-chip" data-live-why="${why}" aria-label="${word} — 설명 보기"><span class="dot" aria-hidden="true"></span>${word}</button>`;
-const liveDot = () => (live ? '' : liveChipHtml('끊김', 'stream'));
+const liveChipHtml = (word, why) => `<button type="button" class="live-chip" data-live-why="${why}" aria-label="${T('{word} — 설명 보기', { word })}"><span class="dot" aria-hidden="true"></span>${word}</button>`;
+const liveDot = () => (live ? '' : liveChipHtml(T('끊김'), 'stream'));
 function liveChip() {
-  if (!live) return state.herdr === 'connecting' ? liveChipHtml('연결 중', 'connecting') : liveChipHtml('연결 끊김', 'stream');
-  if (state.herdr === 'down') return liveChipHtml('herdr 연결 끊김', 'herdr');
+  if (!live) return state.herdr === 'connecting' ? liveChipHtml(T('연결 중'), 'connecting') : liveChipHtml(T('연결 끊김'), 'stream');
+  if (state.herdr === 'down') return liveChipHtml(T('herdr 연결 끊김'), 'herdr');
   return '';
 }
 document.addEventListener('click', (e) => {
@@ -307,13 +307,13 @@ function showUpdateBanner() {
     updateBanner = document.createElement('div');
     updateBanner.className = 'update-bar';
     updateBanner.setAttribute('role', 'status');
-    updateBanner.innerHTML = `<span class="ub-t">이 화면이 서버와 맞지 않습니다<span class="ub-more">. 새로고침하면 고쳐집니다</span></span>
-      <button type="button" class="ub-go">새로고침</button>`;
+    updateBanner.innerHTML = `<span class="ub-t">${T('이 화면이 서버와 맞지 않습니다')}<span class="ub-more">${T('. 새로고침하면 고쳐집니다')}</span></span>
+      <button type="button" class="ub-go">${T('새로고침')}</button>`;
     updateBanner.querySelector('.ub-go').onclick = () => reloadToNew();
     document.body.appendChild(updateBanner);
     new ResizeObserver(() => updateBanner && document.documentElement.style.setProperty('--update-h', `${updateBanner.offsetHeight}px`)).observe(updateBanner);
   }
-  updateBanner.querySelector('.ub-t').title = `새 버전 ${Update.shortLabel(serverBuild)} · API ${serverBuild.api} (이 화면은 ${myBuild.api})`;
+  updateBanner.querySelector('.ub-t').title = T('새 버전 {build} · API {api} (이 화면은 {mine})', { build: Update.shortLabel(serverBuild), api: serverBuild.api, mine: myBuild.api });
   document.documentElement.classList.add('has-update');
 }
 function hideUpdateBanner() {
@@ -581,7 +581,7 @@ function relayout() {
   dropTabPages();
   document.documentElement.classList.toggle('split', split);
   $app.innerHTML = split
-    ? `<nav class="rail" id="rail" aria-label="탭"></nav><div class="col" id="list-pane"></div><div class="list-grip" role="separator" aria-orientation="vertical" aria-controls="list-pane" aria-label="목록 칸 폭" tabindex="0" title="끌어서 목록 칸 폭 바꾸기 · 두 번 누르면 자동"></div><div class="col" id="detail-pane"></div>`
+    ? `<nav class="rail" id="rail" aria-label="${T('탭')}"></nav><div class="col" id="list-pane"></div><div class="list-grip" role="separator" aria-orientation="vertical" aria-controls="list-pane" aria-label="${T('목록 칸 폭')}" tabindex="0" title="${T('끌어서 목록 칸 폭 바꾸기 · 두 번 누르면 자동')}"></div><div class="col" id="detail-pane"></div>`
     : '';
   syncGrip();
   route(null, { relayout: true });
@@ -621,29 +621,29 @@ function emptyDetailHtml() {
     const down = state.herdr !== 'up' && (f === localId() || (f === 'all' && !multi()));
     const peer = f !== 'all' && f !== localId() ? hostOf(f) : null;
     if (down || (peer && (!peer.online || peer.herdr !== 'up'))) {
-      const where = peer ? peer.label : hostLabel(localId()) || state.host || '이 호스트';
+      const where = peer ? peer.label : hostLabel(localId()) || state.host || T('이 호스트');
       return `<div class="empty-detail">
       ${icon}
-      <h2>${esc(where)} 의 에이전트를 볼 수 없습니다</h2>
-      ${peer && !peer.online ? '<p>그 호스트가 잠들었거나 Herdr Hub 가 꺼져 있습니다.</p>' : peer ? '<p>그 호스트에서 herdr 가 실행 중인지 확인하세요.</p>' : herdrHelp()}
-      <div class="ed-acts">${connLink('연결 상태 보기')}</div>
+      <h2>${T('{host} 의 에이전트를 볼 수 없습니다', { host: esc(where) })}</h2>
+      ${peer && !peer.online ? `<p>${T('그 호스트가 잠들었거나 Herdr Hub 가 꺼져 있습니다.')}</p>` : peer ? `<p>${T('그 호스트에서 herdr 가 실행 중인지 확인하세요.')}</p>` : herdrHelp()}
+      <div class="ed-acts">${connLink(T('연결 상태 보기'))}</div>
     </div>`;
     }
     const href = f === 'all' ? '#/new' : link(f, '/new');
     return `<div class="empty-detail">
       ${icon}
-      <h2>아직 워크스페이스가 없습니다</h2>
-      <p>폴더를 고르면 에이전트까지 바로 시작합니다.</p>
-      <div class="ed-acts"><a class="btn" href="${href}"${keyAttrs('newWorkspace', '새 워크스페이스')}>새 워크스페이스</a></div>
-      ${keyLine([k('newWorkspace', '새 워크스페이스'), k('switcher', '찾아 열기')])}
+      <h2>${T('아직 워크스페이스가 없습니다')}</h2>
+      <p>${T('폴더를 고르면 에이전트까지 바로 시작합니다.')}</p>
+      <div class="ed-acts"><a class="btn" href="${href}"${keyAttrs('newWorkspace', T('새 워크스페이스'))}>${T('새 워크스페이스')}</a></div>
+      ${keyLine([k('newWorkspace', T('새 워크스페이스')), k('switcher', T('찾아 열기'))])}
     </div>`;
   }
   // Two keys to get going, and the sheet with the rest: a wall of hints reads as noise.
-  const keys = [k('switcher', '찾아 열기'), k('nextRow', '목록 옮겨 다니기'), k('help', '모든 단축키')];
+  const keys = [k('switcher', T('찾아 열기')), k('nextRow', T('목록 옮겨 다니기')), k('help', T('모든 단축키'))];
   return `<div class="empty-detail">
       ${icon}
-      <h2>${off ? '목록을 열어 에이전트를 고르세요' : '왼쪽에서 에이전트를 고르세요'}</h2>
-      ${off ? `<button type="button" class="btn secondary ed-open" aria-controls="list-pane"${keyAttrs('toggleSide', '작업공간 목록 열기')}>작업공간 목록 열기</button>` : ''}
+      <h2>${off ? T('목록을 열어 에이전트를 고르세요') : T('왼쪽에서 에이전트를 고르세요')}</h2>
+      ${off ? `<button type="button" class="btn secondary ed-open" aria-controls="list-pane"${keyAttrs('toggleSide', T('작업공간 목록 열기'))}>${T('작업공간 목록 열기')}</button>` : ''}
       ${keyLine(keys)}
     </div>`;
 }
@@ -664,7 +664,7 @@ function syncGrip() {
   g.setAttribute('aria-valuemax', LIST_W.max);
   if (w) {
     g.setAttribute('aria-valuenow', w);
-    g.setAttribute('aria-valuetext', `${w}px${Prefs.get('listW') === 'auto' ? ' (자동)' : ''}`);
+    g.setAttribute('aria-valuetext', `${w}px${Prefs.get('listW') === 'auto' ? ` (${T('자동@@inline')})` : ''}`);
   }
 }
 function setListWidth(v) {
@@ -806,8 +806,8 @@ function stepTermFont(dir) {
   const i = sizes.indexOf(Prefs.get('termFont')) + dir;
   if (i >= 0 && i < sizes.length) setPref('termFont', sizes[i]);
   const v = Prefs.get('termFont');
-  const edge = i < 0 ? ' (가장 작게)' : i >= sizes.length ? ' (가장 크게)' : '';
-  toast(`셸 글자 크기: ${Prefs.row('termFont').options[v]}${edge}`, { id: 'termFont' });
+  const edge = i < 0 ? ` (${T('가장 작게')})` : i >= sizes.length ? ` (${T('가장 크게')})` : '';
+  toast(`${T('셸 글자 크기: {size}', { size: Prefs.row('termFont').options[v] })}${edge}`, { id: 'termFont' });
   return true;
 }
 // Keyboard: every shortcut is a binding in keymap.js; these are what its actions do. A handler
@@ -864,7 +864,7 @@ const KEY_ACTIONS = {
     if (!scr) return false;
     const key = scr.kind === 'term' ? 'wrap.term' : 'wrap.agent';
     setPref(key, !Prefs.get(key));
-    toast(Prefs.get(key) ? '줄바꿈을 켰습니다' : '줄바꿈을 껐습니다', { id: 'wrap' });
+    toast(Prefs.get(key) ? T('줄바꿈을 켰습니다') : T('줄바꿈을 껐습니다'), { id: 'wrap' });
     return true;
   },
   // 셸 글자 크기 one step (설정 → 화면 has the same three).
@@ -1011,7 +1011,7 @@ function startFolderFor(host, ws) {
   return Quick.startFolder({ open: open && (open.host || localId()) === host ? open : null, ws, def: (w && w.defaultCwd) || '', panes, recent: recentList() });
 }
 async function quickStart(host, ws) {
-  if (quickBusy) return toast('새 에이전트를 시작하는 중입니다', { id: 'quick' });
+  if (quickBusy) return toast(T('새 에이전트를 시작하는 중입니다'), { id: 'quick' });
   quickBusy = true;
   const from = location.hash;
   try {
@@ -1025,13 +1025,13 @@ async function quickStart(host, ws) {
     const spec = Quick.specFor(Quick.last(), kinds);
     const cwd = startFolderFor(host, ws);
     const where = cwd ? ` · ${RowText.homePath(cwd, info && info.home)}` : '';
-    toast(`새 ${kindLabel(spec.kind)} 에이전트를 시작하는 중…${spec.args.length ? ` (${spec.args.join(' ')})` : ''}${where}`, { id: 'quick', ms: 60000 });
-    const r = await act(hp(`/workspaces/${encodeURIComponent(ws)}/agents`, host), cwd ? { ...spec, cwd } : spec, null, '에이전트를 시작하지 못했습니다');
+    toast(`${T('새 {kind} 에이전트를 시작하는 중…', { kind: kindLabel(spec.kind) })}${spec.args.length ? ` (${spec.args.join(' ')})` : ''}${where}`, { id: 'quick', ms: 60000 });
+    const r = await act(hp(`/workspaces/${encodeURIComponent(ws)}/agents`, host), cwd ? { ...spec, cwd } : spec, null, T('에이전트를 시작하지 못했습니다'));
     for (const t of document.querySelectorAll('.toast[data-id="quick"]')) t.remove();
     if (!r || !r.pane) return;
     Quick.started(rowKey(host, r.pane));
     const to = link(host, `/agent/${encodeURIComponent(r.pane)}`);
-    if (location.hash !== from) return toast('새 에이전트를 시작했습니다', { action: { label: '열기', run: () => (location.hash = to) } });
+    if (location.hash !== from) return toast(T('새 에이전트를 시작했습니다'), { action: { label: T('열기'), run: () => (location.hash = to) } });
     stepFocus = true; // the caret into its composer (route)
     location.hash = to;
   } finally {

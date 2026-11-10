@@ -32,29 +32,29 @@ function renderDetail() {
       <header class="bar">
         ${backLink(homeHash())}
         <h1 id="d-title"></h1>
-        <span class="sync" id="d-sync" role="img" aria-label="새로 불러오는 중" title="새로 불러오는 중" hidden></span>
-        <button type="button" class="mode-chip usage-chip" id="d-usage" aria-haspopup="dialog"${keyAttrs('usage', '사용량')} hidden></button>
+        <span class="sync" id="d-sync" role="img" aria-label="${T('새로 불러오는 중')}" title="${T('새로 불러오는 중')}" hidden></span>
+        <button type="button" class="mode-chip usage-chip" id="d-usage" aria-haspopup="dialog"${keyAttrs('usage', T('사용량'))} hidden></button>
         <span id="d-badge"></span>
-        <button class="icon-btn" id="d-more" aria-label="더 보기" aria-haspopup="dialog"${keyAttrs('menu', '더 보기')}>${ICON.more}</button>
+        <button class="icon-btn" id="d-more" aria-label="${T('더 보기')}" aria-haspopup="dialog"${keyAttrs('menu', T('더 보기'))}>${ICON.more}</button>
       </header>
       <div class="ghost-bar" id="d-ghost" role="status" hidden></div>
-      <button type="button" class="activity" id="d-activity"${keyAttrs('terminal', '터미널 화면 보기')} hidden></button>
+      <button type="button" class="activity" id="d-activity"${keyAttrs('terminal', T('터미널 화면 보기'))} hidden></button>
       <div class="screen-tools" id="s-tools" hidden></div>
-      <div class="scroll" id="d-body" role="log" aria-label="대화" aria-live="off"></div>
+      <div class="scroll" id="d-body" role="log" aria-label="${T('대화')}" aria-live="off"></div>
       <div id="d-blocked"></div>
       <div class="sr-only" id="d-say" role="status"></div>
       <div class="attach-tray" id="d-tray" hidden></div>
       <input type="file" id="d-file" accept="image/*" multiple hidden>
       <input type="file" id="d-cam" accept="image/*" capture="environment" hidden>
-      <div class="palette" id="d-pal" role="listbox" aria-label="명령 제안" hidden></div>
+      <div class="palette" id="d-pal" role="listbox" aria-label="${T('명령 제안')}" hidden></div>
       <div class="composer-tools" id="d-ctools" hidden>
-        <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', '모드 고르기 · 메시지 칸에서 다음 모드')} hidden></button>
+        <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', T('모드 고르기 · 메시지 칸에서 다음 모드'))} hidden></button>
       </div>
       <div class="composer" id="d-form">
-        <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">${ICON.photo}</button>
-        <div id="d-input" class="input" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="메시지" data-placeholder="메시지 보내기" enterkeyhint="${getEnter() === 'send' ? 'send' : 'enter'}" autocapitalize="sentences"></div>
-        <button type="button" class="stop" id="d-stop" aria-label="중단"${keyAttrs('stop', '중단')} hidden>${ICON.stop}</button>
-        <button type="button" class="send" id="d-send" aria-label="보내기"${keyAttrs(null, '보내기', Keymap.label(Keymap.deviceKey('Ctrl+Enter')))} disabled>${ICON.send}</button>
+        <button type="button" class="attach" id="d-attach" aria-label="${T('사진 첨부')}">${ICON.photo}</button>
+        <div id="d-input" class="input" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="${T('메시지')}" data-placeholder="${T('메시지 보내기')}" enterkeyhint="${getEnter() === 'send' ? 'send' : 'enter'}" autocapitalize="sentences"></div>
+        <button type="button" class="stop" id="d-stop" aria-label="${T('중단')}"${keyAttrs('stop', T('중단'))} hidden>${ICON.stop}</button>
+        <button type="button" class="send" id="d-send" aria-label="${T('보내기')}"${keyAttrs(null, T('보내기'), Keymap.label(Keymap.deviceKey('Ctrl+Enter')))} disabled>${ICON.send}</button>
       </div>
     </div>`;
   document.getElementById('d-activity').onclick = openScreenSheet;
@@ -116,7 +116,7 @@ function renderDetail() {
   }
   document.getElementById('d-attach').onclick = async () => {
     if (!ANDROID) return document.getElementById('d-file').click();
-    const k = await menu('사진 첨부', [['pick', '사진 고르기'], ['cam', '카메라로 찍기']]);
+    const k = await menu(T('사진 첨부'), [['pick', T('사진 고르기')], ['cam', T('카메라로 찍기')]]);
     if (k) document.getElementById(k === 'cam' ? 'd-cam' : 'd-file').click();
   };
   document.getElementById('d-tray').onclick = (e) => {
@@ -155,7 +155,7 @@ function renderDetail() {
     const files = detail.files;
     if (detail.sending || (!text.trim() && !files.length)) return;
     if (ghostRefuse(currentAgent())) return; // actions.js: its host is offline
-    if (files.some((f) => !f.blob)) return toast('사진을 준비하는 중입니다. 잠시 뒤에 보내 주세요.');
+    if (files.some((f) => !f.blob)) return toast(T('사진을 준비하는 중입니다. 잠시 뒤에 보내 주세요.'));
     const host = curHost();
     const pane = detail.pane;
     const key = rowKey(host, pane);
@@ -167,7 +167,7 @@ function renderDetail() {
     if (cur && cur.status === 'blocked' && !detail.answerMode) {
       const target = blockedTarget(cur);
       if (!target || (target.how === 'own' && files.length)) {
-        toast(target ? '이 질문에는 사진을 보낼 수 없습니다' : '위의 선택지에서 먼저 답을 고르세요');
+        toast(target ? T('이 질문에는 사진을 보낼 수 없습니다') : T('위의 선택지에서 먼저 답을 고르세요'));
         return revealChoices();
       }
       detail.sending = true;
@@ -186,7 +186,7 @@ function renderDetail() {
       if (via === 'own' && !(await screenMoved(host, pane, before))) {
         detail.sending = false;
         updateComposer();
-        toast('질문의 입력 칸이 아직 열리지 않았습니다. 글은 그대로 있습니다. 다시 보내 주세요.');
+        toast(T('질문의 입력 칸이 아직 열리지 않았습니다. 글은 그대로 있습니다. 다시 보내 주세요.'));
         return;
       }
       if (via !== 'own') await new Promise((r) => setTimeout(r, 600));
@@ -205,7 +205,7 @@ function renderDetail() {
         drafts.delete(key);
         setTimeout(loadDetail, 500);
       } catch (err) {
-        toastErr(`답을 보내지 못했습니다: ${errText(err)} 글은 그대로 있습니다.`, { label: '다시 보내기', run: () => here() && sendNow() });
+        toastErr(T('답을 보내지 못했습니다: {error} 글은 그대로 있습니다.', { error: errText(err) }), { label: T('다시 보내기'), run: () => here() && sendNow() });
       } finally {
         detail.sending = false;
         updateComposer();
@@ -248,15 +248,15 @@ function renderDetail() {
       if ((drafts.get(key) || {}).files === files) drafts.delete(key);
       setTimeout(loadDetail, 600);
     } catch (err) {
-      const retry = { label: '다시 보내기', run: () => here() && sendNow() };
+      const retry = { label: T('다시 보내기'), run: () => here() && sendNow() };
       if (err.code === 'agent_blocked') toastErr(errText(err));
       else if (err.code === 'dialog_open') {
         // Nothing was typed: the hub shows the dialog as 답 필요 from its next refresh.
         toastErr(errText(err));
         setTimeout(loadDetail, 600);
       }
-      else if (err.network) toastErr(`연결이 끊겨 ${err.upload ? '사진을 올리지' : '보내지'} 못했습니다. 글은 그대로 있습니다.`, retry);
-      else toastErr(`${err.upload ? '사진을 올리지' : '보내지'} 못했습니다: ${errText(err)} 글은 그대로 있습니다.`, retry);
+      else if (err.network) toastErr(err.upload ? T('연결이 끊겨 사진을 올리지 못했습니다. 글은 그대로 있습니다.') : T('연결이 끊겨 보내지 못했습니다. 글은 그대로 있습니다.'), retry);
+      else toastErr(err.upload ? T('사진을 올리지 못했습니다: {error} 글은 그대로 있습니다.', { error: errText(err) }) : T('보내지 못했습니다: {error} 글은 그대로 있습니다.', { error: errText(err) }), retry);
     } finally {
       detail.sending = false;
       updateComposer();
@@ -274,8 +274,8 @@ function renderDetail() {
 // 중단 (the stop button, a menu): an agent's work, after asking. Esc to it; the chat stays.
 async function confirmStop(a = currentAgent()) {
   if (!a) return;
-  if (!(await sheet({ title: '작업 중단', text: `‘${a.name || a.title}’ 의 작업을 중단할까요? 대화는 남습니다.`, ok: '중단', danger: true }))) return;
-  if ((await sendKeys(['esc'], a.host || localId(), a.pane)) && view.name !== 'agent') toast('중단하라고 보냈습니다');
+  if (!(await sheet({ title: T('작업 중단'), text: T('‘{name}’ 의 작업을 중단할까요? 대화는 남습니다.', { name: a.name || a.title }), ok: T('중단'), danger: true }))) return;
+  if ((await sendKeys(['esc'], a.host || localId(), a.pane)) && view.name !== 'agent') toast(T('중단하라고 보냈습니다'));
 }
 
 // Alt+. twice within STOP_MS (keymap.js): what 중단 does once its sheet says yes. The first press
@@ -291,7 +291,7 @@ function stopKey() {
     sendKeys(['esc']);
   } else {
     stopArm = { key, at: Date.now() };
-    toast('한 번 더 누르면 중단합니다', { ms: STOP_MS });
+    toast(T('한 번 더 누르면 중단합니다'), { ms: STOP_MS });
   }
   return true;
 }
@@ -321,7 +321,7 @@ function setPlaceholder() {
   const a = currentAgent();
   const blocked = a && a.status === 'blocked' && !detail.answerMode;
   const target = blocked ? blockedTarget(a) : null;
-  input.dataset.placeholder = detail.answerMode ? '답을 적어 보내세요' : !blocked ? '메시지 보내기' : target ? `적어 보내면 ${target.item.n}번으로 답합니다` : a.menu ? '위 메뉴에서 고르거나 취소하세요' : '위에서 답을 고르세요';
+  input.dataset.placeholder = detail.answerMode ? T('답을 적어 보내세요') : !blocked ? T('메시지 보내기') : target ? T('적어 보내면 {n}번으로 답합니다', { n: target.item.n }) : a.menu ? T('위 메뉴에서 고르거나 취소하세요') : T('위에서 답을 고르세요');
   if (blocked && !target) input.setAttribute('aria-disabled', 'true');
   else input.removeAttribute('aria-disabled');
 }
@@ -359,7 +359,7 @@ function renderGhost(a, input, send, attach, stop) {
   const form = document.getElementById('d-form');
   if (form) form.classList.toggle('ghost', ghost);
   if (bar) {
-    const html = ghost ? `<b>${esc(hostLabel(curHost()))} 오프라인</b> · ${esc(RowText.asOf(a.stale))} 마지막 모습입니다. 읽기만 할 수 있습니다.` : '';
+    const html = ghost ? `<b>${T('{host} 오프라인', { host: esc(hostLabel(curHost())) })}</b> · ${T('{when} 마지막 모습입니다. 읽기만 할 수 있습니다.', { when: esc(RowText.asOf(a.stale)) })}` : '';
     if (bar._html !== html) bar.innerHTML = bar._html = html;
     bar.hidden = !ghost;
   }
@@ -369,7 +369,7 @@ function renderGhost(a, input, send, attach, stop) {
   }
   input.setAttribute('contenteditable', 'false');
   input.setAttribute('aria-disabled', 'true');
-  input.dataset.placeholder = `${hostLabel(curHost())} 가 돌아오면 보낼 수 있습니다`;
+  input.dataset.placeholder = T('{host} 가 돌아오면 보낼 수 있습니다', { host: hostLabel(curHost()) });
   send.disabled = true;
   if (attach) attach.disabled = true;
   stop.hidden = true;
@@ -393,12 +393,12 @@ function renderDetailHeader() {
     detail.known = known;
     title._html = null;
     title.innerHTML = !known
-      ? '불러오는 중…'
+      ? T('불러오는 중…')
       : !online(curHost())
-      ? `${esc(hostLabel(curHost()))} 오프라인${detail.last ? `<span class="sub">${esc(detail.last.name)}</span>` : ''}`
+      ? `${T('{host} 오프라인', { host: esc(hostLabel(curHost())) })}${detail.last ? `<span class="sub">${esc(detail.last.name)}</span>` : ''}`
       : starting()
-      ? '에이전트를 시작하는 중…'
-      : `에이전트 없음${detail.last ? `<span class="sub">${esc(detail.last.name)}</span>` : ''}`;
+      ? T('에이전트를 시작하는 중…')
+      : `${T('에이전트 없음')}${detail.last ? `<span class="sub">${esc(detail.last.name)}</span>` : ''}`;
     const badge = document.getElementById('d-badge');
     badge.innerHTML = badge._html = '';
     document.getElementById('d-more').hidden = true; // its menu is about an agent that isn't there
@@ -547,7 +547,7 @@ async function loadDetail() {
       renderSync();
     }
     if (['agent_not_found', 'peer_offline'].includes(err.code)) return;
-    const msg = `불러오지 못했습니다: ${errText(err)}`;
+    const msg = T('불러오지 못했습니다: {error}', { error: errText(err) });
     // Polls repeat the same failure every few seconds: say it once, inline on the screen.
     if (scr) screenError(msg);
     else if (msg !== detail.lastErr) toast(msg);
@@ -808,7 +808,7 @@ async function sendQueuedNow() {
     }
   } catch (err) {
     // A host whose Hub is older has no such route yet.
-    toastErr(err.status === 404 && err.code === 'not_found' ? '이 호스트의 Hub 를 배포해야 지금 보낼 수 있습니다.' : `지금 보내지 못했습니다: ${errText(err)}`);
+    toastErr(err.status === 404 && err.code === 'not_found' ? T('이 호스트의 Hub 를 배포해야 지금 보낼 수 있습니다.') : T('지금 보내지 못했습니다: {error}', { error: errText(err) }));
   } finally {
     detail.sending = false;
     updateComposer();
@@ -856,24 +856,24 @@ async function cancelQueued(at, focus = false) {
     drop();
     const back = giveBack();
     if (here()) renderDetailBody(false);
-    const pics = p.pics ? ' 사진은 다시 붙여야 합니다.' : '';
-    toast(`${msg}${back ? ' 메시지 칸에 다시 넣었습니다.' : ''}${pics}`);
+    const pics = p.pics ? ` ${T('사진은 다시 붙여야 합니다.')}` : '';
+    toast(`${msg}${back ? ` ${T('메시지 칸에 다시 넣었습니다.')}` : ''}${pics}`);
   };
-  if (!canSendQueued(currentAgent())) return done('대기 중 표시를 지웠습니다.');
+  if (!canSendQueued(currentAgent())) return done(T('대기 중 표시를 지웠습니다.'));
   cancelling.add(p);
   if (here()) renderDetailBody(false);
   try {
     await api(hp(`/agents/${encodeURIComponent(pane)}/unqueue`, host), { method: 'POST', body: JSON.stringify({ text: p.text }) });
-    done('대기 중인 메시지를 취소했습니다.');
+    done(T('대기 중인 메시지를 취소했습니다.'));
   } catch (err) {
-    if (err.code === 'not_queued') return done('Claude Code 의 대기열에 없어 표시만 지웠습니다 — 이미 전달됐을 수 있습니다.');
-    if (err.status === 404 && err.code === 'not_found') toastErr('이 호스트의 Hub 를 배포해야 대기 중인 메시지를 취소할 수 있습니다.');
+    if (err.code === 'not_queued') return done(T('Claude Code 의 대기열에 없어 표시만 지웠습니다 — 이미 전달됐을 수 있습니다.'));
+    if (err.status === 404 && err.code === 'not_found') toastErr(T('이 호스트의 Hub 를 배포해야 대기 중인 메시지를 취소할 수 있습니다.'));
     else if (err.code === 'requeue_failed') {
       // The cancelled one is out; some of the others did not go back in.
       drop();
       giveBack();
-      toastErr(`취소했지만 함께 대기하던 메시지 ${err.body && err.body.lost ? `${err.body.lost}개` : '일부'}를 다시 넣지 못했습니다. 터미널에서 확인해 주세요.`);
-    } else toastErr(`취소하지 못했습니다: ${errText(err)}`);
+      toastErr(err.body && err.body.lost ? T('취소했지만 함께 대기하던 메시지 {n}개를 다시 넣지 못했습니다. 터미널에서 확인해 주세요.', { n: err.body.lost }) : T('취소했지만 함께 대기하던 메시지 일부를 다시 넣지 못했습니다. 터미널에서 확인해 주세요.'));
+    } else toastErr(T('취소하지 못했습니다: {error}', { error: errText(err) }));
   } finally {
     cancelling.delete(p);
     if (here()) {
@@ -884,19 +884,19 @@ async function cancelQueued(at, focus = false) {
 }
 // Its keys, as the composer takes them (keymap.js LOCAL 「지금 보내기」): ⌘+리턴 first on a Mac.
 function sendQueuedKeys() {
-  const row = Keymap.LOCAL.find((x) => x.name === '지금 보내기');
+  const row = Keymap.LOCAL.find((x) => x.name === T('지금 보내기'));
   const keys = row ? Keymap.localKeys(row) : [];
   return { hint: keys.map(Keymap.label).join(' · '), aria: keys.map((k) => k.replace(/\bCtrl\b/g, 'Control')).join(' ') };
 }
 // now: the last bubble, of an agent 지금 보내기 works on (its button).
 function pendingBubble(p, now = false) {
-  const pics = p.pics ? `<div class="pics"><span class="img-chip">사진 ${p.pics}장</span></div>` : '';
+  const pics = p.pics ? `<div class="pics"><span class="img-chip">${T('사진 {n}장', { n: p.pics })}</span></div>` : '';
   const k = now && sendQueuedKeys();
-  const btn = now ? `<button type="button" class="send-now" data-sendnow title="대기 중인 메시지를 지금 보내기${k.hint ? ` (빈 메시지 칸에서 ${esc(k.hint)})` : ''}"${k.aria ? ` aria-keyshortcuts="${esc(k.aria)}"` : ''}>지금 보내기</button>` : '';
-  const cancel = `<button type="button" class="unqueue" data-unqueue="${p.at}" aria-label="대기 중인 메시지 취소" title="대기 중인 메시지 취소"${cancelling.has(p) ? ' disabled aria-busy="true"' : ''}>${cancelling.has(p) ? '취소하는 중…' : '취소'}</button>`;
+  const btn = now ? `<button type="button" class="send-now" data-sendnow title="${k.hint ? T('대기 중인 메시지를 지금 보내기 (빈 메시지 칸에서 {key})', { key: esc(k.hint) }) : T('대기 중인 메시지를 지금 보내기')}"${k.aria ? ` aria-keyshortcuts="${esc(k.aria)}"` : ''}>${T('지금 보내기')}</button>` : '';
+  const cancel = `<button type="button" class="unqueue" data-unqueue="${p.at}" aria-label="${T('대기 중인 메시지 취소')}" title="${T('대기 중인 메시지 취소')}"${cancelling.has(p) ? ' disabled aria-busy="true"' : ''}>${cancelling.has(p) ? T('취소하는 중…') : T('취소')}</button>`;
   const state = p.now
-    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12M13 6l6 6-6 6" /></svg>보내는 중`
-    : `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>대기 중`;
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12M13 6l6 6-6 6" /></svg>${T('보내는 중')}`
+    : `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>${T('대기 중')}`;
   return `<div class="msg user pending${p.now ? ' going' : ''}">${pics}${p.text ? `<span>${esc(p.text)}</span>` : ''}<div class="wait-row">${btn}${cancel}<small class="wait">${state}</small></div></div>`;
 }
 
@@ -912,19 +912,19 @@ function goneKind() {
 function goneHtml(kind) {
   const host = curHost();
   const ws = detail.last && (state.workspaces || []).find((w) => same(w, host, detail.last.workspace, 'workspace_id'));
-  const home = `<a class="btn secondary" href="${homeHash()}">작업공간으로</a>`;
+  const home = `<a class="btn secondary" href="${homeHash()}">${T('작업공간으로')}</a>`;
   if (kind === 'offline')
     return `<div class="empty-detail in-body" role="status">
       <span class="ed-ic" aria-hidden="true">${ICON.panel}</span>
-      <h2>${esc(hostLabel(host))} 에 닿지 않습니다</h2>
-      <p>호스트가 돌아오면 이 대화가 다시 보입니다.</p>
+      <h2>${T('{host} 에 닿지 않습니다', { host: esc(hostLabel(host)) })}</h2>
+      <p>${T('호스트가 돌아오면 이 대화가 다시 보입니다.')}</p>
       <div class="ed-acts">${home}</div>
     </div>`;
   return `<div class="empty-detail in-body" role="status">
       <span class="ed-ic" aria-hidden="true">${ICON.panel}</span>
-      <h2>이 에이전트는 끝났습니다</h2>
-      <p>에이전트가 끝나서 더는 보낼 수 없습니다.</p>
-      <div class="ed-acts">${ws ? `<a class="btn" href="${link(host, `/start/ws/${encodeURIComponent(ws.workspace_id)}`)}">여기서 새 에이전트 시작</a>` : ''}${home}</div>
+      <h2>${T('이 에이전트는 끝났습니다')}</h2>
+      <p>${T('에이전트가 끝나서 더는 보낼 수 없습니다.')}</p>
+      <div class="ed-acts">${ws ? `<a class="btn" href="${link(host, `/start/ws/${encodeURIComponent(ws.workspace_id)}`)}">${T('여기서 새 에이전트 시작')}</a>` : ''}${home}</div>
     </div>`;
 }
 
@@ -938,7 +938,7 @@ function renderDetailBody(reset) {
     body._html = null;
     closeScreenSheet();
     if (!scr || scr.body !== body)
-      mountScreen(body, 'agent', document.getElementById('s-tools'), '이 에이전트는 대화 기록이 없어 터미널 화면을 보여 줍니다. 지금 보이는 화면만 있습니다.');
+      mountScreen(body, 'agent', document.getElementById('s-tools'), T('이 에이전트는 대화 기록이 없어 터미널 화면을 보여 줍니다. 지금 보이는 화면만 있습니다.'));
     renderScreen();
     return;
   }
@@ -960,18 +960,18 @@ function renderDetailBody(reset) {
   const waiting = t ? pendingNow(rowKey(curHost(), detail.pane), currentAgent()) : [];
   const fresh = t && (!t.found || !t.messages.length) && !waiting.length; // nothing said yet
   const ghostless = !t && detail.noGhostChat && currentAgent()?.stale;
-  const note = ghostless ? '이 대화는 이 기기에도 허브에도 남아 있지 않습니다. 호스트가 돌아오면 보입니다.' : !t ? '불러오는 중…' : !t.supported ? (currentAgent()?.agent ? '아직 대화 기록이 없습니다.' : '에이전트를 시작하는 중…') : fresh ? '아직 대화 기록이 없습니다.' : '';
+  const note = ghostless ? T('이 대화는 이 기기에도 허브에도 남아 있지 않습니다. 호스트가 돌아오면 보입니다.') : !t ? T('불러오는 중…') : !t.supported ? (currentAgent()?.agent ? T('아직 대화 기록이 없습니다.') : T('에이전트를 시작하는 중…')) : fresh ? T('아직 대화 기록이 없습니다.') : '';
   if (note) {
     // A new chat (Ctrl+N starts it as last time): the start form for its workspace, to pick
     // another kind or options there. It starts another agent; this one stays until closed.
     const ws = fresh && currentAgent()?.workspace;
-    const more = ws ? `<p class="note"><a class="note-link" href="${link(curHost(), `/start/ws/${encodeURIComponent(ws)}`)}">종류·옵션 바꾸기</a></p>` : '';
+    const more = ws ? `<p class="note"><a class="note-link" href="${link(curHost(), `/start/ws/${encodeURIComponent(ws)}`)}">${T('종류·옵션 바꾸기')}</a></p>` : '';
     const html = `<p class="note">${note}</p>${more}`;
     if (body._html !== html) body.innerHTML = body._html = html;
   } else {
     if (body._html !== 'chat' || !body.querySelector('.msgs')) {
       body.innerHTML = '<div class="older" hidden></div><div class="msgs"></div>' +
-        `<div class="pill-dock"><button type="button" class="new-out jump"${keyAttrs('jumpEnd', '맨 아래로')} hidden>↓ 최신 대화</button></div>`;
+        `<div class="pill-dock"><button type="button" class="new-out jump"${keyAttrs('jumpEnd', T('맨 아래로'))} hidden>${T('↓ 최신 대화')}</button></div>`;
       body._html = 'chat';
       body._seen = null;
       body.querySelector('.jump').onclick = () => jumpLatest(keyboardLikely()); // a phone's keyboard stays down
@@ -1012,7 +1012,7 @@ function sayNewReply(body, messages) {
   if (Date.now() - (body._saidAt || 0) < 10e3) return;
   body._saidAt = Date.now();
   const say = document.getElementById('d-say');
-  if (say) say.textContent = '새 답이 왔습니다';
+  if (say) say.textContent = T('새 답이 왔습니다');
 }
 
 // The first message whose bottom is inside the view, and where it is now.
@@ -1028,16 +1028,16 @@ function topMessage(body, box) {
 // ---- 앞 대화: the messages before the window, a page at a time (?before=, ChatKeep.addOlder)
 const OLDER_PAGE = 100;
 function olderHtml(t) {
-  if (detail.olderLoading) return '<p class="note">앞 대화를 불러오는 중…</p>';
+  if (detail.olderLoading) return `<p class="note">${T('앞 대화를 불러오는 중…')}</p>`;
   const st = ChatKeep.olderState(t, { stale: Boolean(currentAgent()?.stale) });
   const shown = (t.older || []).length + t.messages.length;
   if (st === 'more') {
-    const note = detail.olderErr ? '앞 대화를 불러오지 못했습니다' : `최근 메시지 ${shown}개가 보입니다`;
-    return `<p class="note">${note}</p><button type="button" class="older-more" data-older>${detail.olderErr ? '다시 시도' : '앞 대화 더 보기'}</button>`;
+    const note = detail.olderErr ? T('앞 대화를 불러오지 못했습니다') : T('최근 메시지 {n}개가 보입니다', { n: shown });
+    return `<p class="note">${note}</p><button type="button" class="older-more" data-older>${detail.olderErr ? T('다시 시도') : T('앞 대화 더 보기')}</button>`;
   }
-  if (st === 'start') return '<p class="note">대화의 처음입니다</p>';
-  if (st === 'ghost') return `<p class="note">최근 메시지 ${shown}개만 보입니다 · 호스트가 돌아오면 앞 대화를 볼 수 있습니다</p>`;
-  if (st === 'old') return `<p class="note">최근 메시지 ${shown}개만 보입니다 · 이 호스트는 앞 대화를 불러오지 못합니다(배포가 필요합니다)</p>`;
+  if (st === 'start') return `<p class="note">${T('대화의 처음입니다')}</p>`;
+  if (st === 'ghost') return `<p class="note">${T('최근 메시지 {n}개만 보입니다 · 호스트가 돌아오면 앞 대화를 볼 수 있습니다', { n: shown })}</p>`;
+  if (st === 'old') return `<p class="note">${T('최근 메시지 {n}개만 보입니다 · 이 호스트는 앞 대화를 불러오지 못합니다(배포가 필요합니다)', { n: shown })}</p>`;
   return '';
 }
 
@@ -1095,7 +1095,7 @@ function updateJump(body) {
   if (!away || body._seen === undefined || body._seen === null) body._seen = last;
   const i = msgs.findIndex((el) => el.dataset.key === body._seen);
   const fresh = i < 0 ? 0 : msgs.length - 1 - i;
-  pill.textContent = fresh ? `↓ 새 메시지 ${fresh}` : '↓ 최신 대화';
+  pill.textContent = fresh ? T('↓ 새 메시지 {n}', { n: fresh }) : T('↓ 최신 대화');
   pill.hidden = !away;
 }
 
@@ -1256,7 +1256,7 @@ function jumpLatest(focus) {
 function renderScreen() {
   const s = detail.screen;
   if (!scr || scr.kind !== 'agent' || !s) return;
-  scr.note = s.source === 'visible' ? '보이는 화면' : '';
+  scr.note = s.source === 'visible' ? T('보이는 화면') : '';
   setScreenText(s.text, s.format);
 }
 
@@ -1282,9 +1282,9 @@ function renderActivity() {
   // spinner word, which says little).
   const tail = (act && act.tool) || transcriptTool() || (act && (act.word || act.detail || act.tokens));
   box.disabled = screenBody(a); // the screen is already the body
-  box.innerHTML = `<span class="spin" aria-hidden="true"></span><b>작업 중</b><span class="el"></span>${
+  box.innerHTML = `<span class="spin" aria-hidden="true"></span><b>${T('작업 중')}</b><span class="el"></span>${
     tail ? `<span class="tail">${esc(tail)}</span>` : ''
-  }${box.disabled ? '' : '<span class="go" aria-hidden="true">터미널 ›</span><span class="sr-only">, 누르면 터미널 화면</span>'}`;
+  }${box.disabled ? '' : `<span class="go" aria-hidden="true">${T('터미널 ›')}</span><span class="sr-only">${T(', 누르면 터미널 화면')}</span>`}`;
   box.hidden = false;
   tickActivity();
   if (!tickTimer) tickTimer = setInterval(tickActivity, 1000);
@@ -1319,10 +1319,10 @@ function tickActivity() {
 
 // ---- permission mode chip (Claude): read off the footer. A tap opens a picker (pickMode); ⇧Tab
 // in the message box is Claude Code's own key, one step on (cycleMode).
-const MODE_LABEL = { auto: '자동', manual: '수동 승인', accept: '편집 허용', plan: '계획', bypass: '권한 우회' };
+const MODE_LABEL = { auto: T('자동'), manual: T('수동 승인'), accept: T('편집 허용'), plan: T('계획'), bypass: T('권한 우회') };
 // The phone's narrow header shows the chip in two letters (style.css picks one).
-const MODE_SHORT = { auto: '자동', manual: '수동', accept: '편집', plan: '계획', bypass: '우회' };
-const MODE_NOTE = { auto: '안전한 것은 묻지 않고 한다', manual: '할 때마다 묻는다', accept: '파일 편집은 묻지 않는다', plan: '계획만 세우고 고치지 않는다', bypass: '아무것도 묻지 않는다' };
+const MODE_SHORT = { auto: T('자동'), manual: T('수동'), accept: T('편집'), plan: T('계획'), bypass: T('우회') };
+const MODE_NOTE = { auto: T('안전한 것은 묻지 않고 한다'), manual: T('할 때마다 묻는다'), accept: T('파일 편집은 묻지 않는다'), plan: T('계획만 세우고 고치지 않는다'), bypass: T('아무것도 묻지 않는다') };
 const MODE_ORDER = ['manual', 'accept', 'plan', 'auto', 'bypass'];
 function noteMode(text) {
   if (text == null || !window.parseMode) return null;
@@ -1342,11 +1342,11 @@ function renderMode() {
   const row = document.getElementById('d-ctools');
   if (row) row.hidden = !m;
   if (!m) return;
-  chip.innerHTML = `<span class="full">권한: ${esc(MODE_LABEL[m] || m)}</span><span class="short" aria-hidden="true">${esc(MODE_SHORT[m] || MODE_LABEL[m] || m)}</span>`;
+  chip.innerHTML = `<span class="full">${T('권한: {mode}', { mode: esc(MODE_LABEL[m] || m) })}</span><span class="short" aria-hidden="true">${esc(MODE_SHORT[m] || MODE_LABEL[m] || m)}</span>`;
   chip.dataset.mode = m;
   chip.disabled = Boolean(detail.modeBusy);
   chip.setAttribute('aria-haspopup', 'dialog');
-  chip.setAttribute('aria-label', `권한 모드: ${MODE_LABEL[m] || m}. 누르면 모드를 고릅니다`);
+  chip.setAttribute('aria-label', T('권한 모드: {mode}. 누르면 모드를 고릅니다', { mode: MODE_LABEL[m] || m }));
 }
 
 // ---- model, context and the plan's limits (Claude; the agent's usage from its host, lib/usage.js):
@@ -1362,7 +1362,7 @@ function renderUsage() {
   const html = `<span class="full">${esc(c.full)}</span><span class="short" aria-hidden="true">${esc(c.short)}</span>`;
   if (el._html !== html) el.innerHTML = el._html = html;
   el.classList.toggle('warn', c.warn);
-  el.setAttribute('aria-label', `${c.full}. 누르면 사용량을 봅니다`);
+  el.setAttribute('aria-label', T('{usage}. 누르면 사용량을 봅니다', { usage: c.full }));
   el.dataset.keylabel = c.title;
   const h = Keymap.hint('usage', hintCtx());
   el.title = h ? `${c.title} (${h})` : c.title;
@@ -1372,8 +1372,8 @@ function usageOf(x) {
 }
 async function openUsage(x = currentAgent()) {
   const u = usageOf(x);
-  if (!u) return toast(x && x.agent === 'claude' ? '아직 사용량을 모릅니다 — 답이 한 번 오면 보입니다' : 'Claude 에이전트만 사용량이 있습니다');
-  await sheet({ subject: x.name || x.title, title: '사용량', rows: Usage.rows(u), text: Usage.limitsNote(u), ok: '닫기', cancel: null });
+  if (!u) return toast(x && x.agent === 'claude' ? T('아직 사용량을 모릅니다 — 답이 한 번 오면 보입니다') : T('Claude 에이전트만 사용량이 있습니다'));
+  await sheet({ subject: x.name || x.title, title: T('사용량'), rows: Usage.rows(u), text: Usage.limitsNote(u), ok: T('닫기'), cancel: null });
 }
 
 // One ⇧Tab, then the footer read again once Claude has redrawn it: the mode now, or null.
@@ -1418,9 +1418,9 @@ async function pickMode() {
   if (!modeHere(a) || !detail.mode) return;
   const now = detail.mode;
   const off = detail.modeMissing || new Set();
-  const items = MODE_ORDER.map((m) => [m, MODE_LABEL[m], m === 'bypass', MODE_NOTE[m], null, off.has(m) ? '이 세션에서는 고를 수 없습니다' : null, m === now]);
+  const items = MODE_ORDER.map((m) => [m, MODE_LABEL[m], m === 'bypass', MODE_NOTE[m], null, off.has(m) ? T('이 세션에서는 고를 수 없습니다') : null, m === now]);
   const chip = document.getElementById('d-mode');
-  const want = await menu('권한 모드', items, { sub: 'Claude Code 의 Shift+Tab 을 필요한 만큼 보냅니다', anchor: chip && !chip.hidden ? chip : null });
+  const want = await menu(T('권한 모드'), items, { sub: T('Claude Code 의 Shift+Tab 을 필요한 만큼 보냅니다'), anchor: chip && !chip.hidden ? chip : null });
   if (!want || want === now) return;
   const b = currentAgent();
   if (!modeHere(b) || b.pane !== a.pane) return;
@@ -1435,12 +1435,12 @@ async function pickMode() {
   });
   if (missing) {
     (detail.modeMissing ||= new Set()).add(want);
-    toast(`「${MODE_LABEL[want]}」 모드는 이 세션에서 고를 수 없습니다`);
+    toast(T('「{mode}」 모드는 이 세션에서 고를 수 없습니다', { mode: MODE_LABEL[want] }));
   }
   if (detail.pane === pane && curHost() === host) {
     detail.modeBusy = false;
     renderMode();
-    if (!missing && m !== want) toast(m ? `모드를 바꾸지 못했습니다: 지금 「${MODE_LABEL[m] || m}」` : '모드를 바꾸지 못했습니다');
+    if (!missing && m !== want) toast(m ? T('모드를 바꾸지 못했습니다: 지금 「{mode}」', { mode: MODE_LABEL[m] || m }) : T('모드를 바꾸지 못했습니다'));
   }
 }
 
@@ -1451,10 +1451,10 @@ function openScreenSheet() {
   if (!a || screenBody(a) || detail.sheet || !document.getElementById('d-body')) return;
   const el = document.createElement('div');
   el.className = 'sheet-back';
-  el.innerHTML = `<div class="sheet term-sheet" role="dialog" aria-modal="true" aria-label="터미널 화면">
+  el.innerHTML = `<div class="sheet term-sheet" role="dialog" aria-modal="true" aria-label="${T('터미널 화면')}">
       <div class="term-sheet-head">
-        <h2>터미널 화면<span class="sub">${esc(a.name || a.title)}</span></h2>
-        <button type="button" class="icon-btn" data-close aria-label="닫기"${keyAttrs('terminal', '닫기')}>${ICON.x}</button>
+        <h2>${T('터미널 화면')}<span class="sub">${esc(a.name || a.title)}</span></h2>
+        <button type="button" class="icon-btn" data-close aria-label="${T('닫기')}"${keyAttrs('terminal', T('닫기'))}>${ICON.x}</button>
       </div>
       <div class="screen-tools"></div>
       <div class="scroll" id="ss-body"></div>
@@ -1467,7 +1467,7 @@ function openScreenSheet() {
   detail.sheet = el;
   // Closed by Escape or the backdrop too: whichever way, the screen box goes with it.
   detail.sheetLayer = openLayer(el, { focus: '[data-close]', onClose: () => closeScreenSheet() });
-  mountScreen(el.querySelector('#ss-body'), 'agent', el.querySelector('.screen-tools'), '터미널에 지금 보이는 화면의 맨 위입니다. 이전 내용은 <button type="button" class="linkish">대화</button>에서 볼 수 있습니다.');
+  mountScreen(el.querySelector('#ss-body'), 'agent', el.querySelector('.screen-tools'), T('터미널에 지금 보이는 화면의 맨 위입니다. 이전 내용은 {chat}에서 볼 수 있습니다.', { chat: `<button type="button" class="linkish">${T('대화')}</button>` }));
   el.querySelector('.screen-top .linkish').onclick = closeScreenSheet;
   bindKeyRow(el.querySelector('.sheet-keys'));
   loadDetail();
@@ -1513,7 +1513,7 @@ async function copyText(text, okText) {
     t.select();
     const ok = document.execCommand && document.execCommand('copy');
     t.remove();
-    if (!ok) return toastErr('복사하지 못했습니다');
+    if (!ok) return toastErr(T('복사하지 못했습니다'));
   }
   toast(okText);
 }

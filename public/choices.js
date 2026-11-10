@@ -7,6 +7,8 @@
 // Pure: screen text in, { question, context, items, cursor, numbered } or null out.
 // Loaded as a plain script in the page (window.parseChoices) and required by the tests.
 (function (root) {
+  const I18n = root.I18n || require('./i18n.js');
+  const T = I18n.t;
   const CURSOR = '❯>›▶►➤→';
   const ITEM = new RegExp(`^(\\s*)(?:([${CURSOR}])\\s*)?([1-9])[.)]\\s+(\\S.*)$`);
   // A line made only of box-drawing / rule characters: the top or bottom of a dialog.
@@ -38,7 +40,7 @@
   const EMPTY_INPUT = /^\s*[❯>]\s*$/;
   // A panel's own keys, offered beside its menu (the key pressed on the picked row instead of
   // Enter). Only the ones known to be harmless: /model's 「s to use this session only」.
-  const ALT_KEYS = [[/\b([a-z]) to use this session only\b/i, '이 세션만']];
+  const ALT_KEYS = [[/\b([a-z]) to use this session only\b/i, T('이 세션만')]];
 
   // Strip a dialog's side borders, keeping the indentation inside them.
   function clean(line) {
@@ -327,16 +329,16 @@
   // the terminal's wrapping undone, and the question in Korean when it is a stock one. Anything
   // not recognised stays as it came: no kind, no intent, the context as the body.
   const KINDS = {
-    'bash command': '셸 명령', 'edit file': '파일 고치기', 'create file': '파일 만들기', 'write file': '파일 쓰기',
-    'read file': '파일 읽기', fetch: '웹 가져오기', 'web search': '웹 검색', 'tool use': '도구 사용', 'mcp tool': 'MCP 도구',
+    'bash command': T('셸 명령'), 'edit file': T('파일 고치기'), 'create file': T('파일 만들기'), 'write file': T('파일 쓰기'),
+    'read file': T('파일 읽기'), fetch: T('웹 가져오기'), 'web search': T('웹 검색'), 'tool use': T('도구 사용'), 'mcp tool': T('MCP 도구'),
   };
   const QUESTIONS = [
-    [/^do you want to proceed\?$/i, '진행할까요?'],
-    [/^do you want to make this edit to (.+)\?$/i, (m) => `${m[1]} — 이렇게 고칠까요?`],
-    [/^do you want to create (.+)\?$/i, (m) => `${m[1]} — 만들까요?`],
-    [/^do you want to allow (.+)\?$/i, (m) => `${m[1]} — 허락할까요?`],
-    [/^claude has written up a plan and is ready to execute\. would you like to proceed\?$/i, '계획대로 진행할까요?'],
-    [/^ready to submit your answers\?$/i, '이대로 답을 보낼까요?'],
+    [/^do you want to proceed\?$/i, T('진행할까요?')],
+    [/^do you want to make this edit to (.+)\?$/i, (m) => T('{file} — 이렇게 고칠까요?', { file: m[1] })],
+    [/^do you want to create (.+)\?$/i, (m) => T('{file} — 만들까요?', { file: m[1] })],
+    [/^do you want to allow (.+)\?$/i, (m) => T('{what} — 허락할까요?', { what: m[1] })],
+    [/^claude has written up a plan and is ready to execute\. would you like to proceed\?$/i, T('계획대로 진행할까요?')],
+    [/^ready to submit your answers\?$/i, T('이대로 답을 보낼까요?')],
   ];
   function koQuestion(q) {
     for (const [re, ko] of QUESTIONS) {
@@ -359,15 +361,15 @@
     const first = blocks[0] && blocks[0][0];
     const question = ch ? koQuestion(ch.question) : '';
     // AskUserQuestion and the plan approval have no kind line: they are known by their shape.
-    if (ch && ch.ask) return { kind: '질문', intent: '', body: ch.context.join('\n'), question };
-    if (ch && /written up a plan/i.test(ch.question)) return { kind: '계획', intent: '', body: ch.context.join('\n'), question };
+    if (ch && ch.ask) return { kind: T('질문'), intent: '', body: ch.context.join('\n'), question };
+    if (ch && /written up a plan/i.test(ch.question)) return { kind: T('계획'), intent: '', body: ch.context.join('\n'), question };
     const kind = first ? KINDS[first.text.toLowerCase()] || null : null;
     if (!kind) return { kind: null, intent: '', body: ch ? ch.context.join('\n') : '', question };
     const head = blocks[0].slice(1); // what shares the kind's paragraph (2.1.3xx: the description)
     let rest = blocks.slice(1);
     let intent = head.map((x) => x.text).join(' ');
     // The older Bash layout: the command, then its description as the paragraph's last line.
-    if (!intent && kind === '셸 명령' && rest.length === 1 && rest[0].length >= 2) {
+    if (!intent && kind === T('셸 명령') && rest.length === 1 && rest[0].length >= 2) {
       intent = rest[0][rest[0].length - 1].text;
       rest = [rest[0].slice(0, -1)];
     }

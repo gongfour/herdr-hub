@@ -5,6 +5,9 @@
 // The page calls it T (a name no code uses for anything else: `t` is a local everywhere).
 //   T(ko, vars)  (window.T, I18n.t) {name} in the text takes vars.name (the caller escapes what goes into HTML, as
 //                before). An English entry may be { one, other }: vars.n === 1 picks one.
+//   T('바꾸기@@edit')  one Korean word that wants different English by place: the @@ part names the
+//                place (Korean shows the word without it; English looks up the whole key, then the
+//                word alone).
 //   lang         'ko' | 'en', fixed for the page's life: changing it reloads (core.js PREF_EFFECTS),
 //                so a table built when a script loads (STATUS_LABEL, the keymap's names) is right.
 // Pure: loaded as a plain script in the page (window.I18n, before every other script), required
@@ -18,12 +21,14 @@
     /* no document: the tests and the server pass the language */
   }
   const fill = (s, vars) => (vars ? s.replace(/\{(\w+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m)) : s);
+  const CTX = /@@[\w-]+$/;
   function pick(ko, vars, l) {
-    if (l !== 'en') return ko;
-    const e = EN[ko];
+    const plain = ko.replace(CTX, '');
+    if (l !== 'en') return plain;
+    const e = EN[ko] != null ? EN[ko] : EN[plain];
     if (typeof e === 'string') return e;
-    if (e && typeof e === 'object') return (vars && Number(vars.n) === 1 ? e.one : e.other) || ko;
-    return ko;
+    if (e && typeof e === 'object') return (vars && Number(vars.n) === 1 ? e.one : e.other) || plain;
+    return plain;
   }
   const t = (ko, vars) => fill(pick(ko, vars, lang), vars);
   // The same in a language given (the server, for each device's own).

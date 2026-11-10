@@ -67,5 +67,22 @@ test('Push keeps only a well-formed https subscription, at most 50 devices', asy
   for (let i = 0; i < 55; i++) await p.add(ok(i));
   assert.equal(p.subs.length, 50);
   assert.equal(p.subs[0].endpoint, 'https://push.example/5'); // the oldest went
-  assert.deepEqual(Object.keys(p.subs[0]).sort(), ['added', 'endpoint', 'keys']);
+  assert.deepEqual(Object.keys(p.subs[0]).sort(), ['added', 'endpoint', 'keys', 'lang']);
+});
+
+test('Push: each device gets the payload in its own language, made once per language', async (t) => {
+  const d = tmpDir(t);
+  const p = new Push(d, 'https://hub.invalid');
+  await p.add({ endpoint: 'https://push.example/a', keys: { p256dh: 'BKey', auth: 'aa' }, lang: 'en' });
+  await p.add({ endpoint: 'https://push.example/b', keys: { p256dh: 'BKey', auth: 'aa' } });
+  await p.add({ endpoint: 'https://push.example/c', keys: { p256dh: 'BKey', auth: 'aa' }, lang: 'xx' });
+  assert.deepEqual(p.subs.map((s) => s.lang), ['en', 'ko', 'ko']);
+  const webpush = require('web-push');
+  const sent = [];
+  t.mock.method(webpush, 'sendNotification', async (sub, body) => sent.push([sub.endpoint, JSON.parse(body).title]));
+  const made = [];
+  const r = await p.send((lang) => (made.push(lang), { title: lang === 'en' ? 'Needs answer' : '답 필요' }));
+  assert.equal(r.sent, 3);
+  assert.deepEqual(made.sort(), ['en', 'ko']);
+  assert.deepEqual(sent.sort(), [['https://push.example/a', 'Needs answer'], ['https://push.example/b', '답 필요'], ['https://push.example/c', '답 필요']]);
 });
