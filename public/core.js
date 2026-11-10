@@ -269,6 +269,8 @@ const getShellInput = () => Prefs.get('shellInput');
 const getEnter = () => Prefs.get('enter');
 // What a change does at once, beyond being stored; the rest is read when next needed.
 const PREF_EFFECTS = {
+  // The language is fixed for a page's life (i18n.js): index.html picks it up on the reload.
+  lang: () => location.reload(),
   theme(t) {
     applyTheme(t);
     redrawScreen();

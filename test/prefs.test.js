@@ -40,6 +40,7 @@ test('storage keys are the ones the app always used', () => {
     enter: 'herdr-hub.enter',
     shellInput: 'herdr-hub.shellInput',
     shellPredict: 'herdr-hub.shellPredict',
+    lang: 'herdr-hub.lang',
     theme: 'herdr-hub.theme',
     color: 'herdr-hub.color',
     'wrap.term': 'herdr-hub.wrap.term',
@@ -54,6 +55,9 @@ test('storage keys are the ones the app always used', () => {
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
   assert.match(html, /localStorage\.getItem\('herdr-hub\.theme'\)/);
   assert.match(html, /t === 'light' \|\| t === 'dark'/);
+  // …and the language the same way: this key, these values.
+  assert.match(html, /localStorage\.getItem\('herdr-hub\.lang'\)/);
+  assert.match(html, /l !== 'ko' && l !== 'en' && l !== 'auto'/);
 });
 
 test('values written by the old code read the same (and unknown or missing ones are the default)', () => {
@@ -71,6 +75,7 @@ test('values written by the old code read the same (and unknown or missing ones 
     chatW: () => 'auto', // new: no sample is one of its values
     listW: () => 'auto', // new: no sample is one of its values
     paletteOrder: () => 'done', // new: no sample is one of its values
+    lang: () => 'auto', // new: no sample is one of its values
   };
   const samples = [null, '', 'send', 'newline', 'line', 'raw', 'light', 'dark', 'system', '1', '0', 'true', 'x', '11', '12', '14', '13'];
   for (const p of PREFS)

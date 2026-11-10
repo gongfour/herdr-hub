@@ -14,6 +14,18 @@
         document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.content = t === 'dark' ? '#161614' : '#f6f5f1'; });
       }
     } catch (e) {}
+    // 언어 (설정 → 화면, prefs.js lang): <html lang> before any script, which i18n.js reads. Unset:
+    // an install from before English (it has settings already) stays Korean, a new one follows the device.
+    try {
+      var l = localStorage.getItem('herdr-hub.lang');
+      if (l !== 'ko' && l !== 'en' && l !== 'auto') {
+        var old = false;
+        for (var i = 0; i < localStorage.length; i++) if (/^herdr-hub\./.test(localStorage.key(i))) old = true;
+        if (old) localStorage.setItem('herdr-hub.lang', (l = 'ko'));
+      }
+      if (l !== 'ko' && l !== 'en') l = /^ko\b/i.test(navigator.language || '') ? 'ko' : 'en';
+      document.documentElement.lang = l;
+    } catch (e) {}
   </script>
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,6 +39,8 @@
 </head>
 <body>
   <div id="app"></div>
+  <script src="/i18n.en.js" defer></script>
+  <script src="/i18n.js" defer></script>
   <script src="/choices.js" defer></script>
   <script src="/ansi.js" defer></script>
   <script src="/activity.js" defer></script>

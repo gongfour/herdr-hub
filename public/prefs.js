@@ -55,6 +55,13 @@
       },
     },
     {
+      // index.html reads this before any script (it sets <html lang>, which i18n.js follows); its
+      // labels stay in their own language so whoever opens the wrong one finds the way back.
+      key: 'lang', store: 'herdr-hub.lang', group: 'screen', label: '언어 · Language', type: 'choice',
+      options: { auto: '기기 따라 · Device', ko: '한국어', en: 'English' }, default: 'auto',
+      hint: '바꾸면 페이지를 다시 엽니다 · The page reloads.',
+    },
+    {
       key: 'theme', store: 'herdr-hub.theme', group: 'screen', label: '화면 모드', type: 'choice',
       options: { system: '시스템', light: '밝게', dark: '어둡게' }, default: 'system', clearOnDefault: true,
       hint: { system: '기기의 밝게·어둡게 설정을 따릅니다.', light: '', dark: '' },

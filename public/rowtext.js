@@ -3,6 +3,8 @@
 // a host button's spoken name and the first-visit hint (list.js).
 // Pure: loaded as a plain script in the page (window.RowText), required by the tests.
 (function (root) {
+  const I18n = root.I18n || require('./i18n.js');
+  const T = I18n.t;
   const parts = (p) => String(p || '').split(/[\\/]/).filter(Boolean);
   const base = (p) => parts(p).pop() || '';
 
@@ -61,13 +63,13 @@
     const label = String((t && t.label) || '').trim();
     if (label) return label;
     const title = String((t && t.title) || '').trim();
-    if (title && title !== '셸') return /[\\/]/.test(title) ? base(title) || title : title;
-    return base(t && t.cwd) || String((t && t.pane) || '셸');
+    if (title && title !== '셸') return /[\\/]/.test(title) ? base(title) || title : title; // ko-only: herdr's own title
+    return base(t && t.cwd) || String((t && t.pane) || T('셸'));
   }
 
   // A host button's name as read aloud: the dot's colour and the ! say this in pictures.
   function hostAria(h, mismatch) {
-    return [h.label, h.online ? '' : '오프라인', mismatch ? 'API 버전 다름, 배포 필요' : ''].filter(Boolean).join(', ');
+    return [h.label, h.online ? '' : T('오프라인'), mismatch ? T('API 버전 다름, 배포 필요') : ''].filter(Boolean).join(', ');
   }
 
   // A host's dot (list.js hostDot): 'up' (online, herdr answering), 'herdr' (online, herdr not),
@@ -85,12 +87,12 @@
   function asOf(at, now = Date.now()) {
     if (!at) return '';
     const d = new Date(at);
-    const t = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    const t = d.toLocaleTimeString(I18n.locale, { hour: '2-digit', minute: '2-digit' });
     const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const n = new Date(now);
     const days = Math.round((day(n) - day(d)) / 86400000);
-    const when = days <= 0 ? '' : days === 1 ? '어제 ' : `${d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} `;
-    return `${when}${t} 기준`;
+    const when = days <= 0 ? '' : days === 1 ? T('어제') : d.toLocaleDateString(I18n.locale, { month: 'long', day: 'numeric' });
+    return when ? T('{when} {time} 기준', { when, time: t }) : T('{time} 기준', { time: t });
   }
   // A slash command's menu someone opened (/model …) is held blocked by the host so it can be
   // answered here (a.menu, lib/askhold.js), but nobody is waited for: it is no 답 필요 in counts,
@@ -100,11 +102,11 @@
   const shownStatus = (a) => (a && a.status === 'blocked' && a.menu ? 'menu' : a && a.status);
 
   // A ghost agent's small line: the status it last had, said as past (「마지막: 작업 중」).
-  const LAST = { blocked: '답 필요', done: '완료', working: '작업 중', idle: '쉬는 중' };
-  const lastStatus = (a) => (a && a.menu && a.lastStatus === 'blocked' ? '마지막: 메뉴 열림' : LAST[a && a.lastStatus] ? `마지막: ${LAST[a.lastStatus]}` : '마지막 모습');
+  const LAST = { blocked: T('답 필요'), done: T('완료'), working: T('작업 중'), idle: T('쉬는 중') };
+  const lastStatus = (a) => (a && a.menu && a.lastStatus === 'blocked' ? T('마지막: 메뉴 열림') : LAST[a && a.lastStatus] ? T('마지막: {status}', { status: LAST[a.lastStatus] }) : T('마지막 모습'));
 
   // The first-visit hint: the host swipe only when there is a host to swipe to.
-  const hintText = (multi) => (multi ? '옆으로 밀어 호스트 바꾸기 · 길게 눌러 메뉴' : '줄을 길게 누르면 메뉴가 나옵니다');
+  const hintText = (multi) => (multi ? T('옆으로 밀어 호스트 바꾸기 · 길게 눌러 메뉴') : T('줄을 길게 누르면 메뉴가 나옵니다'));
   // Seen this many times (one count per app start), or closed with ✕ ('x'), it stays away.
   const HINT_TIMES = 3;
   const hintDue = (stored) => stored !== 'x' && (Number(stored) || 0) < HINT_TIMES;
