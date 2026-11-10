@@ -207,3 +207,28 @@ test('hub: a Claude agent\'s usage in the state, from its host; a peer\'s throug
   // Through the hub, as the peer said.
   assert.deepEqual(await until(() => usageOf(hub, 'pu', 'w1-p2'), 'usage through the hub'), u);
 });
+
+test('statusline sweep: session files unused for 30 days and stale .tmp go, the rest and other names stay', async () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const sl = require('../lib/statusline');
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-sl-test-'));
+  const now = Date.now();
+  const put = (name, ageMs) => {
+    const f = path.join(d, name);
+    fs.writeFileSync(f, '{}');
+    const t = (now - ageMs) / 1000;
+    fs.utimesSync(f, t, t);
+  };
+  const day = 24 * 3600e3;
+  put('aaaaaaaa-0000-0000-0000-000000000001.json', 31 * day);
+  put('aaaaaaaa-0000-0000-0000-000000000002.json', 29 * day);
+  put('aaaaaaaa-0000-0000-0000-000000000003.json.123.tmp', 2 * day);
+  put('aaaaaaaa-0000-0000-0000-000000000004.json.124.tmp', 1000);
+  put('notes.txt', 400 * day);
+  assert.equal(await sl.sweep(d, now), 2);
+  assert.deepEqual(fs.readdirSync(d).sort(), ['aaaaaaaa-0000-0000-0000-000000000002.json', 'aaaaaaaa-0000-0000-0000-000000000004.json.124.tmp', 'notes.txt']);
+  assert.equal(await sl.sweep(path.join(d, 'missing'), now), 0);
+  fs.rmSync(d, { recursive: true, force: true });
+});

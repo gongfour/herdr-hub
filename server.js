@@ -10,6 +10,7 @@ process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '16';
 
 const herdr = require('./lib/herdr');
 const uploads = require('./lib/uploads');
+const statusline = require('./lib/statusline');
 const watchdog = require('./lib/watchdog');
 const { createServer } = require('./lib/hub');
 
@@ -21,9 +22,14 @@ try {
   process.exit(2);
 }
 
-// Old photos go at start and once a day.
-uploads.sweep();
-setInterval(() => uploads.sweep(), 24 * 3600 * 1000).unref();
+// Old photos and old status line files (lib/statusline.js, 30 days) go at start and once a day.
+const slDir = process.env.HERDR_HUB_STATUSLINE_DIR || statusline.dir(process.env);
+const sweepAll = () => {
+  uploads.sweep();
+  statusline.sweep(slDir);
+};
+sweepAll();
+setInterval(sweepAll, 24 * 3600 * 1000).unref();
 
 // A main thread that stops running JavaScript (a synchronous call that never returns) cannot
 // answer anything, and the supervisor (launchd KeepAlive, run.cmd's loop) only restarts a process
