@@ -1,12 +1,12 @@
 # Herdr Hub — 작업 규칙
 
-무엇이 어디 있는지는 `docs/design.md` 가 정본이고, 여러 호스트·환경 변수·운영은 `docs/operations.md` 다. `README.md` 는 GitHub 첫 페이지(처음 보는 사람용 소개·설치·보안)라 짧게 둔다. 여기에는 이 저장소에서 일할 때 지킬 규칙만 둔다.
+무엇이 어디 있는지는 `docs/design.md` 가 정본이고, 여러 호스트·환경 변수·운영은 `docs/operations.md` 다. `README.md`(영어, GitHub 첫 페이지)와 `README.ko.md`(한국어)는 처음 보는 사람용 소개·설치·보안이라 짧게 두고, 한 언어로만 쓴다(섞지 않는다). 여기에는 이 저장소에서 일할 때 지킬 규칙만 둔다.
 
 ## 공개 저장소
 
 - 이 저장소는 공개다. 이메일·tailnet 이름(`*.ts.net`)·사용자 이름이 든 경로·사내 프로젝트 이름·실제 대화 내용을 코드·문서·시험·고정 화면(`test/fixtures`)·커밋 메시지에 넣지 않는다. 문서와 시험에는 예시 값(`you@example.com`, `desktop.example.ts.net`, `/Users/alex`, `C:\Users\alice`)을 쓴다.
 - 기기마다의 값은 git 밖에 둔다: 호스트 설정은 그 호스트의 `data/host.env`(Mac, `mac/run.sh`)·`data\host.cmd`(Windows, `run.cmd`), 배포 대상은 `deploy.env`(`deploy.sh`). 실제 화면을 고정 화면으로 남길 때는 경로·이름을 예시 값으로 바꾼다(열 맞춤이 있으면 같은 길이로).
-- 새 기능은 `docs/design.md` 에 적고, README 에는 처음 보는 사람이 알아야 할 것(무엇인지, 필요한 것, 설치, 보안)만 고친다.
+- 새 기능은 `docs/design.md` 에 적고, README 에는 처음 보는 사람이 알아야 할 것(무엇인지, 필요한 것, 설치, 보안)만 고친다. 고칠 때는 `README.md`·`README.ko.md` 를 함께 고친다(같은 내용, 각자 그 언어로; 스크린샷도 `docs/images/en`·`docs/images/ko`).
 
 ## 화면의 말 (한국어·영어)
 

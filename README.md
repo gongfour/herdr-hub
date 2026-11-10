@@ -1,72 +1,73 @@
 # Herdr Hub
 
-**English summary** — Herdr Hub is a small web app (PWA) for watching and driving [herdr](https://herdr.dev) agents (Claude Code, Codex …) from a phone, tablet or another computer. It runs next to herdr on each host, talks to herdr's local API, and shows every agent's conversation, the prompts waiting for an answer (with one-tap answers and push notifications), and a live shell. One hub can merge several hosts. It has no login of its own: it is meant to sit behind [Tailscale](https://tailscale.com) (`tailscale serve`), which tells it who is asking. Never expose it to the public internet — it can type into your terminals. Node 20+, no build step, MIT licensed. The documentation below and in `docs/` is in Korean.
+**English** | [한국어](README.ko.md)
 
 <p>
-  <img src="docs/images/ko/phone-list.png" width="260" alt="휴대폰의 작업공간 목록: 답 필요 2 줄과 워크스페이스 카드">
-  <img src="docs/images/ko/phone-answer.png" width="260" alt="휴대폰의 대화 화면: 셸 명령 권한 묻기와 선택지 단추">
+  <img src="docs/images/en/phone-list.png" width="260" alt="The workspace list on a phone: a line saying 2 agents need answers, and the workspace cards">
+  <img src="docs/images/en/phone-answer.png" width="260" alt="An agent's chat on a phone: a shell command permission prompt with its answer buttons">
 </p>
-<img src="docs/images/ko/wide.png" alt="넓은 화면의 두 칸 배치, 어두운 테마: 왼쪽 목록, 오른쪽 대화와 답 필요 상자">
+<img src="docs/images/en/wide.png" alt="The two-column layout on a wide screen, dark theme: the list on the left, a chat and its answer box on the right">
 
----
+A web app (PWA) for watching and answering [herdr](https://herdr.dev) agents (Claude Code, Codex …) from a phone, a tablet or another computer. One runs on each host where herdr runs and talks to herdr's local API directly (no SSH in between).
 
-[herdr](https://herdr.dev) 에이전트(Claude Code, Codex …)를 휴대폰·태블릿·다른 컴퓨터에서 보고 답하는 웹앱(PWA)이다. herdr 가 도는 호스트마다 하나씩 돌며 herdr 의 로컬 API 에 바로 붙는다(SSH 를 거치지 않는다).
+- **Chats**: a Claude agent's conversation, or the terminal screen for other agents. Send messages, photos, `/` commands and `@` files.
+- **Needs answer**: permission prompts, questions and slash-command menus as answer buttons; answer straight from a web push notification too.
+- **Shell**: herdr's shell panes, live, with keys sent as you type.
+- **Several hosts**: one hub merges the Herdr Hubs of other hosts (its peers) into one view. A host that goes offline stays listed as it was last seen.
+- **Keyboard**: a two-column layout on wide screens and shortcuts you can change (Ctrl+? lists them).
+- **English and Korean**: Settings → Display → Language. A new device follows its own language.
+- Vanilla JS with no build step; one dependency, `web-push`.
 
-- **대화 보기**: Claude 에이전트는 대화 기록을, 다른 에이전트는 터미널 화면을 보여 준다. 메시지·사진·`/` 명령·`@` 파일을 보낸다.
-- **답 필요**: 권한 묻기·질문·슬래시 명령의 메뉴를 선택지 단추로 보여 주고, 웹 푸시 알림에서 바로 답할 수도 있다.
-- **셸**: herdr 의 셸 패널을 실시간으로 보고 키를 보낸다.
-- **여러 호스트**: 허브 하나가 다른 호스트의 Herdr Hub(피어)를 합쳐 한 화면에 보인다. 꺼진 호스트는 마지막 모습으로 남는다.
-- **키보드**: 넓은 화면에서는 두 칸 배치와 바꿀 수 있는 단축키(Ctrl+? 로 목록).
-- 빌드 없는 바닐라 JS, 의존성은 `web-push` 하나.
+## Requirements
 
-## 필요한 것
+- A host running herdr 0.9.3 or later (used on macOS and Windows; Linux is untested)
+- Node.js 20 or later
+- [Tailscale](https://tailscale.com): the phone and the host on the same tailnet. There is no login of its own; it knows who is asking from the `Tailscale-User-Login` header that `tailscale serve` adds.
 
-- herdr 0.9.3 이상이 도는 호스트(macOS·Windows 에서 쓰고 있다; Linux 는 시험하지 않았다)
-- Node.js 20 이상
-- [Tailscale](https://tailscale.com) — 휴대폰과 호스트가 같은 tailnet 에 있어야 한다. 로그인 대신 `tailscale serve` 가 붙이는 `Tailscale-User-Login` 머리글로 누가 묻는지 안다.
-
-## 설치와 실행
+## Install and run
 
 ```sh
 git clone https://github.com/gongfour/herdr-hub.git
 cd herdr-hub
 npm ci --omit=dev
 
-# 들여보낼 Tailscale 로그인(쉼표로 여럿)과 이 허브의 tailnet 이름
+# The Tailscale logins to let in (comma-separated) and this hub's tailnet name
 HERDR_HUB_ALLOWED_LOGINS=you@example.com \
 HERDR_HUB_HOSTS=myhost.example.ts.net \
-node server.js            # 127.0.0.1:8787 에서 듣는다
+node server.js            # listens on 127.0.0.1:8787
 
-# 다른 창에서: tailnet 안에만 https 로 내놓는다
+# In another terminal: serve it over https, inside the tailnet only
 tailscale serve --bg 8787
 ```
 
-휴대폰에서 `https://myhost.example.ts.net` 을 열고 「홈 화면에 추가」로 설치하면 전체 화면 앱이 되고 알림을 받을 수 있다. 그 기기에서만 쓴다면 Tailscale 없이 `HERDR_HUB_ALLOW_LOCAL=1 node server.js` 로 띄워 `http://localhost:8787` 을 열어도 된다(loopback 만 허용).
+Open `https://myhost.example.ts.net` on the phone and use "Add to Home Screen": it becomes a full-screen app and can receive notifications. For use on the same machine only, `HERDR_HUB_ALLOW_LOCAL=1 node server.js` and `http://localhost:8787` work without Tailscale (loopback only).
 
-- 데이터(알림 키·구독, 피어 목록, 올린 사진)는 `data/` 에 둔다(`HERDR_HUB_DATA` 로 바꾼다).
-- 늘 띄워 두려면: Mac 은 LaunchAgent(`mac/local.herdr-hub.plist` + `mac/run.sh`), Windows 는 로그온 예약 작업으로 `run.cmd`. 둘 다 그 호스트의 설정을 git 밖의 `data/host.env`·`data\host.cmd` 에서 읽는다(각 스크립트 맨 위 주석에 예).
-- 다른 호스트를 합치려면 그쪽에도 Herdr Hub 를 띄우고, 허브의 설정 → 연결에서 「호스트 추가」.
-- Claude Code 의 5시간·주간 사용 한도를 보려면 상태 줄 명령을 `lib/statusline.js` 로 둔다([docs/design.md](docs/design.md) 「모델·컨텍스트·사용량」).
-- 환경 변수 전체는 [docs/operations.md](docs/operations.md) 「환경 변수」.
+- Data (notification keys and subscriptions, the peer list, uploaded photos) lives in `data/` (`HERDR_HUB_DATA` moves it).
+- To keep it running: a LaunchAgent on a Mac (`mac/local.herdr-hub.plist` + `mac/run.sh`), a logon scheduled task running `run.cmd` on Windows. Both read the host's own settings from `data/host.env` / `data\host.cmd`, outside git (examples at the top of each script).
+- To merge another host, run Herdr Hub there too and use Settings → Connection → Add host on the hub.
+- To see Claude Code's 5-hour and weekly usage limits, set its status line command to `node <hub folder>/lib/statusline.js` (details in docs/design.md).
+- All environment variables are listed in [docs/operations.md](docs/operations.md).
 
-## 보안
+## Security
 
-Herdr Hub 는 에이전트와 셸에 키를 보낼 수 있다. 곧 그 호스트에서 명령을 실행할 수 있다는 뜻이다.
+Herdr Hub can send keys to agents and shells, which means it can run commands on that host.
 
-- 공개 인터넷에 열지 않는다(`tailscale funnel`, 포트 포워딩, 공개 리버스 프록시 금지). `127.0.0.1` 에서만 듣고 `tailscale serve` 가 tailnet 안에만 내놓게 한다.
-- 여러 사람(다른 OS 사용자, 컨테이너)이 함께 쓰는 기기에서는 돌리지 않는다. 로그인은 `tailscale serve` 가 붙이는 머리글이라, 그 기기에서 `127.0.0.1:8787` 에 직접 닿는 프로세스는 그 머리글을 적어 보낼 수 있다. 같은 이유로 `HOST` 는 `127.0.0.1` 로 둔다(다른 주소로 띄우면 시작할 때 경고한다).
-- `HERDR_HUB_ALLOWED_LOGINS` 에 없는 Tailscale 로그인, `HERDR_HUB_HOSTS` 에 없는 Host 머리글(DNS rebinding 막기), `X-Herdr-Hub` 머리글이 없는 변경 요청은 거절한다.
-- `HERDR_HUB_ALLOW_LOCAL=1` 은 그 기기에서 `127.0.0.1`·`localhost` 주소로 연 페이지만 로그인 없이 받는다(`tailscale serve` 를 거쳐 로그인 없이 온 요청 — 태그 기기·Funnel — 은 거절). 그 기기를 다른 사람과 함께 쓰면 켜지 않는다.
-- 페이지는 CSP 를 단다: 스크립트는 이 출처의 파일과 페이지 자신의 인라인 블록(해시)만 돈다. 에이전트가 쓴 글은 모두 이스케이프하지만, 무엇이 새어 들어와도 실행되지 않게 하는 두 번째 벽이다.
+- Never expose it to the public internet (no `tailscale funnel`, port forwarding or public reverse proxy). Let it listen on `127.0.0.1` only and have `tailscale serve` publish it inside the tailnet.
+- Don't run it on a machine shared with other people (other OS users, containers). The login is a header `tailscale serve` adds, so any process that can reach `127.0.0.1:8787` directly can write that header. For the same reason keep `HOST` at `127.0.0.1` (it warns at start otherwise).
+- Requests from a Tailscale login not in `HERDR_HUB_ALLOWED_LOGINS`, with a Host header not in `HERDR_HUB_HOSTS` (DNS rebinding), or changing something without the `X-Herdr-Hub` header are refused.
+- `HERDR_HUB_ALLOW_LOCAL=1` admits without a login only a page opened on that machine at `127.0.0.1` or `localhost` (requests through `tailscale serve` without a login, from tagged devices or Funnel, are refused). Leave it off on a machine others use.
+- Pages carry a Content-Security-Policy: scripts run only from this origin and the page's own inline blocks (by hash). Everything an agent writes is escaped; this is a second wall so that nothing that slipped through can run.
 
-## 문서
+## Documentation
 
-- [docs/design.md](docs/design.md) — 기능과 구조, 무엇이 어디 있는지(정본)
-- [docs/operations.md](docs/operations.md) — 여러 호스트(허브·피어), 환경 변수, 멈추지 않기, 배포 예
-- [AGENTS.md](AGENTS.md) — 이 저장소에서 코드를 고칠 때의 규칙(사람과 코딩 에이전트 모두)
+The detailed documents are written in Korean:
 
-시험은 `npm test`. 화면 시험(`test/ui.test.js`)은 이 기기에 설치된 Chrome 으로 페이지를 직접 열어 보고, Chrome 이 없으면 건너뛴다. 위 스크린샷은 예시 데이터로 `npm run screenshots` 가 다시 만든다.
+- [docs/design.md](docs/design.md): features and structure, where everything is
+- [docs/operations.md](docs/operations.md): several hosts (hub and peers), environment variables, staying responsive, an example deployment
+- [AGENTS.md](AGENTS.md): the rules for changing code in this repository (for people and coding agents)
 
-## 라이선스
+Tests: `npm test`. The UI tests (`test/ui.test.js`) open the page in the Chrome installed on the machine, and are skipped where there is none. The screenshots above are made from example data by `npm run screenshots`.
+
+## License
 
 [MIT](LICENSE)
