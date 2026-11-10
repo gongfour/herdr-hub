@@ -30,6 +30,16 @@
   // Whether a digit alone picks and confirms a numbered menu (checked on a real Claude Code prompt).
   const DIGIT_CONFIRMS = true;
 
+  // Claude Code draws its panels (a slash command's menu: /model, /config, /resume …, and its
+  // prompts) in place of the input box, under a rule of ▔ (2.1.322, test/fixtures/menu). The idle
+  // input box is framed with ─ instead, so a ▔ rule with something under it and no empty input
+  // line ("❯ ") below is a panel that waits for keys.
+  const PANEL_RULE = /^\s*▔{8,}/;
+  const EMPTY_INPUT = /^\s*[❯>]\s*$/;
+  // A panel's own keys, offered beside its menu (the key pressed on the picked row instead of
+  // Enter). Only the ones known to be harmless: /model's 「s to use this session only」.
+  const ALT_KEYS = [[/\b([a-z]) to use this session only\b/i, '이 세션만']];
+
   // Strip a dialog's side borders, keeping the indentation inside them.
   function clean(line) {
     const s = String(line).replace(/\s+$/, '');
@@ -108,15 +118,17 @@
     let at = -1;
     for (let i = lines.length - 1; i >= 0 && at < 0; i--) if (MENU_CURSOR.test(lines[i]) && !ITEM.test(lines[i])) at = i;
     if (at < 0) return null;
-    const col = lines[at].search(/\S/) + lines[at].trim().match(/^\S\s*/)[0].length;
-    const sibling = (l) => l && l.trim() && indent(l) === col && !RULE.test(l) && !ITEM.test(l) && !MENU_CURSOR.test(l);
+    // A ✔ marks the current value (/theme: 「❯ ✔ Dark mode」 over 「    Light mode」): the names line up.
+    const col = lines[at].search(/\S/) + lines[at].trim().match(/^\S\s*(?:✔\s+)?/)[0].length;
+    const lined = (l) => indent(l) === col || (/^\s*✔\s+\S/.test(l) && indent(l) + l.trim().match(/^✔\s+/)[0].length === col);
+    const sibling = (l) => l && l.trim() && lined(l) && !RULE.test(l) && !ITEM.test(l) && !MENU_CURSOR.test(l);
     let start = at;
     let end = at;
     while (start > 0 && sibling(lines[start - 1])) start--;
     while (end < lines.length - 1 && sibling(lines[end + 1])) end++;
     if (end === start) return null;
     // A settings row shows its value in a column of its own ("Also scan shell history     false").
-    const named = (l) => l.trim().replace(MENU_CURSOR_GLYPH, '').replace(/^(\S.*?)\s{2,}(\S.*)$/, '$1 · $2');
+    const named = (l) => l.trim().replace(MENU_CURSOR_GLYPH, '').replace(/^✔\s+(.*)$/, '$1 ✔').replace(/^(\S.*?)\s{2,}(\S.*)$/, '$1 · $2');
     const items = lines.slice(start, end + 1).map((l, k) => ({ n: k + 1, label: named(l), cursor: start + k === at }));
     return { start, end, items, numbered: false };
   }
@@ -136,9 +148,40 @@
     return { name, desc };
   }
 
+  // The panel under the last ▔ rule: { at (the rule's line), title (its first line), hint (its key
+  // hints, the last line or two), body (its lines), main (body without title and hint) }, or null
+  // when the input box is showing.
+  function panelOf(lines) {
+    let at = -1;
+    for (let i = lines.length - 1; i >= 0 && at < 0; i--) if (PANEL_RULE.test(lines[i])) at = i;
+    if (at < 0) return null;
+    const body = lines.slice(at + 1);
+    while (body.length && !body[body.length - 1].trim()) body.pop();
+    while (body.length && !body[0].trim()) body.shift();
+    if (!body.length || body.some((l) => EMPTY_INPUT.test(l))) return null;
+    const title = body[0].trim();
+    // Key hints ("Enter to set as default · s to use this session only · Esc to cancel"), wrapped
+    // onto a second line when long (/resume, /artifacts).
+    const tail = body.slice(-2).map((l) => l.trim());
+    const isHint = (l) => /\b(?:to|for) \S/.test(l) && (/·/.test(l) || /^(?:Esc|Enter|↑|←|Space|Tab)\b/.test(l));
+    const two = tail.length > 1 && isHint(`${tail[0]} ${tail[1]}`) && /·\s*\S/.test(tail[0]);
+    const hint = isHint(tail[tail.length - 1]) ? (two ? tail.join(' ') : tail[tail.length - 1]) : '';
+    // main: what the page shows under the title and over the hint.
+    const main = body.slice(1, body.length - (hint ? (two ? 2 : 1) : 0));
+    while (main.length && !main[0].trim()) main.shift();
+    while (main.length && !main[main.length - 1].trim()) main.pop();
+    return { at, title, hint, body, main };
+  }
+  function screenPanel(text) {
+    return text ? panelOf(String(text).split(/\r?\n/).map(clean)) : null;
+  }
+
   function parseChoices(text) {
     if (!text) return null;
-    const lines = String(text).split(/\r?\n/).map(clean);
+    let lines = String(text).split(/\r?\n/).map(clean);
+    // A panel's menu is in the panel: not a list in the conversation above it.
+    const panel = panelOf(lines);
+    if (panel) lines = lines.slice(panel.at + 1);
     const numbered = lists(lines).pop();
     const candidates = [numbered && { ...numbered, numbered: true }, cursorMenu(lines)]
       .filter((x) => x && nonEmptyAfter(lines, x.end) <= MAX_AFTER)
@@ -193,7 +236,11 @@
 
     let multi = false;
     const items = list.items.map(({ n, label, cursor, rows, afterRule }) => {
-      const { name, desc } = rows ? splitItem(rows, width) : { name: label, desc: '' };
+      let { name, desc } = rows ? splitItem(rows, width) : { name: label, desc: '' };
+      // A panel's menu sets its description in a column of its own (/model: 「Opus 5.5 ✔     For
+      // complex work」): the name, then the description.
+      const col = panel && !desc && name.match(/^(\S.*?)\s{2,}(\S.*)$/);
+      if (col) [name, desc] = [col[1], col[2]];
       label = name.replace(/\s+/g, ' ').trim();
       const box = label.match(CHECK);
       const item = { n, label: box ? label.slice(box[0].length) : label, cursor };
@@ -213,6 +260,13 @@
     // A preview beside the options: a digit only moves the cursor there; Enter picks.
     if (list.preview) ch.preview = true;
     if (list.next) ch.next = list.next;
+    if (panel) {
+      ch.panel = { title: panel.title, hint: panel.hint };
+      for (const [re, label] of ALT_KEYS) {
+        const m = panel.hint.match(re);
+        if (m && ch.cursor && !multi) ch.alt = { key: m[1].toLowerCase(), label };
+      }
+    }
     return ch;
   }
 
@@ -242,13 +296,18 @@
   // with its cursor, and under it the dialog's key hint ("←/→ to change · Enter to continue · Esc
   // to cancel"), the last line on the screen. A reply's own list has no such hint, and the empty
   // input line ("❯ ") under it is never a menu.
+  // And any other panel of Claude Code's (a slash command's menu, PANEL_RULE), with a menu or not
+  // (/status, /help): held as menu, which never notifies — someone just opened it.
   function heldPrompt(text) {
     const ch = parseChoices(text);
-    if (!ch) return null;
     const lines = String(text).split(/\r?\n/).map(clean);
-    if (lines.slice(-12).some((l) => /^\s*[❯>]\s*$/.test(l))) return null;
-    if (ch.ask || /written up a plan/i.test(ch.question)) return ch;
-    return ch.cursor && dialogHint(lines) ? { ...ch, dialog: true } : null;
+    if (lines.slice(-12).some((l) => EMPTY_INPUT.test(l))) return null;
+    if (ch && (ch.ask || /written up a plan/i.test(ch.question))) return ch;
+    if (ch && ch.cursor && dialogHint(lines)) return { ...ch, dialog: true, menu: Boolean(ch.panel) };
+    const panel = panelOf(lines);
+    if (!panel) return null;
+    const base = ch && ch.cursor ? ch : { question: panel.title, context: [], items: [], cursor: null, numbered: false, blocks: [], panel: { title: panel.title, hint: panel.hint } };
+    return { ...base, dialog: true, menu: true };
   }
   const DIALOG_HINT = /\bEnter to (?:continue|confirm|select|submit|choose|apply|save)\b.*\bEsc to (?:cancel|exit|go back|close|skip)\b/i;
   function dialogHint(lines) {
@@ -320,9 +379,15 @@
 
   // The keys that pick item n. A digit picks and confirms a numbered Claude Code menu;
   // a menu without numbers is walked with the arrows from the cursor, then Enter.
-  function choiceKeys(choices, n) {
+  // alt: the panel's own key (choices.alt, 「이 세션만」) pressed on that row instead of Enter.
+  function choiceKeys(choices, n, alt = false) {
     const item = choices && choices.items.find((x) => x.n === n);
     if (!item) return null;
+    if (alt) {
+      if (!choices.alt || !choices.cursor || choices.multi) return null;
+      const keys = [...walk(choices.cursor, n), choices.alt.key];
+      return keys.length <= 8 ? keys : null;
+    }
     // multiSelect: a digit ticks a box; "Type something" is a text row, reached with the arrows
     // (a digit there would tick it with no words and leave the cursor away).
     if (choices.multi && TYPE_OWN.test(item.label) && !item.extra) {
@@ -397,7 +462,7 @@
     return Boolean(ch && ch.items.length && /[?？]/.test(ch.question));
   }
 
-  const api = { heldPrompt, nextKeys, choicesSig, parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel };
+  const api = { heldPrompt, screenPanel, nextKeys, choicesSig, parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else Object.assign(root, { heldPrompt, nextKeys, choicesSig, parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel });
+  else Object.assign(root, { heldPrompt, screenPanel, nextKeys, choicesSig, parseChoices, choiceKeys, quickChoices, actionChoices, shortLabel, choicesSettled, typedChoice, TYPE_OWN, promptParts, koQuestion, shownLabel });
 })(typeof self !== 'undefined' ? self : this);

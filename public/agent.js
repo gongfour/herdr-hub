@@ -287,7 +287,7 @@ function setPlaceholder() {
   const a = currentAgent();
   const blocked = a && a.status === 'blocked' && !detail.answerMode;
   const target = blocked ? blockedTarget(a) : null;
-  input.dataset.placeholder = detail.answerMode ? '답을 적어 보내세요' : !blocked ? '메시지 보내기' : target ? `적어 보내면 ${target.item.n}번으로 답합니다` : '위에서 답을 고르세요';
+  input.dataset.placeholder = detail.answerMode ? '답을 적어 보내세요' : !blocked ? '메시지 보내기' : target ? `적어 보내면 ${target.item.n}번으로 답합니다` : a.menu ? '위 메뉴에서 고르거나 취소하세요' : '위에서 답을 고르세요';
   if (blocked && !target) input.setAttribute('aria-disabled', 'true');
   else input.removeAttribute('aria-disabled');
 }

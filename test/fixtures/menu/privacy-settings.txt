@@ -1,0 +1,10 @@
+● Done.
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ ◐ medium · /effort ▔
+   Data privacy
+
+   Review and manage your privacy settings at https://claude.ai/settings/data-privacy-controls
+
+   Help improve our AI models                  false
+
+   Enter/Tab/Space to toggle · Esc to cancel

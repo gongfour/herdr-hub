@@ -8,6 +8,8 @@
 const AGENT_KEYS = [['esc', 'Esc'], ['shift+tab', '⇧Tab'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['1', '1'], ['2', '2'], ['3', '3']];
 // The sheet's row leads with the keys wanted in a hurry (Esc, Ctrl+C).
 const SHEET_KEYS = [['esc', 'Esc'], ['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['up', '↑'], ['down', '↓'], ['shift+tab', '⇧Tab'], ['1', '1'], ['2', '2'], ['3', '3']];
+// A slash command's menu (/config, /status …) without a list read here is moved through with these.
+const MENU_KEYS = [['esc', 'Esc'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['enter', 'Enter'], ['space', 'Space'], ['tab', 'Tab']];
 const keyRow = (keys, cls = '') => `<div class="keys ${cls}">${keys.map(([k, label]) => `<button type="button" class="key" data-key="${k}" aria-label="${esc(label)} 키 보내기">${esc(label)}</button>`).join('')}</div>`;
 function bindKeyRow(row) {
   if (row) row.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
@@ -40,7 +42,8 @@ function questionChanged(host, pane) {
   }
 }
 // True when the answer went.
-async function answerChoice(host, a, item, choices = null) {
+// alt: the menu's own key on that row instead of Enter (choices.alt: /model's 「이 세션만」).
+async function answerChoice(host, a, item, choices = null, alt = false) {
   const k = rowKey(host, a.pane);
   if (pressedOn(host, a, choices)) return false;
   const press = { seq: a.stateSeq, sig: choicesSig(choices), n: item.n, until: Infinity };
@@ -50,7 +53,7 @@ async function answerChoice(host, a, item, choices = null) {
   try {
     await api(hp(`/agents/${encodeURIComponent(a.pane)}/answer`, host), {
       method: 'POST',
-      body: JSON.stringify({ stateSeq: a.stateSeq, n: item.n, label: item.label, own: TYPE_OWN.test(item.label) }),
+      body: JSON.stringify({ stateSeq: a.stateSeq, n: item.n, label: item.label, own: TYPE_OWN.test(item.label), ...(alt ? { alt: true } : {}) }),
     });
     ok = true;
   } catch (err) {
@@ -81,8 +84,8 @@ const choiceName = (label) => esc(shownLabel(label)).replace(/(^|\s)((?:[A-Za-z]
 // One choice button: name (bold) over its description (muted), when the menu has one. In the
 // agent view each shows its number, the key that picks it (1–9, keymap.js), numbered menu or not.
 // press: pressedOn() for this agent (every button waits; the pressed one says so).
-function choiceButton(choices, x, { press, primary, compact = false }) {
-  const ok = choiceKeys(choices, x.n);
+function choiceButton(choices, x, { press, primary, compact = false, alt = false }) {
+  const ok = choiceKeys(choices, x.n, alt);
   const sent = Boolean(press) && press.n === x.n;
   const kind = x.negative ? ' negative' : x === primary ? ' primary' : '';
   // A multiSelect option is a box to tick: pressed or not, as its terminal row shows.
@@ -121,7 +124,21 @@ function renderBlocked() {
   const screen = text ? `<pre>${esc(text)}</pre>` : '';
   const keys = keyRow(AGENT_KEYS);
   let html;
-  if (!choices) {
+  const panel = !choices && text ? screenPanel(text) : null;
+  // Esc leaves a slash command's menu (Claude Code's 「Esc to cancel」).
+  const leave = '<button type="button" class="toggle b-leave" aria-label="메뉴 취소 (Esc 보내기)">취소<span class="wide-only"> (Esc)</span></button>';
+  const hintOf = (p) => (p && p.hint ? `<p class="b-hint">${esc(p.hint)}</p>` : '');
+  if (panel) {
+    // A menu with no list read here (/status, /config's tabs, /privacy-settings): the panel as the
+    // terminal shows it, its key hints, and the keys to move through it.
+    html = `<div class="blocked-box">
+        <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>메뉴</span><span class="toggles">${leave}</span></div>
+        <strong class="b-title">${esc(panel.title)}</strong>
+        ${panel.main.length ? `<pre>${esc(panel.main.join('\n'))}</pre>` : ''}
+        ${hintOf(panel)}
+        ${keyRow(MENU_KEYS)}
+      </div>`;
+  } else if (!choices) {
     html = `<div class="blocked-box">
         <strong class="b-title">답 필요</strong>
         ${text == null ? '<p class="question muted">화면을 불러오는 중…</p>' : screen}
@@ -133,7 +150,13 @@ function renderBlocked() {
     // Read top-down: what kind of request and what it is for, the command itself (folded at
     // 5 lines, never cut silently), the question, then the answers as one list.
     const parts = promptParts(choices);
-    const title = parts.intent || parts.question || '답 필요';
+    const menu = choices.panel && !parts.kind && !choices.ask && !/written up a plan/i.test(choices.question) ? choices.panel : null;
+    const title = menu ? menu.title : parts.intent || parts.question || '답 필요';
+    // A menu's own key (choices.alt): picked rows take it instead of Enter while 「이 세션만」 is on.
+    const alt = Boolean(choices.alt && detail.menuAlt);
+    // A menu's line under its title (/model: 「Switch between Claude models. …」).
+    const q = (parts.question || '').trim();
+    const menuNote = menu && q !== menu.title ? (q.startsWith(menu.title) ? q.slice(menu.title.length).trim() : q) : '';
     if (detail.ctxFor !== text) Object.assign(detail, { ctxFor: text, ctxOpen: false });
     const n = parts.body ? parts.body.split('\n').length : 0;
     // The command to approve wraps only at its spaces, never inside a word (`-- -`, `-clean`); a
@@ -155,14 +178,17 @@ function renderBlocked() {
     const nextBtn = nk ? `<button type="button" class="choice primary b-next"${press ? ' disabled' : ''}><span class="label"><span class="name">${choices.next.label === 'Next' ? '다음 질문' : '다음 (답 확인)'}</span></span></button>` : '';
     const toggle = (k, label) => `<button type="button" class="toggle" data-toggle="${k}" aria-expanded="${Boolean(detail[k])}">${label}</button>`;
     html = `<div class="blocked-box">
-        <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>답 필요${parts.kind ? ` · ${esc(parts.kind)}` : ''}</span>
-          <span class="toggles">${toggle('showScreen', '<span class="wide-only">터미널 </span>화면')}${toggle('showKeys', '키<span class="wide-only"> 직접 보내기</span>')}</span></div>
+        <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>${menu ? '메뉴' : `답 필요${parts.kind ? ` · ${esc(parts.kind)}` : ''}`}</span>
+          <span class="toggles">${menu ? leave : ''}${toggle('showScreen', '<span class="wide-only">터미널 </span>화면')}${toggle('showKeys', '키<span class="wide-only"> 직접 보내기</span>')}</span></div>
         <strong class="b-title">${esc(title)}</strong>
         ${steps}
         ${ctx}
         ${parts.intent && parts.question ? `<p class="b-q">${esc(parts.question)}</p>` : ''}
+        ${menuNote ? `<p class="b-q">${esc(menuNote)}</p>` : ''}
+        ${choices.alt ? `<label class="b-alt"><input type="checkbox"${alt ? ' checked' : ''}> ${esc(choices.alt.label)}</label>` : ''}
         ${next}
-        <div class="choices" role="group" aria-label="${esc(parts.question || '답')}">${choices.items.map((x) => choiceButton(choices, x, { press, primary: nk ? null : primary })).join('')}${nextBtn}</div>
+        <div class="choices" role="group" aria-label="${esc(parts.question || '답')}">${choices.items.map((x) => choiceButton(choices, x, { press, primary: nk || menu ? null : primary, alt })).join('')}${nextBtn}</div>
+        ${menu ? hintOf(menu) : ''}
         ${detail.showScreen ? screen : ''}
         ${detail.showKeys ? keys : ''}
       </div>`;
@@ -170,10 +196,18 @@ function renderBlocked() {
   if (box._html === html) return;
   box._html = html;
   keepChatEnd(() => (box.innerHTML = html));
+  const lv = box.querySelector('.b-leave');
+  if (lv) lv.onclick = () => sendKeys(['esc']);
   if (choices) {
     box.querySelectorAll('.choice[data-n]').forEach((b) => {
       b.onclick = () => pickChoice(choices, Number(b.dataset.n));
     });
+    const ab = box.querySelector('.b-alt input');
+    if (ab)
+      ab.onchange = () => {
+        detail.menuAlt = ab.checked;
+        renderBlocked();
+      };
     const nb = box.querySelector('.b-next');
     if (nb) nb.onclick = () => nextStep(choices);
     box.querySelectorAll('.toggle').forEach((b) => {
@@ -235,8 +269,9 @@ async function pickChoice(choices, n) {
   const host = curHost();
   const item = choices.items.find((x) => x.n === n);
   // The buttons belong to the prompt read for this stateSeq (app.js clears it on a change).
-  if (!cur || cur.status !== 'blocked' || !item || !choiceKeys(choices, item.n)) return;
-  const ok = await answerChoice(host, cur, item, choices);
+  const alt = Boolean(choices.alt && detail.menuAlt);
+  if (!cur || cur.status !== 'blocked' || !item || !choiceKeys(choices, item.n, alt)) return;
+  const ok = await answerChoice(host, cur, item, choices, alt);
   // choices.js: an option that asks for your own words, typed into the composer next.
   if (ok && TYPE_OWN.test(item.label) && view.name === 'agent' && detail.pane === cur.pane && curHost() === host) startAnswer(choices);
 }

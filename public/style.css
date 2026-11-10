@@ -558,6 +558,10 @@ div.tool { background: none; padding: var(--sp-0) var(--sp-2); }
 .blocked-box .b-q { margin: var(--sp-3) 0 0; font-size: 13px; color: var(--muted); }
 /* AskUserQuestion asking several things: each question's header, ✓ once answered. */
 .blocked-box .b-steps { margin: var(--sp-2) 0 0; font-size: 13px; color: var(--muted); }
+/* A slash command's menu: Claude Code's key hints under it, and its own key (/model's 이 세션만). */
+.blocked-box .b-hint { margin: var(--sp-2) 0 0; font: 12px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.blocked-box .b-alt { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 44px; margin-top: var(--sp-2); font-size: 14px; cursor: pointer; }
+.blocked-box .b-alt input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .blocked-box .b-steps .done { color: var(--text); }
 #d-blocked:not(:empty) { padding-bottom: var(--sp-3); border-top: 1px solid var(--line); }
 .detail .scroll { min-height: 0; }

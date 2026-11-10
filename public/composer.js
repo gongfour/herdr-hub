@@ -211,7 +211,7 @@ function choosePalette(i) {
   if (pal.kind === 'cmd') {
     text = `/${c.name} ${value.slice(pal.end).replace(/^\s+/, '')}`;
     caret = c.name.length + 2;
-    if (c.menu) toast(`/${c.name} 은 터미널에서 메뉴를 엽니다. 보낸 뒤 「터미널 화면 보기」나 선택 버튼으로 고르세요.`);
+    if (c.menu) toast(`/${c.name} 은 메뉴를 엽니다. 보내면 입력 칸 위에 그 메뉴가 뜹니다.`);
   } else {
     const ins = `@${c.path}${c.dir ? '' : ' '}`;
     text = value.slice(0, pal.start) + ins + value.slice(pal.end);
