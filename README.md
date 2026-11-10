@@ -49,7 +49,8 @@ Herdr Hub 는 에이전트와 셸에 키를 보낼 수 있다. 곧 그 호스트
 
 - 공개 인터넷에 열지 않는다(`tailscale funnel`, 포트 포워딩, 공개 리버스 프록시 금지). `127.0.0.1` 에서만 듣고 `tailscale serve` 가 tailnet 안에만 내놓게 한다.
 - `HERDR_HUB_ALLOWED_LOGINS` 에 없는 Tailscale 로그인, `HERDR_HUB_HOSTS` 에 없는 Host 머리글(DNS rebinding 막기), `X-Herdr-Hub` 머리글이 없는 변경 요청은 거절한다.
-- `HERDR_HUB_ALLOW_LOCAL=1` 은 loopback 접속을 로그인 없이 받는다. 그 기기를 다른 사람과 함께 쓰면 켜지 않는다.
+- `HERDR_HUB_ALLOW_LOCAL=1` 은 그 기기에서 `127.0.0.1`·`localhost` 주소로 연 페이지만 로그인 없이 받는다(`tailscale serve` 를 거쳐 로그인 없이 온 요청 — 태그 기기·Funnel — 은 거절). 그 기기를 다른 사람과 함께 쓰면 켜지 않는다.
+- 페이지는 CSP 를 단다: 스크립트는 이 출처의 파일과 페이지 자신의 인라인 블록(해시)만 돈다. 에이전트가 쓴 글은 모두 이스케이프하지만, 무엇이 새어 들어와도 실행되지 않게 하는 두 번째 벽이다.
 
 ## 문서
 

@@ -14,7 +14,7 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 
 - macbook 은 들고 다니는 기기라 desktop 허브의 피어가 아니고 자기 허브다: 자기 herdr 의 에이전트에 desktop·server 를 피어로 붙여 함께 보인다(피어 목록의 씨앗은 그 기기 `data/host.env` 의 `HERDR_HUB_PEERS`, 그 뒤로는 설정 → 연결). server·desktop 이 꺼져 있거나 인터넷이 없어도 그 기기의 브라우저에서 `http://localhost:8787` 로 열리고(`HERDR_HUB_ALLOW_LOCAL=1`, loopback 만 로그인 없이), 그동안 두 호스트는 마지막으로 들은 상태로 흐리게 남는다. 알림은 없다. 설정은 그 기기의 `data/host.env`(`mac/run.sh` 가 읽는다, 배포가 덮어쓰지 않는다)에 있고, `./deploy.sh macbook`(ssh)이 처음에 쓴다. `./deploy.sh all` 은 macbook 이 답할 때만 함께 배포한다.
 
-- 피어 목록(`lib/hoststore.js`, 시험은 `npm test`)은 허브의 데이터다: `data/peers.json`(`[{ id, url, label? }]`, 임시 파일에 쓰고 바꿔 끼운다). 설정 → 연결에서 고치고, 바꾸면 다시 시작하지 않아도 그 피어의 연결을 열거나 닫는다. 파일이 없을 때 한 번만 `HERDR_HUB_PEERS` 로 채우고(씨앗), 그 뒤로는 파일이 이긴다 — 호스트 설정(`data\host.cmd`·`data/host.env`)의 줄을 바꿔도 이미 있는 목록은 그대로다(다시 씨앗을 쓰려면 `data/peers.json` 을 지운다). 파일도 씨앗도 없는 호스트는 피어다: 연결 칸이 읽기 전용이고 「호스트는 허브에서 관리합니다」. 피어를 모두 빼도 빈 파일이 남아 허브로 남는다. 손으로 고친 파일에서 맞지 않는 줄은 로그에 남기고 건너뛴다(JSON 이 깨졌으면 `peers.json.bad` 로 두고 빈 목록).
+- 피어 목록(`lib/hoststore.js`, 시험은 `npm test`)은 허브의 데이터다: `data/peers.json`(`[{ id, url, label? }]`, 임시 파일에 비동기로 쓰고 바꿔 끼운다, `lib/jsonfile.js`). 설정 → 연결에서 고치고, 바꾸면 다시 시작하지 않아도 그 피어의 연결을 열거나 닫는다. 파일이 없을 때 한 번만 `HERDR_HUB_PEERS` 로 채우고(씨앗), 그 뒤로는 파일이 이긴다 — 호스트 설정(`data\host.cmd`·`data/host.env`)의 줄을 바꿔도 이미 있는 목록은 그대로다(다시 씨앗을 쓰려면 `data/peers.json` 을 지운다). 파일도 씨앗도 없는 호스트는 피어다: 연결 칸이 읽기 전용이고 「호스트는 허브에서 관리합니다」. 피어를 모두 빼도 빈 파일이 남아 허브로 남는다. 손으로 고친 파일에서 맞지 않는 줄은 로그에 남기고 건너뛴다(JSON 이 깨졌으면 `peers.json.bad` 로 두고 빈 목록).
   - 설정 → 연결: 호스트 줄마다 점·이름·herdr·에이전트 수·주소, 피어 줄의 ⋯ → 이름 바꾸기(비우면 피어가 스스로 쓰는 이름) / 주소 바꾸기(곧바로 새 주소로 다시 붙고 연결 시험) / 연결 시험 / 빼기(확인). 「호스트 추가」 는 이름·주소 칸과 「연결 시험」, 「추가」(시험하지 않았으면 먼저 시험하고, 실패하면 「그래도 추가」 — 잠든 피어도 넣을 수 있다). 새 호스트의 id(주소 `#/h/<id>/…`)는 연결 시험에서 그 호스트가 밝힌 자기 id, 없으면 이름, 없으면 주소의 첫 이름이다. 주소는 바꿀 수 있고 id 는 그대로다.
   - API(허브 자신의 것, `/api/peers/<id>/…` 로는 넘기지 않는다): `GET /api/hosts` → `{manageable, self, max, peers}`, `POST /api/hosts {id, url, label}`, `POST /api/hosts/<id>/rename {label}`, `POST /api/hosts/<id>/url {url}`, `POST /api/hosts/<id>/remove`, `POST /api/hosts/test {url}` → `{url, ok, code, id, label, herdr, api, apiMatch, version}`. 바꾸는 것은 다른 변경과 같은 검사(Host 허용 목록, 로그인, `X-Herdr-Hub`)를 거치고, 허브가 아니면 `409 not_hub`. 오류: `bad_url`, `bad_host_id`, `host_is_self`, `host_id_taken`, `host_url_taken`, `bad_label`, `too_many_hosts`(16), `unknown_host`.
   - 연결 시험은 그 주소의 `/api/version` 과 `/api/host` 를 묻는다. `code`: `ok`, `timeout`, `dns`, `refused`, `tls`, `redirect`, `bad_host`(그쪽 `HERDR_HUB_HOSTS` 에 없는 이름, 403), `forbidden`(그쪽이 이 로그인을 막음), `http`(예: tailscale serve 의 502 — 노드는 있는데 Herdr Hub 가 꺼짐), `not_hub`, `self`.
@@ -35,6 +35,7 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
   - 답 필요: 허브가 화면을 읽어(피어 것은 피어에게 물어) 본문에 무엇을·질문·선택지를 짧게 넣는다. 예 「Bash: echo hi > note.txt / 진행할까요? 1 Yes · 2 Always · 3 Auto mode · 4 No」. `renotify` 를 켠다.
   - 완료: 마지막 답의 첫 줄과 「호스트 · 워크스페이스」. 조용히 바꾼다.
   - 알림 버튼: 답 필요에 빠른 답 2개까지(첫 답과 거절, 예 Yes · No; 「Type something」 은 빼고 빠른 답 버튼과 같은 규칙). 누르면 서비스 워커가 `POST /api/answer {host, pane, stateSeq, n, label}` 을 보낸다(같은 출처라 tailscale serve 가 로그인 머리글을 붙이고, `X-Herdr-Hub` 도 붙인다). 허브는 그 호스트의 `POST /api/agents/<pane>/answer` 로 넘기고, 그 호스트는 herdr 상태를 새로 읽어 그 에이전트가 아직 같은 `stateSeq` 로 막혀 있고 화면의 n 번 선택지 이름이 같을 때만 키를 보낸다(아니면 `409 stale`·`not_blocked`·`no_choices`). 보낸 뒤 같은 자리에 「보냄: Yes」(소리 없음)를 4초 띄운다.
+  - 알림 키와 구독은 `data/vapid.json`·`data/subscriptions.json`(`lib/push.js`; 구독은 임시 파일에 비동기로 쓰고 바꿔 끼운다, `lib/jsonfile.js`). 깨진 파일(쓰다 끊긴 것)은 `.bad` 로 옮기고 시작한다: 구독이면 기기마다 알림을 다시 켜고, 키면 새 키가 생겨 모든 기기가 다시 구독해야 한다(시험 `test/jsonfile.test.js`).
   - 버튼은 브라우저가 지원할 때만 보인다(`Notification.maxActions`). iPhone·iPad Safari 웹 푸시는 버튼이 없어서 알림을 누르면 그 에이전트가 열린다. 설정의 알림 칸이 이 기기에 버튼이 붙는지 말한다.
   - 앱에서 답하거나 에이전트를 열면 그 에이전트의 알림을 닫는다(`getNotifications({tag})`).
   - `HERDR_HUB_PUSH_MUTE`(쉼표로 이은 앞글자): 폴더나 워크스페이스 이름이 그렇게 시작하는 에이전트는 알리지 않는다(로그에 `muted`). 예: 시험용 워크스페이스의 앞글자 `hub-`.
@@ -47,7 +48,7 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 
 | 이름 | 뜻 |
 | --- | --- |
-| `HERDR_HUB_ALLOWED_LOGINS` | 허용할 Tailscale 로그인(쉼표). 또는 `HERDR_HUB_ALLOW_LOCAL=1`(머리글 없는 로컬 접속 허용, 시험용) |
+| `HERDR_HUB_ALLOWED_LOGINS` | 허용할 Tailscale 로그인(쉼표). 또는 `HERDR_HUB_ALLOW_LOCAL=1`(로그인 머리글 없는 접속을 받되, Host 가 `127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT` 이고 상대 주소가 loopback 일 때만 — `tailscale serve` 를 거친 요청은 Host 가 tailnet 이름이라 해당하지 않는다; `lib/hub.js` identity) |
 | `HERDR_HUB_HOSTS` | 이 Herdr Hub 의 이름(쉼표, `Host` 머리글 그대로). `tailscale serve` 는 브라우저의 Host 를 그대로 넘긴다(desktop `desktop.example.ts.net`, server `server.example.ts.net:8443`, 둘 다 확인함). 다른 Host 는 로그인 검사 전에 `403 bad_host` — 자기 도메인을 127.0.0.1 로 돌린 페이지(DNS rebinding)를 막는다. 포트 없는 이름은 `:443` 도 받는다. 비우면 `*.ts.net` 아무 이름. `127.0.0.1:PORT`·`localhost:PORT` 는 `HERDR_HUB_ALLOW_LOCAL=1` 일 때만 |
 | `HERDR_HUB_HOST_ID` | 짧은 호스트 id(`desktop`, `server`). 영문 소문자로 시작, `all` 은 못 쓴다 |
 | `HERDR_HUB_HOST_LABEL` | 화면에 보일 이름 |

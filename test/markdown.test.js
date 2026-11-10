@@ -109,3 +109,32 @@ test('no raw HTML anywhere', () => {
   assert.doesNotMatch(html, /<(script|img|iframe|b|i)[\s>]/);
   assert.equal(md('a\u0000b\u00011\u0001'), '<p>ab1</p>');
 });
+
+// A link never ends up inside another link's href (a mark put back there would close the
+// attribute with its own quotes, and the rest of the URL would become attributes: onmouseover=…).
+test('links: nothing cut out before a URL lands in its href', () => {
+  const nested = (html) => {
+    let depth = 0;
+    for (const m of html.matchAll(/<a\b[^>]*>|<\/a>/g)) {
+      depth += m[0] === '</a>' ? -1 : 1;
+      if (depth > 1) return true;
+    }
+    return false;
+  };
+  const cases = [
+    'http://x/[l](http://y/onmouseover=location=/javascript:alert%281%29/.source//)',
+    'https://x/[a](https://y)[b](https://z)',
+    '[a](http://y/`z`)',
+    'http://x/`code`y',
+    'http://x/\\*y',
+    '[t](http://a/[u](http://b))',
+  ];
+  for (const t of cases) {
+    const html = inline(t);
+    assert.equal(nested(html), false, `${t} -> ${html}`);
+    for (const [, href] of html.matchAll(/href="([^"]*)"/g)) assert.doesNotMatch(href, /[<>\u0000\u0001]/, `${t} -> ${html}`);
+    // Every tag holds only its own attributes: no on…= outside a quoted value.
+    for (const [tag] of html.matchAll(/<a\b[^>]*>/g)) assert.match(tag, /^<a href="[^"<>]*" target="_blank" rel="noopener">$/, `${t} -> ${html}`);
+  }
+  assert.equal(inline('http://x/[l](http://y/z)'), '<a href="http://x/" target="_blank" rel="noopener">http://x/</a><a href="http://y/z" target="_blank" rel="noopener">l</a>');
+});

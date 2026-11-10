@@ -9,7 +9,7 @@ const path = require('path');
 const http = require('http');
 const zlib = require('zlib');
 const crypto = require('crypto');
-const { serveStatic, indexPage, pickEncoding, parseHosts, hostAllowed } = require('../lib/http');
+const { serveStatic, indexPage, pickEncoding, parseHosts, hostAllowed, cspOf } = require('../lib/http');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'herdr-hub-http-'));
 const big = `/* ${'style rules '.repeat(400)} */`;
@@ -163,6 +163,23 @@ test('HEAD: the same headers, no body; outside the folder is 404', async () => {
   assert.equal((await get('/../package.json')).status, 404);
   assert.equal((await get('/%2e%2e/package.json')).status, 404);
   assert.equal((await get('/nope.js')).status, 404);
+});
+
+test('pages carry a CSP: scripts from here and their own inline blocks only', async () => {
+  const sha = (body) => `'sha256-${crypto.createHash('sha256').update(body).digest('base64')}'`;
+  assert.equal(cspOf('<p>x</p>'), "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+  assert.equal(cspOf('<script>a()</script><script src="/x.js"></script><script>\n b()\n</script>').split('; ')[0], `script-src 'self' ${sha('a()')} ${sha('\n b()\n')}`);
+  // The real pages: every inline block is allowed (else the theme and offline page break), and
+  // nothing in them runs from markup (no on…= handlers, no javascript: links).
+  for (const page of ['index.html', 'offline.html']) {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'public', page), 'utf8');
+    const csp = cspOf(html);
+    for (const [, body] of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.ok(csp.includes(sha(body)), page);
+    assert.doesNotMatch(html, /\son[a-z]+=|javascript:/i, page);
+  }
+  const r = await get('/index.html');
+  assert.equal(r.headers['content-security-policy'], cspOf('<!doctype html><title>x</title>'));
+  assert.equal((await get('/style.css')).headers['content-security-policy'], undefined);
 });
 
 test('pickEncoding', () => {

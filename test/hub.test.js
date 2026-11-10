@@ -46,3 +46,16 @@ test('an in-process hub answers its routes like the process does', async (t) => 
   assert.deepEqual((await h.request('POST', '/api/panes/w1-p1/close', {})).body, { ok: true });
   assert.deepEqual(h.herdr.calls.filter((c) => c.method === 'pane.close').map((c) => c.params), [{ pane_id: 'w1-p1' }]);
 });
+
+// ALLOW_LOCAL admits a page opened on this machine at its loopback address, nothing else without a
+// login: tailscale serve passes the tailnet name as Host and puts no login on a tagged node's (or
+// Funnel's) requests, which must not count as local.
+test('ALLOW_LOCAL: no login is local only at a loopback Host; a tailnet name without a login is refused', async (t) => {
+  const { request } = await hubInProcess(t, { id: 'localonly', env: { HERDR_HUB_HOSTS: 'myhost.example.ts.net', HERDR_HUB_ALLOWED_LOGINS: 'you@example.com' } });
+  assert.equal((await request('GET', '/api/state')).status, 200); // Host 127.0.0.1:<port>
+  const viaServe = { Host: 'myhost.example.ts.net' };
+  assert.equal((await request('GET', '/api/state', null, viaServe)).status, 403);
+  assert.equal((await request('POST', '/api/agents/w1:p1/keys', { keys: ['esc'] }, viaServe)).status, 403);
+  assert.equal((await request('GET', '/api/state', null, { ...viaServe, 'Tailscale-User-Login': 'you@example.com' })).status, 200);
+  assert.equal((await request('GET', '/api/state', null, { ...viaServe, 'Tailscale-User-Login': 'someone@example.com' })).status, 403);
+});

@@ -21,9 +21,11 @@
     });
     s = s.replace(/\\([\\`*_~[\]()#>|!-])/g, (_, c) => keep(esc(c)));
     const a = (url, label) => keep(`<a href="${esc(url)}" target="_blank" rel="noopener">${label}</a>`);
-    s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s()<>]+)\)/g, (_, label, url) => a(url, emphasis(esc(label))));
+    // A URL never takes in a mark (\0n\1): what was cut out before it (a link, code) would be put
+    // back inside its href, and that piece's own quotes would end the attribute early.
+    s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s()<>\u0000\u0001]+)\)/g, (_, label, url) => a(url, emphasis(esc(label))));
     // A bare link ends at a space, a bracket or quote, Hangul, or the sentence's last punctuation.
-    s = s.replace(/https?:\/\/[^\s<>()[\]{}"'`ㄱ-힣「」『』，。]+/g, (url) => {
+    s = s.replace(/https?:\/\/[^\s<>()[\]{}"'`ㄱ-힣「」『』，。\u0000\u0001]+/g, (url) => {
       const tail = (url.match(/[.,:;!?*_~]+$/) || [''])[0];
       const u = url.slice(0, url.length - tail.length);
       return /^https?:\/\/[^/]/.test(u) ? a(u, esc(u)) + tail : url;

@@ -114,3 +114,61 @@ test('hub: a working agent with a dialog is refused a prompt and shown as 답 �
   await until(async () => (await statusOf(h)) === 'blocked', 'working with a dialog');
   assert.equal(sent(h.herdr, 'agent.prompt').length, 0);
 });
+
+// Refreshes overlap: R1 reads herdr (idle at 4) and ends late; meanwhile the dialog opens at 5 and
+// R2 holds it. R1, dropped as older, must not take the hold away (nor set one for 4), and the
+// next refresh still shows 답 필요 without waiting for the next screen read.
+test('hub: a refresh that ends late does not undo the hold a newer one set', async (t) => {
+  const clock = 1e12;
+  const h = await hubInProcess(t, { id: 'dlg4', agents: [agent('idle', 4)], now: () => clock });
+  const { herdr } = h;
+  const hub = h.hub.hub;
+  herdr.screens['w1-p2'] = IDLE;
+  await until(async () => (await statusOf(h)) === 'idle', 'idle');
+  await hub.refresh();
+
+  const lists = () => herdr.calls.filter((c) => c.method === 'agent.list').length;
+  const n = lists();
+  herdr.hold['agent.list'] = 600;
+  const r1 = hub.refresh();
+  while (lists() === n) await new Promise((r) => setTimeout(r, 5));
+  herdr.agents[0].state_change_seq = 5;
+  herdr.screens['w1-p2'] = DIALOG;
+  await hub.refresh(); // R2
+  assert.equal(await statusOf(h), 'blocked');
+  await r1;
+  await hub.refresh(); // R3, the same clock: no new read is due
+  assert.equal(await statusOf(h), 'blocked');
+  assert.equal(hub.askHeld.get('w1-p2').seq, 5);
+});
+
+// A turn that ends in a dialog herdr calls idle: still inside the turn for the times (no 완료, the
+// 작업 중 clock keeps its start), and an answer without the stateSeq it was drawn for is refused.
+test('hub: a held prompt keeps the turn going for the times; an answer without its stateSeq sends nothing', async (t) => {
+  let clock = 1e12;
+  const h = await hubInProcess(t, { id: 'dlg5', agents: [agent('idle', 2)], now: () => clock });
+  const { herdr } = h;
+  herdr.screens['w1-p2'] = IDLE;
+  await until(async () => (await statusOf(h)) === 'idle', 'idle');
+  const row = async () => (await h.request('GET', '/api/state')).body.agents.find((a) => a.pane === 'w1-p2');
+  // A turn starts: its 작업 중 clock from now.
+  herdr.agents[0].agent_status = 'working';
+  herdr.agents[0].state_change_seq = 3;
+  herdr.screens['w1-p2'] = '● Working…';
+  herdr.event();
+  await until(async () => typeof (await row()).workingSince === 'number', 'turn started');
+  const since = (await row()).workingSince;
+  clock += 60e3;
+  herdr.agents[0].agent_status = 'idle';
+  herdr.agents[0].state_change_seq = 4;
+  herdr.screens['w1-p2'] = DIALOG;
+  herdr.event();
+  await until(async () => (await statusOf(h)) === 'blocked', 'held');
+  const a = await row();
+  assert.equal(a.doneAt, null);
+  assert.equal(a.workingSince, since);
+
+  const r = await h.request('POST', '/api/agents/w1-p2/answer', { n: 4, label: 'Continue' });
+  assert.deepEqual([r.status, r.body], [400, { error: 'state_seq_required' }]);
+  assert.equal(sent(herdr, 'agent.send_keys').length, 0);
+});
