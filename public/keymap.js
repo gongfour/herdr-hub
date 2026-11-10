@@ -39,7 +39,7 @@
 // table is built for the device; the keys that quit or are the system's stay refused anywhere.
 (function (root) {
   const ACTIONS = {
-    back: { group: '어디서나', name: '뒤로·닫기', label: '시트·메뉴 닫기, 입력 칸에서 나가기, 뒤로 (셸의 키 직접 입력에서는 셸의 Esc)', shellEsc: true, noCommand: true },
+    back: { group: '어디서나', name: '뒤로·닫기', label: '시트·메뉴 닫기, 에이전트에 열린 메뉴(/model …) 취소, 입력 칸에서 나가기, 뒤로 (셸의 키 직접 입력에서는 셸의 Esc)', shellEsc: true, noCommand: true },
     leaveView: { group: '어디서나', name: '대화창 닫기', label: '대화창 닫기: 연 에이전트·셸·워크스페이스(또는 시트, 설정)에서 나온다. 에이전트는 그대로 돈다 (Ctrl+W·⌘W 는 설치한 앱에서만; 닫을 것이 없으면 앱 창이 닫힌다)' },
     help: { group: '어디서나', name: '단축키', label: '단축키 보기' },
     settings: { group: '어디서나', name: '설정', label: '설정 열기·닫기 (두 칸이면 오른쪽에)' },

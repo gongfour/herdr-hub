@@ -126,7 +126,7 @@ function renderBlocked() {
   let html;
   const panel = !choices && text ? screenPanel(text) : null;
   // Esc leaves a slash command's menu (Claude Code's 「Esc to cancel」).
-  const leave = '<button type="button" class="toggle b-leave" aria-label="메뉴 취소 (Esc 보내기)">취소<span class="wide-only"> (Esc)</span></button>';
+  const leave = `<button type="button" class="toggle b-leave" aria-label="메뉴 취소 (Esc 보내기)"${keyAttrs('back', '메뉴 취소')}>취소<span class="wide-only"> (Esc)</span></button>`;
   const hintOf = (p) => (p && p.hint ? `<p class="b-hint">${esc(p.hint)}</p>` : '');
   if (panel) {
     // A menu with no list read here (/status, /config's tabs, /privacy-settings): the panel as the

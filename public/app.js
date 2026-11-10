@@ -353,13 +353,17 @@ function onState() {
       renderSync();
     }
     const a = currentAgent();
-    const changed = a && a.stateSeq !== detail.lastSeq;
+    // herdr's stateSeq, and the status the host shows: a slash command's menu or a dialog the
+    // host reads off the screen (lib/hub.js holdAsk) turns idle into 답 필요 under the same
+    // stateSeq, and is read at once, not on the next 3 s poll.
+    const mark = a && `${a.stateSeq}|${a.status}|${a.menu ? 'menu' : ''}`;
+    const changed = a && mark !== detail.lastSeq;
     // The screen read for the previous state must not label buttons for the next prompt.
     if (changed && detail.lastSeq !== -1) detail.blockedText = null;
     renderDetailHeader();
     markSeen(a);
     if (changed) {
-      detail.lastSeq = a.stateSeq;
+      detail.lastSeq = mark;
       loadDetail();
     }
   }
@@ -810,13 +814,18 @@ function stepTermFont(dir) {
 // returns true when it acted (the key is then taken). In the shell view a key with the focus on
 // the page goes to the shell first (termStrayKey).
 const KEY_ACTIONS = {
-  // Esc: the top sheet or menu, else out of a field, else back. Always taken:
+  // Esc: the top sheet or menu, else a slash command's menu open in the agent (/model, /config:
+  // Esc to Claude Code, as the box's 취소 — from the message box too, where the focus is after
+  // sending the command), else out of a field, else back. Always taken:
   // Android turns an Escape the page leaves alone into Back, which closes the app when there is
   // nothing behind (a keyboard cover's Esc minimised the Hub).
-  back() {
+  back(b, e) {
     const top = topLayer();
+    const a = !top && view.name === 'agent' ? currentAgent() : null;
     if (top) closeLayer(top);
-    else if (editable(document.activeElement)) document.activeElement.blur();
+    else if (a && a.status === 'blocked' && a.menu && !a.stale) {
+      if (!(e && e.repeat)) sendKeys(['esc']); // a held key cancels once
+    } else if (editable(document.activeElement)) document.activeElement.blur();
     else if (reorder.on && listShown()) setReorder(false); // 순서 바꾸기 ends (reorder.js)
     else {
       const back = view.name !== 'list' && $app.querySelector('a[data-back]');
