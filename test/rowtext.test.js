@@ -79,7 +79,7 @@ test("a host's dot: up, herdr not answering, connecting or offline", () => {
 });
 
 test('the first-visit hint: the host swipe only with hosts, three starts or ✕', () => {
-  assert.match(hintText(true), /기기 바꾸기/);
+  assert.match(hintText(true), /호스트 바꾸기/);
   assert.doesNotMatch(hintText(false), /기기|호스트/);
   assert.ok(hintDue(null));
   assert.ok(hintDue('1')); // the old code's mark: seen once

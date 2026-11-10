@@ -339,6 +339,7 @@ function render() {
     <header class="bar">
       <h1>작업공간${sub ? `<span class="sub">${sub}</span>` : ''}</h1>
       ${liveChip()}
+      ${reorder.on ? '' : `<button type="button" class="icon-btn" data-find aria-label="빠른 이동"${keyAttrs('switcher', '빠른 이동')}>${ICON.search}</button>`}
       ${reorder.on ? '' : canStartHere(f) ? `<a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스"${keyAttrs('newWorkspace', '새 워크스페이스')}>${ICON.plus}</a>` : `<button type="button" class="icon-btn" disabled aria-label="새 워크스페이스 (herdr 에 연결되지 않음)" title="herdr 에 연결되지 않아 새로 시작할 수 없습니다">${ICON.plus}</button>`}
     </header>${hostSeg(f)}`;
   const parts = homeParts(f);
@@ -384,14 +385,25 @@ function render() {
 function homeParts(f = filter()) {
   const down = state.herdr !== 'up';
   const { list } = listModel();
+  const blocked = list.flatMap((s) => s.agents.filter(needsAnswer)); // in the order stepBlocked opens them
   // A peer offline or with its herdr down is said by its red dot alone (hostDot), not a note here;
   // its cards stay greyed 「… 기준」 (ghosts).
   return [
     ...(reorder.on && list.length ? [['reorder', '<p class="hint-row ro-note" role="note"><span>손잡이를 끌어 옮깁니다</span></p>']] : []),
     // Off while reordering: the swipe and the long press it tells of are off then.
     ...(swipeHintShown() && !reorder.on && (list.length || state.agents.length) ? [['hint', `<p class="hint-row" role="note"><span>${RowText.hintText(multi())}</span><button type="button" class="icon-btn hint-x" aria-label="안내 닫기">${ICON.x}</button></p>`]] : []),
+    ...(blocked.length && !reorder.on ? [['blocked', blockedLine(blocked)]] : []),
     ...spacesParts(list, down, f),
   ];
+}
+
+// The agents waiting for an answer, on the list that is shown: one line above the cards that opens
+// the first of them (as 다음 답 필요, Alt+Shift+↓); from its chat the same key goes on to the next.
+// Only while there are some; a slash command's menu is not counted (needsAnswer).
+function blockedLine(blocked) {
+  const names = [...new Set(blocked.map((a) => a.workspaceLabel || a.name || a.title).filter(Boolean))];
+  const shown = names.slice(0, 2).join(', ') + (names.length > 2 ? ` 외 ${names.length - 2}` : '');
+  return `<button type="button" class="blocked-line" data-next-blocked${keyAttrs('nextBlocked', '다음 답 필요 열기')}><span class="bl-dot" aria-hidden="true"></span><span class="bl-t">답 필요 ${blocked.length}${shown ? `<span class="bl-who"> · ${esc(shown)}</span>` : ''}</span><span class="bl-go">열기<span aria-hidden="true"> ›</span></span></button>`;
 }
 
 // Alt+←/→ (split.js hostKey): the host segment one step along. Phone: on the list view only.
@@ -432,7 +444,7 @@ let settingsAt = null;
 // Why this host's herdr can't be reached (the hub's own error: the socket it tried) and what to do.
 function herdrHelp() {
   const err = String(state.error || '').trim();
-  return `${err ? `<p class="empty-err"><code>${esc(err.length > 160 ? `${err.slice(0, 160)}…` : err)}</code></p>` : ''}<p>그 기기에서 herdr 가 실행 중인지 확인하세요. 처음이면 <a href="https://herdr.dev" target="_blank" rel="noopener">herdr 설치·실행 방법</a>을 보세요.</p>`;
+  return `${err ? `<p class="empty-err"><code>${esc(err.length > 160 ? `${err.slice(0, 160)}…` : err)}</code></p>` : ''}<p>그 호스트에서 herdr 가 실행 중인지 확인하세요. 처음이면 <a href="https://herdr.dev" target="_blank" rel="noopener">herdr 설치·실행 방법</a>을 보세요.</p>`;
 }
 // Whether a new workspace can start where the list is (herdr up there): the + is off otherwise.
 function canStartHere(f = filter()) {
@@ -459,7 +471,7 @@ function spacesParts(list, down, f) {
     return [['empty', `<div class="empty" role="status"><p>${esc(peer.label)} ${why}</p>${connLink('연결 상태 보기')}</div>`]];
   }
   if (down && (f === localId() || (f === 'all' && !multi()))) {
-    const where = hostLabel(localId()) || state.host || '이 기기';
+    const where = hostLabel(localId()) || state.host || '이 호스트';
     return [['empty', `<div class="empty" role="status"><p class="empty-t">${esc(where)} 의 herdr 에 연결하지 못했습니다</p>${herdrHelp()}${connLink('연결 상태 보기')}</div>`]];
   }
   // Split: the right column says it in full, with the button; here a short line.
@@ -487,6 +499,10 @@ function swipeHintShown() {
   }
   return hintNow;
 }
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-find]')) return void toggleSwitcher();
+  if (e.target.closest('[data-next-blocked]')) return void stepBlocked(1);
+});
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.hint-x')) return;
   hintNow = false;

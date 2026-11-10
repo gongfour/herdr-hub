@@ -19,7 +19,8 @@
     if (!u || !u.model) return null;
     const p = pctText(u.pct, u.tokens);
     const full = p ? `${u.model} · 컨텍스트 ${p}` : u.model;
-    const short = p ? `${family(u.model)} ${p}` : family(u.model);
+    // The phone's header: the percentage alone (the model is a tap away, in the sheet).
+    const short = p || family(u.model);
     return { full, short, title: contextTitle(u) || u.model, warn: u.pct != null && u.pct >= 80 };
   }
 

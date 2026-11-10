@@ -328,7 +328,7 @@ function switcherKeys() {
   const other = cmd ? '' : ` · ${kbd('>')} 명령`;
   return `${kbd('↑')}${kbd('↓')}${jk.length ? ` ${jk.map(kbd).join('')}` : ''} 고르기 · ${kbd('리턴')} ${cmd ? '하기' : '열기'}${other} · ${back.map(kbd).join('')} 닫기`;
 }
-const PLACEHOLDER = '에이전트·셸 이름, 작업공간, 호스트 (> 명령)';
+const PLACEHOLDER = '에이전트·셸 이름, 워크스페이스, 호스트 (> 명령)';
 
 // Ctrl+P / Alt+P; commands: Ctrl+Shift+P / F1, straight into 명령 (the field starts with >).
 // Again while it is open: closed; the other one's key turns it to the other mode. Under another

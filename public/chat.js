@@ -58,7 +58,7 @@ function shellOut(m) {
 function message(m) {
   if (m.role === 'note') return `<p class="note">${esc(m.text)}</p>`;
   if (m.role === 'shell') return shellOut(m);
-  if (m.role === 'user' && m.bash) return `<div class="msg user bash"><span>${esc(m.text)}</span></div>`;
+  if (m.role === 'user' && m.bash) return `<div class="msg user bash"><span class="sr-only">나: </span><span>${esc(m.text)}</span></div>`;
   if (m.role === 'user') {
     const { text, pics } = userParts(m);
     const imgs = pics.map((n) => {
@@ -69,10 +69,10 @@ function message(m) {
     const chips = Array.from({ length: Math.max(0, (m.images || 0) - pics.length) }, () => '<span class="img-chip">이미지</span>');
     const media = imgs.length || chips.length ? `<div class="pics">${imgs.join('')}${chips.join('')}</div>` : '';
     // No whitespace between tags: the bubble keeps line breaks (pre-wrap).
-    return `<div class="msg user">${media}${text ? `<span>${esc(text)}</span>` : ''}</div>`;
+    return `<div class="msg user"><span class="sr-only">나: </span>${media}${text ? `<span>${esc(text)}</span>` : ''}</div>`;
   }
   const tools = m.tools && m.tools.length ? `<div class="tools">${m.tools.map((t, i) => toolLine(t, `${m.id}:${i}`)).join('')}</div>` : '';
-  return `<div class="msg assistant">${m.text ? Markdown.md(m.text) : ''}${tools}</div>`;
+  return `<div class="msg assistant"><span class="sr-only">에이전트: </span>${m.text ? Markdown.md(m.text) : ''}${tools}</div>`;
 }
 
 // A tool line; AskUserQuestion shows what was chosen ("Pick a color? → Red"). One with a

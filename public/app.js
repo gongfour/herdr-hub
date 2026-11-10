@@ -621,11 +621,11 @@ function emptyDetailHtml() {
     const down = state.herdr !== 'up' && (f === localId() || (f === 'all' && !multi()));
     const peer = f !== 'all' && f !== localId() ? hostOf(f) : null;
     if (down || (peer && (!peer.online || peer.herdr !== 'up'))) {
-      const where = peer ? peer.label : hostLabel(localId()) || state.host || '이 기기';
+      const where = peer ? peer.label : hostLabel(localId()) || state.host || '이 호스트';
       return `<div class="empty-detail">
       ${icon}
       <h2>${esc(where)} 의 에이전트를 볼 수 없습니다</h2>
-      ${peer && !peer.online ? '<p>그 기기가 잠들었거나 Herdr Hub 가 꺼져 있습니다.</p>' : peer ? '<p>그 기기에서 herdr 가 실행 중인지 확인하세요.</p>' : herdrHelp()}
+      ${peer && !peer.online ? '<p>그 호스트가 잠들었거나 Herdr Hub 가 꺼져 있습니다.</p>' : peer ? '<p>그 호스트에서 herdr 가 실행 중인지 확인하세요.</p>' : herdrHelp()}
       <div class="ed-acts">${connLink('연결 상태 보기')}</div>
     </div>`;
     }

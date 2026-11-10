@@ -104,7 +104,7 @@
   const lastStatus = (a) => (a && a.menu && a.lastStatus === 'blocked' ? '마지막: 메뉴 열림' : LAST[a && a.lastStatus] ? `마지막: ${LAST[a.lastStatus]}` : '마지막 모습');
 
   // The first-visit hint: the host swipe only when there is a host to swipe to.
-  const hintText = (multi) => (multi ? '옆으로 밀어 기기 바꾸기 · 길게 눌러 메뉴' : '줄을 길게 누르면 메뉴가 나옵니다');
+  const hintText = (multi) => (multi ? '옆으로 밀어 호스트 바꾸기 · 길게 눌러 메뉴' : '줄을 길게 누르면 메뉴가 나옵니다');
   // Seen this many times (one count per app start), or closed with ✕ ('x'), it stays away.
   const HINT_TIMES = 3;
   const hintDue = (stored) => stored !== 'x' && (Number(stored) || 0) < HINT_TIMES;

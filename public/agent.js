@@ -11,7 +11,6 @@ function renderDetail() {
         ${backLink(homeHash())}
         <h1 id="d-title"></h1>
         <span class="sync" id="d-sync" role="img" aria-label="새로 불러오는 중" title="새로 불러오는 중" hidden></span>
-        <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', '모드 고르기 · 메시지 칸에서 다음 모드')} hidden></button>
         <button type="button" class="mode-chip usage-chip" id="d-usage" aria-haspopup="dialog"${keyAttrs('usage', '사용량')} hidden></button>
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기" aria-haspopup="dialog"${keyAttrs('menu', '더 보기')}>${ICON.more}</button>
@@ -19,13 +18,16 @@ function renderDetail() {
       <div class="ghost-bar" id="d-ghost" role="status" hidden></div>
       <button type="button" class="activity" id="d-activity"${keyAttrs('terminal', '터미널 화면 보기')} hidden></button>
       <div class="screen-tools" id="s-tools" hidden></div>
-      <div class="scroll" id="d-body"></div>
+      <div class="scroll" id="d-body" role="log" aria-label="대화" aria-live="off"></div>
       <div id="d-blocked"></div>
       <div class="sr-only" id="d-say" role="status"></div>
       <div class="attach-tray" id="d-tray" hidden></div>
       <input type="file" id="d-file" accept="image/*" multiple hidden>
       <input type="file" id="d-cam" accept="image/*" capture="environment" hidden>
       <div class="palette" id="d-pal" role="listbox" aria-label="명령 제안" hidden></div>
+      <div class="composer-tools" id="d-ctools" hidden>
+        <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', '모드 고르기 · 메시지 칸에서 다음 모드')} hidden></button>
+      </div>
       <div class="composer" id="d-form">
         <button type="button" class="attach" id="d-attach" aria-label="사진 첨부">${ICON.photo}</button>
         <div id="d-input" class="input" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="메시지" data-placeholder="메시지 보내기" enterkeyhint="${getEnter() === 'send' ? 'send' : 'enter'}" autocapitalize="sentences"></div>
@@ -384,7 +386,13 @@ function renderDetailHeader() {
   const time = a.status === 'working' ? '' : timeTag(a);
   const st = shownStatus(a);
   const status = esc(STATUS_LABEL[st] || st);
-  const th = `<span class="t"><span class="st-dot ${esc(st)}" aria-hidden="true"></span>${esc(a.name || a.title)}</span><span class="sub"${a.cwd ? ` title="${esc(a.cwd)}"` : ''}><span class="sub-st"><b class="st ${esc(st)}">${status}</b>${time ? ` · ${time}` : ''} · </span>${multi() ? `${esc(hostLabel(a.host))} · ` : ''}${a.agent === 'claude' ? '' : `${esc(a.agent)} · `}${esc(wsAndDir(a.workspaceLabel, a.cwd))}</span>`;
+  // Titled as its row and its ⋯ menu read (rows.js rowLabel): the conversation's title, with the
+  // agent's name in the subtitle when it is another (the workspace and folder only when they add
+  // something to that name).
+  const label = rowLabel('agent', a);
+  const where = wsAndDir(a.workspaceLabel, a.cwd);
+  const subParts = [a.name && a.name !== label ? a.name : '', multi() ? hostLabel(a.host) : '', a.agent === 'claude' ? '' : a.agent, where && where !== a.name ? where : ''].filter(Boolean);
+  const th = `<span class="t"><span class="st-dot ${esc(st)}" aria-hidden="true"></span>${esc(label)}</span><span class="sub"${a.cwd ? ` title="${esc(a.cwd)}"` : ''}><span class="sub-st"><b class="st ${esc(st)}">${status}</b>${time ? ` · ${time}` : ''}${subParts.length ? ' · ' : ''}</span>${esc(subParts.join(' · '))}</span>`;
   if (title._html !== th) {
     title._html = th;
     title.innerHTML = th;
@@ -883,7 +891,7 @@ function goneHtml(kind) {
   return `<div class="empty-detail in-body" role="status">
       <span class="ed-ic" aria-hidden="true">${ICON.panel}</span>
       <h2>이 에이전트는 끝났습니다</h2>
-      <p>끝났거나 닫혀서 더는 보낼 수 없습니다.</p>
+      <p>에이전트가 끝나서 더는 보낼 수 없습니다.</p>
       <div class="ed-acts">${ws ? `<a class="btn" href="${link(host, `/start/ws/${encodeURIComponent(ws.workspace_id)}`)}">여기서 새 에이전트 시작</a>` : ''}${home}</div>
     </div>`;
 }
@@ -952,11 +960,27 @@ function renderDetailBody(reset) {
     const anchor = nearBottom && !keepTop ? null : topMessage(body, box);
     const nowAt = canSendQueued(currentAgent()) && waiting.some((p) => !p.now) ? waiting.length - 1 : -1; // 지금 보내기
     patchList(box, [...(t.older || []).concat(t.messages).map((m, i) => [m.id || `i${i}`, message(m)]), ...waiting.map((p, i) => [`wait:${p.at}`, pendingBubble(p, i === nowAt)])]);
+    sayNewReply(body, t.messages);
     if (anchor && anchor.el.isConnected) body.scrollTop += anchor.el.getBoundingClientRect().top - anchor.top;
     if (keepTop) return updateJump(body);
   }
   if (nearBottom) body.scrollTop = body.scrollHeight;
   updateJump(body);
+}
+
+// A screen reader hears that a reply came, not the reply itself (the chat is a log that doesn't
+// speak: a long answer read out whole, at every step of a turn, would drown everything else);
+// once per new last message from the agent, at most every 10 s, never for the first draw.
+function sayNewReply(body, messages) {
+  const last = messages[messages.length - 1];
+  const id = last ? last.id || String(messages.length) : null;
+  const was = body._lastMsg;
+  body._lastMsg = id;
+  if (was === undefined || !last || id === was || last.role !== 'assistant') return;
+  if (Date.now() - (body._saidAt || 0) < 10e3) return;
+  body._saidAt = Date.now();
+  const say = document.getElementById('d-say');
+  if (say) say.textContent = '새 답이 왔습니다';
 }
 
 // The first message whose bottom is inside the view, and where it is now.
@@ -1282,8 +1306,11 @@ function renderMode() {
   // wouldn't say why.
   const m = a && a.agent === 'claude' && a.status !== 'blocked' && !a.stale ? detail.mode : null;
   chip.hidden = !m;
+  // Its row above the message box (the header is left to the title, the status and 사용량).
+  const row = document.getElementById('d-ctools');
+  if (row) row.hidden = !m;
   if (!m) return;
-  chip.innerHTML = `<span class="full">${esc(MODE_LABEL[m] || m)}</span><span class="short" aria-hidden="true">${esc(MODE_SHORT[m] || MODE_LABEL[m] || m)}</span>`;
+  chip.innerHTML = `<span class="full">권한: ${esc(MODE_LABEL[m] || m)}</span><span class="short" aria-hidden="true">${esc(MODE_SHORT[m] || MODE_LABEL[m] || m)}</span>`;
   chip.dataset.mode = m;
   chip.disabled = Boolean(detail.modeBusy);
   chip.setAttribute('aria-haspopup', 'dialog');

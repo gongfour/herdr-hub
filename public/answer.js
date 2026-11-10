@@ -67,6 +67,10 @@ async function answerChoice(host, a, item, choices = null, alt = false) {
     press.until = Date.now() + PRESS_MS;
     setTimeout(redrawChoices, PRESS_MS + 50);
     closeNotes(host, a.pane);
+    // Others still waiting: the way on to the next (as 다음 답 필요, Alt+Shift+↓, and the list's
+    // 답 필요 line). A slash command's menu is no wait (needsAnswer).
+    const others = state.agents.filter((x) => needsAnswer(x) && !same(x, host, a.pane)).length;
+    if (others) toast(`답 필요 ${others}개가 더 있습니다`, { id: 'next-blocked', action: { label: '다음 열기', run: () => stepBlocked(1) } });
     // The screen read again: the same prompt may now show its next step (a status change reads anyway).
     if (view.name === 'agent' && detail.pane === a.pane && curHost() === host) for (const ms of [500, PRESS_MS + 100]) setTimeout(loadDetail, ms);
   } else if (pressed.get(k) === press) pressed.delete(k); // not sent: the buttons come back at once
@@ -176,10 +180,11 @@ function renderBlocked() {
     // A settings dialog (choices.js heldPrompt): values change with ←/→, and any row's Enter goes on.
     if (!nk && /←\/→ to change/i.test(text)) next = '<p class="b-q">값은 「키 직접 보내기」의 ← → 로 바꿉니다. 고르면 그 줄에서 Enter 를 보냅니다(Esc: 취소).</p>';
     const nextBtn = nk ? `<button type="button" class="choice primary b-next"${press ? ' disabled' : ''}><span class="label"><span class="name">${choices.next.label === 'Next' ? '다음 질문' : '다음 (답 확인)'}</span></span></button>` : '';
-    const toggle = (k, label) => `<button type="button" class="toggle" data-toggle="${k}" aria-expanded="${Boolean(detail[k])}">${label}</button>`;
+    // 「터미널」「키 입력」 on the phone, the whole words where there is room; read out in full.
+    const toggle = (k, label, aria) => `<button type="button" class="toggle" data-toggle="${k}" aria-expanded="${Boolean(detail[k])}" aria-label="${aria}">${label}</button>`;
     html = `<div class="blocked-box${menu ? ' menu' : ''}">
         <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>${menu ? '메뉴' : `답 필요${parts.kind ? ` · ${esc(parts.kind)}` : ''}`}</span>
-          <span class="toggles">${menu ? leave : ''}${toggle('showScreen', '<span class="wide-only">터미널 </span>화면')}${toggle('showKeys', '키<span class="wide-only"> 직접 보내기</span>')}</span></div>
+          <span class="toggles">${menu ? leave : ''}${toggle('showScreen', '터미널<span class="wide-only"> 화면</span>', '터미널 화면 보기')}${toggle('showKeys', '키<span class="wide-only"> 직접 보내기</span><span class="phone-only"> 입력</span>', '키 직접 보내기')}</span></div>
         <strong class="b-title">${esc(title)}</strong>
         ${steps}
         ${ctx}

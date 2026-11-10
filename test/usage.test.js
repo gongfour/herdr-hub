@@ -158,7 +158,7 @@ test('reader: a session\'s file, and the host\'s limits from every recent file, 
 
 test('page: the chip, the limits line and the sheet\'s rows in words', () => {
   const u = { modelId: 'claude-opus-5-5', model: 'Opus 5.5', tokens: 420000, window: 1e6, pct: 42, limits: { five: { pct: 31, resetsAt: NOW + 3600e3 }, week: { pct: 12.4, resetsAt: NOW + 3 * 86400e3 }, at: NOW - 5 * 60e3 } };
-  assert.deepEqual(P.chip(u), { full: 'Opus 5.5 · 컨텍스트 42%', short: 'Opus 42%', title: '컨텍스트 420,000 / 1,000,000 토큰', warn: false });
+  assert.deepEqual(P.chip(u), { full: 'Opus 5.5 · 컨텍스트 42%', short: '42%', title: '컨텍스트 420,000 / 1,000,000 토큰', warn: false });
   assert.equal(P.chip({ ...u, pct: 85 }).warn, true);
   assert.equal(P.chip({ ...u, pct: 0.3, tokens: 3000 }).full, 'Opus 5.5 · 컨텍스트 1% 미만');
   assert.deepEqual(P.chip({ model: 'Opus 5.5', pct: null, tokens: null }), { full: 'Opus 5.5', short: 'Opus', title: 'Opus 5.5', warn: false });

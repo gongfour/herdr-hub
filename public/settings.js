@@ -256,7 +256,7 @@ function renderConn() {
   // follows it) it may add hosts; with none yet, what that does.
   const by = hostAdmin && Array.isArray(hostAdmin.followedBy) ? hostAdmin.followedBy.map((f) => f.label || f.id) : [];
   const ro = hostAdmin && !hostAdmin.manageable ? `<li class="cl-note">${by.length ? `이 호스트는 ${esc(by.join('·'))} 허브의 피어입니다. 호스트는 그 허브의 설정 → 연결에서 추가·변경하세요.` : '호스트는 허브에서 관리합니다. 허브의 설정 → 연결에서 추가·변경하세요.'}</li>` : '';
-  const alone = manage && !hostAdmin.peers.length && !ordering ? '<li class="cl-note">다른 기기에서 도는 Herdr Hub 를 더하면 이 호스트가 허브가 되어, 그 기기의 에이전트도 이 화면에 함께 보입니다.</li>' : '';
+  const alone = manage && !hostAdmin.peers.length && !ordering ? '<li class="cl-note">다른 호스트에서 도는 Herdr Hub 를 더하면 이 호스트가 허브가 되어, 그 호스트의 에이전트도 이 화면에 함께 보입니다.</li>' : '';
   const html = lines + order + add + alone + ro;
   if (box._html === html) return;
   // Redrawn in place: a focused ⋯ (or 호스트 추가) keeps the focus.

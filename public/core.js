@@ -14,6 +14,7 @@ const ICON = {
   send: '<svg viewBox="0 0 24 24"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></svg>', // arrow-up
   stop: '<svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" /></svg>', // square
   plus: '<svg viewBox="0 0 24 24"><path d="M5 12h14" /><path d="M12 5v14" /></svg>', // plus
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>', // search
   photo: '<svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>', // image
   agent: '<svg viewBox="0 0 24 24"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" /></svg>', // bot
   keyboard: '<svg viewBox="0 0 24 24"><path d="M10 8h.01" /><path d="M12 12h.01" /><path d="M14 8h.01" /><path d="M16 12h.01" /><path d="M18 8h.01" /><path d="M6 8h.01" /><path d="M7 16h10" /><path d="M8 12h.01" /><rect width="20" height="16" x="2" y="4" rx="2" /></svg>',
@@ -64,7 +65,7 @@ const ERROR_TEXT = {
   bad_image_type: 'JPEG·PNG·WebP 사진만 보낼 수 있습니다.',
   network: '연결이 끊겼습니다. 다시 시도해 주세요.',
   timeout: '응답이 늦어 기다리기를 멈췄습니다. 다시 시도해 주세요.',
-  agent_not_found: '에이전트가 끝났거나 닫혔습니다.',
+  agent_not_found: '에이전트가 끝났습니다.',
   pane_not_found: '셸이 닫혔습니다.',
   workspace_not_found: '워크스페이스가 닫혔습니다.',
   agent_blocked: '에이전트가 답을 기다리는 중입니다. 위 버튼으로 먼저 답해 주세요.',
