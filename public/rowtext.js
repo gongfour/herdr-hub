@@ -93,7 +93,7 @@
     return `${when}${t} 기준`;
   }
   // A slash command's menu someone opened (/model …) is held blocked by the host so it can be
-  // answered here (a.menu, lib/hub.js holdAsk), but nobody is waited for: it is no 답 필요 in counts,
+  // answered here (a.menu, lib/askhold.js), but nobody is waited for: it is no 답 필요 in counts,
   // badges, the switcher or Alt+Shift+↓, and shows as 「메뉴 열림」, grey like idle. The agent view
   // still treats it as blocked (its box, the guard on sending).
   const needsAnswer = (a) => Boolean(a) && a.status === 'blocked' && !a.menu;

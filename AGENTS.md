@@ -48,7 +48,7 @@
 
 ## 파일 시스템 (멈추지 않기)
 
-- 요청을 받는 길(요청 처리, `refresh`)에서 `fs.*Sync` 를 쓰지 않는다. 남의 폴더(에이전트 cwd, `~/.claude`, 대화 기록, 사람이 고른 경로)는 `lib/fsq.js`(`fsq.budget(ms)` 를 만들어 `readdir`·`stat`·`readPart` …에 넘긴다)로만 읽고, 예산이 다하면 찾은 것까지 `partial` 로 돌려준다. 걷기는 cwd 하나에 하나만 돈다. Hub 자기 파일(`data/`, `public/`, 사진 폴더)은 그대로 둬도 되지만 요청 길이면 비동기로 한다. 시작 때 읽는 설정·`build.json` 은 동기여도 된다.
+- 요청을 받는 길(요청 처리, `refresh`)에서 `fs.*Sync` 를 쓰지 않는다. 남의 폴더(에이전트 cwd, `~/.claude`, 대화 기록, 사람이 고른 경로)는 `lib/fsq.js`(`fsq.budget(ms)` 를 만들어 `readdir`·`stat`·`readPart` …에 넘긴다)로만 읽고, 예산이 다하면 찾은 것까지 `partial` 로 돌려준다. 걷기는 cwd 하나에 하나만 돈다. Hub 자기 파일(`data/`, `public/`, 사진 폴더)은 그대로 둬도 되지만 요청 길이면 비동기로 한다. `data/` 의 JSON 파일은 `lib/jsonfile.js` 로만 읽고 쓴다(시작 때 읽기, 깨진 파일은 `.bad` 로; 쓰기는 비동기·차례대로·임시 파일 후 바꿔 끼우기). 파일마다 저장 코드를 새로 만들지 않는다. 시작 때 읽는 설정·`build.json` 은 동기여도 된다.
 - 감시 스레드(`lib/watchdog.js`, `HERDR_HUB_WATCHDOG_MS`, 0 = 끔)가 30 초 멈춘 프로세스를 죽이고 launchd·`run.cmd` 의 반복이 다시 띄운다. 그 반복이나 KeepAlive 를 없애지 않는다. 시험: `test/nohang.test.js`(서버를 띄워 메인 스레드를 막고, `readdir` 을 막는다 — `test/fixtures/stall.js`).
 
 ## 버전

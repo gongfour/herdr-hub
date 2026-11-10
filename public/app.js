@@ -354,7 +354,7 @@ function onState() {
     }
     const a = currentAgent();
     // herdr's stateSeq, and the status the host shows: a slash command's menu or a dialog the
-    // host reads off the screen (lib/hub.js holdAsk) turns idle into 답 필요 under the same
+    // host reads off the screen (lib/askhold.js) turns idle into 답 필요 under the same
     // stateSeq, and is read at once, not on the next 3 s poll.
     const mark = a && `${a.stateSeq}|${a.status}|${a.menu ? 'menu' : ''}`;
     const changed = a && mark !== detail.lastSeq;
