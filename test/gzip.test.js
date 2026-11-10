@@ -72,15 +72,24 @@ test('send(): a large JSON reply goes gzipped and labelled; small or not asked f
   }
 });
 
-test('a peer reply in any encoding comes out as plain bytes; gzip is kept for passing on', () => {
+test('a peer reply in any encoding comes out as plain bytes; gzip is kept for passing on', async () => {
   const plain = Buffer.from(JSON.stringify({ a: '한글'.repeat(300) }));
-  assert.deepEqual(decodeBody(plain, undefined), { body: plain, encoded: null });
-  assert.deepEqual(decodeBody(plain, 'identity').body, plain);
+  assert.deepEqual(await decodeBody(plain, undefined), { body: plain, encoded: null });
+  assert.deepEqual((await decodeBody(plain, 'identity')).body, plain);
   const gz = zlib.gzipSync(plain);
-  const g = decodeBody(gz, 'gzip');
+  const g = await decodeBody(gz, 'gzip');
   assert.deepEqual(g.body, plain);
   assert.deepEqual(g.encoded, { encoding: 'gzip', bytes: gz });
-  assert.deepEqual(decodeBody(zlib.brotliCompressSync(plain), 'br'), { body: plain, encoded: null });
-  assert.deepEqual(decodeBody(zlib.deflateSync(plain), 'deflate').body, plain);
-  assert.throws(() => decodeBody(plain, 'zstd'), /unknown content-encoding/);
+  assert.deepEqual(await decodeBody(zlib.brotliCompressSync(plain), 'br'), { body: plain, encoded: null });
+  assert.deepEqual((await decodeBody(zlib.deflateSync(plain), 'deflate')).body, plain);
+  await assert.rejects(decodeBody(plain, 'zstd'), /unknown content-encoding/);
+});
+
+// A gzip bomb: 64 KB that unpacks to far more than the limit is refused, not unpacked.
+test('a peer reply that unpacks past the limit is refused', async () => {
+  const bomb = zlib.gzipSync(Buffer.alloc(8 << 20));
+  assert.ok(bomb.length < 64 << 10);
+  await assert.rejects(decodeBody(bomb, 'gzip', 1 << 20), (err) => err.code === 'ETOOBIG');
+  await assert.rejects(decodeBody(zlib.brotliCompressSync(Buffer.alloc(8 << 20)), 'br', 1 << 20), (err) => err.code === 'ETOOBIG');
+  assert.equal((await decodeBody(bomb, 'gzip')).body.length, 8 << 20); // under the real limit: fine
 });

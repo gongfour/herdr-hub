@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createServer } = require('../lib/hub');
-const { hubInProcess, herdrAt } = require('./fixtures/hub');
+const { hubInProcess, herdrAt, until } = require('./fixtures/hub');
 
 const BASH = `
  Do you want to proceed?
@@ -58,4 +58,30 @@ test('ALLOW_LOCAL: no login is local only at a loopback Host; a tailnet name wit
   assert.equal((await request('POST', '/api/agents/w1:p1/keys', { keys: ['esc'] }, viaServe)).status, 403);
   assert.equal((await request('GET', '/api/state', null, { ...viaServe, 'Tailscale-User-Login': 'you@example.com' })).status, 200);
   assert.equal((await request('GET', '/api/state', null, { ...viaServe, 'Tailscale-User-Login': 'someone@example.com' })).status, 403);
+});
+
+// A stream client that doesn't read (a phone asleep, a half-open connection): past the backlog it
+// is dropped (and comes back on its own) instead of keeping every frame in the hub's memory.
+test('state stream: a client that stopped reading is dropped, a reading one gets the frame', async (t) => {
+  const { herdr, hub, request } = await hubInProcess(t, { id: 'backlog' });
+  const fake = (backlog) => {
+    const r = { writableLength: backlog, frames: [], destroyed: false };
+    r.write = (f) => r.frames.push(f);
+    r.destroy = () => (r.destroyed = true);
+    r.end = () => {}; // the hub's close() ends every client
+    return r;
+  };
+  const stuck = fake(5 << 20);
+  const fine = fake(0);
+  hub.hub.clients.add(stuck);
+  hub.hub.clients.add(fine);
+  t.after(() => hub.hub.clients.delete(stuck) && hub.hub.clients.delete(fine));
+  herdr.workspaces.push({ workspace_id: 'w2', label: 'more' });
+  await request('POST', '/api/workspaces/w1/rename', { label: 'proj' }); // a refresh that changes the state
+  await until(() => fine.frames.some((f) => f.startsWith('event: state')), 'frame sent');
+  assert.equal(stuck.destroyed, true);
+  assert.equal(stuck.frames.length, 0);
+  assert.equal(hub.hub.clients.has(stuck), false);
+  assert.equal(hub.hub.clients.has(fine), true);
+  hub.hub.clients.delete(fine);
 });
