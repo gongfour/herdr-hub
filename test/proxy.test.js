@@ -206,3 +206,23 @@ test('live bridge: the page\'s keys reach the peer\'s pane; refusals before the 
   assert.equal(acting(hub.herdr).length, 0);
   await sleep(50);
 });
+
+// A host with no peer list of its own is a peer while a hub follows it: its 연결 block is
+// read-only and names that hub. One that no hub follows is on its own and may add hosts.
+test('hosts: a followed peer is read-only and names its hub; a host on its own may add one', async (t) => {
+  const { hub, peer } = await pair(t);
+  const pv = (await peer.request('GET', '/api/hosts')).body;
+  assert.equal(pv.manageable, false);
+  assert.deepEqual(pv.followedBy, [{ id: 'hub', label: 'hub' }]);
+  const refused = await peer.request('POST', '/api/hosts', { id: 'x', url: 'https://x.example.ts.net' });
+  assert.deepEqual([refused.status, refused.body], [409, { error: 'not_hub' }]);
+  assert.equal((await hub.request('GET', '/api/hosts')).body.manageable, true);
+
+  const alone = await startHub(t, { id: 'alone' });
+  const av = (await alone.request('GET', '/api/hosts')).body;
+  assert.equal(av.manageable, true);
+  assert.deepEqual(av.followedBy, []);
+  const added = await alone.request('POST', '/api/hosts', { id: 'pc', url: `http://127.0.0.1:${peer.port}` });
+  assert.equal(added.status, 200, added.text);
+  assert.deepEqual((await alone.request('GET', '/api/hosts')).body.peers.map((p) => p.id), ['pc']);
+});

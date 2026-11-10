@@ -625,7 +625,7 @@ function emptyDetailHtml() {
       return `<div class="empty-detail">
       ${icon}
       <h2>${esc(where)} 의 에이전트를 볼 수 없습니다</h2>
-      <p>${peer && !peer.online ? '그 기기가 잠들었거나 Herdr Hub 가 꺼져 있습니다.' : '그 기기에서 herdr 가 실행 중인지 확인하세요.'}</p>
+      ${peer && !peer.online ? '<p>그 기기가 잠들었거나 Herdr Hub 가 꺼져 있습니다.</p>' : peer ? '<p>그 기기에서 herdr 가 실행 중인지 확인하세요.</p>' : herdrHelp()}
       <div class="ed-acts">${connLink('연결 상태 보기')}</div>
     </div>`;
     }

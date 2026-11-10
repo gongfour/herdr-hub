@@ -266,6 +266,12 @@ test('pushView: unsupported, still looking, and a peer that leaves push to its h
     assert.match(off.lines[0], /허브\(desktop\)에서 켜세요/);
   }
   assert.match(pv({ off: true, hub: '' }).lines[0], /^알림은 허브에서 켜세요/);
+  // Off on a host no hub follows: its own setting, not a hub's job.
+  const alone = pv({ off: true, hub: '', alone: true });
+  assert.equal(alone.status, '이 호스트는 알림이 꺼져 있습니다');
+  assert.match(alone.lines[0], /HERDR_HUB_PUSH=0/);
+  assert.doesNotMatch(alone.lines[0], /허브에서/);
+  assert.deepEqual(alone.actions, []);
 });
 
 test('목록 칸 폭: a named width or a dragged one (a whole number in range); 자동 removes the key', () => {

@@ -339,7 +339,7 @@ function render() {
     <header class="bar">
       <h1>작업공간${sub ? `<span class="sub">${sub}</span>` : ''}</h1>
       ${liveChip()}
-      ${reorder.on ? '' : `<a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스"${keyAttrs('newWorkspace', '새 워크스페이스')}>${ICON.plus}</a>`}
+      ${reorder.on ? '' : canStartHere(f) ? `<a class="icon-btn" href="${f === 'all' ? '#/new' : link(f, '/new')}" aria-label="새 워크스페이스"${keyAttrs('newWorkspace', '새 워크스페이스')}>${ICON.plus}</a>` : `<button type="button" class="icon-btn" disabled aria-label="새 워크스페이스 (herdr 에 연결되지 않음)" title="herdr 에 연결되지 않아 새로 시작할 수 없습니다">${ICON.plus}</button>`}
     </header>${hostSeg(f)}`;
   const parts = homeParts(f);
   let main = root.querySelector(':scope > main.home');
@@ -429,6 +429,18 @@ function stepBlocked(dir) {
 
 // 설정 → 연결: the hosts and their herdr, scrolled to (renderSettings takes settingsAt).
 let settingsAt = null;
+// Why this host's herdr can't be reached (the hub's own error: the socket it tried) and what to do.
+function herdrHelp() {
+  const err = String(state.error || '').trim();
+  return `${err ? `<p class="empty-err"><code>${esc(err.length > 160 ? `${err.slice(0, 160)}…` : err)}</code></p>` : ''}<p>그 기기에서 herdr 가 실행 중인지 확인하세요. 처음이면 <a href="https://herdr.dev" target="_blank" rel="noopener">herdr 설치·실행 방법</a>을 보세요.</p>`;
+}
+// Whether a new workspace can start where the list is (herdr up there): the + is off otherwise.
+function canStartHere(f = filter()) {
+  if (f === 'all') return multi() ? hosts().some((h) => h.online && h.herdr === 'up') : state.herdr === 'up';
+  if (f === localId()) return state.herdr === 'up';
+  const h = hostOf(f);
+  return Boolean(h && h.online && h.herdr === 'up');
+}
 const connLink = (label) => `<a class="go-conn" href="#/settings" data-settings-at="g-conn">${esc(label)}<span aria-hidden="true"> ›</span></a>`;
 document.addEventListener('click', (e) => {
   const a = e.target.closest('[data-settings-at]');
@@ -448,7 +460,7 @@ function spacesParts(list, down, f) {
   }
   if (down && (f === localId() || (f === 'all' && !multi()))) {
     const where = hostLabel(localId()) || state.host || '이 기기';
-    return [['empty', `<div class="empty" role="status"><p class="empty-t">${esc(where)} 의 herdr 에 연결하지 못했습니다</p><p>그 기기에서 herdr 가 실행 중인지 확인하세요.</p>${connLink('연결 상태 보기')}</div>`]];
+    return [['empty', `<div class="empty" role="status"><p class="empty-t">${esc(where)} 의 herdr 에 연결하지 못했습니다</p>${herdrHelp()}${connLink('연결 상태 보기')}</div>`]];
   }
   // Split: the right column says it in full, with the button; here a short line.
   if (split) return [['empty', '<div class="empty"><p class="empty-t">워크스페이스가 없습니다</p><p>머리글의 + 로 새로 시작합니다.</p></div>']];

@@ -210,7 +210,7 @@ function renderPushBlock() {
 // 연결: each host, its herdr and how many agents; the only part a state push changes. On a hub
 // (GET /api/hosts says manageable) each peer has ⋯ (이름·주소 바꾸기, 연결 시험, 빼기) and a
 // 「호스트 추가」 row follows; on a peer the block is read-only and says where hosts are managed.
-let hostAdmin = null; // GET /api/hosts: { manageable, self, peers: [{ id, url, label }] }, or null
+let hostAdmin = null; // GET /api/hosts: { manageable, followedBy: [{ id, label }], self, peers: [{ id, url, label }] }, or null
 // 호스트 순서 바꾸기: each host row gets a grip (reorder.js); the order is the hub's, for
 // every device, and the host chips, 전체's cards, 빠른 이동 and the notes follow it.
 let connOrder = false;
@@ -224,6 +224,7 @@ async function loadHostAdmin(force = false) {
     hostAdmin = hostAdmin || null; // an older server: no management, nothing said
   }
   renderConn();
+  renderPushBlock(); // whose notifications they are (followedBy)
 }
 const adminPeer = (id) => (hostAdmin && hostAdmin.peers.find((p) => p.id === id)) || null;
 function renderConn() {
@@ -237,7 +238,7 @@ function renderConn() {
   const lines = [...list, ...extra]
     .map((x) => {
       const n = state.agents.filter((a) => (a.host || localId()) === x.id).length;
-      const status = x.connecting ? '연결 중' : !x.online ? `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''}` : `herdr ${x.herdr === 'up' ? '연결됨' : esc(x.herdr)} · 에이전트 ${n}개`;
+      const status = x.connecting ? '연결 중' : !x.online ? `오프라인${x.since ? ` · ${esc(clock(x.since))}부터` : ''}` : `herdr ${x.herdr === 'up' ? '연결됨' : x.herdr === 'down' ? '연결 안 됨' : x.herdr === 'connecting' ? '연결 중' : esc(x.herdr)} · 에이전트 ${n}개`;
       const api = apiMismatch(x);
       const warn = api ? `<span class="cl-warn">${esc(api)} — 배포가 필요합니다</span>` : '';
       const p = !x.local && manage ? adminPeer(x.id) : null;
@@ -251,8 +252,12 @@ function renderConn() {
   // Two hosts or more: their order (the hub's; a peer's page lists one host).
   const order = multi() ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-order"><span>${ordering ? '순서 바꾸기 끝내기' : '호스트 순서 바꾸기'}</span><span class="pl-end" aria-hidden="true">${ordering ? '' : '›'}</span></button></li>` : '';
   const add = manage && !ordering ? `<li class="cl-add"><button type="button" class="pref-link" id="s-host-add"><span>호스트 추가</span><span class="pl-end" aria-hidden="true">+</span></button></li>` : '';
-  const ro = hostAdmin && !hostAdmin.manageable ? '<li class="cl-note">호스트는 허브에서 관리합니다. 허브의 설정 → 연결에서 추가·변경하세요.</li>' : '';
-  const html = lines + order + add + ro;
+  // A peer: the hub that follows it (its stream says so) keeps the list. On its own (no hub
+  // follows it) it may add hosts; with none yet, what that does.
+  const by = hostAdmin && Array.isArray(hostAdmin.followedBy) ? hostAdmin.followedBy.map((f) => f.label || f.id) : [];
+  const ro = hostAdmin && !hostAdmin.manageable ? `<li class="cl-note">${by.length ? `이 호스트는 ${esc(by.join('·'))} 허브의 피어입니다. 호스트는 그 허브의 설정 → 연결에서 추가·변경하세요.` : '호스트는 허브에서 관리합니다. 허브의 설정 → 연결에서 추가·변경하세요.'}</li>` : '';
+  const alone = manage && !hostAdmin.peers.length && !ordering ? '<li class="cl-note">다른 기기에서 도는 Herdr Hub 를 더하면 이 호스트가 허브가 되어, 그 기기의 에이전트도 이 화면에 함께 보입니다.</li>' : '';
+  const html = lines + order + add + alone + ro;
   if (box._html === html) return;
   // Redrawn in place: a focused ⋯ (or 호스트 추가) keeps the focus.
   const f = document.activeElement && box.contains(document.activeElement) ? document.activeElement.dataset.host || document.activeElement.id : null;

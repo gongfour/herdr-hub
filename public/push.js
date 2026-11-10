@@ -16,13 +16,15 @@
 
   // What the 알림 block shows. env:
   //   platform, standalone (installed app), supported (service worker + PushManager +
-  //   Notification), off (this host leaves notifications to its hub), hub (the hub's label),
+  //   Notification), off (this host sends none: HERDR_HUB_PUSH=0), hub (the label of the hub that
+  //   follows it, which sends them), alone (no hub follows it: off is this host's own setting),
   //   perm ('default' | 'granted' | 'denied' | 'unsupported'), sub (undefined while looking it
   //   up, else whether the hub knows this device), maxActions (Notification.maxActions).
   // -> { tone: 'on' | 'off' | 'bad' | 'wait', status, lines: [..], actions: ['enable' | 'test' | 'disable'] }
   // The status is one line; lines only say what to do about it. A button only when it can work.
   function pushView(env) {
-    const { platform, standalone, supported, off, hub, perm, sub, maxActions } = env;
+    const { platform, standalone, supported, off, hub, alone, perm, sub, maxActions } = env;
+    if (off && alone) return { tone: 'off', status: '이 호스트는 알림이 꺼져 있습니다', lines: ['HERDR_HUB_PUSH=0 으로 꺼 두었습니다. 알림을 받으려면 그 설정을 빼고 Hub 를 다시 시작하세요.'], actions: [] };
     if (off) return { tone: 'off', status: '이 호스트는 알림을 보내지 않습니다', lines: [`알림은 허브${hub ? `(${hub})` : ''}에서 켜세요.`], actions: [] };
     // iOS has web push only in a home-screen app (Safari itself has no PushManager).
     if (platform === 'ios' && !standalone) return { tone: 'off', status: '설치한 앱에서만 받을 수 있습니다', lines: ['Safari 공유 버튼 → 홈 화면에 추가로 설치한 뒤, 그 앱의 설정에서 켜세요.'], actions: [] };
@@ -89,14 +91,18 @@ function pushEnv(onPush) {
       })
       .catch(() => {});
   if (supported && (devSub === undefined || Date.now() - subAt > SUB_STALE_MS)) lookupSub().then(onPush);
-  // A peer that leaves notifications to its hub: the hub is the other host it lists (not desktop by name).
+  // A peer that leaves notifications to its hub: the hub that follows it (GET /api/hosts
+  // followedBy, settings.js hostAdmin), else the other host it lists (never desktop by name).
   const others = hosts().filter((h) => !h.local);
+  const admin = typeof hostAdmin !== 'undefined' ? hostAdmin : null;
+  const following = admin && Array.isArray(admin.followedBy) ? admin.followedBy : null;
   return {
     platform: devicePlatform(),
     standalone: isStandalone(),
     supported,
     off,
-    hub: others.length === 1 ? others[0].label : '',
+    hub: following && following.length ? following[0].label : others.length === 1 ? others[0].label : '',
+    alone: Boolean(following && !following.length && !others.length),
     perm: 'Notification' in window ? Notification.permission : 'unsupported',
     sub: devSub === undefined ? undefined : Boolean(devSub),
     maxActions: 'Notification' in window ? Number(Notification.maxActions) || 0 : 0,

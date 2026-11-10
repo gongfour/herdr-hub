@@ -165,6 +165,10 @@ pre, code, kbd, .screen { word-break: normal; }
 button { font: inherit; color: inherit; }
 /* Anything disabled looks it: no pointer, and dimmed where the control has no rule of its own. */
 button:disabled { cursor: default; }
+.icon-btn:disabled { opacity: 0.4; }
+.empty .empty-err { margin-bottom: var(--sp-2); }
+.empty-err code { font-size: 12px; overflow-wrap: anywhere; }
+.empty a:not(.btn):not(.go-conn) { color: var(--accent); }
 .btn:disabled, .key:disabled, .toggle:disabled, .chip:disabled, .crumb:disabled, .action:disabled, .field:disabled { opacity: 0.45; filter: none; }
 /* App shell: pinned to the visual viewport. app.js sets --app-top/--app-h from visualViewport,
    so with the iOS keyboard open the header stays at the top and the composer sits on the keyboard. */
