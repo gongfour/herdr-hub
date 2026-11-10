@@ -8,6 +8,7 @@
 // `screens`: pane -> text that agent.read gives for it (an agent's prompt on screen).
 // `fail`: method -> { code, message }: that method answers with this herdr error (until removed).
 // `event()`: an event on every open events.subscribe stream (the hub refreshes soon after).
+// `on`: method -> fn(params), run as the call comes, before it is answered (a test playing the agent).
 const net = require('net');
 
 function fakeHerdr(socketPath) {
@@ -20,6 +21,7 @@ function fakeHerdr(socketPath) {
   const hold = {};
   const screens = {};
   const fail = {};
+  const on = {};
   const subs = new Set();
   const answer = (method, params) => {
     switch (method) {
@@ -66,6 +68,7 @@ function fakeHerdr(socketPath) {
       const msg = JSON.parse(buf.slice(0, nl));
       buf = buf.slice(nl + 1);
       calls.push({ method: msg.method, params: msg.params });
+      if (on[msg.method]) on[msg.method](msg.params);
       if (msg.method === 'events.subscribe') {
         subs.add(conn);
         conn.on('close', () => subs.delete(conn));
@@ -87,7 +90,7 @@ function fakeHerdr(socketPath) {
     for (const c of subs) c.destroy();
     server.close();
   };
-  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, workspaces, agents, hold, screens, fail, event, close })));
+  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, workspaces, agents, hold, screens, fail, on, event, close })));
 }
 
 module.exports = { fakeHerdr };

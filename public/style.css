@@ -366,11 +366,21 @@ button:disabled { cursor: default; }
 .msg.user.pending.going .wait { color: var(--accent); }
 /* 지금 보내기 (agent.js pendingBubble): a word button on the bubble's last line, its press area
    widened past the line (44px for a finger, 32px for a mouse) without making the bubble taller. */
-.msg.user.pending .send-now { margin: -14px auto -8px -12px; min-height: 44px; padding: 0 var(--sp-3); border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; }
+.msg.user.pending .send-now { margin: -14px 0 -8px -12px; min-height: 44px; padding: 0 var(--sp-3); border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; }
 .msg.user.pending .send-now:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (hover: hover) and (pointer: fine) {
   .msg.user.pending .send-now { min-height: 32px; margin-top: -8px; }
   .msg.user.pending .send-now:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
+/* 취소 (agent.js cancelQueued): on every bubble, after 지금 보내기 on the last, quieter, the same
+   widened press area; the state stays at the right end. */
+.msg.user.pending .unqueue { margin: -14px auto -8px -12px; min-height: 44px; padding: 0 var(--sp-3); border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; }
+.msg.user.pending .send-now + .unqueue { margin-left: 0; }
+.msg.user.pending .unqueue:disabled { cursor: default; opacity: 0.7; }
+.msg.user.pending .unqueue:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  .msg.user.pending .unqueue { min-height: 32px; margin-top: -8px; }
+  .msg.user.pending .unqueue:not(:disabled):hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 }
 .msg.user.pending .wait svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
 .msg.assistant + .msg.assistant { margin-top: -8px; }

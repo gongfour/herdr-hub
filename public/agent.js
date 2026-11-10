@@ -101,6 +101,9 @@ function renderDetail() {
   document.getElementById('d-body').addEventListener('click', (e) => {
     if (e.target.closest('[data-older]')) return loadOlder();
     if (e.target.closest('[data-sendnow]')) return sendQueuedNow();
+    const uq = e.target.closest('[data-unqueue]');
+    // A key's click (detail 0) or a mouse: the caret goes to the message field after; a finger keeps the keyboard down.
+    if (uq) return cancelQueued(Number(uq.dataset.unqueue), e.detail === 0 || matchMedia('(pointer: fine)').matches);
     const pic = e.target.closest('.pic');
     if (pic) openViewer(pic.dataset.src);
     const more = e.target.closest('[data-shell]');
@@ -770,6 +773,70 @@ async function sendQueuedNow() {
     setTimeout(loadDetail, 500);
   }
 }
+// 대기 중 취소 (each bubble's 취소): a Claude agent at work has the host take the prompt out of
+// Claude Code's queue, the turn left running (lib/claudequeue.js; the others queued stay, in their
+// order); any other bubble outlived its message (idle, not Claude) and only goes here. Either way
+// the words come back into an empty message field to fix and send again. The host not sure: the
+// bubble stays and the toast says why.
+const cancelling = new WeakSet(); // the bubbles whose 취소 is on its way
+async function cancelQueued(at, focus = false) {
+  const host = curHost();
+  const pane = detail.pane;
+  const key = rowKey(host, pane);
+  const p = (pendingSent.get(key) || []).find((x) => x.at === at);
+  if (!p || cancelling.has(p)) return;
+  const here = () => view.name === 'agent' && detail.pane === pane && curHost() === host;
+  const drop = () => {
+    const list = (pendingSent.get(key) || []).filter((x) => x !== p);
+    if (list.length) pendingSent.set(key, list);
+    else pendingSent.delete(key);
+    savePending();
+  };
+  // The words into the message field if it is empty; focus there (the 취소 is gone) when asked.
+  const giveBack = () => {
+    const input = here() && document.getElementById('d-input');
+    if (!input) return false;
+    const back = !input.value.trim() && Boolean(p.text);
+    if (back) {
+      input.value = p.text;
+      input.dispatchEvent(new Event('input'));
+    }
+    if (focus) {
+      input.focus({ preventScroll: true });
+      caretToEnd(input);
+    }
+    return back;
+  };
+  const done = (msg) => {
+    drop();
+    const back = giveBack();
+    if (here()) renderDetailBody(false);
+    const pics = p.pics ? ' 사진은 다시 붙여야 합니다.' : '';
+    toast(`${msg}${back ? ' 메시지 칸에 다시 넣었습니다.' : ''}${pics}`);
+  };
+  if (!canSendQueued(currentAgent())) return done('대기 중 표시를 지웠습니다.');
+  cancelling.add(p);
+  if (here()) renderDetailBody(false);
+  try {
+    await api(hp(`/agents/${encodeURIComponent(pane)}/unqueue`, host), { method: 'POST', body: JSON.stringify({ text: p.text }) });
+    done('대기 중인 메시지를 취소했습니다.');
+  } catch (err) {
+    if (err.code === 'not_queued') return done('Claude Code 의 대기열에 없어 표시만 지웠습니다 — 이미 전달됐을 수 있습니다.');
+    if (err.status === 404 && err.code === 'not_found') toastErr('이 호스트의 Hub 를 배포해야 대기 중인 메시지를 취소할 수 있습니다.');
+    else if (err.code === 'requeue_failed') {
+      // The cancelled one is out; some of the others did not go back in.
+      drop();
+      giveBack();
+      toastErr(`취소했지만 함께 대기하던 메시지 ${err.body && err.body.lost ? `${err.body.lost}개` : '일부'}를 다시 넣지 못했습니다. 터미널에서 확인해 주세요.`);
+    } else toastErr(`취소하지 못했습니다: ${errText(err)}`);
+  } finally {
+    cancelling.delete(p);
+    if (here()) {
+      renderDetailBody(false);
+      setTimeout(loadDetail, 500);
+    }
+  }
+}
 // Its keys, as the composer takes them (keymap.js LOCAL 「지금 보내기」): ⌘+리턴 first on a Mac.
 function sendQueuedKeys() {
   const row = Keymap.LOCAL.find((x) => x.name === '지금 보내기');
@@ -781,10 +848,11 @@ function pendingBubble(p, now = false) {
   const pics = p.pics ? `<div class="pics"><span class="img-chip">사진 ${p.pics}장</span></div>` : '';
   const k = now && sendQueuedKeys();
   const btn = now ? `<button type="button" class="send-now" data-sendnow title="대기 중인 메시지를 지금 보내기${k.hint ? ` (빈 메시지 칸에서 ${esc(k.hint)})` : ''}"${k.aria ? ` aria-keyshortcuts="${esc(k.aria)}"` : ''}>지금 보내기</button>` : '';
+  const cancel = `<button type="button" class="unqueue" data-unqueue="${p.at}" aria-label="대기 중인 메시지 취소" title="대기 중인 메시지 취소"${cancelling.has(p) ? ' disabled aria-busy="true"' : ''}>${cancelling.has(p) ? '취소하는 중…' : '취소'}</button>`;
   const state = p.now
     ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12M13 6l6 6-6 6" /></svg>보내는 중`
     : `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>대기 중`;
-  return `<div class="msg user pending${p.now ? ' going' : ''}">${pics}${p.text ? `<span>${esc(p.text)}</span>` : ''}<div class="wait-row">${btn}<small class="wait">${state}</small></div></div>`;
+  return `<div class="msg user pending${p.now ? ' going' : ''}">${pics}${p.text ? `<span>${esc(p.text)}</span>` : ''}<div class="wait-row">${btn}${cancel}<small class="wait">${state}</small></div></div>`;
 }
 
 // The agent view with no agent: 'gone' (ended or closed), 'offline' (its host is away, the chat

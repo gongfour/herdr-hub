@@ -76,6 +76,10 @@ const ERROR_TEXT = {
   host_url_taken: '그 주소의 호스트가 이미 있습니다.',
   too_many_hosts: '호스트는 16개까지입니다.',
   not_hub: '이 호스트는 허브가 아니라서 호스트 목록을 바꿀 수 없습니다.',
+  not_claude: 'Claude 에이전트에서만 됩니다.',
+  input_busy: 'Claude Code 입력 칸에 글이 있어 손대지 않았습니다. 터미널에서 비운 뒤 다시 해 주세요. 메시지는 그대로 대기 중입니다.',
+  images_queued: '함께 대기 중인 메시지에 사진이 있어 다시 넣으면 사진이 빠집니다. 메시지는 그대로 대기 중입니다.',
+  unsure: '대기 중인 메시지가 Claude Code 입력 칸으로 돌아왔지만 정리하지 못했습니다. 터미널에서 입력 칸을 확인해 주세요(보내지도 지우지도 않았습니다).',
 };
 // Korean for every failure: the server's code, else a plain 'try again' (never "Load failed").
 const errText = (err) => ERROR_TEXT[err.code] || (err.status >= 500 ? `호스트 오류(${err.status})입니다. 잠시 뒤에 다시 시도해 주세요.` : err.message && /[가-힣]/.test(err.message) ? err.message : `요청이 실패했습니다${err.code ? ` (${err.code})` : ''}. 다시 시도해 주세요.`);
@@ -347,7 +351,7 @@ async function api(path, opts = {}) {
     throw Object.assign(new Error(timeout ? 'timeout' : 'network'), { code: timeout ? 'timeout' : 'network', network: true });
   }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(body.message || body.error || res.statusText), { code: body.error, status: res.status });
+  if (!res.ok) throw Object.assign(new Error(body.message || body.error || res.statusText), { code: body.error, status: res.status, body });
   return body;
 }
 

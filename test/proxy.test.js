@@ -54,12 +54,17 @@ test('proxy: requests reach the peer named, with their path and query; the hub h
   assert.equal(read[0].lines, 7);
   assert.equal(read[0].pane_id, 'w1-p1');
 
-  // A prompt, keys, sendnow, an answer, a close, a workspace close: on the peer's herdr only.
+  // A prompt, keys, sendnow, unqueue, an answer, a close, a workspace close: on the peer's herdr only.
   const before = acting(hub.herdr).length;
   assert.deepEqual((await hub.request('POST', '/api/peers/pa/agents/w1-p3/prompt', { text: 'hi' })).body, { ok: true });
   assert.deepEqual(callsOf(peer.herdr, 'agent.prompt'), [{ target: 'w1-p3', text: 'hi' }]);
   assert.deepEqual((await hub.request('POST', '/api/peers/pa/agents/w1-p3/sendnow', {})).body, { ok: true, sent: true });
   assert.deepEqual(callsOf(peer.herdr, 'agent.send_keys').at(-1), { target: 'w1-p3', keys: ['ctrl+x', 'ctrl+s'] });
+  // 대기 중 취소 goes to the peer too; its refusal (no transcript there) comes back, nothing pressed.
+  const keysBefore = callsOf(peer.herdr, 'agent.send_keys').length;
+  const uq = await hub.request('POST', '/api/peers/pa/agents/w1-p3/unqueue', { text: 'hi' });
+  assert.deepEqual([uq.status, uq.body], [409, { error: 'not_queued' }]);
+  assert.equal(callsOf(peer.herdr, 'agent.send_keys').length, keysBefore);
   const ans = await hub.request('POST', '/api/peers/pa/agents/w1-p2/answer', { stateSeq: 5, n: 1 });
   assert.equal(ans.status, 200, ans.text);
   assert.deepEqual(ans.body, { ok: true, n: 1, label: 'Yes' });
