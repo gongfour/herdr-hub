@@ -16,7 +16,7 @@ const RUNNING = `
 ⏺ Reading the code is done. Next I'll collect real Claude spinner lines from live screens (read-only) to build the
   parser.
 
-⏺ Running S=/private/tmp/claude-501/-Users-kang-Project-pad…
+⏺ Running S=/private/tmp/claude-501/-Users-alex-Project-pad…
   ⎿  $ S=/private/tmp/claude-501/scratchpad; mkdir -p
      $S/samples; (for i in $(seq 1 90); do herdr agent read w9:p5 --source visible --lines 40 > $S/samples/mac-$i.txt
      2>&1; sleep 2; done) >/dev/null 2>&1 &
@@ -119,7 +119,7 @@ test('reads the spinner line with elapsed time, tokens and the running tool', ()
   assert.equal(a.seconds, 40);
   assert.equal(a.tokens, '↓ 2.1k tokens');
   assert.equal(a.detail, 'thought for 1s');
-  assert.equal(a.tool, 'Running S=/private/tmp/claude-501/-Users-kang-Project-pad…');
+  assert.equal(a.tool, 'Running S=/private/tmp/claude-501/-Users-alex-Project-pad…');
 });
 
 test('minutes and seconds; prose bullets are not tools', () => {

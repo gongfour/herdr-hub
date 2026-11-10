@@ -1,25 +1,21 @@
 @echo off
-rem Started at logon by the "HerdrHub" scheduled task. Logs go to data\herdr-hub.log.
+rem Herdr Hub on Windows, started at logon by a scheduled task (docs/operations.md). Logs go to
+rem data\herdr-hub.log.
+rem This host's settings (logins, host names, peers, node) are in data\host.cmd: lines of
+rem "set NAME=value", kept across deploys (data\ is never copied over) and not in git. An example:
+rem   set HERDR_HUB_ALLOWED_LOGINS=you@example.com
+rem   set HERDR_HUB_HOST_ID=desktop
+rem   set HERDR_HUB_HOSTS=desktop.example.ts.net
+rem   set HERDR_HUB_PEERS=server=https://server.example.ts.net:8443
+rem   set HERDR_HUB_VAPID_SUBJECT=https://desktop.example.ts.net
+rem   set NODE=C:\path\to\node.exe
 cd /d "%~dp0"
 if not exist data mkdir data
-set HERDR_HUB_ALLOWED_LOGINS=kangwonjin.dev@gmail.com
-set HERDR_HUB_HOST_ID=desktop
-set HERDR_HUB_HOST_LABEL=desktop
-rem The names this hub answers to (Host header via tailscale serve); anything else gets 403.
-set HERDR_HUB_HOSTS=desktop.uaru-monster.ts.net
-rem Hub: the peers to merge in (id=url, comma-separated). Only a seed: used once, when data\peers.json
-rem does not exist yet; after that the list lives there and is edited in Settings > Connection.
-set HERDR_HUB_PEERS=server=https://server.uaru-monster.ts.net:8443
-set HERDR_HUB_VAPID_SUBJECT=https://desktop.uaru-monster.ts.net
-rem Agents in folders or workspaces named with these prefixes never notify (throwaway test workspaces).
-set HERDR_HUB_PUSH_MUTE=hub-
-rem The task runs without the interactive PATH; point at node directly.
-set NODE=C:\Users\kangw\AppData\Local\mise\installs\node\26.3.1\node.exe
+rem The task runs without the interactive PATH: data\host.cmd may point at node directly.
+set NODE=node
 rem Pool threads for filesystem calls that may hang (lib/fsq.js).
 set UV_THREADPOOL_SIZE=16
-rem This herdr (0.9.4-preview) does not stall when idle, so no keep-awake pings (lib/awake.js).
-set HERDR_HUB_AWAKE_MS=0
-set HERDR_HUB_LIVE_IDLE_MS=150
+if exist data\host.cmd call data\host.cmd
 rem A node that died (or that its watchdog killed when it froze, lib/watchdog.js) is started again
 rem here: the task itself does not restart an action that exited. Exit 0 (stopped on purpose) and
 rem 2 (bad settings) end the loop. deploy.sh stops this cmd before its node.

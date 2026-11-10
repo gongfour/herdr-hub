@@ -1,5 +1,5 @@
 ▝▜██████▀  Haiku 5.5 · Claude Ultra
- ▝▝   ▝▝   /private/tmp/claude-501/-Users-kang-Project-herdr-hub/94a9558d-8ab2-45ac-bbeb-d51d316800f9/scratchpad/asktest
+ ▝▝   ▝▝   /private/tmp/claude-501/-Users-alex-Project-herdr-hub/94a9558d-8ab2-45ac-bbeb-d51d316800f9/scratchpad/asktest
 
 
 ❯ Call the AskUserQuestion tool exactly once with exactly ONE question: question "어떤 색이 좋아요?", header "색", multiSelect false, options: "빨강" (desc "따뜻한 색"), "파랑" (desc "차가운 색"). Do

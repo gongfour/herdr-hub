@@ -14,7 +14,7 @@ test('key: a trailing separator never matters; on Windows neither do case and / 
   assert.equal(H.key('/a/b//', 'darwin'), '/a/b');
   assert.equal(H.key('/', 'darwin'), '/');
   assert.notEqual(H.key('/A/b', 'darwin'), H.key('/a/b', 'darwin'));
-  assert.equal(H.key('C:\\Users\\Kang\\Proj\\', 'win32'), H.key('c:/users/kang/proj', 'win32'));
+  assert.equal(H.key('C:\\Users\\Alex\\Proj\\', 'win32'), H.key('c:/users/alex/proj', 'win32'));
   assert.equal(H.norm('C:\\x\\'), 'C:\\x');
 });
 

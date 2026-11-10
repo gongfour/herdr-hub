@@ -1,6 +1,12 @@
 # Herdr Hub — 작업 규칙
 
-무엇이 어디 있는지는 `README.md` 가 정본이다. 여기에는 이 저장소에서 일할 때 지킬 규칙만 둔다.
+무엇이 어디 있는지는 `docs/design.md` 가 정본이고, 여러 호스트·환경 변수·운영은 `docs/operations.md` 다. `README.md` 는 GitHub 첫 페이지(처음 보는 사람용 소개·설치·보안)라 짧게 둔다. 여기에는 이 저장소에서 일할 때 지킬 규칙만 둔다.
+
+## 공개 저장소
+
+- 이 저장소는 공개다. 이메일·tailnet 이름(`*.ts.net`)·사용자 이름이 든 경로·사내 프로젝트 이름·실제 대화 내용을 코드·문서·시험·고정 화면(`test/fixtures`)·커밋 메시지에 넣지 않는다. 문서와 시험에는 예시 값(`you@example.com`, `desktop.example.ts.net`, `/Users/alex`, `C:\Users\alice`)을 쓴다.
+- 기기마다의 값은 git 밖에 둔다: 호스트 설정은 그 호스트의 `data/host.env`(Mac, `mac/run.sh`)·`data\host.cmd`(Windows, `run.cmd`), 배포 대상은 `deploy.env`(`deploy.sh`). 실제 화면을 고정 화면으로 남길 때는 경로·이름을 예시 값으로 바꾼다(열 맞춤이 있으면 같은 길이로).
+- 새 기능은 `docs/design.md` 에 적고, README 에는 처음 보는 사람이 알아야 할 것(무엇인지, 필요한 것, 설치, 보안)만 고친다.
 
 ## 단축키
 
@@ -12,7 +18,7 @@
 - 그 입력 칸 안에서만 처리하는 키(메시지 칸의 리턴·↑↓, 셸의 키 직접 입력)는 그 칸에서 처리하되, 사람이 알아야 하면 `LOCAL` 에 적어 단축키 페이지에 보이게 한다.
 - 사람은 기기마다 키를 바꿀 수 있다(단축키 페이지, `keymap.js` setOverrides). 그래서 키를 코드에 직접 적지 말고 `Keymap.match`·`Keymap.hint`·`Keymap.keysFor(action)` 으로 읽는다. 키 자체가 뜻인 동작(1–9 처럼)은 ACTIONS 에 `fixed: true` 를 둔다.
 - 셸 화면에서 Hub 가 어떤 키를 쓰는지는 **표의 `shell` 한 곳**이 정한다. 셸의 키 직접 입력 칸은 키를 먼저 표에 묻고(`Keymap.shellKey`), `shell` 인 바인딩이 맞으면 Hub 가 쓰고, 아니면 `keys.js` 의 `rawKeyName` 이 이름 붙인 대로 셸로 보낸다(뒤로의 키는 셸의 Esc, ACTIONS 의 `shellEsc`). `rawKeyName` 에 「이 키는 Hub 것」 같은 예외를 다시 넣지 않는다: 그것은 셸이 받을 키를 말할 뿐이다. 그래서 사람이 키를 빼면 그 키는 셸로 돌아가고, 단축키 페이지의 키마다 「셸」 스위치(「셸 화면에서도」, `setShell`)로 셸이 쓰는 키도 Hub 에 줄 수 있다. 셸 화면에서 쓸 일이 없는 동작은 ACTIONS 에 `noShell: true` 를 둔다(스위치가 없다).
-- `npm test` 의 `test/keymap.test.js` 가 같은 키가 두 번 묶였는지, 기본 표가 셸 화면에서 셸한테서 가져가는 키가 정해 둔 목록(「the shell keys the defaults take」)과 같은지 검사한다. 기본 바인딩에 `shell` 을 켜서 셸이 쓰는 키를 가져가게 하면 그 목록과 README 를 함께 고친다. 새 단축키를 넣으면 그 키가 어디서 되고 어디서 안 되는지 시험도 더한다.
+- `npm test` 의 `test/keymap.test.js` 가 같은 키가 두 번 묶였는지, 기본 표가 셸 화면에서 셸한테서 가져가는 키가 정해 둔 목록(「the shell keys the defaults take」)과 같은지 검사한다. 기본 바인딩에 `shell` 을 켜서 셸이 쓰는 키를 가져가게 하면 그 목록과 `docs/design.md` 를 함께 고친다. 새 단축키를 넣으면 그 키가 어디서 되고 어디서 안 되는지 시험도 더한다.
 - 키를 고를 때: 입력 칸에서 글자를 치는 키(맨 글자, 기호)는 입력 칸 밖에서만. 셸 화면에서 Ctrl+글자·Alt+글자·Alt+←/→ 는 셸 몫이다. Galaxy Tab 키보드 덮개의 Esc 는 웹에 오지 않으므로 Esc 만 되는 동작은 Ctrl+[ 도 된다(이미 `back`).
 - 기기마다 표가 다르다: `keymap.js` 의 `table({ mac, app })` 이 표를 만들고, 페이지는 `Keymap.setEnv` 로 그 기기를 넘긴다(`core.js`; 표 안에서 `navigator`·`matchMedia` 를 읽지 않는다). **설치한 앱**에서는 브라우저의 탭·창 키(Ctrl+W·Ctrl+N·Ctrl+T·⌘W·⌘N …)가 Hub 의 것이니 써도 된다. 브라우저 탭에서는 브라우저 것이라 묶지 않는다(`BROWSER`). 앱을 끝내거나 시스템이 쓰는 키(⌘Q·⌘H·⌘M·⌘Tab·⌘Space·⌘`·Alt+F4·Ctrl+Shift+Q, `SYSTEM`)는 어디서도 쓰지 않는다. **Mac** 에서는 Hub 의 Ctrl+글자·기호 키에 ⌘ 짝을 먼저 두고(`when(mac, …)` 을 Ctrl 줄 앞에) Ctrl 짝도 남긴다. ⌘ 조합은 셸로 가지 않으니 ⌘ 키는 `shell: true` 여도 셸 키를 뺏지 않는다. 기기에 따라 키를 더하거나 빼면 `test/keymap.test.js` 의 기기별 시험(네 기기 모두 같은 키 두 번 없음, 셸에서 가져가는 키 목록이 같음)을 함께 고친다.
 
@@ -29,13 +35,13 @@
 
 ## 호스트(피어) 목록
 
-- 허브의 피어 목록은 허브의 데이터(`data/peers.json`, `lib/hoststore.js`)이고 설정 → 연결에서 고친다. 기기마다의 설정이 아니므로 `prefs.js` 표에 넣지 않는다. `HERDR_HUB_PEERS` 는 파일이 없을 때만 쓰는 씨앗이다 — `run.cmd` 를 고쳐도 이미 있는 목록은 바뀌지 않는다.
+- 허브의 피어 목록은 허브의 데이터(`data/peers.json`, `lib/hoststore.js`)이고 설정 → 연결에서 고친다. 기기마다의 설정이 아니므로 `prefs.js` 표에 넣지 않는다. `HERDR_HUB_PEERS` 는 파일이 없을 때만 쓰는 씨앗이다 — 호스트 설정(`data/host.env`·`data\host.cmd`)을 고쳐도 이미 있는 목록은 바뀌지 않는다.
 - 피어를 더하면 허브가 사람이 적은 주소로 요청을 보낸다. 그 요청은 `hoststore` 의 규칙(http(s) 출처만, 리다이렉트 안 따름, 짧은 제한)을 지키고, 피어 프록시(`PROXIED`) 밖으로 넘기는 경로를 새로 만들지 않는다. CORS 는 `/api/version` 한 곳뿐이다.
 - 시험할 때 실제 허브(desktop)의 피어를 더하거나 빼지 않는다. 로컬 한 쌍(허브 8797, 피어 8798, 각자 `HERDR_HUB_DATA`)에서 한다.
 
 ## 서버 구조
 
-- `server.js` 는 프로세스만(시작 명령 `node server.js` 는 launchd·`run.cmd` 모두 그대로), 허브는 `lib/hub.js` 의 `createServer`, API 경로는 `lib/routes/` 의 표다(README 「서버」). 새 경로는 그 영역 파일에 `route(방법, 모양, 할 일)` 한 줄로 더하고 `api()` 안에 `if` 사슬을 다시 만들지 않는다. 경로마다 따로 하던 확인(그 에이전트·패널·워크스페이스가 있는가, 본문 읽기)은 앞 줄에서 하고 `NEXT` 로 넘긴다.
+- `server.js` 는 프로세스만(시작 명령 `node server.js` 는 launchd·`run.cmd` 모두 그대로), 허브는 `lib/hub.js` 의 `createServer`, API 경로는 `lib/routes/` 의 표다(`docs/design.md` 「서버」). 새 경로는 그 영역 파일에 `route(방법, 모양, 할 일)` 한 줄로 더하고 `api()` 안에 `if` 사슬을 다시 만들지 않는다. 경로마다 따로 하던 확인(그 에이전트·패널·워크스페이스가 있는가, 본문 읽기)은 앞 줄에서 하고 `NEXT` 로 넘긴다.
 - 경로·상태 코드·본문을 바꾸면 `test/routes.test.js`·`test/answer.test.js`·`test/proxy.test.js` 를 함께 고친다. 키·답이 엉뚱한 곳으로 갈 수 있는 길(답, prompt, 피어로 넘기기, 닫기, 실시간 연결)은 거절될 때 herdr 에 아무것도 안 보냈는지까지 본다.
 - 모듈 수준에서 상태를 만들지 않는다: 허브마다의 상태는 `createServer` 안이나 영역 파일의 `(hub) => […]` 안에 둔다(시험이 한 프로세스에 허브를 여럿 띄운다).
 

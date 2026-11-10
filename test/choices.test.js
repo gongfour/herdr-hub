@@ -15,7 +15,7 @@ lse{Start-Process -FilePath claude -ArgumentList '--model haiku' -NoNewWindow -W
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Accessing workspace:
 
- C:\\Users\\kangw\\src\\herdr-hub-test5
+ C:\\Users\\alice\\src\\herdr-hub-test5
 
  Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source
  project, or work from your team). If not, take a moment to review what's in this folder first.
@@ -41,7 +41,7 @@ const BASH = `
 
  Do you want to proceed?
  ❯ 1. Yes
-   2. Yes, and don't ask again for echo commands in C:\\Users\\kangw\\src\\herdr-hub-test5
+   2. Yes, and don't ask again for echo commands in C:\\Users\\alice\\src\\herdr-hub-test5
    3. No, and tell Claude what to do differently (esc)
 `;
 
@@ -53,7 +53,7 @@ const BASH_NEW = `
   Ran 1 shell command
 
 ● I ran echo hi > note.txt with the Bash tool. It finished with no output, which is expected for a redirect. The
-  file is note.txt in the working directory, C:\\Users\\kangw\\src\\herdr-hub-test5. I didn't check its contents.
+  file is note.txt in the working directory, C:\\Users\\alice\\src\\herdr-hub-test5. I didn't check its contents.
 
 ✻ Sautéed for 4s · done 오전 10:17
 
@@ -71,7 +71,7 @@ const BASH_NEW = `
 ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
  Do you want to proceed?
  ❯ 1. Yes
-   2. Yes, and always allow access to C:\\Users\\kangw\\src\\herdr-hub-test5 from this project
+   2. Yes, and always allow access to C:\\Users\\alice\\src\\herdr-hub-test5 from this project
    3. Yes, and switch to auto mode · auto mode handles these prompts for you
    4. No
 
@@ -81,7 +81,7 @@ test('trust prompt: a menu without numbers, picked with arrows', () => {
   const c = parseChoices(TRUST);
   assert.equal(c.numbered, false);
   assert.equal(c.question, 'Quick safety check: Is this a project you created or one you trust?');
-  assert.deepEqual(c.context, ['Accessing workspace:', 'C:\\Users\\kangw\\src\\herdr-hub-test5']);
+  assert.deepEqual(c.context, ['Accessing workspace:', 'C:\\Users\\alice\\src\\herdr-hub-test5']);
   assert.deepEqual(labels(c), ['No, exit', 'Yes, I trust this folder']);
   assert.equal(c.cursor, 1);
   assert.deepEqual(c.items.map((x) => x.negative), [true, false]);
@@ -96,7 +96,7 @@ test('bash permission prompt (2.1.316: dashed rules, a Tip line, plain "No")', (
   assert.deepEqual(c.context, ['Bash command', 'Write "hi" to note2.txt in the working directory', 'echo hi > note2.txt']);
   assert.deepEqual(labels(c), [
     'Yes',
-    'Yes, and always allow access to C:\\Users\\kangw\\src\\herdr-hub-test5 from this project',
+    'Yes, and always allow access to C:\\Users\\alice\\src\\herdr-hub-test5 from this project',
     'Yes, and switch to auto mode · auto mode handles these prompts for you',
     'No',
   ]);
@@ -112,7 +112,7 @@ test('bash permission prompt (older layout)', () => {
   assert.deepEqual(c.context, ['Bash command', 'echo hi > note.txt', 'Write "hi" to note.txt']);
   assert.deepEqual(labels(c), [
     'Yes',
-    "Yes, and don't ask again for echo commands in C:\\Users\\kangw\\src\\herdr-hub-test5",
+    "Yes, and don't ask again for echo commands in C:\\Users\\alice\\src\\herdr-hub-test5",
     'No, and tell Claude what to do differently (esc)',
   ]);
   assert.equal(c.cursor, 1);
@@ -236,11 +236,11 @@ test('AskUserQuestion options split into name and description', () => {
 });
 
 test('a name that wraps at the screen edge stays one name', () => {
-  const first = "   2. Yes, and don't ask again for commands like this one in the folder C:\\Users\\kangw\\src\\some-long-proj";
+  const first = "   2. Yes, and don't ask again for commands like this one in the folder C:\\Users\\alice\\src\\some-long-proj";
   const wide = 'x'.repeat(first.length); // the screen is as wide as the cut line
   const text = `${wide}\n Do you want to proceed?\n ❯ 1. Yes\n${first}\n      ect-name-here\n   3. No\n`;
   const c = parseChoices(text);
-  assert.equal(c.items[1].label, "Yes, and don't ask again for commands like this one in the folder C:\\Users\\kangw\\src\\some-long-proj ect-name-here");
+  assert.equal(c.items[1].label, "Yes, and don't ask again for commands like this one in the folder C:\\Users\\alice\\src\\some-long-proj ect-name-here");
   assert.equal(c.items[1].desc, undefined);
 });
 

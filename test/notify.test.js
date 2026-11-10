@@ -23,7 +23,7 @@ const BASH = `
 
  Do you want to proceed?
  ❯ 1. Yes
-   2. Yes, and don't ask again for echo commands in /Users/kang/hub-inbox-s1
+   2. Yes, and don't ask again for echo commands in /Users/alex/hub-inbox-s1
    3. No, and tell Claude what to do differently (esc)
 `;
 
@@ -40,7 +40,7 @@ const ASK = `
  Enter to select · Esc to cancel
 `;
 
-const agent = { pane: 'w3:p1', agent: 'claude', name: 'hub-inbox-s1', title: 't', workspaceLabel: 'hub-inbox-s1', status: 'blocked', stateSeq: 42, cwd: '/Users/kang/hub-inbox-s1' };
+const agent = { pane: 'w3:p1', agent: 'claude', name: 'hub-inbox-s1', title: 't', workspaceLabel: 'hub-inbox-s1', status: 'blocked', stateSeq: 42, cwd: '/Users/alex/hub-inbox-s1' };
 const host = { id: 'server', label: 'server', multi: true };
 
 test('blocked payload: question, options in short, two actions, tag and stateSeq', () => {
@@ -115,9 +115,9 @@ test('muted: by folder or workspace name prefix', () => {
   const m = parseMute(' hub-inbox-, tmp-x ');
   assert.deepEqual(m, ['hub-inbox-', 'tmp-x']);
   assert.equal(muted(agent, m), true);
-  assert.equal(muted({ cwd: 'C:\\Users\\kangw\\hub-inbox-d1', workspaceLabel: 'other' }, m), true);
-  assert.equal(muted({ cwd: '/Users/kang', workspaceLabel: 'hub-inbox-s2' }, m), true);
-  assert.equal(muted({ cwd: '/Users/kang/Project/herdr-hub', workspaceLabel: 'w9', name: 'hub-inbox' }, m), false);
+  assert.equal(muted({ cwd: 'C:\\Users\\alice\\hub-inbox-d1', workspaceLabel: 'other' }, m), true);
+  assert.equal(muted({ cwd: '/Users/alex', workspaceLabel: 'hub-inbox-s2' }, m), true);
+  assert.equal(muted({ cwd: '/Users/alex/Project/herdr-hub', workspaceLabel: 'w9', name: 'hub-inbox' }, m), false);
   assert.equal(muted(agent, []), false);
 });
 
@@ -146,7 +146,7 @@ const BASH_WRAPPED_TIP = `
 ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
  Do you want to proceed?
  ❯ 1. Yes
-   2. Yes, and always allow access to /Users/kang/hub-inbox-s1
+   2. Yes, and always allow access to /Users/alex/hub-inbox-s1
       from this project
    3. Yes, and switch to auto mode · auto mode handles these
       prompts for you

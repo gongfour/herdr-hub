@@ -81,7 +81,7 @@
       const min = Math.max(0, Math.round((now - l.at) / 60e3));
       return `이 호스트의 계정 전체 사용량 · ${min < 1 ? '방금' : min < 60 ? `${min}분 전` : `${Math.round(min / 60)}시간 전`} 답 기준`;
     }
-    return '사용 한도는 이 호스트의 Claude Code 상태 줄이 Herdr Hub 것일 때 보입니다 (README 「모델·컨텍스트·사용량」).';
+    return '사용 한도는 이 호스트의 Claude Code 상태 줄이 Herdr Hub 것일 때 보입니다 (docs/design.md 「모델·컨텍스트·사용량」).';
   }
 
   const api = { chip, contextTitle, limitsLine, rows, limitsNote, resetText, pctText };

@@ -7,7 +7,7 @@
   const base = (p) => parts(p).pop() || '';
 
   // A folder in short: nothing when the folder is named like the workspace (the label says
-  // it), else its last two folders ("…\digitrack\dotori_rcs"), in the path's own separator.
+  // it), else its last two folders ("…\acme\robots_rcs"), in the path's own separator.
   function shortPath(cwd, label) {
     const p = String(cwd || '').trim();
     if (!p) return '';

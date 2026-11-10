@@ -7,11 +7,11 @@ const { toolSummary, toolCommand, stripCd } = require('../lib/tools');
 const bash = (command, description) => ({ name: 'Bash', input: { command, ...(description ? { description } : {}) } });
 
 test('a shell command without its leading cd, with the folder as context', () => {
-  assert.equal(toolSummary(bash('cd /Users/kang/Project/herdr-hub && npm test')), 'npm test · herdr-hub');
-  assert.equal(toolSummary(bash('cd "C:/Users/kangw/AppData/Local/Temp/claude/D--x" && git status; git diff')), 'git status; git diff · D--x');
+  assert.equal(toolSummary(bash('cd /Users/alex/Project/herdr-hub && npm test')), 'npm test · herdr-hub');
+  assert.equal(toolSummary(bash('cd "C:/Users/alice/AppData/Local/Temp/claude/D--x" && git status; git diff')), 'git status; git diff · D--x');
   assert.equal(toolSummary(bash("cd '/tmp/my dir' ; ls -la")), 'ls -la · my dir');
   assert.equal(toolSummary(bash('cd /a && cd src && rg -l "MapEditSection"')), 'rg -l "MapEditSection" · src');
-  assert.equal(toolSummary(bash('cd /d D:\\project\\dotori && dir')), 'dir · dotori');
+  assert.equal(toolSummary(bash('cd /d D:\\project\\robots && dir')), 'dir · robots');
   assert.equal(toolSummary(bash('Set-Location C:\\src\\hub; npm ci')), 'npm ci · hub');
   assert.equal(toolSummary(bash('cd ~ && ls')), 'ls');
   assert.equal(toolSummary(bash('npm test')), 'npm test');
@@ -21,7 +21,7 @@ test('a shell command without its leading cd, with the folder as context', () =>
 });
 
 test('leading variables set with ; or && go too; a cd to one names its folder', () => {
-  assert.equal(toolSummary(bash("S='C:/Users/kangw/src/hub'; cd \"$S\" && git log -3")), 'git log -3 · hub');
+  assert.equal(toolSummary(bash("S='C:/Users/alice/src/hub'; cd \"$S\" && git log -3")), 'git log -3 · hub');
   assert.equal(toolSummary(bash('S="/a/b"; cd "${S}/lib" && ls')), 'ls · lib');
   assert.equal(toolSummary(bash('export NODE_ENV=test && npm test')), 'npm test');
   assert.equal(toolSummary(bash('A=1; B="x y" && cd /p/q && make')), 'make · q');
@@ -38,8 +38,8 @@ test("Claude Code's description of a command comes first", () => {
 });
 
 test('file tools lead with the file name, then its folder', () => {
-  assert.equal(toolSummary({ name: 'Read', input: { file_path: '/Users/kang/Project/herdr-hub/lib/http.js' } }), 'http.js · herdr-hub/lib');
-  assert.equal(toolSummary({ name: 'Edit', input: { file_path: 'C:\\Users\\kangw\\src\\hub\\server.js', old_string: 'a' } }), 'server.js · src/hub');
+  assert.equal(toolSummary({ name: 'Read', input: { file_path: '/Users/alex/Project/herdr-hub/lib/http.js' } }), 'http.js · herdr-hub/lib');
+  assert.equal(toolSummary({ name: 'Edit', input: { file_path: 'C:\\Users\\alice\\src\\hub\\server.js', old_string: 'a' } }), 'server.js · src/hub');
   assert.equal(toolSummary({ name: 'Write', input: { file_path: '/notes.md' } }), 'notes.md');
   assert.equal(toolSummary({ name: 'NotebookEdit', input: { notebook_path: '/w/a.ipynb' } }), 'a.ipynb · w');
 });

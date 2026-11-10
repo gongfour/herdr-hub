@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Installed by ./deploy.sh server; __DIR__ is replaced with the deploy copy. -->
+<!-- Installed by ./deploy.sh (server, macbook); __DIR__ is replaced with the deploy copy. -->
 <plist version="1.0">
 <dict>
   <key>Label</key>

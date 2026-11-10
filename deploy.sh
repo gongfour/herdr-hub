@@ -6,9 +6,18 @@
 #                          server as peers, opened at http://localhost:8787, so it works offline;
 #                          settings in data/host.env)
 #   ./deploy.sh all        desktop and server, then macbook if it answers
+#
+# Where they are comes from deploy.env next to this script (shell assignments, not in git):
+#   DESKTOP_SSH=user@desktop              ssh target of the Windows host
+#   DESKTOP_DIR='C:\Users\user\src\herdr-hub'   the deploy copy there (its parent holds the upload)
+#   SERVER_SERVE=server.example.ts.net:8443   this Mac's tailscale serve name for port 8443
+#   MACBOOK_SSH=macbook                   ssh target of the laptop
+# Each host's own settings (logins, names, peers) are in its data/ (run.cmd, mac/run.sh).
 set -e
 cd "$(dirname "$0")"
 target="${1:-desktop}"
+[ -f deploy.env ] && . ./deploy.env
+need() { eval "[ -n \"\${$1}\" ]" || { echo "deploy.env: set $1" >&2; exit 2; }; }
 
 # The build name the hosts show (lib/build.js): package.json's major.minor and the commit count,
 # the commit and its time, and whether the tree has uncommitted changes. Shipped as build.json
@@ -27,18 +36,20 @@ trap 'rm -f build.json' EXIT
 deploy_desktop() {
   # cmd reads a batch file by offset: a run.cmd left running would go on in the new file once its
   # node is stopped and start node again with the old settings. It goes first.
-  COPYFILE_DISABLE=1 tar --exclude=node_modules --exclude=data --exclude=.git --exclude=deploy.sh --exclude=mac -czf /tmp/herdr-hub-deploy.tgz .
-  scp -q /tmp/herdr-hub-deploy.tgz kangw@desktop:C:/Users/kangw/src/herdr-hub-deploy.tgz
+  need DESKTOP_SSH
+  need DESKTOP_DIR
+  COPYFILE_DISABLE=1 tar --exclude=node_modules --exclude=data --exclude=.git --exclude=deploy.sh --exclude=deploy.env --exclude=mac -czf /tmp/herdr-hub-deploy.tgz .
+  scp -q /tmp/herdr-hub-deploy.tgz "$DESKTOP_SSH:$(dirname "$(printf '%s' "$DESKTOP_DIR" | tr '\\' /)")/herdr-hub-deploy.tgz"
   rm /tmp/herdr-hub-deploy.tgz
-  ssh kangw@desktop 'Set-Location C:\Users\kangw\src\herdr-hub; tar -xzf ..\herdr-hub-deploy.tgz; Remove-Item ..\herdr-hub-deploy.tgz; Stop-ScheduledTask HerdrHub; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "herdr-hub\\run.cmd" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; npm ci --silent --omit=dev 2>&1 | Out-Null; Start-ScheduledTask HerdrHub; Start-Sleep 3; (Get-ScheduledTask HerdrHub).State'
+  ssh "$DESKTOP_SSH" "Set-Location '$DESKTOP_DIR'; "'tar -xzf ..\herdr-hub-deploy.tgz; Remove-Item ..\herdr-hub-deploy.tgz; Stop-ScheduledTask HerdrHub; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "herdr-hub\\run.cmd" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; npm ci --silent --omit=dev 2>&1 | Out-Null; Start-ScheduledTask HerdrHub; Start-Sleep 3; (Get-ScheduledTask HerdrHub).State'
 }
 
 deploy_server() {
   dir="${HERDR_HUB_DIR:-$HOME/.local/share/herdr-hub}"
-  node_bin="$HOME/.local/share/mise/installs/node/22.22.0/bin"
+  node_bin="$(dirname "$(command -v node)")"
   plist="$HOME/Library/LaunchAgents/local.herdr-hub.plist"
   mkdir -p "$dir/data"
-  rsync -a --delete --exclude=node_modules --exclude=data --exclude=.git --exclude=deploy.sh --exclude=run.cmd ./ "$dir/"
+  rsync -a --delete --exclude=node_modules --exclude=data --exclude=.git --exclude=deploy.sh --exclude=deploy.env --exclude=run.cmd ./ "$dir/"
   (cd "$dir" && PATH="$node_bin:$PATH" npm ci --silent --omit=dev >/dev/null)
   sed "s#__DIR__#$dir#g" mac/local.herdr-hub.plist > "$plist"
   launchctl bootout "gui/$(id -u)/local.herdr-hub" 2>/dev/null || true
@@ -48,30 +59,22 @@ deploy_server() {
   sleep 2
   launchctl print "gui/$(id -u)/local.herdr-hub" | grep -E '^\s+(state|pid) ='
   # HTTPS 8443 on this node -> Herdr Hub. 443 is left alone: it already serves something else.
-  tailscale serve status --json | grep -q '"server.uaru-monster.ts.net:8443"' || tailscale serve --bg --https=8443 http://127.0.0.1:8787
+  if [ -n "$SERVER_SERVE" ]; then
+    tailscale serve status --json | grep -q "\"$SERVER_SERVE\"" || tailscale serve --bg --https=8443 http://127.0.0.1:8787
+  fi
 }
 # The MacBook Air: its own Hub for its own herdr, not a peer of the desktop hub (it travels),
 # with desktop and server as its peers; when they are off or there is no network they stay as
 # ghosts and its own agents work as before. ALLOW_LOCAL: http://localhost:8787 needs no Tailscale
-# login, so it works with no network. data/host.env is written once and then left to the host;
+# login, so it works with no network. Its data/host.env (written by hand, mac/run.sh) holds that;
 # HERDR_HUB_PEERS there is only the seed of data/peers.json (Settings > Connection after that).
 deploy_macbook() {
-  ssh -o ConnectTimeout=8 macbook 'mkdir -p ~/.local/share/herdr-hub/data'
-  rsync -a --delete --exclude=node_modules --exclude=data --exclude=.git --exclude=deploy.sh --exclude=run.cmd ./ macbook:.local/share/herdr-hub/
-  ssh macbook 'set -e
+  need MACBOOK_SSH
+  ssh -o ConnectTimeout=8 "$MACBOOK_SSH" 'mkdir -p ~/.local/share/herdr-hub/data; [ -f ~/.local/share/herdr-hub/data/host.env ]' || { echo "$MACBOOK_SSH: write ~/.local/share/herdr-hub/data/host.env first (mac/run.sh)" >&2; exit 2; }
+  rsync -a --delete --exclude=node_modules --exclude=data --exclude=.git --exclude=deploy.sh --exclude=deploy.env --exclude=run.cmd ./ "$MACBOOK_SSH:.local/share/herdr-hub/"
+  ssh "$MACBOOK_SSH" 'set -e
     dir="$HOME/.local/share/herdr-hub"
     cd "$dir"
-    [ -f data/host.env ] || cat > data/host.env <<ENV
-# Read by mac/run.sh. Its own herdr plus desktop and server as peers; open http://localhost:8787.
-# HERDR_HUB_PEERS only seeds data/peers.json once; edit the list in Settings > Connection.
-HERDR_HUB_HOST_ID=macbook
-HERDR_HUB_HOST_LABEL=macbook
-HERDR_HUB_HOSTS=macbook.uaru-monster.ts.net:8443
-HERDR_HUB_ALLOW_LOCAL=1
-HERDR_HUB_PUSH=0
-HERDR_HUB_PEERS=desktop=https://desktop.uaru-monster.ts.net,server=https://server.uaru-monster.ts.net:8443
-HERDR_HUB_NODE=/opt/homebrew/bin/node
-ENV
     PATH="/opt/homebrew/bin:$PATH" npm ci --silent --omit=dev >/dev/null
     plist="$HOME/Library/LaunchAgents/local.herdr-hub.plist"
     mkdir -p "$HOME/Library/LaunchAgents"
@@ -90,7 +93,7 @@ case "$target" in
   all)
     deploy_server
     deploy_desktop
-    if ssh -o ConnectTimeout=5 -o BatchMode=yes macbook true 2>/dev/null; then deploy_macbook; else echo "macbook: not reachable, skipped"; fi
+    if [ -n "$MACBOOK_SSH" ] && ssh -o ConnectTimeout=5 -o BatchMode=yes "$MACBOOK_SSH" true 2>/dev/null; then deploy_macbook; else echo "macbook: not reachable, skipped"; fi
     ;;
   *) echo "usage: $0 [desktop|server|macbook|all]" >&2; exit 2 ;;
 esac

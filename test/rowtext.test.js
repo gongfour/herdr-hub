@@ -5,21 +5,21 @@ const assert = require('node:assert/strict');
 const { shortPath, rowDir, metaName, homePath, termName, hostAria, hostState, hintText, hintDue, hintNext } = require('../public/rowtext.js');
 
 test('a folder in short only when the name does not say it, cut to two folders', () => {
-  assert.equal(shortPath('D:\\project\\digitrack\\dotori_rcs', 'dotori_rcs'), '');
-  assert.equal(shortPath('D:\\project\\digitrack\\dotori_rcs', 'mob-list'), '…\\digitrack\\dotori_rcs');
-  assert.equal(shortPath('/Users/kang/Project/herdr-hub', 'hub'), '…/Project/herdr-hub');
-  assert.equal(shortPath('/Users/kang/Project/herdr-hub/', 'herdr-hub'), '');
+  assert.equal(shortPath('D:\\project\\acme\\robots_rcs', 'robots_rcs'), '');
+  assert.equal(shortPath('D:\\project\\acme\\robots_rcs', 'mob-list'), '…\\acme\\robots_rcs');
+  assert.equal(shortPath('/Users/alex/Project/herdr-hub', 'hub'), '…/Project/herdr-hub');
+  assert.equal(shortPath('/Users/alex/Project/herdr-hub/', 'herdr-hub'), '');
   assert.equal(shortPath('/srv/app', 'x'), '/srv/app');
   assert.equal(shortPath('', 'x'), '');
   assert.equal(shortPath(null, 'x'), '');
 });
 
 test('a row shows its own last folder unless the workspace or the row is named like it', () => {
-  assert.equal(rowDir('/Users/kang/Project/herdr-hub', 'hub', 'fix the list'), 'herdr-hub');
-  assert.equal(rowDir('/Users/kang/Project/herdr-hub/', 'hub', 'fix the list'), 'herdr-hub');
-  assert.equal(rowDir('/Users/kang/Project/herdr-hub', 'herdr-hub', 'fix the list'), ''); // the workspace says it
-  assert.equal(rowDir('/Users/kang/Project/herdr-hub', 'hub', 'herdr-hub'), ''); // the row says it
-  assert.equal(rowDir('D:\\project\\digitrack\\dotori_rcs', 'mob', 'nu'), 'dotori_rcs');
+  assert.equal(rowDir('/Users/alex/Project/herdr-hub', 'hub', 'fix the list'), 'herdr-hub');
+  assert.equal(rowDir('/Users/alex/Project/herdr-hub/', 'hub', 'fix the list'), 'herdr-hub');
+  assert.equal(rowDir('/Users/alex/Project/herdr-hub', 'herdr-hub', 'fix the list'), ''); // the workspace says it
+  assert.equal(rowDir('/Users/alex/Project/herdr-hub', 'hub', 'herdr-hub'), ''); // the row says it
+  assert.equal(rowDir('D:\\project\\acme\\robots_rcs', 'mob', 'nu'), 'robots_rcs');
   assert.equal(rowDir('/srv/app', 'x', 'y'), 'app');
   assert.equal(rowDir('/', 'x', 'y'), '/');
   assert.equal(rowDir('', 'x', 'y'), '');
@@ -38,22 +38,22 @@ test('the small line has the agent name only when the title does not begin with 
 });
 
 test('a folder in a sentence: ~ for home, a deep one as its last two', () => {
-  assert.equal(homePath('/Users/kang/Project/herdr-hub', '/Users/kang'), '~/Project/herdr-hub');
-  assert.equal(homePath('/Users/kang/Project/herdr-hub', '/Users/kang/'), '~/Project/herdr-hub');
-  assert.equal(homePath('/Users/kang', '/Users/kang'), '~');
-  assert.equal(homePath('/Users/kangx/a', '/Users/kang'), '/Users/kangx/a'); // not under home
-  assert.equal(homePath('/Users/kang/a/b/c/d', '/Users/kang'), '…/c/d');
-  assert.equal(homePath('C:\\Users\\kangw\\dev\\x', 'C:\\Users\\kangw'), '~\\dev\\x');
-  assert.equal(homePath('c:\\users\\KANGW\\a', 'C:\\Users\\kangw'), '~\\a'); // Windows ignores case
+  assert.equal(homePath('/Users/alex/Project/herdr-hub', '/Users/alex'), '~/Project/herdr-hub');
+  assert.equal(homePath('/Users/alex/Project/herdr-hub', '/Users/alex/'), '~/Project/herdr-hub');
+  assert.equal(homePath('/Users/alex', '/Users/alex'), '~');
+  assert.equal(homePath('/Users/alexx/a', '/Users/alex'), '/Users/alexx/a'); // not under home
+  assert.equal(homePath('/Users/alex/a/b/c/d', '/Users/alex'), '…/c/d');
+  assert.equal(homePath('C:\\Users\\alice\\dev\\x', 'C:\\Users\\alice'), '~\\dev\\x');
+  assert.equal(homePath('c:\\users\\ALICE\\a', 'C:\\Users\\alice'), '~\\a'); // Windows ignores case
   assert.equal(homePath('/opt/x', ''), '/opt/x');
-  assert.equal(homePath('', '/Users/kang'), '');
+  assert.equal(homePath('', '/Users/alex'), '');
 });
 
 test('a shell row always has a name', () => {
   assert.equal(termName({ label: 'build', title: 'nu' }), 'build');
   assert.equal(termName({ label: null, title: 'C:\\Program Files\\nu\\nu.exe' }), 'nu.exe');
   assert.equal(termName({ label: '', title: 'htop' }), 'htop');
-  assert.equal(termName({ label: '', title: '셸', cwd: '/Users/kang/Project/herdr-hub', pane: 'p3' }), 'herdr-hub');
+  assert.equal(termName({ label: '', title: '셸', cwd: '/Users/alex/Project/herdr-hub', pane: 'p3' }), 'herdr-hub');
   assert.equal(termName({ label: ' ', title: '  ', cwd: '', pane: 'p3' }), 'p3');
   assert.equal(termName({}), '셸');
 });
