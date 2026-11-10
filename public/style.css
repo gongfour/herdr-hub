@@ -1333,6 +1333,17 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .mode-chip:disabled { opacity: 0.5; }
 .mode-chip .short { display: none; }
 .mode-chip:active:not(:disabled)::before { filter: brightness(0.94); }
+/* 사용량 (agent.js renderUsage): the model and how full the context is, beside the mode chip; the
+   numbers in tabular figures so the chip does not shift as they grow. Near full (80%+): orange. */
+.usage-chip { font-variant-numeric: tabular-nums; }
+.usage-chip.warn { color: var(--blocked); }
+.usage-chip.warn::before { border-color: color-mix(in srgb, var(--blocked) 50%, var(--line)); }
+/* The 사용량 sheet's rows (core.js sheet rows): a name, then its value with a quiet note under it. */
+.sheet-rows { display: grid; gap: var(--sp-2); margin: var(--sp-1) 0 0; }
+.sheet-rows > div { display: grid; grid-template-columns: 6.5em 1fr; gap: var(--sp-3); align-items: baseline; }
+.sheet-rows dt { color: var(--muted); font-size: 14px; }
+.sheet-rows dd { margin: 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sheet-rows dd .sub { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
 
 .attn-item + .attn-item { border-top: 1px solid color-mix(in srgb, var(--blocked) 16%, transparent); }
 .attn-item .attn-row + .attn-row { border-top: 0; }

@@ -66,6 +66,7 @@
     termFontDown: { group: '대화·터미널 화면', name: '셸 글자 줄이기', label: '셸 글자 줄이기' },
     closeView: { group: '대화·터미널 화면', name: '끝내기', label: '끝내기: 연 에이전트·셸을 끝낸다 (워크스페이스 화면이면 그 워크스페이스를 닫는다). 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 끝내고, Esc 로 그만둔다' },
     closeWorkspace: { group: '대화·터미널 화면', name: '워크스페이스 닫기', also: ['list'], label: '워크스페이스 닫기: 연 에이전트·셸·워크스페이스가 든 워크스페이스를 (목록에서는 포커스가 있는 줄의 것) 닫는다. 확인 창에서 같은 키를 한 번 더 누르거나 Ctrl+리턴으로 닫는다' },
+    usage: { group: '대화·터미널 화면', name: '사용량', label: '사용량 보기: Claude 에이전트의 모델·컨텍스트와 그 호스트의 5시간·주간 사용 한도', noShell: true, cmd: '사용량 보기' },
     mode: { group: '대화·터미널 화면', name: '모드 바꾸기', label: '에이전트 모드 바꾸기 (메시지 칸에서 다음 모드로, Claude Code 의 Shift+Tab; 명령·모드 칩은 골라서)', noShell: true },
     prevHost: { group: '목록', name: '이전 호스트', label: '이전 호스트 (전체 / 각 기기)' },
     nextHost: { group: '목록', name: '다음 호스트', label: '다음 호스트 (두 칸이면 사이드바를 펼친다)' },
@@ -198,6 +199,9 @@
       // Shift+Tab is the shell's (and moves the focus back on the page): only the message box takes it
       // (KEY_ACTIONS.mode), so a field, not the shell view.
       b('mode', 'Shift+Tab', { field: true }),
+      // Alt+U (U for usage): the agent view's 사용량 sheet. Alt+U is the shell's (upcase a word), and
+      // the shell view has no agent, so not there.
+      b('usage', 'Alt+u', { field: true }),
       // Alt+` as an app switcher's last app; the backquote key by code too (a Mac's Option+` is a
       // dead key). No shell key either.
       b('lastView', 'Alt+`', { field: true, shell: true }),

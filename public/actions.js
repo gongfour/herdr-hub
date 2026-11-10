@@ -25,7 +25,7 @@ function ghostRefuse(x) {
   return true;
 }
 // Menu items of a ghost: what only looks or opens stays, the rest is shown off with the reason.
-const LOOKS = new Set(['open', 'ws', 'copy', 'wrap', 'input', 'color', 'reorder']);
+const LOOKS = new Set(['open', 'ws', 'copy', 'usage', 'wrap', 'input', 'color', 'reorder']);
 const ghostOff = (items, x) => (x && x.stale ? items.map((it) => (Array.isArray(it) && !LOOKS.has(it[0]) ? [it[0], it[1], it[2], it[3], it[4], ghostWhy(x)] : it)) : items);
 
 // A mistake keeps the sheet (and what was typed) with the error in it, like 새 폴더.
@@ -191,6 +191,7 @@ function paneItems(kind, agent, x, fromRow, here) {
         screenBody(x) ? null : ['screen', '터미널 화면 보기', false, '', here ? 'terminal' : null],
         ['keys', '키 보내기', false, 'Esc · ⇧Tab · Enter · ↑ ↓ · 1–3'],
         here && lastReply() ? ['copy', '마지막 답 복사'] : null,
+        usageOf(x) ? ['usage', '사용량', false, Usage.limitsLine(x.usage.limits) || (Usage.chip(x.usage) || {}).full || '', here ? 'usage' : null] : null,
         '-',
         ['rename', '이름 바꾸기'],
         ['ws', '워크스페이스 보기'],
@@ -241,6 +242,7 @@ async function paneAction(kind, x, k, { here = false } = {}) {
   if (k === 'open') location.hash = link(x.host, `/${agent ? 'agent' : 'term'}/${pane}`);
   if (k === 'ws') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace)}`);
   if (k === 'stop') confirmStop(x); // agent.js
+  if (k === 'usage') openUsage(x); // agent.js
   if (k === 'screen') {
     if (here) openScreenSheet();
     else location.hash = link(x.host, `/agent/${pane}/screen`); // the chat with its terminal sheet

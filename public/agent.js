@@ -12,6 +12,7 @@ function renderDetail() {
         <h1 id="d-title"></h1>
         <span class="sync" id="d-sync" role="img" aria-label="새로 불러오는 중" title="새로 불러오는 중" hidden></span>
         <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', '모드 고르기 · 메시지 칸에서 다음 모드')} hidden></button>
+        <button type="button" class="mode-chip usage-chip" id="d-usage" aria-haspopup="dialog"${keyAttrs('usage', '사용량')} hidden></button>
         <span id="d-badge"></span>
         <button class="icon-btn" id="d-more" aria-label="더 보기" aria-haspopup="dialog"${keyAttrs('menu', '더 보기')}>${ICON.more}</button>
       </header>
@@ -33,6 +34,7 @@ function renderDetail() {
       </div>
     </div>`;
   document.getElementById('d-activity').onclick = openScreenSheet;
+  document.getElementById('d-usage').onclick = () => openUsage();
   // An editable div, not a <textarea>: iOS puts its ⌃ ⌄ / contact AutoFill bar over the keyboard
   // for text fields, but not for contenteditable. `value` keeps the textarea-style API below.
   const input = document.getElementById('d-input');
@@ -367,6 +369,7 @@ function renderDetailHeader() {
     badge.innerHTML = badge._html = '';
     document.getElementById('d-more').hidden = true; // its menu is about an agent that isn't there
     renderMode();
+    renderUsage();
     renderBlocked();
     renderActivity();
     updateComposer();
@@ -395,6 +398,7 @@ function renderDetailHeader() {
   }
   if (a.status !== 'working') detail.activity = null;
   renderMode();
+  renderUsage();
   if (detail.answerMode && a.status !== 'blocked') {
     detail.answerMode = false;
     setPlaceholder();
@@ -1283,6 +1287,33 @@ function renderMode() {
   chip.disabled = Boolean(detail.modeBusy);
   chip.setAttribute('aria-haspopup', 'dialog');
   chip.setAttribute('aria-label', `권한 모드: ${MODE_LABEL[m] || m}. 누르면 모드를 고릅니다`);
+}
+
+// ---- model, context and the plan's limits (Claude; the agent's usage from its host, lib/usage.js):
+// a chip 「Opus 5.5 · 컨텍스트 42%」 (the phone: 「Opus 42%」), tokens in its tooltip; a tap, the ⋯
+// menu's 사용량 or Alt+U opens the sheet with the 5-hour and weekly limits.
+function renderUsage() {
+  const el = document.getElementById('d-usage');
+  if (!el) return;
+  const a = currentAgent();
+  const c = a && a.agent === 'claude' && window.Usage ? Usage.chip(a.usage) : null;
+  el.hidden = !c;
+  if (!c) return;
+  const html = `<span class="full">${esc(c.full)}</span><span class="short" aria-hidden="true">${esc(c.short)}</span>`;
+  if (el._html !== html) el.innerHTML = el._html = html;
+  el.classList.toggle('warn', c.warn);
+  el.setAttribute('aria-label', `${c.full}. 누르면 사용량을 봅니다`);
+  el.dataset.keylabel = c.title;
+  const h = Keymap.hint('usage', hintCtx());
+  el.title = h ? `${c.title} (${h})` : c.title;
+}
+function usageOf(x) {
+  return x && x.agent === 'claude' && x.usage && (x.usage.model || Usage.limitsLine(x.usage.limits)) ? x.usage : null;
+}
+async function openUsage(x = currentAgent()) {
+  const u = usageOf(x);
+  if (!u) return toast(x && x.agent === 'claude' ? '아직 사용량을 모릅니다 — 답이 한 번 오면 보입니다' : 'Claude 에이전트만 사용량이 있습니다');
+  await sheet({ subject: x.name || x.title, title: '사용량', rows: Usage.rows(u), text: Usage.limitsNote(u), ok: '닫기', cancel: null });
 }
 
 // One ⇧Tab, then the footer read again once Claude has redrawn it: the mode now, or null.

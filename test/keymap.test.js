@@ -349,6 +349,15 @@ test('Alt+T: the terminal sheet, also from the composer and to close the sheet; 
   assert.equal(act('Alt+t', { shell: true }), null); // the shell's swap-words
 });
 
+test('Alt+U: 사용량 in the agent view, the message box too; not over a sheet; the shell keeps it', () => {
+  for (const ctx of [{}, { field: true }, { split: true }]) assert.equal(act('Alt+u', ctx), 'usage', JSON.stringify(ctx));
+  assert.equal(act('Alt+u', {}, { key: 'Dead', code: 'KeyU' }), 'usage'); // a Mac's Option+U (¨)
+  for (const ctx of [{ shell: true }, { layer: true }]) assert.equal(act('Alt+u', ctx), null, JSON.stringify(ctx)); // upcase-word
+  assert.equal(act('u', {}), null);
+  assert.ok(ACTIONS.usage.noShell);
+  assert.equal(hint('usage'), 'Alt+U');
+});
+
 test('Alt+`: the last agent or shell, the shell view and a field included; by code for a dead key', () => {
   for (const ctx of [{}, { field: true }, { shell: true }]) assert.equal(act('Alt+`', ctx), 'lastView');
   assert.equal(act('Alt+`', {}, { key: 'Dead', code: 'Backquote' }), 'lastView');

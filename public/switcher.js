@@ -188,6 +188,7 @@ const COMMAND_CAN = {
   // An offline host's ghost (o.x.stale): only to look at (actions.js ghostOff).
   wrap: () => Boolean(scr),
   terminal: (o) => Boolean(o && o.kind === 'agent' && !o.x.stale),
+  usage: (o) => Boolean(o && o.kind === 'agent' && usageOf(o.x)),
   termFontUp: (o) => Boolean(scr || (o && o.kind === 'term')),
   termFontDown: (o) => Boolean(scr || (o && o.kind === 'term')),
   // In a workspace's own view 워크스페이스 닫기 is the one (끝내기 there closes it too).

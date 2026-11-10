@@ -876,6 +876,7 @@ const KEY_ACTIONS = {
   reorder: () => toggleReorder(), // reorder.js
   prevBlocked: () => stepBlocked(-1),
   terminal: () => toggleScreenSheet(), // agent.js
+  usage: () => view.name === 'agent' && (openUsage(), true), // agent.js
   // The agent, shell or workspace open, after the same 닫기 sheet as its menu (actions.js): Enter
   // closes, Esc keeps it. A close that can't be undone is never one key.
   closeView() {

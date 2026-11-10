@@ -488,7 +488,8 @@ const topLayer = () => layers[layers.length - 1] || null;
 // are the confirm button's (its tooltip, aria-keyshortcuts, and a quiet keycap of the key that
 // asked, with a keyboard), not a line of their own.
 // subject: what it is about (a name), at the head of the title in its own weight: 「‘hub-qtest’ 에이전트를 끝낼까요?」.
-function sheet({ title, subject = '', text = '', error = '', input = null, ok = '확인', cancel = '취소', danger = false, validate = null, again = false, key = null }) {
+// rows: [[name, value, note]] above the text, for a sheet that tells numbers (사용량).
+function sheet({ title, subject = '', rows = null, text = '', error = '', input = null, ok = '확인', cancel = '취소', danger = false, validate = null, again = false, key = null }) {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     // Split, a dialog about what is open on the right sits over the right column; one asked from the
@@ -502,6 +503,7 @@ function sheet({ title, subject = '', text = '', error = '', input = null, ok = 
     const confirm = danger && cancel ? confirmKeys(key) : null;
     el.innerHTML = `<form class="sheet dialog" role="dialog" aria-modal="true" aria-label="${esc(name ? `‘${name}’ ${title}` : title)}"${text ? ' aria-describedby="sheet-text"' : ''} tabindex="-1">
         <h2>${name ? `<span class="sheet-subject">‘${esc(name)}’</span> ` : ''}${esc(title)}</h2>
+        ${rows && rows.length ? `<dl class="sheet-rows">${rows.map(([k, v, n]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}${n ? `<span class="sub">${esc(n)}</span>` : ''}</dd></div>`).join('')}</dl>` : ''}
         ${text ? `<p id="sheet-text">${esc(text)}</p>` : ''}
         ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
         ${input ? `<div class="field-wrap"><input class="field" name="v" value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="sheet-hint">
