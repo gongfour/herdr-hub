@@ -230,7 +230,6 @@ function renderBlocked() {
   if (!box._fadeBound) {
     box._fadeBound = true;
     box.addEventListener('scroll', () => fadeBlocked(box), { passive: true });
-    addEventListener('resize', () => fadeBlocked(box));
   }
   fadeBlocked(box);
   sayBlocked(a, choices);
@@ -254,7 +253,8 @@ function foldContext(box) {
 }
 
 // The box scrolls inside itself; while more of it is below (the last choices, 화면 보기 / 직접
-// 입력), its bottom edge fades out.
+// 입력), its bottom edge fades out. One resize listener for whichever box is on the page (each
+// agent view makes a new #d-blocked; one listener per box would pile up for the app's life).
 function fadeBlocked(box) {
   box.classList.toggle('more', box.scrollHeight - box.scrollTop - box.clientHeight > 4);
 }
@@ -332,3 +332,7 @@ async function sendKeys(keys, host = curHost(), pane = detail.pane) {
     return false;
   }
 }
+addEventListener('resize', () => {
+  const box = document.getElementById('d-blocked');
+  if (box) fadeBlocked(box);
+});

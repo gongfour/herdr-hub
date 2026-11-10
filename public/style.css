@@ -528,7 +528,7 @@ div.tool { background: none; padding: var(--sp-0) var(--sp-2); }
 .screen.term { font-size: var(--term-font, 12px); line-height: 1.4; }
 .screen-top { padding: var(--sp-2) var(--sp-3); font-size: var(--fs-2); line-height: 1.45; color: #a9a69d; border-bottom: 1px dashed #3a3935; }
 /* Inline in the sentence; the padding makes a 44px target without changing the line. */
-.screen-top .linkish { border: 0; background: none; padding: 13px 6px; margin: -13px -6px; color: #8fbfff; text-decoration: underline; cursor: pointer; font: inherit; border-radius: 6px; }
+.screen-top .linkish { border: 0; background: none; padding: var(--sp-3) var(--sp-2); margin: calc(-1 * var(--sp-3)) calc(-1 * var(--sp-2)); color: #8fbfff; text-decoration: underline; cursor: pointer; font: inherit; border-radius: 6px; }
 .screen-top .linkish:active { background: rgb(255 255 255 / 0.1); }
 .screen-tools {
   flex: none; display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-4); min-height: 40px;
@@ -1292,7 +1292,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 @media (hover: hover) {
   .pane-row:hover, .card:hover, .dir-item:hover, .dir-row:hover, .action:hover, .pal-row:hover { background: color-mix(in srgb, var(--surface-2) 65%, var(--surface)); }
   .pane-row.term:hover { background: var(--surface-2); }
-  .attn-row:hover { background: color-mix(in srgb, var(--blocked) 8%, transparent); }
   .icon-btn:hover, .attach:hover:not(:disabled), .crumb:hover { background: var(--surface-2); }
   .btn:hover:not(:disabled) { filter: brightness(1.06); }
   .btn.secondary:hover:not(:disabled) { filter: brightness(0.97); }
@@ -1388,15 +1387,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .sheet-rows dd { margin: 0; font-size: var(--fs-5); font-weight: 600; font-variant-numeric: tabular-nums; }
 .sheet-rows dd .sub { display: block; font-size: var(--fs-3); font-weight: 400; color: var(--muted); }
 
-.attn-item + .attn-item { border-top: 1px solid color-mix(in srgb, var(--blocked) 16%, transparent); }
-.attn-item .attn-row + .attn-row { border-top: 0; }
-.attn-row .go { flex: none; color: var(--blocked); font-size: var(--fs-7); }
-.pane-meta-inline { font-weight: 400; color: var(--muted); font-size: var(--fs-3); }
-.attn-q { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--fs-4); line-height: 1.35; margin-top: var(--sp-0); color: var(--text); }
-.quick { display: flex; gap: var(--sp-2); padding: 0 var(--sp-4) var(--sp-3) 52px; flex-wrap: wrap; }
-.quick .choice { width: auto; flex: 1 1 0; min-width: 0; }
-.quick .choice .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.quick .choice .num { width: 22px; height: 22px; font-size: var(--fs-2); }
 
 .tool-wrap { display: flex; flex-direction: column; }
 button.tool { display: flex; align-items: center; gap: var(--sp-1); width: 100%; border: 0; text-align: left; cursor: pointer; min-height: 40px; }
@@ -1673,7 +1663,6 @@ button.tool:active { filter: brightness(0.95); }
 .split main.home .sw-front[aria-current="page"] {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent);
 }
-.split main.home .attn-row[aria-current="page"] { background: color-mix(in srgb, var(--blocked) 13%, transparent); box-shadow: inset 3px 0 0 var(--blocked); }
 .split main.home .ws-head .sw-front[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent); }
 /* Keyboard focus on a list row or a card head (it comes back there after Esc closes a view): the
    switcher's picked look, a light tint and the accent bar, not an outline box that the card's
@@ -1952,7 +1941,8 @@ main.home.stale .ws .pane-ic { filter: grayscale(1); opacity: 0.55; }
 }
 .fwd-x:active { background: var(--surface-2); }
 .fwd-chip :focus-visible { outline-offset: -3px; }
-:root.fwd-on:not(.split) #app > main.home { padding-bottom: 84px; }
+/* Room under the last card for the chip: its 44px and the gap it floats in above the tab bar. */
+:root.fwd-on:not(.split) #app > main.home { padding-bottom: calc(44px + var(--sp-7) - var(--sp-2)); }
 @media (prefers-reduced-motion: reduce) { .fwd-chip, .fwd-chip.closing { animation: none; transition: none; } }
 
 /* ---- floating layers on wide screens (core.js menu, switcher.js): one shadow for every card that

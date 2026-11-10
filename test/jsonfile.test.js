@@ -57,3 +57,15 @@ test('Push starts on a cut-short subscriptions.json (no devices) and a broken va
   assert.notEqual(fresh.publicKey, first.publicKey);
   assert.equal(JSON.parse(fs.readFileSync(path.join(d, 'vapid.json'), 'utf8')).publicKey, fresh.publicKey);
 });
+
+test('Push keeps only a well-formed https subscription, at most 50 devices', async (t) => {
+  const d = tmpDir(t);
+  const p = new Push(d, 'https://hub.invalid');
+  const ok = (i) => ({ endpoint: `https://push.example/${i}`, keys: { p256dh: 'BKey', auth: 'aa' }, extra: 'dropped' });
+  for (const bad of [null, {}, { endpoint: 'http://push.example/1', keys: { p256dh: 'a', auth: 'b' } }, { endpoint: 'https://p/1', keys: { p256dh: 'a' } }, { endpoint: 'https://p/1', keys: { p256dh: 'x'.repeat(300), auth: 'b' } }])
+    assert.throws(() => p.add(bad), (e) => e.status === 400 && e.code === 'bad_subscription');
+  for (let i = 0; i < 55; i++) await p.add(ok(i));
+  assert.equal(p.subs.length, 50);
+  assert.equal(p.subs[0].endpoint, 'https://push.example/5'); // the oldest went
+  assert.deepEqual(Object.keys(p.subs[0]).sort(), ['added', 'endpoint', 'keys']);
+});

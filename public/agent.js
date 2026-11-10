@@ -4,6 +4,28 @@
 
 // ------------------------------------------------------------ detail view
 
+// After keys went to a question: whether its screen has moved on from `before` (the screen they
+// were drawn for) and settled there (the same twice, 200 ms apart: not caught halfway through
+// the keys), read for up to 3 s. False when it never did (or can't be read).
+async function screenMoved(host, pane, before, ms = 3000) {
+  const clean = (t) => String(t || '').replace(/\s+$/, '');
+  const was = clean(before);
+  const end = Date.now() + ms;
+  let last = null;
+  while (Date.now() < end) {
+    await new Promise((r) => setTimeout(r, 200));
+    let now;
+    try {
+      now = clean((await api(hp(`/agents/${encodeURIComponent(pane)}/screen?source=visible&lines=30`, host))).text);
+    } catch {
+      return false;
+    }
+    if (now !== was && now === last) return true;
+    last = now;
+  }
+  return false;
+}
+
 function renderDetail() {
   detailRoot().innerHTML = `
     <div class="detail chat">
@@ -150,6 +172,7 @@ function renderDetail() {
       }
       detail.sending = true;
       updateComposer();
+      const before = detail.blockedText;
       if (!(await answerChoice(host, cur, target.item, parseChoices(detail.blockedText)))) {
         detail.sending = false;
         return updateComposer();
@@ -157,7 +180,16 @@ function renderDetail() {
       via = target.how;
       detail.answerAfter = target.after || ['enter'];
       // Claude opens the question's own text field (or goes back to its prompt) a moment later.
-      await new Promise((r) => setTimeout(r, 600));
+      // The words go only once the screen shows that the pick landed: typed into the question as
+      // it was, a digit in them would pick an option. ('prompt' goes through the host's own guard:
+      // a message is refused while a dialog is open.)
+      if (via === 'own' && !(await screenMoved(host, pane, before))) {
+        detail.sending = false;
+        updateComposer();
+        toast('질문의 입력 칸이 아직 열리지 않았습니다. 글은 그대로 있습니다. 다시 보내 주세요.');
+        return;
+      }
+      if (via !== 'own') await new Promise((r) => setTimeout(r, 600));
     }
     detail.sending = true;
     updateComposer();

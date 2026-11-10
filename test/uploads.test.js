@@ -51,3 +51,23 @@ test('sweep deletes only old uploads', async () => {
   assert.equal(fs.existsSync(path.join(dir, 'other.png')), true);
   fs.rmSync(dir, { recursive: true });
 });
+
+// In the hub's data folder, this user's only; a photo from before (the temp folder) still found.
+test('the folder: data/uploads (or HERDR_HUB_UPLOADS), private; the old temp folder read too', async () => {
+  assert.equal(uploads.dirOf('/srv/hub/data'), path.join('/srv/hub/data', 'uploads'));
+  assert.equal(uploads.dirOf('/srv/hub/data', { HERDR_HUB_UPLOADS: '/x/up' }), '/x/up');
+  const dir = path.join(tmp(), 'uploads');
+  const r = await uploads.save('image/png', PNG, dir);
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(dir).mode & 0o777, 0o700);
+    assert.equal(fs.statSync(r.path).mode & 0o777, 0o600);
+  }
+  const old = tmp();
+  const name = '20261101-090000-0123abcd.jpg';
+  fs.writeFileSync(path.join(old, name), JPG);
+  assert.equal(await uploads.find(name, dir, []), null);
+  assert.deepEqual(await uploads.find(name, dir, [old]), { file: path.join(old, name), type: 'image/jpeg' });
+  assert.equal((await uploads.find(r.name, dir, [old])).file, r.path); // its own folder first
+  fs.rmSync(path.dirname(dir), { recursive: true });
+  fs.rmSync(old, { recursive: true });
+});

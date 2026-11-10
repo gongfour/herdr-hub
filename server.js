@@ -25,7 +25,7 @@ try {
 // Old photos and old status line files (lib/statusline.js, 30 days) go at start and once a day.
 const slDir = process.env.HERDR_HUB_STATUSLINE_DIR || statusline.dir(process.env);
 const sweepAll = () => {
-  uploads.sweep();
+  for (const d of [hub.hub.uploadsDir, ...uploads.OLD_DIRS]) uploads.sweep(d);
   statusline.sweep(slDir);
 };
 sweepAll();
@@ -42,6 +42,10 @@ hub.listen(HOST, () => {
   const { BUILD } = hub;
   console.log(`herdr-hub on http://${HOST}:${hub.port} (herdr socket ${herdr.defaultSocketPath()})`);
   console.log(C.ALLOWED.length ? `allowed tailscale logins: ${C.ALLOWED.join(', ')}` : 'local access only');
+  // The login is a header tailscale serve adds on its way to 127.0.0.1: anything that can reach the
+  // port directly can write it. Listening beyond loopback hands that to the whole network.
+  if (!/^(127\.\d+\.\d+\.\d+|::1|localhost)$/.test(HOST))
+    console.error(`WARNING: listening on ${HOST}, not loopback: anyone who reaches this port can send a Tailscale-User-Login header and drive the agents. Use HOST=127.0.0.1 behind tailscale serve.`);
   console.log(`hosts: ${[...C.HOST_RULE.allowed, ...C.HOST_RULE.suffixes.map((x) => `*${x}`)].join(', ')}`);
   console.log(`build ${BUILD.version}${BUILD.dirty ? '+dirty' : ''} ${BUILD.commit} (${BUILD.from}); API ${hub.hub.API_VERSION}`);
   console.log(`host ${C.HOST_ID} (${C.HOSTNAME}); push ${hub.hub.push ? 'on' : 'off'}${C.PUSH_MUTE.length ? ` (muted: ${C.PUSH_MUTE.join(', ')})` : ''}; peers (${hub.peerStore.from}${hub.peerStore.manageable ? '' : ', not a hub'}): ${[...hub.hub.peers.values()].map((p) => `${p.id}=${p.url}`).join(', ') || 'none'}`);

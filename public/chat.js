@@ -3,7 +3,7 @@
 // lines, ! output), and the photo viewer.
 
 // An upload path on a line of its own, as promptText writes it (either host's separators).
-const UPLOAD_LINE = /^(?:.*[\\/])?(?:herdr-hub|paddock)-uploads[\\/](\d{8}-\d{6}-[0-9a-f]{8}\.(?:jpg|png|webp))$/;
+const UPLOAD_LINE = /^(?:.*[\\/])?(?:(?:herdr-hub|paddock)-)?uploads[\\/](\d{8}-\d{6}-[0-9a-f]{8}\.(?:jpg|png|webp))$/; // data/uploads, or the temp folder before
 // Split a sent prompt into what was typed and the attached upload names: from the transcript's
 // image sources, or from path lines Claude Code left as text.
 function userParts(m) {
