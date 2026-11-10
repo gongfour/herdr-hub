@@ -43,7 +43,12 @@ function showLiveLost() {
 function connect() {
   clearTimeout(retryTimer);
   if (stream) stream.close();
-  const es = (stream = new EventSource('/api/stream'));
+  // The state whole first, then patches (statepatch.js): raw is the stream's state as the hub
+  // made it, which the next patch is from; state is the page's copy (closes hidden, reorder.js
+  // sets its hosts). A patch from another state (never seen: the stream is ordered) starts again.
+  const es = (stream = new EventSource('/api/stream?delta=1'));
+  let raw = null;
+  let rev = null;
   lastHeard = Date.now();
   es.addEventListener('ping', () => (lastHeard = Date.now()));
   es.addEventListener('version', (e) => {
@@ -51,15 +56,28 @@ function connect() {
       checkVersion(JSON.parse(e.data));
     } catch {}
   });
-  es.addEventListener('state', (e) => {
+  const take = (next, id) => {
+    raw = next;
+    rev = id;
     lastHeard = Date.now();
     retryDelay = 1000;
     live = true;
-    state = hideClosing(JSON.parse(e.data)); // actions.js: a close sent just now
+    state = hideClosing({ ...raw }); // actions.js: a close sent just now
     hubUp();
 
     resolveReady();
     onState();
+  };
+  es.addEventListener('state', (e) => take(JSON.parse(e.data), e.lastEventId));
+  es.addEventListener('patch', (e) => {
+    if (es !== stream) return;
+    let next = null;
+    try {
+      const p = JSON.parse(e.data);
+      if (raw && String(p.base) === rev) next = StatePatch.apply(raw, p);
+    } catch {}
+    if (next) take(next, e.lastEventId);
+    else connect();
   });
   es.onerror = () => {
     state = { ...state, herdr: 'offline' };

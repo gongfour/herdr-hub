@@ -78,7 +78,7 @@ test('state stream: a client that stopped reading is dropped, a reading one gets
   t.after(() => hub.hub.clients.delete(stuck) && hub.hub.clients.delete(fine));
   herdr.workspaces.push({ workspace_id: 'w2', label: 'more' });
   await request('POST', '/api/workspaces/w1/rename', { label: 'proj' }); // a refresh that changes the state
-  await until(() => fine.frames.some((f) => f.startsWith('event: state')), 'frame sent');
+  await until(() => fine.frames.some((f) => f.includes('event: state')), 'frame sent');
   assert.equal(stuck.destroyed, true);
   assert.equal(stuck.frames.length, 0);
   assert.equal(hub.hub.clients.has(stuck), false);

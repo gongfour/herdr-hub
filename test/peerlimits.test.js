@@ -12,7 +12,7 @@ async function fakePeer(t, routes) {
   const streams = new Set();
   let connects = 0;
   const server = http.createServer((req, res) => {
-    if (req.url === '/api/stream') {
+    if (req.url.split('?')[0] === '/api/stream') {
       connects++;
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       res.write(`event: state\ndata: ${JSON.stringify({ hostId: 'fk', hostLabel: 'fk', herdr: 'up', agents: [], terminals: [], workspaces: [] })}\n\n`);
