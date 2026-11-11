@@ -192,14 +192,15 @@ const choiceName = (label) => esc(shownLabel(label)).replace(/(^|\s)((?:[A-Za-z]
 // agent view each shows its number, the key that picks it (1–9, keymap.js), numbered menu or not.
 // press: pressedOn() for this agent (every button waits; the pressed one says so).
 // at: the menu's cursor is on it (menuCursor), marked as the terminal's colour marks it.
-function choiceButton(choices, x, { press, primary, compact = false, alt = false, at = false }) {
+// tip: the whole row in its tooltip (a menu's row is one line with a mouse, cut with …: style.css).
+function choiceButton(choices, x, { press, primary, compact = false, alt = false, at = false, tip = false }) {
   const ok = choiceKeys(choices, x.n, alt);
   const sent = Boolean(press) && press.n === x.n;
   const kind = x.negative ? ' negative' : x === primary ? ' primary' : '';
   // A multiSelect option is a box to tick: pressed or not, as its terminal row shows.
   const box = x.checked === undefined ? '' : ` aria-pressed="${x.checked}"`;
   const tick = x.checked === undefined ? '' : `<span class="tick" aria-hidden="true">${x.checked ? '☑' : '☐'}</span>`;
-  return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}${x.checked ? ' checked' : ''}${at ? ' at' : ''}" data-n="${x.n}"${box}${at ? ' aria-current="true"' : ''}${press || !ok ? ' disabled' : ''}>
+  return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}${x.checked ? ' checked' : ''}${at ? ' at' : ''}" data-n="${x.n}"${box}${at ? ' aria-current="true"' : ''}${tip && x.desc ? ` title="${esc(`${shownLabel(x.label)} — ${x.desc}`)}"` : ''}${press || !ok ? ' disabled' : ''}>
     ${choices.numbered || (!compact && x.n <= 9) ? `<span class="num"${choices.numbered ? '' : ` title="${T('숫자 키로 고르기')}"`}>${x.n}</span>` : ''}${tick}<span class="label"><span class="name">${choiceName(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? `<span class="state">${press.until === Infinity ? T('보내는 중') : T('보냄')}</span>` : ''}</button>`;
 }
 
@@ -268,7 +269,8 @@ function renderBlocked() {
     const q = (parts.question || '').trim();
     const menuNote = menu && q !== menu.title ? (q.startsWith(menu.title) ? q.slice(menu.title.length).trim() : q) : '';
     if (detail.ctxFor !== text) Object.assign(detail, { ctxFor: text, ctxOpen: false });
-    const n = parts.body ? parts.body.split('\n').length : 0;
+    // A menu's title read again as the command to approve (/theme: 「Theme」 over its list) says nothing new.
+    const n = parts.body && !(menu && parts.body.trim() === menu.title) ? parts.body.split('\n').length : 0;
     // The command to approve wraps only at its spaces, never inside a word (`-- -`, `-clean`); a
     // word wider than the box scrolls sideways.
     const tokens = (s) => s.split(/(\s+)/).map((w, i) => (i % 2 ? w : w && `<span class="tok">${esc(w)}</span>`)).join('');
@@ -298,7 +300,7 @@ function renderBlocked() {
         ${menuNote ? `<p class="b-q">${esc(menuNote)}</p>` : ''}
         ${choices.alt ? `<label class="b-alt"><input type="checkbox"${alt ? ' checked' : ''}> ${esc(choices.alt.label)}</label>` : ''}
         ${next}
-        <div class="choices" role="group" aria-label="${esc(parts.question || T('답'))}">${choices.items.map((x) => choiceButton(choices, x, { press, primary: nk || menu ? null : primary, alt, at: x.n === cursorAt })).join('')}${nextBtn}</div>
+        <div class="choices" role="group" aria-label="${esc(parts.question || T('답'))}">${choices.items.map((x) => choiceButton(choices, x, { press, primary: nk || menu ? null : primary, alt, at: x.n === cursorAt, tip: Boolean(menu) })).join('')}${nextBtn}</div>
         ${menu ? hintOf(menu) : ''}
         ${detail.showScreen ? screen : ''}
         ${detail.showKeys ? keys : ''}

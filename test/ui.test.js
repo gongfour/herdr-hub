@@ -166,6 +166,35 @@ test('a slash command menu by keyboard: the cursor row is marked, ↑↓ move it
   noErrors(page);
 });
 
+test('a slash command menu: one line a row with a mouse (as the terminal\'s list), tall rows under a finger', async (t) => {
+  const h = await hubInProcess(t, { id: 'ui11', agents: [agent('w1-p2', 'idle', 6, 'model 고르기', 'shop-api')] });
+  h.herdr.screens['w1-p2'] = MENU;
+  if (why.skip) return t.skip(why.skip);
+  const rows = async (opts) => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ko-KR', ...opts });
+    t.after(() => ctx.close());
+    const page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:${h.port}/#/h/ui11/agent/w1-p2`);
+    await page.locator('#d-blocked .blocked-box.menu .choice').first().waitFor({ timeout: 20000 });
+    return page.evaluate(() =>
+      [...document.querySelectorAll('#d-blocked .choice')].map((b) => {
+        const name = b.querySelector('.name').getBoundingClientRect();
+        const desc = b.querySelector('.desc');
+        return { h: Math.round(b.getBoundingClientRect().height), oneLine: !desc || Math.abs(desc.getBoundingClientRect().top - name.top) < 4, title: b.title };
+      })
+    );
+  };
+  const mouse = await rows({});
+  assert.ok(mouse.length >= 5);
+  for (const r of mouse) {
+    assert.ok(r.h <= 36, `a mouse's row is ${r.h}px`);
+    assert.ok(r.oneLine, 'the description beside the name');
+  }
+  assert.match(mouse[0].title, /^Default \(recommended\) — Opus 5\.5/, 'the whole row in the tooltip');
+  const finger = await rows({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  for (const r of finger) assert.ok(r.h >= 44, `a finger's row is ${r.h}px`);
+});
+
 test('the / list: Return on a command sends it at once; Tab, or a command that needs words, only puts it in the box', async (t) => {
   // A Claude agent with a folder: the / list has the built-in commands.
   const h = await hubInProcess(t, { id: 'ui10', agents: [{ ...agent('w1-p2', 'idle', 3, '문서 정리', 'docs'), cwd: require('os').tmpdir() }] });
