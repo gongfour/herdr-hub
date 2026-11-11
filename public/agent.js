@@ -742,7 +742,10 @@ function prefetchNeighbours() {
 // it (between tool calls, or once the turn ends): a bubble marked 대기 중 shows it meanwhile.
 // Per agent, kept in this tab's sessionStorage so a reload (a new version, 새로고침) keeps the
 // bubbles. One goes when a user message with its text turns up after the point it was sent at,
-// or when the agent has been idle a minute since (taken, or dropped).
+// or when the agent has been idle a minute since (taken, or dropped). A slash command sent to an
+// agent that is not at work is not held: its bubble says 보내는 중, not 대기 중; and one that opened
+// a menu (/model, /config …) goes as the menu shows, which is its answer on screen (Claude Code
+// writes the command down only once the menu is closed, so it stayed 대기 중 all the while).
 const PENDING_KEY = 'herdr-hub.pending'; // { host|pane: [{ text, after, at, pics }] }
 const pendingSent = new Map(
   (() => {
@@ -760,11 +763,14 @@ function savePending() {
   } catch {}
 }
 const sameText = (s) => String(s).replace(/\s+/g, ' ').trim();
+const isCmd = (text) => /^\//.test(sameText(text));
 function addPending(key, text, pics) {
   const msgs = (detail.transcript && detail.transcript.messages) || [];
   const last = msgs[msgs.length - 1];
   const cmd = ChatKeep.lastCmd(detail.transcript);
-  pendingSent.set(key, [...(pendingSent.get(key) || []), { text, after: last ? last.id : null, ...(cmd ? { cmd } : {}), at: Date.now(), pics }]);
+  const a = currentAgent();
+  const going = isCmd(text) && !(a && a.status === 'working') ? { now: Date.now() } : {};
+  pendingSent.set(key, [...(pendingSent.get(key) || []), { text, after: last ? last.id : null, ...(cmd ? { cmd } : {}), at: Date.now(), pics, ...going }]);
   savePending();
 }
 function pendingNow(key, a) {
@@ -772,8 +778,10 @@ function pendingNow(key, a) {
   if (!list) return [];
   const msgs = (detail.transcript && detail.transcript.messages) || [];
   const idle = a && a.status !== 'working' && a.status !== 'blocked';
+  const menu = a && a.status === 'blocked' && a.menu;
   const keep = list.filter((p) => {
     if (idle && Date.now() - p.at > 60000) return false;
+    if (menu && isCmd(p.text)) return false; // the menu it opened is on screen
     // A slash command (/clear, /model …) never comes back as a message: as a command (chatkeep.js).
     if (ChatKeep.cmdSeen(p, detail.transcript)) return false;
     const from = p.after ? msgs.findIndex((m) => m.id === p.after) + 1 : 0;

@@ -195,6 +195,45 @@ test('a slash command menu: one line a row with a mouse (as the terminal\'s list
   for (const r of finger) assert.ok(r.h >= 44, `a finger's row is ${r.h}px`);
 });
 
+test('a slash command that opens a menu: its bubble says 보내는 중, not 대기 중, and goes once the menu is up', async (t) => {
+  // A conversation to show the bubble in: a Claude Code transcript of one exchange.
+  const claude = fs.mkdtempSync(path.join(require('os').tmpdir(), 'hub-ui12-'));
+  const was = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = claude;
+  t.after(() => {
+    if (was === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = was;
+    fs.rmSync(claude, { recursive: true, force: true });
+  });
+  const SESSION = '7d0c1e2f-3a4b-4c5d-8e6f-9a0b1c2d3e4f';
+  fs.mkdirSync(path.join(claude, 'projects', '-tmp-docs'), { recursive: true });
+  const lines = [
+    { type: 'user', promptId: 'p1', timestamp: '2026-11-10T09:00:00Z', message: { role: 'user', content: [{ type: 'text', text: '문서를 정리해 줘' }] } },
+    { type: 'assistant', message: { id: 'a1', model: 'claude-opus-5-5', content: [{ type: 'text', text: '정리했습니다.' }] } },
+  ];
+  fs.writeFileSync(path.join(claude, 'projects', '-tmp-docs', `${SESSION}.jsonl`), lines.map((x) => JSON.stringify(x)).join('\n') + '\n');
+  const h = await hubInProcess(t, { id: 'ui12', agents: [{ ...agent('w1-p2', 'idle', 3, '문서 정리', 'docs'), agent_session: { kind: 'id', value: SESSION } }] });
+  h.herdr.screens['w1-p2'] = IDLE;
+  // Claude Code opens /model's menu a moment after the command came; it writes the command down
+  // only once the menu is closed, so nothing about it turns up in the conversation meanwhile.
+  h.herdr.on['agent.prompt'] = (p) => {
+    if (p.text === '/model') setTimeout(() => (h.herdr.screens['w1-p2'] = MENU), 300);
+  };
+  const page = await open(t, h, '#/h/ui12/agent/w1-p2');
+  if (!page) return;
+  await page.locator('.msg', { hasText: '정리했습니다.' }).waitFor();
+  await page.locator('#d-input').click();
+  await page.keyboard.type('/model');
+  await page.locator('#d-send').click();
+  const bubble = page.locator('.msg.user.pending');
+  await bubble.waitFor();
+  assert.match(await bubble.innerText(), /\/model[\s\S]*보내는 중/);
+  assert.doesNotMatch(await bubble.innerText(), /대기 중/);
+  await page.locator('#d-blocked .blocked-box.menu').waitFor({ timeout: 20000 });
+  await bubble.waitFor({ state: 'detached', timeout: 5000 });
+  noErrors(page);
+});
+
 test('the / list: Return on a command sends it at once; Tab, or a command that needs words, only puts it in the box', async (t) => {
   // A Claude agent with a folder: the / list has the built-in commands.
   const h = await hubInProcess(t, { id: 'ui10', agents: [{ ...agent('w1-p2', 'idle', 3, '문서 정리', 'docs'), cwd: require('os').tmpdir() }] });
