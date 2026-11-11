@@ -95,7 +95,7 @@
     "전에 보낸 메시지": "Earlier messages",
     "빈 칸에서: 전에 보낸 메시지 불러오기 (↓ 는 다음)": "In an empty box: bring back a message sent earlier (↓ for the next)",
     "명령 제안": "Command suggestions",
-    "맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴·Tab)": "At the start: command suggestions (pick with ↑↓, then Enter·Tab)",
+    "맨 앞에서: 명령 제안 (↑↓ 로 고르고 리턴이면 바로 보낸다. Tab 이면 칸에 넣고 이어 쓴다)": "At the start: command suggestions (pick with ↑↓; Return sends it at once, Tab puts it in the box to go on writing)",
     "밖에서 친 글자도 메시지 칸으로": "Typing goes to the message box",
     "대화 화면에서 입력 칸 밖에서 친 글자도 메시지 칸으로 간다 (단축키·선택지 숫자·Space 는 빼고)": "On the chat screen, characters typed outside a field go to the message box too (except shortcuts, choice numbers and Space)",
     "밖에서 누른 키도 셸로": "Keys go to the shell",

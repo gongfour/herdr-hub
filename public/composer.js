@@ -201,13 +201,31 @@ function renderPalette() {
   if (sel) sel.scrollIntoView({ block: 'nearest' });
 }
 
-function choosePalette(i) {
+// A command picked with Return or a tap runs at once, as Return does in Claude Code's own list:
+// sent as it is, with any words already after it. It is only put in the box ("/name ", the caret
+// after it, to go on writing) when the key was Tab, when it needs words (<…> in its hint, e.g.
+// /add-dir <path>), when photos are attached, or while the agent waits on a question (the words
+// would answer it). how: 'pick' (Return, a tap) or 'tab'.
+function runsNow(c, how) {
+  const a = currentAgent();
+  return how !== 'tab' && !/</.test(c.hint || '') && !(detail.files || []).length && !(a && a.status === 'blocked');
+}
+function choosePalette(i, how = 'pick') {
   const input = document.getElementById('d-input');
   if (!pal || !input || !pal.items[i]) return;
   const c = pal.items[i];
   const value = input.value;
   let text;
   let caret;
+  if (pal.kind === 'cmd' && runsNow(c, how)) {
+    const rest = value.slice(pal.end).trim();
+    input.value = rest ? `/${c.name} ${rest}` : `/${c.name}`;
+    pal = null;
+    hidePalette();
+    updateComposer();
+    document.getElementById('d-send').click(); // agent.js sendNow
+    return;
+  }
   if (pal.kind === 'cmd') {
     text = `/${c.name} ${value.slice(pal.end).replace(/^\s+/, '')}`;
     caret = c.name.length + 2;
@@ -226,7 +244,8 @@ function choosePalette(i) {
   updatePalette();
 }
 
-// ↑↓ move, Enter/Tab insert, Esc closes until the text changes. True when the key was used.
+// ↑↓ move, Enter picks (a command runs: choosePalette), Tab puts it in, Esc closes until the text
+// changes. True when the key was used.
 function paletteKey(e) {
   if (!pal || !pal.kind || e.isComposing || e.keyCode === 229) return false;
   if (isEsc(e)) {
@@ -244,7 +263,7 @@ function paletteKey(e) {
   }
   if ((e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) || (e.key === 'Tab' && !e.shiftKey)) {
     e.preventDefault();
-    choosePalette(pal.sel);
+    choosePalette(pal.sel, e.key === 'Tab' ? 'tab' : 'pick');
     return true;
   }
   return false;

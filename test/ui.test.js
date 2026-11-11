@@ -166,6 +166,46 @@ test('a slash command menu by keyboard: the cursor row is marked, ↑↓ move it
   noErrors(page);
 });
 
+test('the / list: Return on a command sends it at once; Tab, or a command that needs words, only puts it in the box', async (t) => {
+  // A Claude agent with a folder: the / list has the built-in commands.
+  const h = await hubInProcess(t, { id: 'ui10', agents: [{ ...agent('w1-p2', 'idle', 3, '문서 정리', 'docs'), cwd: require('os').tmpdir() }] });
+  h.herdr.screens['w1-p2'] = IDLE;
+  const page = await open(t, h, '#/h/ui10/agent/w1-p2');
+  if (!page) return;
+  const input = page.locator('#d-input');
+  const first = page.locator('#d-pal #pal-0 .pal-name');
+  const prompts = () => sentTo(h.herdr, 'agent.prompt', 'w1-p2').map((p) => p.text);
+  // Tab: in the box to go on writing (/compact what to keep), nothing sent.
+  await input.click();
+  await page.keyboard.type('/compac');
+  await page.waitForFunction(() => (document.querySelector('#d-pal #pal-0 .pal-name') || {}).textContent === '/compact');
+  await page.keyboard.press('Tab');
+  assert.equal(await input.evaluate((el) => el.value), '/compact ');
+  // A command that needs words (/add-dir <path>): Return puts it in too.
+  await input.evaluate((el) => (el.value = ''));
+  await page.keyboard.type('/add-di');
+  await page.waitForFunction(() => (document.querySelector('#d-pal #pal-0 .pal-name') || {}).textContent === '/add-dir');
+  await page.keyboard.press('Enter');
+  assert.equal(await input.evaluate((el) => el.value), '/add-dir ');
+  assert.deepEqual(prompts(), []);
+  // Return on /model: sent at once (one Return, as in Claude Code), the box empty again.
+  await input.evaluate((el) => (el.value = ''));
+  await page.keyboard.type('/mode');
+  await first.waitFor();
+  await page.waitForFunction(() => (document.querySelector('#d-pal #pal-0 .pal-name') || {}).textContent === '/model');
+  await page.keyboard.press('Enter');
+  await until(() => prompts().length === 1, '/model sent');
+  assert.deepEqual(prompts(), ['/model']);
+  await page.waitForFunction(() => document.getElementById('d-input').value === '');
+  // A tap on a row is the same.
+  await page.keyboard.type('/conte');
+  await page.waitForFunction(() => (document.querySelector('#d-pal #pal-0 .pal-name') || {}).textContent === '/context');
+  await page.locator('#d-pal #pal-0').click();
+  await until(() => prompts().length === 2, '/context sent');
+  assert.deepEqual(prompts(), ['/model', '/context']);
+  noErrors(page);
+});
+
 test('typed answer: the words go only once the question took the pick, never into it as it was', async (t) => {
   const h = await hubInProcess(t, { id: 'ui4', agents: [agent('w1-p2', 'blocked', 7, '색 고르기', 'shop-api')] });
   const { herdr } = h;
