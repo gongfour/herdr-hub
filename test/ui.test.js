@@ -157,6 +157,65 @@ test('the pages run under their CSP: nothing blocked on the list, an agent, sett
   noErrors(page);
 });
 
+// The host segment with more hosts than fit a phone: the chosen one is brought to its middle.
+// Where the chosen button's middle is from the segment's middle (px), measured on the screen.
+const segAt = (page) =>
+  page.evaluate(() => {
+    const nav = document.querySelector('.seg.hosts');
+    const b = nav.querySelector('button[aria-pressed="true"]');
+    const r = nav.getBoundingClientRect();
+    const q = b.getBoundingClientRect();
+    return { host: b.dataset.host, off: Math.round(q.left + q.width / 2 - (r.left + r.width / 2)), left: nav.scrollLeft, max: nav.scrollWidth - nav.clientWidth };
+  });
+const centred = (page, host) =>
+  until(async () => {
+    const s = await segAt(page);
+    return s.host === host && Math.abs(s.off) <= 1 && s;
+  }, `${host} in the middle of the host segment`);
+
+test('host segment: the chosen host glides to its middle, stays there, and is left where a finger puts it', async (t) => {
+  // Eight peers nobody answers (offline buttons): far more than a phone's segment holds.
+  const peers = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'].map((id, i) => `${id}=http://127.0.0.1:${i + 1}`).join(',');
+  const h = await hubInProcess(t, { id: 'ui7', agents: [agent('w1-p2', 'idle', 3, '문서 정리', 'docs')], env: { HERDR_HUB_PEERS: peers } });
+  h.herdr.screens['w1-p2'] = IDLE;
+  const page = await open(t, h);
+  if (!page) return;
+  await page.locator('.seg.hosts button[data-host="hotel"]').waitFor();
+  const first = await segAt(page);
+  assert.equal(first.host, 'all');
+  assert.equal(first.left, 0); // 전체 is at the start: as far as the end lets it
+  assert.ok(first.max > 300, `the segment overflows (${first.max}px)`);
+  // A tap, then Alt+→: each time it glides to the middle.
+  await page.locator('.seg.hosts button[data-host="charlie"]').click();
+  await centred(page, 'charlie');
+  await page.keyboard.press('Alt+ArrowRight');
+  await centred(page, 'delta');
+  // An agent and back: the list kept, its segment where it was (not back at the start).
+  await page.evaluate(() => (location.hash = '#/h/ui7/agent/w1-p2'));
+  await page.locator('#d-title').waitFor();
+  await page.evaluate(() => (location.hash = '#/'));
+  await page.locator('.seg.hosts').waitFor();
+  const back = await segAt(page);
+  assert.equal(back.host, 'delta');
+  assert.ok(Math.abs(back.off) <= 1, `delta still in the middle after coming back (${back.off}px off)`);
+  // Moved by hand: left there by what is drawn next.
+  await page.evaluate(() => (document.querySelector('.seg.hosts').scrollLeft = 0));
+  await page.evaluate(() => render());
+  await page.waitForTimeout(300);
+  assert.equal((await segAt(page)).left, 0);
+  // Opened again: there at once.
+  await page.reload();
+  await page.locator('.seg.hosts button[data-host="hotel"]').waitFor();
+  await centred(page, 'delta');
+  // Reduced motion: no glide, there in the same task as the key.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.keyboard.press('Alt+ArrowLeft');
+  const now = await segAt(page);
+  assert.equal(now.host, 'charlie');
+  assert.ok(Math.abs(now.off) <= 1, `charlie in the middle at once (${now.off}px off)`);
+  noErrors(page);
+});
+
 // English: every screen, opened with 언어 · Language set to English, shows no Korean (the example
 // data is English too). What is left Korean on purpose is the 언어 setting's own labels.
 test('English: no Korean left on the list, an agent, its answer box, quick switch, settings, shortcuts', async (t) => {

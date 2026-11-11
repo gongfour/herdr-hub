@@ -72,14 +72,18 @@ function peekBuild(root) {
   const bar = root.querySelector(':scope > .tabbar'); // phone 설정: the tab bar stays in front
   if (bar) box.style.bottom = `${bar.offsetHeight}px`;
   root.prepend(box);
-  if (kept) for (const [el, top] of kept) if (top) el.scrollTop = top;
+  if (kept)
+    for (const [el, top, left] of kept) {
+      if (top) el.scrollTop = top;
+      if (left) el.scrollLeft = left;
+    }
   return { box, page, dim, shade, kept: kept && kept.map(([el]) => el) };
 }
 // The kept list back where list.js keeps it (its scroll as it is now), unless the layout
 // changed (drop: it was drawn for the other one).
 function peekRelease(p, drop) {
   if (!p) return;
-  if (p.kept && !drop && !tabPages.spaces) tabPages.spaces = p.kept.map((el) => [el, el.scrollTop]);
+  if (p.kept && !drop && !tabPages.spaces) tabPages.spaces = p.kept.map((el) => [el, el.scrollTop, el.scrollLeft]);
   p.box.remove();
 }
 

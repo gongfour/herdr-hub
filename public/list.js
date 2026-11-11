@@ -82,13 +82,14 @@ function tabBar(active) {
 // Each tab's page is kept once drawn: switching puts the other tab's tree back as it was (its
 // scroll included) and its render patches only what changed. The page on screen sits in the
 // list root; the other waits here, detached, and misses state updates until it is shown again.
-const tabPages = { spaces: null, settings: null }; // [[element, scrollTop], …]
+const tabPages = { spaces: null, settings: null }; // [[element, scrollTop, scrollLeft], …]
 const tabOf = (root) => (root.querySelector(':scope > main.home') ? 'spaces' : root.querySelector(':scope > main.settings') ? 'settings' : null);
 // Take the tab page shown in root out, to come back to later. Returns its tab, or null.
 function parkTab(root = listRoot()) {
   const cur = root && tabOf(root);
   if (!cur) return null;
-  tabPages[cur] = [...root.children].filter((el) => !el.classList.contains('tabbar')).map((el) => [el, el.scrollTop]);
+  // Sideways too: the host segment keeps where it was scrolled (a detached element loses it).
+  tabPages[cur] = [...root.children].filter((el) => !el.classList.contains('tabbar')).map((el) => [el, el.scrollTop, el.scrollLeft]);
   for (const [el] of tabPages[cur]) el.remove();
   return cur;
 }
@@ -103,7 +104,10 @@ function showTab(t) {
   if (!kept) return;
   const bar = root.querySelector(':scope > .tabbar');
   for (const [el] of kept) root.insertBefore(el, bar);
-  for (const [el, top] of kept) if (top) el.scrollTop = top;
+  for (const [el, top, left] of kept) {
+    if (top) el.scrollTop = top;
+    if (left) el.scrollLeft = left;
+  }
 }
 // The layout changed (relayout): kept pages were drawn for the other one.
 const dropTabPages = () => (tabPages.spaces = tabPages.settings = null);
@@ -294,17 +298,35 @@ function hostSeg(f) {
       ${hosts().map(btn).join('')}
     </nav>`;
 }
-// The chosen host's button in view (after a tap, a swipe or Alt+←/→), the segment otherwise
-// where it was left.
-function showChosenHost(nav, left = 0) {
+// The segment's scroll that puts button b in its middle, as far as its ends let it.
+function segMid(nav, b) {
+  const max = nav.scrollWidth - nav.clientWidth;
+  return Math.max(0, Math.min(max, Math.round(b.offsetLeft + (b.offsetWidth - nav.clientWidth) / 2)));
+}
+// The chosen host's button in the middle of the segment when the hosts overflow it: there at
+// once when the segment is first drawn, gliding there after a tap, a swipe or Alt+←/→ (at once
+// with reduced motion). Otherwise the segment stays where it was left: a finger or the wheel may
+// have moved it, and a segment drawn anew (a dot changed) takes its old one's scroll.
+// nav: the segment on screen; old: the one before this render (nav itself when it was kept),
+// oldLeft: its scroll then.
+let segAim = null; // { f, until, w }: the host it last went to, till when it glides, its width then
+const SEG_GLIDE_MS = 600;
+function showChosenHost(nav, old, oldLeft) {
   if (!nav) return;
-  nav.scrollLeft = left;
+  const f = filter();
+  const chose = !segAim || segAim.f !== f;
+  const gliding = !chose && Date.now() < segAim.until;
+  // First drawn, or last aimed while it had no width (the split layout's folded sidebar).
+  const unseen = !old || (segAim && !segAim.w);
+  if (old && old !== nav) nav.scrollLeft = oldLeft;
   const b = nav.querySelector('button[aria-pressed="true"]');
-  const pad = 12;
-  if (b && nav.scrollWidth > nav.clientWidth) {
-    if (b.offsetLeft - pad < nav.scrollLeft) nav.scrollLeft = b.offsetLeft - pad;
-    else if (b.offsetLeft + b.offsetWidth + pad > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = b.offsetLeft + b.offsetWidth + pad - nav.clientWidth;
+  if (b && (unseen || chose || (gliding && old !== nav))) {
+    const to = segMid(nav, b);
+    if (unseen) nav.scrollLeft = to;
+    else if (Math.abs(to - nav.scrollLeft) >= 1) nav.scrollTo({ left: to, behavior: reduced() ? 'auto' : 'smooth' });
   }
+  if (chose) segAim = { f, until: Date.now() + SEG_GLIDE_MS, w: 0 };
+  segAim.w = nav.clientWidth;
   hostSegEdges(nav);
 }
 // The segment says there is more past an edge by fading it (style.css .more-l / .more-r).
@@ -345,7 +367,8 @@ function render() {
   const parts = homeParts(f);
   let main = root.querySelector(':scope > main.home');
   const fresh = !main;
-  const segLeft = root.querySelector(':scope > .seg.hosts')?.scrollLeft || 0;
+  const oldSeg = root.querySelector(':scope > .seg.hosts');
+  const segLeft = oldSeg ? oldSeg.scrollLeft : 0;
   if (fresh) {
     root.innerHTML = `${top}<main class="list home"></main>`;
     main = root.querySelector(':scope > main.home');
@@ -356,7 +379,7 @@ function render() {
     main.insertAdjacentHTML('beforebegin', top);
   }
   main._top = top;
-  showChosenHost(root.querySelector(':scope > .seg.hosts'), segLeft);
+  showChosenHost(root.querySelector(':scope > .seg.hosts'), oldSeg, segLeft);
   patchList(main, parts);
   mountReorderDone(root);
   // The live stream down: what is listed may be old (style.css main.home.stale, tickList).

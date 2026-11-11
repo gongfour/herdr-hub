@@ -62,7 +62,12 @@ function tabPill(g) {
   // The labels go with it: the host it leaves fades as it goes, the one it nears comes up.
   cur.style.setProperty('--on', '1');
   cur.classList.add('ind-on');
-  return { nav, el, btns, from: r(cur), to: { 1: r(btns[g.i + 1]), '-1': r(btns[g.i - 1]) } };
+  // A segment that overflows scrolls along, from where it is to the neighbour's button in its
+  // middle (list.js segMid), so it lands where showChosenHost would put it.
+  const s0 = nav.scrollLeft;
+  const mid = (b) => (b ? segMid(nav, b) : s0);
+  const scroll = nav.scrollWidth > nav.clientWidth ? { s0, 1: mid(btns[g.i + 1]), '-1': mid(btns[g.i - 1]) } : null;
+  return { nav, el, btns, scroll, from: r(cur), to: { 1: r(btns[g.i + 1]), '-1': r(btns[g.i - 1]) } };
 }
 
 // One frame: the list at x, its neighbours a page to either side, the pill part of the way.
@@ -80,6 +85,8 @@ function tabFrame(g, x) {
     // Its real width, not a scaleX: a stretched pill stretches its corners and shadow too.
     g.pill.el.style.transform = `translate3d(${left}px,0,0)`;
     g.pill.el.style.width = `${width}px`;
+    const sc = g.pill.scroll;
+    if (sc) g.pill.nav.scrollLeft = t ? sc.s0 + (sc[dir] - sc.s0) * p : sc.s0;
     // The labels' colour follows the pill; the bold moves over once it is past halfway, so the
     // host it lands on already looks chosen when the list there takes over.
     const src = btns[g.i];
@@ -94,14 +101,16 @@ function tabFrame(g, x) {
   }
 }
 
-// Everything back as it was: no neighbours, no pill, no inline styles on the list.
-function tabSwipeDone(g, { flush = true } = {}) {
+// Everything back as it was: no neighbours, no pill, no inline styles on the list, the segment's
+// scroll where it started (unless it landed: the new host's render takes it from there).
+function tabSwipeDone(g, { flush = true, landed = false } = {}) {
   if (g.stop) g.stop();
   if (tabSwipe.anim === g) tabSwipe.anim = null;
   g.main.style.transform = g.main.style.willChange = '';
   for (const d of [1, -1]) if (g.nb[d]) g.nb[d].remove();
   g.nb = {};
   if (g.pill) {
+    if (g.pill.scroll && !landed) g.pill.nav.scrollLeft = g.pill.scroll.s0;
     g.pill.el.remove();
     for (const b of g.pill.btns) b.style.removeProperty('--on'), b.classList.remove('ind-on');
     g.pill.nav.classList.remove('tracking');
@@ -116,7 +125,7 @@ function tabSwipeDone(g, { flush = true } = {}) {
 // the same task, so no frame shows anything in between.
 function tabSwipeCommit(g, dir) {
   const top = g.nb[dir] ? g.nb[dir].scrollTop : 0;
-  tabSwipeDone(g, { flush: false });
+  tabSwipeDone(g, { flush: false, landed: true });
   tabSwipe.pending = false;
   stepHostFilter(dir);
   const main = tabMain();
