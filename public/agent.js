@@ -73,6 +73,9 @@ function renderDetail() {
     keepDraft();
   };
   input.onkeydown = (e) => {
+    // A slash command's menu open and the box empty: its arrows and Enter are the menu's
+    // (keymap.js menuKey takes them on the page's listener), not recall or send.
+    if (menuKeyWanted(e)) return;
     if (paletteKey(e) || recallKey(e, input)) return;
     const act = Keys.enterAction(e, getEnter(), !input.value.trim() && !(detail.files || []).length);
     if (act === 'send-queued') {
@@ -478,7 +481,8 @@ async function loadDetail() {
   const sheetQuery = () => `source=${working || a.status === 'blocked' ? 'visible' : 'recent'}&lines=200${colorQuery()}`;
   const early = screenBody(a) || detail.sheet;
   const reads = {
-    blocked: a.status === 'blocked' ? read('source=visible&lines=30') : null,
+    // A slash command's menu in colour: its panel shows as the terminal does (answer.js).
+    blocked: a.status === 'blocked' ? read(`source=visible&lines=${MENU_LINES}${a.menu ? '&format=ansi' : ''}`) : null,
     sheet: early ? read(sheetQuery()) : null,
     activity: working && !early ? read('source=visible&lines=60') : null,
     mode: !working && a.status !== 'blocked' && a.agent === 'claude' ? read('source=visible&lines=8') : null,
@@ -490,7 +494,7 @@ async function loadDetail() {
       const v = await reads.blocked;
       if (detail !== mine) return; // another agent was opened meanwhile: its own load runs
       // Read before a state change: that screen belongs to the previous prompt.
-      if ((currentAgent() || {}).stateSeq === seq) detail.blockedText = v.text.replace(/\s+$/, '');
+      if ((currentAgent() || {}).stateSeq === seq) setBlockedScreen(v);
       else reloadAfter = true;
       renderBlocked();
       updateComposer(); // what the composer's words would answer (setPlaceholder)

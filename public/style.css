@@ -459,62 +459,62 @@ div.tool { background: none; padding: var(--sp-0) var(--sp-2); }
 .screen.wrap { font-size: var(--fs-2); line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Colours from the pane (ansi.js). Basic backgrounds are a soft tint so the text on them
    still reads; inverse video (a cursor, a selected item) gets the solid colour. */
-.screen .af0 { color: var(--ansi-0); }
-.screen .af1 { color: var(--ansi-1); }
-.screen .af2 { color: var(--ansi-2); }
-.screen .af3 { color: var(--ansi-3); }
-.screen .af4 { color: var(--ansi-4); }
-.screen .af5 { color: var(--ansi-5); }
-.screen .af6 { color: var(--ansi-6); }
-.screen .af7 { color: var(--ansi-7); }
-.screen .af8 { color: var(--ansi-8); }
-.screen .af9 { color: var(--ansi-9); }
-.screen .af10 { color: var(--ansi-10); }
-.screen .af11 { color: var(--ansi-11); }
-.screen .af12 { color: var(--ansi-12); }
-.screen .af13 { color: var(--ansi-13); }
-.screen .af14 { color: var(--ansi-14); }
-.screen .af15 { color: var(--ansi-15); }
-.screen .ab0 { background: color-mix(in srgb, var(--ansi-0) 26%, transparent); }
-.screen .ab1 { background: color-mix(in srgb, var(--ansi-1) 26%, transparent); }
-.screen .ab2 { background: color-mix(in srgb, var(--ansi-2) 26%, transparent); }
-.screen .ab3 { background: color-mix(in srgb, var(--ansi-3) 26%, transparent); }
-.screen .ab4 { background: color-mix(in srgb, var(--ansi-4) 26%, transparent); }
-.screen .ab5 { background: color-mix(in srgb, var(--ansi-5) 26%, transparent); }
-.screen .ab6 { background: color-mix(in srgb, var(--ansi-6) 26%, transparent); }
-.screen .ab7 { background: color-mix(in srgb, var(--ansi-7) 26%, transparent); }
-.screen .ab8 { background: color-mix(in srgb, var(--ansi-8) 26%, transparent); }
-.screen .ab9 { background: color-mix(in srgb, var(--ansi-9) 26%, transparent); }
-.screen .ab10 { background: color-mix(in srgb, var(--ansi-10) 26%, transparent); }
-.screen .ab11 { background: color-mix(in srgb, var(--ansi-11) 26%, transparent); }
-.screen .ab12 { background: color-mix(in srgb, var(--ansi-12) 26%, transparent); }
-.screen .ab13 { background: color-mix(in srgb, var(--ansi-13) 26%, transparent); }
-.screen .ab14 { background: color-mix(in srgb, var(--ansi-14) 26%, transparent); }
-.screen .ab15 { background: color-mix(in srgb, var(--ansi-15) 26%, transparent); }
-.screen .aB0 { background: var(--ansi-0); }
-.screen .aB1 { background: var(--ansi-1); }
-.screen .aB2 { background: var(--ansi-2); }
-.screen .aB3 { background: var(--ansi-3); }
-.screen .aB4 { background: var(--ansi-4); }
-.screen .aB5 { background: var(--ansi-5); }
-.screen .aB6 { background: var(--ansi-6); }
-.screen .aB7 { background: var(--ansi-7); }
-.screen .aB8 { background: var(--ansi-8); }
-.screen .aB9 { background: var(--ansi-9); }
-.screen .aB10 { background: var(--ansi-10); }
-.screen .aB11 { background: var(--ansi-11); }
-.screen .aB12 { background: var(--ansi-12); }
-.screen .aB13 { background: var(--ansi-13); }
-.screen .aB14 { background: var(--ansi-14); }
-.screen .aB15 { background: var(--ansi-15); }
-.screen .afbg { color: var(--surface); }
-.screen .abfg { background: var(--text); }
-.screen .a-b { font-weight: 700; }
-.screen .a-d { opacity: 0.62; }
-.screen .a-i { font-style: italic; }
-.screen .a-u { text-decoration: underline; }
-.screen .a-s { text-decoration: line-through; }
-.screen .a-us { text-decoration: underline line-through; }
+:is(.screen, .b-ansi) .af0 { color: var(--ansi-0); }
+:is(.screen, .b-ansi) .af1 { color: var(--ansi-1); }
+:is(.screen, .b-ansi) .af2 { color: var(--ansi-2); }
+:is(.screen, .b-ansi) .af3 { color: var(--ansi-3); }
+:is(.screen, .b-ansi) .af4 { color: var(--ansi-4); }
+:is(.screen, .b-ansi) .af5 { color: var(--ansi-5); }
+:is(.screen, .b-ansi) .af6 { color: var(--ansi-6); }
+:is(.screen, .b-ansi) .af7 { color: var(--ansi-7); }
+:is(.screen, .b-ansi) .af8 { color: var(--ansi-8); }
+:is(.screen, .b-ansi) .af9 { color: var(--ansi-9); }
+:is(.screen, .b-ansi) .af10 { color: var(--ansi-10); }
+:is(.screen, .b-ansi) .af11 { color: var(--ansi-11); }
+:is(.screen, .b-ansi) .af12 { color: var(--ansi-12); }
+:is(.screen, .b-ansi) .af13 { color: var(--ansi-13); }
+:is(.screen, .b-ansi) .af14 { color: var(--ansi-14); }
+:is(.screen, .b-ansi) .af15 { color: var(--ansi-15); }
+:is(.screen, .b-ansi) .ab0 { background: color-mix(in srgb, var(--ansi-0) 26%, transparent); }
+:is(.screen, .b-ansi) .ab1 { background: color-mix(in srgb, var(--ansi-1) 26%, transparent); }
+:is(.screen, .b-ansi) .ab2 { background: color-mix(in srgb, var(--ansi-2) 26%, transparent); }
+:is(.screen, .b-ansi) .ab3 { background: color-mix(in srgb, var(--ansi-3) 26%, transparent); }
+:is(.screen, .b-ansi) .ab4 { background: color-mix(in srgb, var(--ansi-4) 26%, transparent); }
+:is(.screen, .b-ansi) .ab5 { background: color-mix(in srgb, var(--ansi-5) 26%, transparent); }
+:is(.screen, .b-ansi) .ab6 { background: color-mix(in srgb, var(--ansi-6) 26%, transparent); }
+:is(.screen, .b-ansi) .ab7 { background: color-mix(in srgb, var(--ansi-7) 26%, transparent); }
+:is(.screen, .b-ansi) .ab8 { background: color-mix(in srgb, var(--ansi-8) 26%, transparent); }
+:is(.screen, .b-ansi) .ab9 { background: color-mix(in srgb, var(--ansi-9) 26%, transparent); }
+:is(.screen, .b-ansi) .ab10 { background: color-mix(in srgb, var(--ansi-10) 26%, transparent); }
+:is(.screen, .b-ansi) .ab11 { background: color-mix(in srgb, var(--ansi-11) 26%, transparent); }
+:is(.screen, .b-ansi) .ab12 { background: color-mix(in srgb, var(--ansi-12) 26%, transparent); }
+:is(.screen, .b-ansi) .ab13 { background: color-mix(in srgb, var(--ansi-13) 26%, transparent); }
+:is(.screen, .b-ansi) .ab14 { background: color-mix(in srgb, var(--ansi-14) 26%, transparent); }
+:is(.screen, .b-ansi) .ab15 { background: color-mix(in srgb, var(--ansi-15) 26%, transparent); }
+:is(.screen, .b-ansi) .aB0 { background: var(--ansi-0); }
+:is(.screen, .b-ansi) .aB1 { background: var(--ansi-1); }
+:is(.screen, .b-ansi) .aB2 { background: var(--ansi-2); }
+:is(.screen, .b-ansi) .aB3 { background: var(--ansi-3); }
+:is(.screen, .b-ansi) .aB4 { background: var(--ansi-4); }
+:is(.screen, .b-ansi) .aB5 { background: var(--ansi-5); }
+:is(.screen, .b-ansi) .aB6 { background: var(--ansi-6); }
+:is(.screen, .b-ansi) .aB7 { background: var(--ansi-7); }
+:is(.screen, .b-ansi) .aB8 { background: var(--ansi-8); }
+:is(.screen, .b-ansi) .aB9 { background: var(--ansi-9); }
+:is(.screen, .b-ansi) .aB10 { background: var(--ansi-10); }
+:is(.screen, .b-ansi) .aB11 { background: var(--ansi-11); }
+:is(.screen, .b-ansi) .aB12 { background: var(--ansi-12); }
+:is(.screen, .b-ansi) .aB13 { background: var(--ansi-13); }
+:is(.screen, .b-ansi) .aB14 { background: var(--ansi-14); }
+:is(.screen, .b-ansi) .aB15 { background: var(--ansi-15); }
+:is(.screen, .b-ansi) .afbg { color: var(--surface); }
+:is(.screen, .b-ansi) .abfg { background: var(--text); }
+:is(.screen, .b-ansi) .a-b { font-weight: 700; }
+:is(.screen, .b-ansi) .a-d { opacity: 0.62; }
+:is(.screen, .b-ansi) .a-i { font-style: italic; }
+:is(.screen, .b-ansi) .a-u { text-decoration: underline; }
+:is(.screen, .b-ansi) .a-s { text-decoration: line-through; }
+:is(.screen, .b-ansi) .a-us { text-decoration: underline line-through; }
 /* The pane fills the whole area edge to edge like a terminal window, not a card inside the page.
    It is always a dark terminal: agent TUIs pick their colours for one, and ansi.js reads the
    palette and background from here for its contrast guard. */
@@ -661,6 +661,10 @@ div.tool { background: none; padding: var(--sp-0) var(--sp-2); }
 .blocked-box .choice.negative { background: none; color: var(--blocked); }
 .blocked-box .choice.negative .num { background: color-mix(in srgb, var(--blocked) 14%, transparent); color: var(--blocked); }
 .blocked-box .choice.sent { outline-offset: -2px; }
+/* A slash command's menu: the row its cursor is on, as the terminal marks it in colour (answer.js
+   menuCursor; the arrows move it at once). */
+.blocked-box .choice.at { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent); }
+.blocked-box .choice.at .num { background: var(--accent); color: var(--accent-text); }
 .toggle {
   min-height: 36px; min-width: 44px; padding: 0 var(--sp-3); border-radius: 999px; border: 1px solid var(--line);
   background: transparent; color: var(--muted); font-size: var(--fs-3); cursor: pointer;

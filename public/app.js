@@ -842,7 +842,7 @@ const KEY_ACTIONS = {
     const a = !top && view.name === 'agent' ? currentAgent() : null;
     if (top) closeLayer(top);
     else if (a && a.status === 'blocked' && a.menu && !a.stale) {
-      if (!(e && e.repeat)) sendKeys(['esc']); // a held key cancels once
+      if (!(e && e.repeat)) menuSend('esc'); // a held key cancels once (answer.js: in order with the arrows)
     } else if (editable(document.activeElement)) document.activeElement.blur();
     else if (reorder.on && listShown()) setReorder(false); // 순서 바꾸기 ends (reorder.js)
     else {
@@ -951,6 +951,7 @@ const KEY_ACTIONS = {
     return true;
   },
   answer: (b) => answerKey(Number(b.key)), // answer.js
+  menuKey: (b, e) => menuKey(b.key, e), // answer.js
   toggleSide: () => (setSideOff(!sideOff()), true), // as the rail's 작업공간
   nextPane: () => focusPane(1),
   prevPane: () => focusPane(-1),

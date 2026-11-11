@@ -54,6 +54,29 @@ test('POST agent /keys and pane /input, /keys: checked keys to that pane', async
   assert.equal(herdr.shell.screen, '$ ls\n$ x');
 });
 
+test('POST agent /keys {read}: the screen as the keys left it comes back with the answer', async (t) => {
+  const hub = await startHub(t, { id: 'keysread', agents: [agent('w1-p2', 'blocked', 1)] });
+  const { herdr } = hub;
+  herdr.screens['w1-p2'] = 'Pick\n❯ 1. One\n  2. Two';
+  // Claude Code redraws a moment after the key: the host reads until the screen has changed.
+  herdr.on['agent.send_keys'] = () => setTimeout(() => (herdr.screens['w1-p2'] = 'Pick\n  1. One\n❯ 2. Two'), 60);
+  const r = await hub.request('POST', '/api/agents/w1-p2/keys', { keys: ['down'], read: { lines: 30, format: 'ansi' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.ok, true);
+  assert.equal(r.body.screen.text, 'Pick\n  1. One\n❯ 2. Two');
+  assert.deepEqual(callsOf(herdr, 'agent.send_keys'), [{ target: 'w1-p2', keys: ['down'] }]);
+  // Nothing moves (↓ on the last row): the screen as it is after a few reads, no wait beyond.
+  delete herdr.on['agent.send_keys'];
+  const t0 = Date.now();
+  const r2 = await hub.request('POST', '/api/agents/w1-p2/keys', { keys: ['down'], read: { lines: 30 } });
+  assert.equal(r2.body.screen.text, 'Pick\n  1. One\n❯ 2. Two');
+  assert.ok(Date.now() - t0 < 2000, `answered in ${Date.now() - t0} ms`);
+  // Without read: as before; bad keys still refused before anything is read or sent.
+  assert.deepEqual((await hub.request('POST', '/api/agents/w1-p2/keys', { keys: ['esc'] })).body, { ok: true });
+  assert.equal((await hub.request('POST', '/api/agents/w1-p2/keys', { keys: ['rm -rf'], read: { lines: 30 } })).body.error, 'bad_keys');
+  assert.equal(callsOf(herdr, 'agent.send_keys').length, 3);
+});
+
 test('closing: a shell pane, an agent pane, a workspace — that one only; unknown ones are 404', async (t) => {
   const hub = await startHub(t, { id: 'close', agents: [agent('w1-p2', 'idle', 1)] });
   const { herdr } = hub;

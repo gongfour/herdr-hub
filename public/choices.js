@@ -157,9 +157,12 @@
     let at = -1;
     for (let i = lines.length - 1; i >= 0 && at < 0; i--) if (PANEL_RULE.test(lines[i])) at = i;
     if (at < 0) return null;
-    const body = lines.slice(at + 1);
-    while (body.length && !body[body.length - 1].trim()) body.pop();
-    while (body.length && !body[0].trim()) body.shift();
+    // body: lines[s, e), blank lines off both ends.
+    let s = at + 1;
+    let e = lines.length;
+    while (e > s && !lines[e - 1].trim()) e--;
+    while (s < e && !lines[s].trim()) s++;
+    const body = lines.slice(s, e);
     if (!body.length || body.some((l) => EMPTY_INPUT.test(l))) return null;
     const title = body[0].trim();
     // Key hints ("Enter to set as default · s to use this session only · Esc to cancel"), wrapped
@@ -168,11 +171,14 @@
     const isHint = (l) => /\b(?:to|for) \S/.test(l) && (/·/.test(l) || /^(?:Esc|Enter|↑|←|Space|Tab)\b/.test(l));
     const two = tail.length > 1 && isHint(`${tail[0]} ${tail[1]}`) && /·\s*\S/.test(tail[0]);
     const hint = isHint(tail[tail.length - 1]) ? (two ? tail.join(' ') : tail[tail.length - 1]) : '';
-    // main: what the page shows under the title and over the hint.
-    const main = body.slice(1, body.length - (hint ? (two ? 2 : 1) : 0));
-    while (main.length && !main[0].trim()) main.shift();
-    while (main.length && !main[main.length - 1].trim()) main.pop();
-    return { at, title, hint, body, main };
+    // main: what the page shows under the title and over the hint, lines[from, to) (the page
+    // finds them there in the colour read: answer.js panelAnsi).
+    let from = s + 1;
+    let to = e - (hint ? (two ? 2 : 1) : 0);
+    while (from < to && !lines[from].trim()) from++;
+    while (to > from && !lines[to - 1].trim()) to--;
+    const main = lines.slice(from, to);
+    return { at, title, hint, body, main, from, to };
   }
   function screenPanel(text) {
     return text ? panelOf(String(text).split(/\r?\n/).map(clean)) : null;

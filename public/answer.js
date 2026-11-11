@@ -11,8 +11,111 @@ const SHEET_KEYS = [['esc', 'Esc'], ['ctrl+c', 'Ctrl+C'], ['enter', 'Enter'], ['
 // A slash command's menu (/config, /status …) without a list read here is moved through with these.
 const MENU_KEYS = [['esc', 'Esc'], ['up', '↑'], ['down', '↓'], ['left', '←'], ['right', '→'], ['enter', 'Enter'], ['space', 'Space'], ['tab', 'Tab']];
 const keyRow = (keys, cls = '') => `<div class="keys ${cls}">${keys.map(([k, label]) => `<button type="button" class="key" data-key="${k}" aria-label="${T('{key} 키 보내기', { key: esc(label) })}">${esc(label)}</button>`).join('')}</div>`;
+// A slash command's menu takes the row's keys the quick way, in order with the keyboard's (menuSend).
 function bindKeyRow(row) {
-  if (row) row.querySelectorAll('.key').forEach((b) => (b.onclick = () => sendKeys([b.dataset.key])));
+  if (row) row.querySelectorAll('.key').forEach((b) => (b.onclick = () => (menuOpen() ? menuSend(b.dataset.key) : sendKeys([b.dataset.key]))));
+}
+
+// ------------------------------------------------------------ a slash command's menu, by key
+// While a slash command's menu is open (/model, /config …) its keys go to it as they are pressed:
+// ↑↓←→ and Enter on the page or in the empty message box (keymap.js menuKey), Esc (back), and
+// the box's key buttons. One send at a time, in order; keys pressed meanwhile go together next.
+// The host answers each send with the screen just after it (POST …/keys {read}, lib/routes/
+// agents.js), so the box shows the result one round trip later instead of at the next read;
+// before that, ↑/↓ move the box's cursor at once (menuQ.shift), and the screen that comes back
+// puts it where it really is. The box is read in colour (agent.js MENU_LINES): a panel shows as
+// the terminal does, and a list marks the row the cursor is on, as the terminal's colour does.
+const MENU_LINES = 30;
+const MENU_KEY = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'enter' };
+const menuQ = { at: '', host: null, pane: null, keys: [], busy: false, shift: 0, later: 0 };
+const menuOpen = (a = view.name === 'agent' ? currentAgent() : null) => Boolean(a && a.status === 'blocked' && a.menu && !a.stale);
+const shiftOf = (keys) => keys.reduce((d, k) => d + (k === 'down' ? 1 : k === 'up' ? -1 : 0), 0);
+const menuHere = () => menuQ.at === rowKey(curHost(), detail.pane);
+
+// Where the focus is lets the key go: the page or the agent view, the message box while it is
+// empty (words being written keep their arrows); not another field, not the list beside it, and
+// not Enter on a focused button or link (that is its own press).
+function menuKeyHere(k) {
+  const el = document.activeElement;
+  if (!el || el === document.body) return true;
+  if (el.id === 'd-input') return !el.value.trim();
+  if (editable(el) || (split && !el.closest('#detail-pane'))) return false;
+  return !(k === 'enter' && el.closest('button, a[href], summary, [role="button"], input, select'));
+}
+// keymap.js menuKey (KEY_ACTIONS): true when the key went to the menu.
+function menuKey(key, e) {
+  const k = MENU_KEY[key];
+  if (!k || !menuOpen() || topLayer() || (e && (e.isComposing || e.keyCode === 229)) || !menuKeyHere(k)) return false;
+  menuSend(k);
+  return true;
+}
+// The message box's own keys (agent.js) step aside for the menu's: the same test, no modifier.
+const menuKeyWanted = (e) => Boolean(MENU_KEY[e.key] && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && menuOpen() && !topLayer() && !e.isComposing && e.keyCode !== 229 && menuKeyHere(MENU_KEY[e.key]));
+
+function menuSend(k) {
+  const host = curHost();
+  const pane = detail.pane;
+  const at = rowKey(host, pane);
+  if (menuQ.at !== at) Object.assign(menuQ, { at, host, pane, keys: [], busy: false, shift: 0 });
+  menuQ.keys.push(k);
+  menuQ.shift += shiftOf([k]);
+  renderBlocked();
+  menuPump();
+}
+async function menuPump() {
+  const q = menuQ;
+  if (q.busy || !q.keys.length) return;
+  const { at, host, pane } = q;
+  const keys = q.keys.splice(0, 8); // the most the host takes at once
+  q.busy = true;
+  let r = null;
+  try {
+    r = await api(hp(`/agents/${encodeURIComponent(pane)}/keys`, host), { method: 'POST', body: JSON.stringify({ keys, read: { lines: MENU_LINES, format: 'ansi' } }) });
+  } catch (err) {
+    toastErr(T('키를 보내지 못했습니다: {error}', { error: errText(err) }));
+  }
+  if (q.at !== at) return; // another agent opened meanwhile: its own queue
+  q.busy = false;
+  q.shift -= shiftOf(keys);
+  if (!r) (q.keys = []), (q.shift = 0); // the rest would land out of place
+  const here = menuHere();
+  if (r && r.screen && here) setBlockedScreen(r.screen, { menuOnly: true });
+  if (q.keys.length) return menuPump();
+  if (!here) return;
+  renderBlocked();
+  // What the keys led to (the menu closed, another opened) comes with the state; read once more
+  // a moment later, as the key buttons always did.
+  clearTimeout(q.later);
+  q.later = setTimeout(() => menuHere() && loadDetail(), 400);
+}
+
+// The blocked screen as read (agent.js, or with keys above): plain for reading the prompt, and in
+// colour when it came so, kept beside the plain text it belongs to. menuOnly: a screen that no
+// longer shows a menu is left for the state to tell (Enter or Esc closed it: no flash of the
+// question box before the agent shows as idle).
+function setBlockedScreen(v, { menuOnly = false } = {}) {
+  const ansi = v.format === 'ansi' && window.Ansi;
+  const text = (ansi ? Ansi.strip(v.text) : String(v.text || '')).replace(/\s+$/, '');
+  if (menuOnly && !parseChoices(text) && !screenPanel(text)) return false;
+  detail.blockedText = text;
+  detail.blockedAnsi = ansi ? { for: text, text: String(v.text) } : null;
+  renderBlocked();
+  return true;
+}
+// The panel's lines in colour, when they were read so and line up with the plain ones; else null.
+function panelAnsi(panel) {
+  const c = detail.blockedAnsi;
+  if (!c || c.for !== detail.blockedText || panel.from == null || !window.Ansi) return null;
+  const lines = c.text.split(/\r?\n/).slice(panel.from, panel.to);
+  if (lines.length !== panel.main.length || lines.some((l, i) => Ansi.strip(l).replace(/\s+$/, '') !== panel.main[i])) return null;
+  return Ansi.toHtmlLines(lines.join('\n'), { dark: darkNow() }).join('\n');
+}
+// The row the menu's cursor is on, with the ↑/↓ not yet seen on a screen added (menuQ.shift).
+function menuCursor(choices) {
+  if (!choices || !choices.cursor) return null;
+  const last = choices.items.length;
+  const n = choices.cursor + (menuHere() ? menuQ.shift : 0);
+  return Math.max(1, Math.min(last, n));
 }
 // A choice button (the blocked box) goes through
 // the host's guard (POST /agents/<pane>/answer, lib/notify checkAnswer): the keys go only while
@@ -88,14 +191,15 @@ const choiceName = (label) => esc(shownLabel(label)).replace(/(^|\s)((?:[A-Za-z]
 // One choice button: name (bold) over its description (muted), when the menu has one. In the
 // agent view each shows its number, the key that picks it (1–9, keymap.js), numbered menu or not.
 // press: pressedOn() for this agent (every button waits; the pressed one says so).
-function choiceButton(choices, x, { press, primary, compact = false, alt = false }) {
+// at: the menu's cursor is on it (menuCursor), marked as the terminal's colour marks it.
+function choiceButton(choices, x, { press, primary, compact = false, alt = false, at = false }) {
   const ok = choiceKeys(choices, x.n, alt);
   const sent = Boolean(press) && press.n === x.n;
   const kind = x.negative ? ' negative' : x === primary ? ' primary' : '';
   // A multiSelect option is a box to tick: pressed or not, as its terminal row shows.
   const box = x.checked === undefined ? '' : ` aria-pressed="${x.checked}"`;
   const tick = x.checked === undefined ? '' : `<span class="tick" aria-hidden="true">${x.checked ? '☑' : '☐'}</span>`;
-  return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}${x.checked ? ' checked' : ''}" data-n="${x.n}"${box}${press || !ok ? ' disabled' : ''}>
+  return `<button type="button" class="choice${kind}${sent ? ' sent' : ''}${compact ? ' compact' : ''}${x.checked ? ' checked' : ''}${at ? ' at' : ''}" data-n="${x.n}"${box}${at ? ' aria-current="true"' : ''}${press || !ok ? ' disabled' : ''}>
     ${choices.numbered || (!compact && x.n <= 9) ? `<span class="num"${choices.numbered ? '' : ` title="${T('숫자 키로 고르기')}"`}>${x.n}</span>` : ''}${tick}<span class="label"><span class="name">${choiceName(x.label)}</span>${x.desc && !compact ? `<span class="desc">${esc(x.desc)}</span>` : ''}</span>${sent ? `<span class="state">${press.until === Infinity ? T('보내는 중') : T('보냄')}</span>` : ''}</button>`;
 }
 
@@ -138,7 +242,7 @@ function renderBlocked() {
     html = `<div class="blocked-box menu">
         <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>${T('메뉴')}</span><span class="toggles">${leave}</span></div>
         <strong class="b-title">${esc(panel.title)}</strong>
-        ${panel.main.length ? `<pre>${esc(panel.main.join('\n'))}</pre>` : ''}
+        ${panel.main.length ? `<pre class="b-ansi">${panelAnsi(panel) || esc(panel.main.join('\n'))}</pre>` : ''}
         ${hintOf(panel)}
         ${keyRow(MENU_KEYS)}
       </div>`;
@@ -158,6 +262,8 @@ function renderBlocked() {
     const title = menu ? menu.title : parts.intent || parts.question || T('답 필요');
     // A menu's own key (choices.alt): picked rows take it instead of Enter while 「이 세션만」 is on.
     const alt = Boolean(choices.alt && detail.menuAlt);
+    // A menu shows where its cursor is (the arrows move it); a question keeps its plain list.
+    const cursorAt = menu ? menuCursor(choices) : null;
     // A menu's line under its title (/model: 「Switch between Claude models. …」).
     const q = (parts.question || '').trim();
     const menuNote = menu && q !== menu.title ? (q.startsWith(menu.title) ? q.slice(menu.title.length).trim() : q) : '';
@@ -192,7 +298,7 @@ function renderBlocked() {
         ${menuNote ? `<p class="b-q">${esc(menuNote)}</p>` : ''}
         ${choices.alt ? `<label class="b-alt"><input type="checkbox"${alt ? ' checked' : ''}> ${esc(choices.alt.label)}</label>` : ''}
         ${next}
-        <div class="choices" role="group" aria-label="${esc(parts.question || T('답'))}">${choices.items.map((x) => choiceButton(choices, x, { press, primary: nk || menu ? null : primary, alt })).join('')}${nextBtn}</div>
+        <div class="choices" role="group" aria-label="${esc(parts.question || T('답'))}">${choices.items.map((x) => choiceButton(choices, x, { press, primary: nk || menu ? null : primary, alt, at: x.n === cursorAt })).join('')}${nextBtn}</div>
         ${menu ? hintOf(menu) : ''}
         ${detail.showScreen ? screen : ''}
         ${detail.showKeys ? keys : ''}
@@ -202,7 +308,7 @@ function renderBlocked() {
   box._html = html;
   keepChatEnd(() => (box.innerHTML = html));
   const lv = box.querySelector('.b-leave');
-  if (lv) lv.onclick = () => sendKeys(['esc']);
+  if (lv) lv.onclick = () => menuSend('esc');
   if (choices) {
     box.querySelectorAll('.choice[data-n]').forEach((b) => {
       b.onclick = () => pickChoice(choices, Number(b.dataset.n));

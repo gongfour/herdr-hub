@@ -115,6 +115,57 @@ test('a slash command menu: Esc from the message box cancels it in Claude Code',
   noErrors(page);
 });
 
+test('a slash command menu by keyboard: the cursor row is marked, ↑↓ move it at once and go to Claude Code, Enter picks', async (t) => {
+  const h = await hubInProcess(t, { id: 'ui9', agents: [agent('w1-p2', 'idle', 6, 'model 고르기', 'shop-api')] });
+  h.herdr.screens['w1-p2'] = MENU;
+  // Claude Code moving its cursor: each ↓ a row down, ↑ a row up, as the next read shows it; Enter
+  // picks and the menu closes.
+  const rows = MENU.split('\n');
+  const move = (d) => {
+    const i = rows.findIndex((l) => /^ {3}❯ \d\./.test(l));
+    if (!/^ {5}\d\./.test(rows[i + d] || '')) return;
+    rows[i] = rows[i].replace('❯ ', '  ');
+    rows[i + d] = rows[i + d].replace(/^ {5}/, '   ❯ ');
+  };
+  h.herdr.on['agent.send_keys'] = (p) => {
+    for (const k of p.keys) move(k === 'down' ? 1 : k === 'up' ? -1 : 0);
+    h.herdr.screens['w1-p2'] = p.keys.includes('enter') ? IDLE : rows.join('\n');
+  };
+  const page = await open(t, h, '#/h/ui9/agent/w1-p2');
+  if (!page) return;
+  const box = page.locator('#d-blocked .blocked-box.menu');
+  await box.waitFor({ timeout: 20000 });
+  const at = () => page.evaluate(() => [...document.querySelectorAll('#d-blocked .choice.at')].map((b) => Number(b.dataset.n)));
+  assert.deepEqual(await at(), [2], 'the row the terminal has its cursor on');
+  // From the empty message box (where the caret is after sending /model): ↓ moves the mark in the
+  // same task, before the host has answered, and goes to Claude Code.
+  await page.locator('#d-input').focus();
+  await page.keyboard.press('ArrowDown');
+  assert.deepEqual(await at(), [3]);
+  await until(() => sentTo(h.herdr, 'agent.send_keys', 'w1-p2').some((p) => p.keys.join() === 'down'), '↓ sent');
+  // The screen after it comes back with the keys: no wait for the next read (every 3 s).
+  await page.waitForFunction(() => /❯ 3\./.test(detail.blockedText || ''), null, { timeout: 1500 });
+  assert.deepEqual(await at(), [3]);
+  // Two ↑ in a row: in order, and the mark ends where the terminal's cursor does.
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  await page.waitForFunction(() => /❯ 1\./.test(detail.blockedText || ''), null, { timeout: 3000 });
+  assert.deepEqual(await at(), [1]);
+  assert.deepEqual(sentTo(h.herdr, 'agent.send_keys', 'w1-p2').flatMap((p) => p.keys), ['down', 'up', 'up']);
+  assert.equal(await page.locator('#d-input').evaluate((el) => el.value), '', 'the arrows did not bring back an old message');
+  // Words in the box keep their arrows: nothing goes to the menu.
+  await page.keyboard.type('x');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Delete');
+  assert.equal(sentTo(h.herdr, 'agent.send_keys', 'w1-p2').length, 3);
+  // Enter from the empty box picks the row; the menu closes.
+  await page.keyboard.press('Enter');
+  await until(() => sentTo(h.herdr, 'agent.send_keys', 'w1-p2').some((p) => p.keys.join() === 'enter'), 'Enter sent');
+  await box.waitFor({ state: 'detached', timeout: 20000 });
+  noErrors(page);
+});
+
 test('typed answer: the words go only once the question took the pick, never into it as it was', async (t) => {
   const h = await hubInProcess(t, { id: 'ui4', agents: [agent('w1-p2', 'blocked', 7, '색 고르기', 'shop-api')] });
   const { herdr } = h;

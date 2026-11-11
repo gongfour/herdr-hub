@@ -88,7 +88,7 @@ test('jumpEnd / jumpTop: Ctrl+Shift+↓/↑, Ctrl+End and ⌘+↓ anywhere, End 
   assert.equal(act('End', {}), 'jumpEnd');
   assert.equal(act('End', { field: true }), null); // the caret's end of line
   assert.equal(act('Ctrl+Meta+ArrowDown', {}), null);
-  assert.equal(act('ArrowDown', {}), null);
+  assert.equal(act('ArrowDown', {}), 'menuKey'); // a slash command's menu's only (answer.js); else the page scrolls
   assert.equal(act('Shift+End', {}), null); // selects to the end
   assert.equal(act('Ctrl+End', {}, { isComposing: true }), null);
   assert.equal(act('Ctrl+End', {}, { keyCode: 229 }), null);
@@ -108,8 +108,19 @@ test('prevMine / nextMine: Ctrl+↑ and Ctrl+↓ anywhere, the shell and a sheet
     assert.equal(act('Ctrl+ArrowUp', ctx), 'prevMine');
     assert.equal(act('Ctrl+ArrowDown', ctx), 'nextMine');
   }
-  assert.equal(act('ArrowUp', { field: true }), null); // the composer's recall
+  assert.equal(act('ArrowUp', { field: true }), 'menuKey'); // a slash command's menu's when the box is empty (answer.js); else the composer's recall
   assert.equal(act('Ctrl+Alt+ArrowUp', {}), null);
+});
+
+test('menuKey: the arrows and Enter on the page and in a field; never in the shell, under a sheet, with a modifier or an IME', () => {
+  for (const k of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter']) {
+    for (const ctx of [{}, { field: true }]) assert.equal(act(k, ctx), 'menuKey', `${k} ${JSON.stringify(ctx)}`);
+    assert.equal(act(k, { shell: true }), null, `${k} in the shell`);
+    assert.equal(act(k, { layer: true }), null, `${k} under a sheet or menu`);
+    assert.equal(act(`Shift+${k}`, {}), null, `Shift+${k}`);
+  }
+  assert.equal(act('Enter', { field: true }, { isComposing: true, code: '' }), null);
+  assert.equal(act('ArrowDown', {}, { keyCode: 229 }), null);
 });
 
 test('scrollUp / scrollDown: Ctrl+K and Ctrl+J, a field and a sheet too; K and J stay the shell\'s', () => {

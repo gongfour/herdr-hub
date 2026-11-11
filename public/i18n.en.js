@@ -46,6 +46,8 @@
     "아래로 스크롤 (누르고 있으면 계속)": "Scroll down (hold to keep going)",
     "선택지 고르기": "Pick a choice",
     "답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)": "Needs answer: pick the choice with that number (outside a field)",
+    "메뉴 움직이기": "Move in a menu",
+    "슬래시 명령의 메뉴(/model …)가 열려 있을 때: ↑↓←→·리턴을 그 메뉴에 보낸다 (입력 칸이 비었거나 입력 칸 밖에서)": "A slash command's menu (/model …) open: send ↑↓←→ and Return to it (from the empty message box, or outside it)",
     "에이전트 중단": "Stop agent",
     "작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)": "Stop a working agent: twice within 2 seconds (in a field too)",
     "줄바꿈": "Line wrap",

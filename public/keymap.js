@@ -61,6 +61,7 @@
     scrollUp: { group: T('대화·터미널 화면'), name: T('위로 스크롤'), label: T('위로 스크롤 (누르고 있으면 계속)'), noCommand: true },
     scrollDown: { group: T('대화·터미널 화면'), name: T('아래로 스크롤'), label: T('아래로 스크롤 (누르고 있으면 계속)'), noCommand: true },
     answer: { group: T('대화·터미널 화면'), name: T('선택지 고르기'), label: T('답 필요: 그 번호의 선택지 고르기 (입력 칸 밖에서)'), fixed: true, noShell: true },
+    menuKey: { group: T('대화·터미널 화면'), name: T('메뉴 움직이기'), label: T('슬래시 명령의 메뉴(/model …)가 열려 있을 때: ↑↓←→·리턴을 그 메뉴에 보낸다 (입력 칸이 비었거나 입력 칸 밖에서)'), fixed: true, noShell: true, noCommand: true },
     stop: { group: T('대화·터미널 화면'), name: T('에이전트 중단'), label: T('작업 중인 에이전트 중단: 2초 안에 두 번 (입력 칸에서도)'), twice: true, noShell: true, cmd: T('에이전트 중단') },
     wrap: { group: T('대화·터미널 화면'), name: T('줄바꿈'), label: T('줄바꿈 켜기·끄기: 셸 화면, 에이전트의 터미널 화면 (VS Code 의 Alt+Z)') },
     terminal: { group: T('대화·터미널 화면'), name: T('터미널 화면'), label: T('대화 화면에서 터미널 화면 열기·닫기'), noShell: true, cmd: T('터미널 화면 열기·닫기') },
@@ -149,6 +150,10 @@
       b('commands', 'F1', { field: true, shell: true, layer: true }),
       // A digit is typed in a field and is the shell's: only on the page of an agent.
       ...'123456789'.split('').map((n) => b('answer', n)),
+      // A slash command's menu open in the agent: its arrows and Enter go to it, from the empty
+      // message box too (where the caret is after sending the command). Otherwise the keys are
+      // what they were (answer.js menuKey says no).
+      ...['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].map((k) => b('menuKey', k, { field: true })),
       // Ctrl+B is the shell's (back a character), Alt+. its last argument. ⌘B on the Mac.
       ...when(mac, b('toggleSide', 'Meta+b', { field: true, shell: true, split: true })),
       b('toggleSide', 'Ctrl+b', { field: true, split: true }),
