@@ -547,7 +547,7 @@ function route(e, { relayout = false } = {}) {
     pollTimer = setInterval(() => {
       const a = currentAgent();
       // Also retry a screen read that failed, whatever the status; the sheet keeps reading while open.
-      if (a && (a.status === 'working' || a.status === 'blocked' || detail.sheet || (scr && scr.error))) loadDetail();
+      if (a && (a.status === 'working' || a.status === 'blocked' || subsOf(a) || detail.sheet || (scr && scr.error))) loadDetail();
     }, 3000);
   } else if (r.name === 'term') {
     view = { name: 'term', host, pane: r.pane };

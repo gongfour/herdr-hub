@@ -256,7 +256,7 @@ button:disabled { cursor: default; }
 }
 .badge.blocked { color: var(--blocked); background: var(--blocked-bg); }
 .badge.done { color: var(--done); background: var(--done-bg); }
-.badge.working { color: var(--working); background: var(--working-bg); }
+.badge.working, .badge.sub { color: var(--working); background: var(--working-bg); }
 .badge.idle, .badge.unknown, .badge.menu { color: var(--idle); background: var(--idle-bg); }
 .empty { color: var(--muted); text-align: center; padding: var(--sp-7) var(--sp-4); }
 .empty p { margin: 0 0 var(--sp-1); }
@@ -312,7 +312,9 @@ button:disabled { cursor: default; }
 /* The status, first on the small line: a dot and the word in the status's colour. */
 .st { font-weight: 600; color: var(--idle); }
 .st.done { color: var(--done); }
-.st.working { color: var(--working); }
+.st.working, .st.sub { color: var(--working); }
+/* Working with subagents running too: how many, after the status (list.js agentRow). */
+.pane-meta .subs-n { color: var(--working); }
 .st-dot { display: inline-block; width: 6px; height: 6px; margin-right: var(--sp-1); border-radius: 50%; background: currentColor; vertical-align: 1px; }
 /* The right end, on the title's first line: the time (small, muted; working's in its colour), or
    답 필요's pill, or a shell's 셸 tag. */
@@ -357,6 +359,26 @@ button:disabled { cursor: default; }
 .activity .go { flex: none; margin-left: auto; font-weight: 600; }
 @keyframes activity-pulse { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .activity .spin { animation: none; } }
+/* Its subagents running now (agent.js renderSubs): under the activity line, a row each (what it
+   is for, its last tool, how long), opening to its work. */
+.subs { flex: none; margin: var(--sp-2) var(--sp-4) 0; padding: var(--sp-1) 0; border-radius: 10px; background: var(--working-bg); max-height: 45vh; overflow: auto; }
+.subs-head { margin: 0; padding: var(--sp-1) var(--sp-3) 0; font-size: var(--fs-2); font-weight: 600; color: var(--working); }
+.subs ul { list-style: none; margin: 0; padding: 0; }
+.sub-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: 40px; padding: 0 var(--sp-3); border: 0; background: none; color: var(--text); font-size: var(--fs-3); text-align: left; white-space: nowrap; overflow: hidden; cursor: pointer; }
+.sub-row:active { filter: brightness(0.96); }
+.sub-row .spin { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--working); animation: activity-pulse 1.2s ease-in-out infinite; }
+.sub-row .sub-desc { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.sub-row .sub-type { flex: none; font-size: var(--fs-1); color: var(--muted); }
+.sub-row .sub-tool { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font: var(--fs-2) var(--mono); color: var(--muted); }
+.sub-row .el { flex: none; margin-left: auto; font-size: var(--fs-2); color: var(--working); font-variant-numeric: tabular-nums; }
+.sub-row .chev { flex: none; color: var(--muted); font-size: var(--fs-2); }
+.subs .sub-log { margin: 0 var(--sp-3) var(--sp-2); background: var(--surface); }
+.subs-more { display: block; margin: 0 var(--sp-3) var(--sp-1); padding: var(--sp-1) 0; border: 0; background: none; color: var(--working); font-size: var(--fs-2); font-weight: 600; cursor: pointer; }
+@media (hover: hover) and (pointer: fine) {
+  .sub-row { min-height: 28px; }
+  .sub-row:hover { filter: brightness(0.97); }
+}
+@media (prefers-reduced-motion: reduce) { .sub-row .spin { animation: none; } }
 /* A kept chat shown while the fresh one loads (agent.js renderSync): a small pulsing dot by the
    title, only after a moment, so a quick refresh shows nothing at all. */
 .bar .sync { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: 0; animation: sync-pulse 1.2s 0.25s ease-in-out infinite; }
@@ -1461,6 +1483,22 @@ button.tool .chev { flex: none; color: var(--text); font-size: var(--fs-4); }
 .tool-out .tool-cmd { color: var(--muted); }
 button.tool:active { filter: brightness(0.95); }
 .tool.failed b { color: var(--blocked); }
+/* A subagent's Agent line: its state (running now, else how it ended), and its work opened. */
+.tool .sub-st { flex: none; margin-left: var(--sp-2); padding: 0 var(--sp-1); border-radius: 4px; font-size: var(--fs-1); font-weight: 600; }
+.sub-st.working { color: var(--working); background: var(--working-bg); }
+.sub-st.completed { color: var(--done); background: var(--done-bg); }
+.sub-st.failed { color: var(--blocked); background: var(--blocked-bg); }
+.sub-st.killed { color: var(--idle); background: var(--idle-bg); }
+.sub-log { margin: var(--sp-1) 0 var(--sp-0); padding: var(--sp-2) var(--sp-3); border-left: 2px solid var(--line); border-radius: 7px; background: var(--surface-2); font-size: var(--fs-2); max-height: 50vh; overflow: auto; overflow-wrap: anywhere; }
+.sub-log .muted { margin: 0; color: var(--muted); }
+.sub-tl { font: var(--fs-2)/1.5 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-tl b { color: var(--text); font-weight: 600; }
+.sub-tl.failed b { color: var(--blocked); }
+.sub-report { margin-top: var(--sp-2); padding-top: var(--sp-2); border-top: 1px solid var(--line); font-size: var(--fs-3); color: var(--text); }
+.sub-report p, .sub-report ul, .sub-report ol, .sub-report pre { margin: 0 0 var(--sp-2); }
+.sub-report > :last-child { margin-bottom: 0; }
+.sub-log .sub-report-head { margin: 0 0 var(--sp-1); font-size: var(--fs-1); font-weight: 600; color: var(--muted); }
+.note.task.failed { color: var(--blocked); }
 /* ExitPlanMode's plan, read before its approval prompt is answered. */
 .msg .tool-plan { margin: var(--sp-1) 0 0; padding: var(--sp-2) var(--sp-3); border-left: 2px solid var(--line); background: var(--surface-2); border-radius: 7px; }
 .msg .tool-out { margin: var(--sp-1) 0 var(--sp-0); max-height: 40vh; overflow: auto; font-size: var(--fs-2); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -1776,7 +1814,7 @@ main.home.stale .ws .pane-ic { filter: grayscale(1); opacity: 0.55; }
 .bar h1 .sub-st { display: none; }
 .bar h1 .st { font-weight: 600; }
 .bar h1 .st.blocked { color: var(--blocked); }
-.bar h1 .st.working { color: var(--working); }
+.bar h1 .st.working, .bar h1 .st.sub { color: var(--working); }
 .bar h1 .st.done { color: var(--done); }
 @media (max-width: 759px) {
   .detail > .bar h1 { white-space: normal; }
@@ -1809,7 +1847,7 @@ main.home.stale .ws .pane-ic { filter: grayscale(1); opacity: 0.55; }
 }
 .bar h1 .st-dot { width: 8px; height: 8px; margin-right: var(--sp-2); border-radius: 50%; vertical-align: 2px; background: var(--idle); }
 .bar h1 .st-dot.blocked { background: var(--blocked); }
-.bar h1 .st-dot.working { background: var(--working); }
+.bar h1 .st-dot.working, .bar h1 .st-dot.sub { background: var(--working); }
 .bar h1 .st-dot.done { background: var(--done); }
 
 /* 단축키 page (keyspage.js), in 설정's cards. Tabs per screen; the cheat sheet first (one row per

@@ -55,8 +55,38 @@ function shellOut(m) {
   return `<div class="msg shell-out"><pre>${body}</pre>${fold}</div>`;
 }
 
+// A background task that stopped (a subagent, a background shell command; lib/transcript.js
+// taskNote): one quiet line where its notice came, which is where the agent took it up.
+const TASK_DONE = {
+  sub: {
+    completed: (what) => T('서브에이전트 완료: {what}', { what }),
+    failed: (what) => T('서브에이전트 실패: {what}', { what }),
+    killed: (what) => T('서브에이전트 중단됨: {what}', { what }),
+    other: (what) => T('서브에이전트 끝남: {what}', { what }),
+  },
+  bg: {
+    completed: (what) => T('백그라운드 작업 완료: {what}', { what }),
+    failed: (what) => T('백그라운드 작업 실패: {what}', { what }),
+    killed: (what) => T('백그라운드 작업 중단됨: {what}', { what }),
+    other: (what) => T('백그라운드 작업 끝남: {what}', { what }),
+  },
+};
+function taskLine(m) {
+  const words = TASK_DONE[m.sub ? 'sub' : 'bg'];
+  return `<p class="note task${m.status === 'failed' ? ' failed' : ''}">${esc((words[m.status] || words.other)(m.text || ''))}</p>`;
+}
+
+// An Agent line's state: running now (in the agent's a.subagents), else how its notice said it ended.
+const SUB_STATE = { completed: T('완료'), failed: T('실패'), killed: T('중단됨') };
+function subChip(t) {
+  if (t.agent && subRunning(t.agent)) return `<span class="sub-st working">${T('작업 중')}</span>`;
+  const w = SUB_STATE[t.state];
+  return w ? `<span class="sub-st ${esc(t.state)}">${w}</span>` : '';
+}
+
 function message(m) {
   if (m.role === 'note') return `<p class="note">${esc(m.text)}</p>`;
+  if (m.role === 'task') return taskLine(m);
   if (m.role === 'shell') return shellOut(m);
   if (m.role === 'user' && m.bash) return `<div class="msg user bash"><span class="sr-only">${T('나: ')}</span><span>${esc(m.text)}</span></div>`;
   if (m.role === 'user') {
@@ -78,12 +108,20 @@ function message(m) {
 // A tool line; AskUserQuestion shows what was chosen ("Pick a color? → Red"). One with a
 // result in the transcript opens to show it (cut at 2000 characters by the server), under the
 // whole command when the line shows only its description or the part after `cd … &&`.
+// A subagent's line (Agent, with its id) opens to its work instead (agent.js subLogHtml): what it
+// ran and what it reported, read from its own transcript on the host.
 function toolLine(t, key) {
   const asked = t.answers && t.answers.length ? t.answers.map((x) => `${esc(x.q)} → <span class="ans">${esc(x.a)}</span>`).join(' · ') : '';
-  const head = `<b>${esc(t.name)}</b> ${asked || esc(t.summary)}`;
+  const head = `<b>${esc(t.name)}</b> ${asked || esc(t.summary)}${t.agent || t.state ? subChip(t) : ''}`;
   const cls = `tool${asked ? ' asked' : ''}${t.error ? ' failed' : ''}`;
   // ExitPlanMode: the plan itself, to read before its approval prompt is answered.
   const plan = t.plan ? `<div class="tool-plan">${Markdown.md(t.plan)}</div>` : '';
+  if (t.agent) {
+    const open = Boolean(detail.openTools && detail.openTools.has(key));
+    return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span><span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${
+      open ? subLogHtml(subLog(t.agent)) : ''
+    }</div>${plan}`;
+  }
   if (!t.result) return `<div class="${cls}">${head}</div>${plan}`;
   const open = Boolean(detail.openTools && detail.openTools.has(key));
   return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span><span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${

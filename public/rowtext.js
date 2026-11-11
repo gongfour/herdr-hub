@@ -99,7 +99,11 @@
   // badges, the switcher or Alt+Shift+↓, and shows as 「메뉴 열림」, grey like idle. The agent view
   // still treats it as blocked (its box, the guard on sending).
   const needsAnswer = (a) => Boolean(a) && a.status === 'blocked' && !a.menu;
-  const shownStatus = (a) => (a && a.status === 'blocked' && a.menu ? 'menu' : a && a.status);
+  // Its subagents running now (a.subagents, lib/subagents.js): how many. One herdr calls idle or
+  // done while they work is still on its turn (it takes their reports up when they stop): 'sub',
+  // 「서브에이전트 2개 작업 중」 in the working colour, its clock running, no 완료 yet.
+  const subsOf = (a) => (a && Array.isArray(a.subagents) ? a.subagents.length : 0);
+  const shownStatus = (a) => (a && a.status === 'blocked' && a.menu ? 'menu' : a && (a.status === 'idle' || a.status === 'done') && subsOf(a) ? 'sub' : a && a.status);
 
   // A ghost agent's small line: the status it last had, said as past (「마지막: 작업 중」).
   const LAST = { blocked: T('답 필요'), done: T('완료'), working: T('작업 중'), idle: T('쉬는 중') };
@@ -112,7 +116,7 @@
   const hintDue = (stored) => stored !== 'x' && (Number(stored) || 0) < HINT_TIMES;
   const hintNext = (stored) => String(Math.min(HINT_TIMES, (Number(stored) || 0) + 1));
 
-  const api = { needsAnswer, shownStatus, shortPath, rowDir, metaName, homePath, termName, hostAria, hostState, asOf, lastStatus, hintText, hintDue, hintNext, HINT_TIMES };
+  const api = { needsAnswer, shownStatus, subsOf, shortPath, rowDir, metaName, homePath, termName, hostAria, hostState, asOf, lastStatus, hintText, hintDue, hintNext, HINT_TIMES };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RowText = api;
 })(typeof self !== 'undefined' ? self : this);

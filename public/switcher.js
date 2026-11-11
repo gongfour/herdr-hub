@@ -75,7 +75,7 @@ const SWITCH_ORDERS = {
   working: { blocked: [0, T('답 필요')], working: [1, T('작업 중')], done: [2, T('완료')], idle: [3, T('쉬는 중')], term: [4, T('셸')] },
   recent: { blocked: [0, T('답 필요')], done: [1, T('최근')], working: [1, T('최근')], idle: [1, T('최근')], term: [1, T('최근')] },
 };
-const switcherKind = (r) => (r.status === 'blocked' ? 'blocked' : r.kind === 'term' ? 'term' : r.unread || r.status === 'done' ? 'done' : r.status === 'working' ? 'working' : 'idle');
+const switcherKind = (r) => (r.status === 'blocked' ? 'blocked' : r.kind === 'term' ? 'term' : r.status === 'working' || r.status === 'sub' ? 'working' : r.unread || r.status === 'done' ? 'done' : 'idle');
 const switcherPlace = (r) => (SWITCH_ORDERS[Prefs.get('paletteOrder')] || SWITCH_ORDERS.done)[switcherKind(r)];
 const switcherOrder = (r) => switcherPlace(r)[0];
 // The heading a row goes under with nothing typed.

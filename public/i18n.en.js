@@ -980,6 +980,28 @@
     "마지막 모습": "Last seen",
     "옆으로 밀어 호스트 바꾸기 · 길게 눌러 메뉴": "Swipe sideways to change host · Long-press for the menu",
     "줄을 길게 누르면 메뉴가 나옵니다": "Long-press a row for its menu",
+    // subagents (core, list, agent, chat)
+    "서브에이전트": "Subagents",
+    "서브에이전트 작업 중": "Subagents working",
+    "서브에이전트 {n}개 작업 중": {"one": "{n} subagent working", "other": "{n} subagents working"},
+    "서브에이전트 {n}개": {"one": "{n} subagent", "other": "{n} subagents"},
+    "이 호스트는 서브에이전트의 작업을 보여 주지 못합니다 (배포가 필요합니다)": "This host can't show a subagent's work (deploy needed)",
+    "서브에이전트의 작업을 읽지 못했습니다": "Couldn't read the subagent's work",
+    "서브에이전트의 기록이 없습니다": "No record of this subagent",
+    "앞의 도구 줄은 줄였습니다": "Earlier tool lines left out",
+    "아직 도구를 쓰지 않았습니다": "No tools used yet",
+    "지금까지 한 말": "Said so far",
+    "보고": "Report",
+    "실패": "Failed",
+    "중단됨": "Stopped",
+    "서브에이전트 완료: {what}": "Subagent done: {what}",
+    "서브에이전트 실패: {what}": "Subagent failed: {what}",
+    "서브에이전트 중단됨: {what}": "Subagent stopped: {what}",
+    "서브에이전트 끝남: {what}": "Subagent ended: {what}",
+    "백그라운드 작업 완료: {what}": "Background task done: {what}",
+    "백그라운드 작업 실패: {what}": "Background task failed: {what}",
+    "백그라운드 작업 중단됨: {what}": "Background task stopped: {what}",
+    "백그라운드 작업 끝남: {what}": "Background task ended: {what}",
   };
   if (typeof module === 'object' && module.exports) module.exports = EN;
   else root.I18N_EN = EN;

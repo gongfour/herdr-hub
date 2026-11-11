@@ -39,6 +39,7 @@ function renderDetail() {
       </header>
       <div class="ghost-bar" id="d-ghost" role="status" hidden></div>
       <button type="button" class="activity" id="d-activity"${keyAttrs('terminal', T('터미널 화면 보기'))} hidden></button>
+      <section class="subs" id="d-subs" aria-label="${T('서브에이전트')}" hidden></section>
       <div class="screen-tools" id="s-tools" hidden></div>
       <div class="scroll" id="d-body" role="log" aria-label="${T('대화')}" aria-live="off"></div>
       <div id="d-blocked"></div>
@@ -58,6 +59,7 @@ function renderDetail() {
       </div>
     </div>`;
   document.getElementById('d-activity').onclick = openScreenSheet;
+  document.getElementById('d-subs').onclick = onSubsClick;
   document.getElementById('d-usage').onclick = () => openUsage();
   // An editable div, not a <textarea>: iOS puts its ⌃ ⌄ / contact AutoFill bar over the keyboard
   // for text fields, but not for contenteditable. `value` keeps the textarea-style API below.
@@ -420,7 +422,7 @@ function renderDetailHeader() {
   // subtitle on the phone (.sub-st), where the title row is left to the name (style.css).
   const time = a.status === 'working' ? '' : timeTag(a);
   const st = shownStatus(a);
-  const status = esc(STATUS_LABEL[st] || st);
+  const status = esc(statusText(a));
   // Titled as its row and its ⋯ menu read (rows.js rowLabel): the conversation's title, with the
   // agent's name in the subtitle when it is another (the workspace and folder only when they add
   // something to that name).
@@ -1283,10 +1285,16 @@ function renderActivity() {
   const box = document.getElementById('d-activity');
   if (!box) return;
   const a = currentAgent();
+  renderSubs();
   if (!a || a.status !== 'working') {
     box.hidden = true;
-    clearInterval(tickTimer);
-    tickTimer = null;
+    // Its subagents' clocks still run while it waits for them.
+    if (a && !a.stale && subsOf(a)) {
+      if (!tickTimer) tickTimer = setInterval(tickActivity, 1000);
+    } else {
+      clearInterval(tickTimer);
+      tickTimer = null;
+    }
     return;
   }
   const act = detail.activity;
@@ -1300,6 +1308,99 @@ function renderActivity() {
   box.hidden = false;
   tickActivity();
   if (!tickTimer) tickTimer = setInterval(tickActivity, 1000);
+}
+
+// ---- subagents (a.subagents, lib/subagents.js): the ones running now, under the activity line —
+// what each is for, the tool it ran last and how long it has worked. A row opens its work below
+// it (the tool lines it ran and what it said; subLogHtml, the same as its Agent line in the chat).
+// Three rows, then 「n개 더 보기」.
+const SUBS_SHOWN = 3;
+function renderSubs() {
+  const box = document.getElementById('d-subs');
+  if (!box) return;
+  const a = currentAgent();
+  const subs = a && !a.stale && Array.isArray(a.subagents) ? a.subagents : [];
+  if (!subs.length) {
+    box.hidden = true;
+    box._html = '';
+    box.innerHTML = '';
+    return;
+  }
+  const all = Boolean(detail.subsAll) || subs.length <= SUBS_SHOWN + 1;
+  const open = detail.subOpen && subs.some((s) => s.id === detail.subOpen) ? detail.subOpen : null;
+  const rows = (all ? subs : subs.slice(0, SUBS_SHOWN)).map((s) => {
+    const on = s.id === open;
+    const label = s.desc || s.type;
+    return `<li><button type="button" class="sub-row" data-sub="${esc(s.id)}" aria-expanded="${on}"><span class="spin" aria-hidden="true"></span><span class="sub-desc">${esc(label)}</span>${
+      s.type && s.type !== 'general-purpose' ? `<span class="sub-type">${esc(s.type)}</span>` : ''
+    }${s.tool ? `<span class="sub-tool">${esc(s.tool)}</span>` : ''}${s.since ? `<span class="el" data-since="${Number(s.since)}"></span>` : ''}<span class="chev" aria-hidden="true">${on ? '▾' : '▸'}</span></button>${
+      on ? subLogHtml(subLog(s.id)) : ''
+    }</li>`;
+  });
+  const more = all ? (subs.length > SUBS_SHOWN + 1 ? `<button type="button" class="subs-more" data-subs-more="0">${T('접기')}</button>` : '') : `<button type="button" class="subs-more" data-subs-more="1">${T('{n}개 더 보기', { n: subs.length - SUBS_SHOWN })}</button>`;
+  const html = `<h2 class="subs-head">${esc(T('서브에이전트 {n}개 작업 중', { n: subs.length }))}</h2><ul>${rows.join('')}</ul>${more}`;
+  box.hidden = false;
+  if (box._html === html) return;
+  box._html = html;
+  box.innerHTML = html;
+  fillTimes(box);
+}
+function onSubsClick(e) {
+  const more = e.target.closest('[data-subs-more]');
+  if (more) {
+    detail.subsAll = more.dataset.subsMore === '1';
+    return renderSubs();
+  }
+  const row = e.target.closest('[data-sub]');
+  if (!row) return;
+  detail.subOpen = detail.subOpen === row.dataset.sub ? null : row.dataset.sub;
+  renderSubs();
+}
+
+// A subagent's work as the host reads it (GET …/subagents/<id>): kept per opened agent, asked for
+// when first shown and again, while it runs, when shown after SUB_LOG_MS (the poll redraws).
+const SUB_LOG_MS = 3000;
+const subRunning = (id, a = currentAgent()) => Boolean(a && Array.isArray(a.subagents) && a.subagents.some((s) => s.id === id));
+function subLog(id) {
+  const logs = (detail.subLogs ||= new Map());
+  const e = logs.get(id);
+  const run = subRunning(id);
+  const due = !e || (!e.loading && ((run && Date.now() - e.at > SUB_LOG_MS) || (e.data && e.data.running && !run)));
+  if (due) fetchSubLog(id);
+  return logs.get(id);
+}
+async function fetchSubLog(id) {
+  const d = detail;
+  const a = currentAgent();
+  if (!a) return;
+  const prev = d.subLogs.get(id);
+  d.subLogs.set(id, { ...(prev || {}), loading: true, at: Date.now() });
+  let next;
+  try {
+    next = { data: await api(hp(`/agents/${encodeURIComponent(a.pane)}/subagents/${encodeURIComponent(id)}`, curHost())), at: Date.now() };
+  } catch (err) {
+    next = { data: prev && prev.data, err, at: Date.now() };
+  }
+  if (detail !== d) return;
+  d.subLogs.set(id, next);
+  renderSubs();
+  renderDetailBody(false);
+}
+// The tool lines it ran (the last ones), then what it handed back (or, still running, what it said last).
+function subLogHtml(e) {
+  if (!e || (!e.data && !e.err)) return `<div class="sub-log"><p class="muted">${T('불러오는 중…')}</p></div>`;
+  if (!e.data) {
+    const old = e.err && e.err.status === 404;
+    return `<div class="sub-log"><p class="muted">${old ? T('이 호스트는 서브에이전트의 작업을 보여 주지 못합니다 (배포가 필요합니다)') : T('서브에이전트의 작업을 읽지 못했습니다')}</p></div>`;
+  }
+  const d = e.data;
+  if (!d.supported || !d.found) return `<div class="sub-log"><p class="muted">${T('서브에이전트의 기록이 없습니다')}</p></div>`;
+  const tools = d.tools || [];
+  const lines = tools.map((x) => `<div class="sub-tl${x.error ? ' failed' : ''}"><b>${esc(x.name)}</b> ${esc(x.summary || '')}</div>`).join('');
+  const before = d.more || d.cut ? `<p class="muted">${T('앞의 도구 줄은 줄였습니다')}</p>` : '';
+  const none = tools.length ? '' : `<p class="muted">${T('아직 도구를 쓰지 않았습니다')}</p>`;
+  const report = d.report ? `<div class="sub-report"><p class="sub-report-head">${d.running ? T('지금까지 한 말') : T('보고')}</p>${Markdown.md(d.report)}</div>` : '';
+  return `<div class="sub-log">${before}${lines}${none}${report}</div>`;
 }
 
 // The last tool of this turn from the transcript, for screens that don't show the tool block
@@ -1317,7 +1418,7 @@ function transcriptTool() {
 // Elapsed time runs on between reads: since the hub saw the status turn to working, else from
 // the spinner's own count. The header's "완료 · 3분 전" ticks here too.
 function tickActivity() {
-  for (const id of ['d-badge', 'd-title']) {
+  for (const id of ['d-badge', 'd-title', 'd-subs']) {
     const box = document.getElementById(id);
     if (box) fillTimes(box);
   }

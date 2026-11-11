@@ -408,10 +408,86 @@ test('host colour: picked in 설정 → 연결, then on its host button, its car
   noErrors(page);
 });
 
+// A Claude session with subagents as Claude Code 2.1.322 lays it out (lib/subagents.js), in a
+// Claude config folder of its own, read by this process's hubs while the test runs: one subagent
+// still running (no finished, its transcript just written), one done (its notice in the session,
+// its report handed back). -> { sid, agentOf(pane, status, seq, title, name) }
+function claudeWithSubagents(t, { sid, words }) {
+  const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'ui-claude-'));
+  const before = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = root;
+  t.after(() => {
+    if (before === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = before;
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const proj = path.join(root, 'projects', '-work');
+  const dir = path.join(proj, sid, 'subagents');
+  fs.mkdirSync(dir, { recursive: true });
+  const j = (o) => JSON.stringify(o);
+  const ts = (s) => new Date(Date.now() - s * 1000).toISOString();
+  const use = (n, id, desc, type) => j({ type: 'assistant', uuid: `x${n}`, timestamp: ts(300 - n), message: { id: `m${n}`, content: [{ type: 'tool_use', id, name: 'Agent', input: { description: desc, subagent_type: type, prompt: '…', run_in_background: true } }] } });
+  const launched = (n, id, agentId) => j({ type: 'user', uuid: `r${n}`, timestamp: ts(299 - n), toolUseResult: { isAsync: true, status: 'async_launched', agentId }, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: 'Async agent launched successfully.' }] } });
+  const note = `<task-notification>\n<task-id>a2</task-id>\n<tool-use-id>tu2</tool-use-id>\n<status>completed</status>\n<summary>Agent "${words.done}" finished</summary>\n</task-notification>`;
+  fs.writeFileSync(
+    path.join(proj, `${sid}.jsonl`),
+    [
+      j({ type: 'user', uuid: 'u0', timestamp: ts(310), message: { role: 'user', content: words.prompt } }),
+      use(1, 'tu1', words.running, 'Explore'),
+      launched(1, 'tu1', 'a1'),
+      use(2, 'tu2', words.done, 'general-purpose'),
+      launched(2, 'tu2', 'a2'),
+      j({ type: 'user', uuid: 'n2', timestamp: ts(100), origin: { kind: 'task-notification' }, message: { role: 'user', content: note } }),
+      j({ type: 'assistant', uuid: 'x9', timestamp: ts(90), message: { id: 'm9', content: [{ type: 'text', text: words.reply }] } }),
+    ].join('\n') + '\n',
+  );
+  const side = (id, entries) => fs.writeFileSync(path.join(dir, `agent-${id}.jsonl`), entries.map((e, i) => j({ isSidechain: true, agentId: id, uuid: `${id}-${i}`, timestamp: ts(200 - i), ...e })).join('\n') + '\n');
+  const tool = (id, name, input) => ({ type: 'assistant', message: { id, content: [{ type: 'tool_use', id: `t-${id}`, name, input }] } });
+  fs.writeFileSync(path.join(dir, 'agent-a1.meta.json'), j({ agentType: 'Explore', description: words.running, toolUseId: 'tu1', spawnDepth: 1, requestShape: 'background' }));
+  side('a1', [{ type: 'user', message: { role: 'user', content: '…' } }, tool('s1', 'Grep', { pattern: 'keymap' })]);
+  fs.writeFileSync(path.join(dir, 'agent-a2.meta.json'), j({ agentType: 'general-purpose', description: words.done, toolUseId: 'tu2', spawnDepth: 1, requestShape: 'background', finished: true }));
+  side('a2', [{ type: 'user', message: { role: 'user', content: '…' } }, tool('s2', 'Read', { file_path: '/work/lib/http.js' }), tool('s3', 'SubagentHandback', { message: words.report })]);
+  return { agentOf: (pane, status, seq, title, name) => ({ ...agent(pane, status, seq, title, name), cwd: '/work', agent_session: { kind: 'id', value: sid } }) };
+}
+
+test('subagents: an agent waiting for them says so in the list; its view lists them and opens their work', async (t) => {
+  const c = claudeWithSubagents(t, { sid: 'aaaaaaaa-0000-4000-8000-000000000001', words: { prompt: '리뷰 둘 돌려', running: '키맵 검토', done: '보안 검토', reply: '보안 검토가 끝났고 키맵 검토는 아직입니다.', report: '## 결과\n- 문제 없음' } });
+  const h = await hubInProcess(t, { id: 'uis', agents: [c.agentOf('w1-p2', 'idle', 5, '리뷰 둘', 'shop-api')] });
+  const page = await open(t, h);
+  if (!page) return;
+  const st = page.locator('.pane-row .st.sub');
+  await st.waitFor();
+  assert.equal(await st.innerText(), '서브에이전트 1개 작업 중');
+  await page.locator('.pane-row.agent').click();
+  const subs = page.locator('#d-subs');
+  await subs.locator('.sub-row').waitFor();
+  assert.match(await subs.locator('.subs-head').innerText(), /서브에이전트 1개 작업 중/);
+  assert.match(await subs.locator('.sub-row').innerText(), /키맵 검토[\s\S]*Explore[\s\S]*Grep: keymap/);
+  await subs.locator('.sub-row').click();
+  await subs.locator('.sub-log .sub-tl').waitFor();
+  assert.match(await subs.locator('.sub-log').innerText(), /Grep keymap/);
+  // In the chat: the running one's line says so, the done one's says 완료 and opens to its report;
+  // its notice is one quiet line.
+  const lines = page.locator('#d-body button.tool');
+  await page.locator('#d-body .sub-st.working').waitFor();
+  assert.match(await lines.filter({ hasText: '키맵 검토' }).innerText(), /작업 중/);
+  assert.match(await lines.filter({ hasText: '보안 검토' }).innerText(), /완료/);
+  assert.equal(await page.locator('#d-body .note.task').innerText(), '서브에이전트 완료: 보안 검토');
+  await lines.filter({ hasText: '보안 검토' }).click();
+  const log = page.locator('#d-body .sub-log .sub-report');
+  await log.waitFor();
+  assert.match(await log.innerText(), /보고[\s\S]*결과[\s\S]*문제 없음/);
+  assert.match(await page.locator('#d-body .sub-log').innerText(), /Read http\.js/);
+  // Its own status: waiting for them, not 완료 (no unread finish, the clock of the turn).
+  assert.equal(await page.locator('#d-title .sub-st .st.sub').innerText(), '서브에이전트 1개 작업 중');
+  noErrors(page);
+});
+
 // English: every screen, opened with 언어 · Language set to English, shows no Korean (the example
 // data is English too). What is left Korean on purpose is the 언어 setting's own labels.
 test('English: no Korean left on the list, an agent, its answer box, quick switch, settings, shortcuts', async (t) => {
-  const h = await hubInProcess(t, { id: 'ui6', agents: [agent('w1-p2', 'blocked', 5, 'Payments refactor', 'shop-api'), agent('w1-p3', 'working', 4, 'Order API cleanup', 'shop-api-2')] });
+  const c = claudeWithSubagents(t, { sid: 'aaaaaaaa-0000-4000-8000-000000000006', words: { prompt: 'Run both reviews', running: 'Keymap review', done: 'Security review', reply: 'The security review is done.', report: '## Result\n- Nothing found' } });
+  const h = await hubInProcess(t, { id: 'ui6', agents: [agent('w1-p2', 'blocked', 5, 'Payments refactor', 'shop-api'), agent('w1-p3', 'working', 4, 'Order API cleanup', 'shop-api-2'), c.agentOf('w1-p4', 'idle', 3, 'Two reviews', 'shop-api-3')] });
   h.herdr.screens['w1-p2'] = BASH;
   if (why.skip) return t.skip(why.skip);
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
@@ -443,6 +519,13 @@ test('English: no Korean left on the list, an agent, its answer box, quick switc
   await page.evaluate(() => (location.hash = '#/h/ui6/agent/w1-p2'));
   await page.locator('#d-blocked .choice[data-n="1"]').waitFor();
   await korean('the agent and its answer box');
+  // One waiting for its subagents: their list, one's work opened, the chat's Agent lines and notice.
+  await page.evaluate(() => (location.hash = '#/h/ui6/agent/w1-p4'));
+  await page.locator('#d-subs .sub-row').click();
+  await page.locator('#d-subs .sub-log .sub-tl').waitFor();
+  await page.locator('#d-body button.tool', { hasText: 'Security review' }).click();
+  await page.locator('#d-body .sub-log .sub-report').waitFor();
+  await korean('an agent waiting for its subagents');
   for (const hash of ['#/settings', '#/keys']) {
     await page.evaluate((x) => (location.hash = x), hash);
     await page.waitForTimeout(500);

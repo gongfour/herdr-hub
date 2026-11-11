@@ -66,6 +66,8 @@
   function unread(a, { now = Date.now(), isSeen = () => false, recentMs = RECENT_MS } = {}) {
     // A ghost (its host offline, lib/peers.js staleView) is not news: it is what was there.
     if (!a || a.stale || a.status === 'blocked' || a.status === 'working' || a.status === 'stale') return false;
+    // Waiting for its subagents (lib/subagents.js): not finished yet.
+    if (Array.isArray(a.subagents) && a.subagents.length) return false;
     const fresh = a.doneAt ? now - a.doneAt <= recentMs : a.status === 'done';
     return fresh && !isSeen(seenKey(a));
   }

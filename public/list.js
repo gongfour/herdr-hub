@@ -32,7 +32,7 @@ function agoKo(t) {
 }
 // "12분" (working) / "3분 전" (finished) at a row's right end; nothing when the hub doesn't know.
 function timeTag(a) {
-  if (a.status === 'working' && a.workingSince) return `<span class="el" data-since="${Number(a.workingSince)}"></span>`;
+  if ((a.status === 'working' || shownStatus(a) === 'sub') && a.workingSince) return `<span class="el" data-since="${Number(a.workingSince)}"></span>`;
   if ((a.status === 'done' || a.status === 'idle') && a.doneAt) return `<span class="el ago" data-ago="${Number(a.doneAt)}" title="${T('{time} 완료', { time: esc(clock(a.doneAt)) })}"></span>`;
   return '';
 }
@@ -198,7 +198,7 @@ const isUnread = (a) => Inbox.unread({ ...a, host: a.host || localId() }, { isSe
 // Opening an agent that has finished marks that finish read (not one that is still running).
 // Split, the list beside it drops the mark at once.
 function markSeen(a) {
-  if (!a || a.status === 'working' || a.status === 'blocked') return;
+  if (!a || a.status === 'working' || a.status === 'blocked' || subsOf(a)) return;
   const k = Inbox.seenKey({ ...a, host: a.host || localId() });
   const m = seenMap();
   if (m[k]) return;
@@ -617,9 +617,11 @@ function agentRow(a, ro = false) {
   const blocked = !ghost && needsAnswer(a);
   const status = shownStatus(a);
   const end = blocked ? `<span class="badge blocked">${esc(STATUS_LABEL.blocked)}</span>` : ghost ? '' : timeTag(a);
-  const st = blocked ? '' : ghost ? `<span class="st stale"><i class="st-dot" aria-hidden="true"></i>${esc(RowText.lastStatus(a))}</span>` : `<span class="st ${esc(status)}"><i class="st-dot" aria-hidden="true"></i>${esc(STATUS_LABEL[status] || status)}</span>`;
+  const st = blocked ? '' : ghost ? `<span class="st stale"><i class="st-dot" aria-hidden="true"></i>${esc(RowText.lastStatus(a))}</span>` : `<span class="st ${esc(status)}"><i class="st-dot" aria-hidden="true"></i>${esc(statusText(a))}</span>`;
+  // Working itself with subagents running too: how many, after the status.
+  const subs = !ghost && status !== 'sub' && subsOf(a) ? `<span class="subs-n">${esc(T('서브에이전트 {n}개', { n: subsOf(a) }))}</span>` : '';
   const name = RowText.metaName(a.name, a.title);
-  const meta = [st, name ? `<span>${esc(name)}</span>` : '', paneDir(a, a.name)].filter(Boolean).join('<span class="sep"> · </span>');
+  const meta = [st, subs, name ? `<span>${esc(name)}</span>` : '', paneDir(a, a.name)].filter(Boolean).join('<span class="sep"> · </span>');
   return `<div class="sw${ghost ? ' ghost' : ''}" ${rowData('agent', a.host, a.pane)}>
     <a class="sw-front pane-row agent${unread ? ' unread' : ''}" href="${link(a.host, `/agent/${encodeURIComponent(a.pane)}`)}">
       ${unread ? `<span class="unread-dot" role="img" aria-label="${T('새 결과')}"></span>` : ''}<span class="pane-ic" aria-hidden="true">${agentIcon(a)}</span>
