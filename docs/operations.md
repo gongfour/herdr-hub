@@ -73,7 +73,7 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 
 ## 운영 — desktop (허브)
 
-- 위치: `%USERPROFILE%\src\herdr-hub`, 로그는 `data\herdr-hub.log`, VAPID 키·구독은 `data\`.
+- 위치: `D:\application\herdr-hub`(2026-11-11 에 `%USERPROFILE%\src\herdr-hub` 에서 옮겼다. 예약 작업의 실행 경로와 `deploy.env` 의 `DESKTOP_DIR` 이 이 폴더를 가리킨다), 로그는 `data\herdr-hub.log`, VAPID 키·구독은 `data\`.
 - 시작: 로그온 때 예약 작업 `HerdrHub` 가 `conhost.exe --headless run.cmd` 로 창 없이 띄운다(127.0.0.1:8787). 콘솔 창으로 띄우면 그 창을 닫거나 Ctrl+C 가 눌리는 순간 서버가 꺼진다(종료 코드 0xC000013A). node 가 죽으면(멈춰서 감시 스레드가 죽인 것도) `run.cmd` 가 10 초 뒤 다시 띄운다(종료 코드 0·2 면 끝). 이 호스트의 설정(로그인·이름·피어 목록의 씨앗·node 경로)은 `data\host.cmd` 의 `set` 줄들이고(`run.cmd` 맨 위 주석에 예, git 에 넣지 않고 배포가 덮어쓰지 않는다), 피어 목록은 `data\peers.json`(설정 → 연결에서 고친다). `run.cmd` 는 CRLF 로 둔다(LF 면 cmd 가 `set` 줄을 빠뜨린다).
 - 공개: `tailscale serve --bg 8787` → `https://desktop.example.ts.net` (tailnet 전용).
 - 배포: 맥에서 `./deploy.sh` (또는 `./deploy.sh desktop`). 어느 호스트로 보내는지(ssh 대상, 배포 폴더, serve 이름)는 저장소의 `deploy.env`(git 에 넣지 않는다, `deploy.sh` 맨 위 주석)에 둔다.
