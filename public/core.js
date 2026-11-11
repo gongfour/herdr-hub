@@ -196,7 +196,13 @@ const hp = (path, host = curHost()) => (host && host !== localId() ? `/peers/${e
 // Every route carries its host; #/agent/… without one still means the local host.
 const link = (host, path) => `#/h/${encodeURIComponent(host || localId() || '')}${path}`;
 const same = (x, host, id, key = 'pane') => x[key] === id && (x.host || localId()) === host;
-const hostChip = (x) => (multi() ? `<span class="host-chip">${esc(x.hostLabel || hostLabel(x.host))}</span>` : '');
+// The colour given a host (설정 → 연결, public/hostcolor.js) as an attribute for style.css's
+// [data-hc]: nothing when it has none, or when there is one host to tell apart.
+function hcAttr(id) {
+  const c = multi() && (hostOf(id || localId()) || {}).color;
+  return c && HostColor.COLORS.includes(c) ? ` data-hc="${c}"` : '';
+}
+const hostChip = (x) => (multi() ? `<span class="host-chip"${hcAttr(x.host)}>${esc(x.hostLabel || hostLabel(x.host))}</span>` : '');
 // An agent's or shell's header: its workspace and its folder (the workspace has none of its own),
 // the folder as its last two ("…/Project/herdr-hub", rowtext.js shortPath; the whole path is the
 // header's tooltip). "hub-pol-d1 · hub-pol-d1" says the same thing twice: one when the folder is
@@ -647,11 +653,13 @@ function menu(title, items, { sub = '', anchor = null } = {}) {
     const pop = Boolean(split && at && !(lastInput === 'pointer' && lastPointer.type === 'touch'));
     // off: why the item can't be used now (an offline host's ghost, actions.js ghostOff), said in its place.
     // on: the one chosen now (a picker's current value): checked, and focused first from a key.
-    const row = ([key, label, danger, note, action, off, on]) => {
+    // hc: a host colour's swatch before the label (settings.js hostColorMenu; '' is none).
+    const row = ([key, label, danger, note, action, off, on, hc]) => {
       const k = kbd && action && !off ? Keymap.hint(action, ctx) : '';
       const sub = off || note;
       const check = on ? `<span class="act-check" aria-hidden="true">${ICON.check}</span>` : '';
-      return `<button class="action ${danger ? 'danger' : ''}${on ? ' on' : ''}" data-k="${esc(key)}"${off ? ' disabled' : ''}${on ? ' aria-current="true"' : ''}><span class="act-main">${esc(label)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</span>${k ? `<kbd class="act-key">${esc(k)}</kbd>` : ''}${check}</button>`;
+      const swatch = hc != null ? `<span class="hc-swatch"${hc ? ` data-hc="${esc(hc)}"` : ''} aria-hidden="true"></span>` : '';
+      return `<button class="action ${danger ? 'danger' : ''}${on ? ' on' : ''}" data-k="${esc(key)}"${off ? ' disabled' : ''}${on ? ' aria-current="true"' : ''}>${swatch}<span class="act-main">${esc(label)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</span>${k ? `<kbd class="act-key">${esc(k)}</kbd>` : ''}${check}</button>`;
     };
     const blocks = [[]];
     for (const x of items.filter(Boolean)) {

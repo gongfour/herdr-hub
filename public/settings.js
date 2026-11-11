@@ -250,8 +250,11 @@ function renderConn() {
       const p = !x.local && manage ? adminPeer(x.id) : null;
       const where = p ? p.url.replace(/^https:\/\//, '') : x.local ? location.host : '';
       const url = where ? `<span class="cl-url">${esc(where)}</span>` : '';
-      const more = p ? `<button type="button" class="icon-btn cl-more" data-host="${esc(x.id)}" aria-label="${T('{name} 메뉴', { name: esc(x.label) })}" title="${T('{name} 메뉴', { name: esc(x.label) })}">${ICON.more}</button>` : '';
-      const ctl = ordering && !x.connecting ? reorderCtl(x.label) : more;
+      const more = p ? `<button type="button" class="icon-btn cl-more" data-host="${esc(x.id)}" aria-label="${T('{name} 메뉴', { name: esc(x.label) })}" title="${T('{name} 메뉴', { name: esc(x.label) })}">${ICON.more}</button>` : manage && multi() ? `<span class="icon-btn cl-more cl-slot" aria-hidden="true">${ICON.more}</span>` : '';
+      // Its colour, two hosts or more (hostColorMenu): the swatch shows it and picks another.
+      const name = hostColorName(x.color);
+      const color = multi() && !x.connecting ? `<button type="button" class="icon-btn cl-color" data-color-host="${esc(x.id)}" aria-label="${T('{name} 색: {color}', { name: esc(x.label), color: name })}" title="${T('{name} 색: {color}', { name: esc(x.label), color: name })}"><span class="hc-swatch"${hcAttr(x.id)} aria-hidden="true"></span></button>` : '';
+      const ctl = ordering && !x.connecting ? reorderCtl(x.label) : color + more;
       return `<li${ordering && !x.connecting ? ` data-order-host="${esc(x.id)}"` : ''}>${hostDot(x)}<span class="cl-main"><span class="cl-head"><b>${esc(x.label)}</b>${x.local && multi() ? `<span class="tag">${pushInfo && pushInfo.disabled ? T('이 주소') : T('허브')}</span>` : ''}<span class="cl-st">${status}</span></span>${url}${warn}</span>${ctl}</li>`;
     })
     .join('');
@@ -267,6 +270,7 @@ function renderConn() {
   if (box._html === html) return;
   // Redrawn in place: a focused ⋯ (or 호스트 추가) keeps the focus.
   const f = document.activeElement && box.contains(document.activeElement) ? document.activeElement.dataset.host || document.activeElement.id : null;
+  const fc = f ? null : document.activeElement && box.contains(document.activeElement) && document.activeElement.dataset.colorHost; // a colour swatch
   // A grip (호스트 순서 바꾸기): the same host's grip.
   const roLi = document.activeElement && box.contains(document.activeElement) && document.activeElement.closest('[data-order-host]');
   const roHost = roLi && roLi.dataset.orderHost;
@@ -275,6 +279,9 @@ function renderConn() {
   if (roHost) {
     const li = box.querySelector(`[data-order-host="${CSS.escape(roHost)}"]`);
     const again = li && li.querySelector('.ro-grip');
+    if (again) again.focus({ preventScroll: true });
+  } else if (fc) {
+    const again = box.querySelector(`.cl-color[data-color-host="${CSS.escape(fc)}"]`);
     if (again) again.focus({ preventScroll: true });
   } else if (f) {
     const again = box.querySelector(`[data-host="${CSS.escape(f)}"]`) || (f === 's-host-add' ? box.querySelector('#s-host-add') : null);
@@ -285,6 +292,8 @@ function bindConn(main) {
   main.querySelector('#s-conn').addEventListener('click', (e) => {
     const more = e.target.closest('.cl-more');
     if (more) return hostMenu(more.dataset.host);
+    const color = e.target.closest('.cl-color');
+    if (color) return hostColorMenu(color.dataset.colorHost);
     if (e.target.closest('#s-host-add')) addHostSheet();
     if (e.target.closest('#s-host-order')) {
       connOrder = !connOrder;
@@ -293,6 +302,24 @@ function bindConn(main) {
       if (b) b.focus({ preventScroll: true });
     }
   });
+}
+
+// A host's colour (public/hostcolor.js, style.css [data-hc]): kept by the hub, the same on every
+// device, as the order is. Its button in the host segment, its cards and its chip show it.
+function hostColorName(c) {
+  const names = { green: T('초록'), teal: T('청록'), blue: T('파랑'), purple: T('보라'), pink: T('분홍'), orange: T('주황'), yellow: T('노랑'), gray: T('회색') };
+  return names[c] || T('없음');
+}
+async function hostColorMenu(id) {
+  const cur = (hostOf(id) || {}).color || '';
+  const items = [['none', T('없음'), false, '', null, null, !cur, ''], ...HostColor.COLORS.map((c) => [c, hostColorName(c), false, '', null, null, cur === c, c])];
+  const k = await menu(T('{name} 색', { name: hostLabel(id) }), items, { sub: T('모든 기기에서 같은 색으로 보입니다') });
+  if (!k || k === (cur || 'none')) return;
+  try {
+    await api('/colors/hosts', { method: 'POST', body: JSON.stringify({ host: id, color: k === 'none' ? '' : k }) });
+  } catch (err) {
+    toastErr(errText(err));
+  }
 }
 
 // After a change: the list again, now.

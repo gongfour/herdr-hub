@@ -216,6 +216,39 @@ test('host segment: the chosen host glides to its middle, stays there, and is le
   noErrors(page);
 });
 
+test('host colour: picked in 설정 → 연결, then on its host button, its cards and its chip; 없음 takes it away', async (t) => {
+  const h = await hubInProcess(t, { id: 'ui8', agents: [agent('w1-p2', 'idle', 3, '문서 정리', 'docs')], env: { HERDR_HUB_PEERS: 'srv=http://127.0.0.1:9' } });
+  h.herdr.screens['w1-p2'] = IDLE;
+  const page = await open(t, h, '#/settings');
+  if (!page) return;
+  const pick = async (color) => {
+    await page.locator('.cl-color[data-color-host="ui8"]').click();
+    await page.locator(`.sheet .action[data-k="${color}"]`).click();
+  };
+  await pick('blue');
+  await page.locator('.cl-color[data-color-host="ui8"] .hc-swatch[data-hc="blue"]').waitFor();
+  assert.match(await page.locator('.cl-color[data-color-host="ui8"]').getAttribute('aria-label'), /ui8 색: 파랑/);
+  assert.equal(await page.locator('.cl-color[data-color-host="srv"] .hc-swatch[data-hc]').count(), 0, 'the other host has none');
+  await page.evaluate(() => (location.hash = '#/'));
+  await page.locator('.seg.hosts button[data-host="ui8"][data-hc="blue"]').waitFor();
+  assert.equal(await page.locator('.seg.hosts button[data-host="srv"][data-hc]').count(), 0);
+  await page.locator('section.ws[data-hc="blue"] .host-chip[data-hc="blue"]').waitFor();
+  // The card's head is tinted, not the surface's white.
+  const head = () => page.evaluate(() => getComputedStyle(document.querySelector('section.ws .ws-front')).backgroundColor);
+  assert.notEqual(await head(), 'rgb(255, 255, 255)');
+  // The open settings show the one chosen; 없음 takes it away everywhere.
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.locator('.cl-color[data-color-host="ui8"]').click();
+  assert.equal(await page.locator('.sheet .action[data-k="blue"]').getAttribute('aria-current'), 'true');
+  await page.locator('.sheet .action[data-k="none"]').click();
+  await page.locator('.cl-color[data-color-host="ui8"] .hc-swatch:not([data-hc])').waitFor();
+  await page.evaluate(() => (location.hash = '#/'));
+  await page.locator('section.ws').waitFor();
+  assert.equal(await page.locator('.seg.hosts [data-hc], section.ws[data-hc], .host-chip[data-hc]').count(), 0);
+  assert.equal(await head(), 'rgb(255, 255, 255)');
+  noErrors(page);
+});
+
 // English: every screen, opened with 언어 · Language set to English, shows no Korean (the example
 // data is English too). What is left Korean on purpose is the 언어 setting's own labels.
 test('English: no Korean left on the list, an agent, its answer box, quick switch, settings, shortcuts', async (t) => {

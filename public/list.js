@@ -290,7 +290,7 @@ function hostSeg(f) {
     const st = RowText.hostState(x);
     const why = st === 'off' ? (x.since ? T('오프라인 · {time}부터', { time: clock(x.since) }) : T('오프라인')) : st === 'herdr' ? T('herdr 연결 끊김') : st === 'connecting' ? T('연결 중') : '';
     const title = [why, warn ? T('{warn} — 배포가 필요합니다', { warn }) : ''].filter(Boolean).join(' · ');
-    return `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${st === 'up' ? '' : 'off'}" aria-label="${esc(RowText.hostAria(x, warn))}"${title ? ` title="${esc(title)}"` : ''}>${hostDot(x)}<span class="hl">${esc(x.label)}</span>${warn ? '<span class="api-warn" aria-hidden="true">!</span>' : ''}</button>`;
+    return `<button data-host="${esc(x.id)}" aria-pressed="${f === x.id}" class="${st === 'up' ? '' : 'off'}"${hcAttr(x.id)} aria-label="${esc(RowText.hostAria(x, warn))}"${title ? ` title="${esc(title)}"` : ''}>${hostDot(x)}<span class="hl">${esc(x.label)}</span>${warn ? '<span class="api-warn" aria-hidden="true">!</span>' : ''}</button>`;
   };
   return `
     <nav class="seg hosts" role="group" aria-label="${T('호스트')}"${keyAttrs('prevHost|nextHost', T('호스트 바꾸기'))}>
@@ -589,7 +589,7 @@ function wsSection({ w, agents, terms }, ro = false) {
   const at = ghostAt(w, agents, terms);
   const asof = at ? `<span class="ws-asof">${esc(RowText.asOf(at))}</span>` : '';
   const chip = [filter() === 'all' ? hostChip(w) : '', asof].filter(Boolean).join('');
-  return `<section class="ws${at ? ' ghost' : ''}">
+  return `<section class="ws${at ? ' ghost' : ''}"${hcAttr(w.host)}>
     <div class="sw ws-head" ${rowData('ws', w.host, w.workspace_id)}>
       <div class="sw-front ws-front">
         <a class="ws-main" href="${link(w.host, `/ws/${encodeURIComponent(w.workspace_id)}`)}">

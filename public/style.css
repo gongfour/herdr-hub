@@ -49,6 +49,12 @@
   /* The chosen segment of a segmented control: lighter than its track in both themes. */
   --seg-on: #ffffff;
   --seg-on-line: #b3ad9f;
+  /* Host colours (설정 → 연결, public/hostcolor.js): one soft hue each, a light and a dark value.
+     What a host is drawn with mixes its hue into the surface (--hc-bg, --hc-tint of it) or draws it
+     as a thin line (--hc); see [data-hc] below. */
+  --hc-green: #3f8f5f; --hc-teal: #2a8a8a; --hc-blue: #3c6fc4; --hc-purple: #7a5ac4;
+  --hc-pink: #c0588e; --hc-orange: #c46a2c; --hc-yellow: #a88414; --hc-gray: #7d7a72;
+  --hc-tint: 10%;
   /* A toast floats over the page's cards: in the dark it sits a step lighter, with an edge and a
      shadow that show there (the light theme's white card on the warm page already does). */
   --toast-bg: #ffffff;
@@ -95,6 +101,9 @@
   --d-field-line: #76736c;
   --d-seg-on: #42413c;
   --d-seg-on-line: #7a7871;
+  --d-hc-green: #6fbf8f; --d-hc-teal: #5fc8c8; --d-hc-blue: #7aa6f0; --d-hc-purple: #b096ee;
+  --d-hc-pink: #ee96c2; --d-hc-orange: #f0a46a; --d-hc-yellow: #e6c45a; --d-hc-gray: #a8a59c;
+  --d-hc-tint: 13%;
   --d-toast-bg: #2a2926;
   --d-toast-line: #4a4844;
   --d-toast-shadow: rgb(0 0 0 / 0.5);
@@ -124,6 +133,8 @@
   --done: var(--d-done); --done-bg: var(--d-done-bg); --working: var(--d-working);
   --working-bg: var(--d-working-bg); --idle: var(--d-idle); --idle-bg: var(--d-idle-bg); --field-line: var(--d-field-line);
   --seg-on: var(--d-seg-on); --seg-on-line: var(--d-seg-on-line);
+  --hc-green: var(--d-hc-green); --hc-teal: var(--d-hc-teal); --hc-blue: var(--d-hc-blue); --hc-purple: var(--d-hc-purple);
+  --hc-pink: var(--d-hc-pink); --hc-orange: var(--d-hc-orange); --hc-yellow: var(--d-hc-yellow); --hc-gray: var(--d-hc-gray); --hc-tint: var(--d-hc-tint);
   --toast-bg: var(--d-toast-bg); --toast-line: var(--d-toast-line); --toast-shadow: var(--d-toast-shadow); --scrim: var(--d-scrim);
   --ansi-0: var(--d-ansi-0); --ansi-1: var(--d-ansi-1); --ansi-2: var(--d-ansi-2);
   --ansi-3: var(--d-ansi-3); --ansi-4: var(--d-ansi-4); --ansi-5: var(--d-ansi-5);
@@ -141,6 +152,8 @@
     --done: var(--d-done); --done-bg: var(--d-done-bg); --working: var(--d-working);
     --working-bg: var(--d-working-bg); --idle: var(--d-idle); --idle-bg: var(--d-idle-bg); --field-line: var(--d-field-line);
   --seg-on: var(--d-seg-on); --seg-on-line: var(--d-seg-on-line);
+  --hc-green: var(--d-hc-green); --hc-teal: var(--d-hc-teal); --hc-blue: var(--d-hc-blue); --hc-purple: var(--d-hc-purple);
+  --hc-pink: var(--d-hc-pink); --hc-orange: var(--d-hc-orange); --hc-yellow: var(--d-hc-yellow); --hc-gray: var(--d-hc-gray); --hc-tint: var(--d-hc-tint);
   --toast-bg: var(--d-toast-bg); --toast-line: var(--d-toast-line); --toast-shadow: var(--d-toast-shadow); --scrim: var(--d-scrim);
     --ansi-0: var(--d-ansi-0); --ansi-1: var(--d-ansi-1); --ansi-2: var(--d-ansi-2);
     --ansi-3: var(--d-ansi-3); --ansi-4: var(--d-ansi-4); --ansi-5: var(--d-ansi-5);
@@ -969,6 +982,26 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   display: inline-block; font-size: var(--fs-2); font-weight: 600; line-height: 1.5; padding: 0 var(--sp-1); margin-right: var(--sp-2); border-radius: 6px;
   background: var(--surface-2); color: var(--text); border: 1px solid var(--line); vertical-align: 1px;
 }
+/* A host's colour (data-hc, core.js hcAttr): soft, never in place of what is said in words. Its
+   card's head is tinted (the open row's and the focused head's own looks still win), its chip a
+   little more, and its button in the host segment has a short line under the name (not a tint:
+   the sliding pill of a host swipe runs under the buttons). */
+[data-hc="green"] { --hc: var(--hc-green); } [data-hc="teal"] { --hc: var(--hc-teal); }
+[data-hc="blue"] { --hc: var(--hc-blue); } [data-hc="purple"] { --hc: var(--hc-purple); }
+[data-hc="pink"] { --hc: var(--hc-pink); } [data-hc="orange"] { --hc: var(--hc-orange); }
+[data-hc="yellow"] { --hc: var(--hc-yellow); } [data-hc="gray"] { --hc: var(--hc-gray); }
+[data-hc] { --hc-bg: color-mix(in srgb, var(--hc) var(--hc-tint), var(--surface)); }
+.ws[data-hc] { border-color: color-mix(in srgb, var(--hc) 22%, var(--line)); }
+.ws[data-hc] > .ws-head, .ws[data-hc] > .ws-head > .sw-front { background-color: var(--hc-bg); }
+.host-chip[data-hc] { background: color-mix(in srgb, var(--hc) calc(var(--hc-tint) * 2), var(--surface)); border-color: color-mix(in srgb, var(--hc) 35%, var(--line)); }
+.seg.hosts button[data-hc] { position: relative; }
+.seg.hosts button[data-hc]::after {
+  content: ""; position: absolute; left: calc(50% - 10px); bottom: var(--sp-1); width: 20px; height: 3px; border-radius: 2px;
+  background: var(--hc); opacity: 0.75; pointer-events: none;
+}
+/* The swatch that shows and picks a host's colour (설정 → 연결 and its menu); none is a dashed ring. */
+.hc-swatch { flex: none; display: inline-block; width: 18px; height: 18px; border-radius: 50%; border: 1.5px dashed var(--muted); }
+.hc-swatch[data-hc] { border: 2px solid var(--hc); background: color-mix(in srgb, var(--hc) 45%, var(--surface)); }
 .go-conn { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-weight: 600; text-decoration: none; }
 .go-conn span { margin-left: var(--sp-1); }
 
@@ -1222,6 +1255,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .conn-list .cl-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); min-height: 22px; }
 .conn-list .cl-url { flex-basis: 100%; color: var(--muted); font-size: var(--fs-2); overflow-wrap: anywhere; }
 .conn-list .cl-more { flex: none; width: 44px; height: 44px; margin: -8px -12px -8px 0; color: var(--muted); }
+/* A host's colour swatch before its ⋯; a row with no ⋯ keeps the ⋯'s place, so the swatches line up. */
+.conn-list .cl-color { flex: none; width: 44px; height: 44px; margin: -8px 0; }
+.conn-list .cl-slot { visibility: hidden; }
 .conn-list .cl-add { margin: var(--sp-0) -16px -8px; border-top: 1px solid var(--line); }
 .conn-list .cl-add .pref-link { color: var(--accent); font-weight: 600; }
 .conn-list .cl-add .pl-end { color: var(--accent); font-size: var(--fs-7); }
