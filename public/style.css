@@ -1656,8 +1656,8 @@ button.tool:active { filter: brightness(0.95); }
 :root { --list-w: min(var(--list-w-set, var(--list-w-auto)), 45vw); --side-w: calc(var(--rail-w) + var(--list-w)); }
 :root.side-off { --side-w: var(--rail-w); }
 /* Every header in the split layout is this tall, whatever it holds (a title alone, or a title
-   and its subtitle), so the line under them runs straight across the rail, the list and the
-   detail. The promise that keeps it: in the split layout a header is one title line and at most
+   and its subtitle), so the line under them runs straight across the list and the detail (not
+   the rail: its buttons are a column of their own, and a line there cut through the second). The promise that keeps it: in the split layout a header is one title line and at most
    one subtitle line (the two-line title is the phone's, max-width: 759px). */
 :root { --bar-h: 58px; }
 .split .bar {
@@ -1668,11 +1668,10 @@ button.tool:active { filter: brightness(0.95); }
 .split .bar .sub { line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .split #rail {
   position: relative; flex: none; width: var(--rail-w); display: flex; flex-direction: column; align-items: center; gap: var(--sp-1);
-  /* The first button in the middle of the header's height, the header's line drawn across. */
+  /* The first button in the middle of the header's height. */
   padding: calc((var(--bar-h) - 40px) / 2 + var(--safe-top)) 0 calc(var(--sp-2) + var(--safe-bottom));
   background: color-mix(in srgb, var(--surface-2) 45%, var(--bg)); border-right: 1px solid var(--line);
 }
-.split #rail::before { content: ''; position: absolute; left: 0; right: 0; top: calc(var(--bar-h) + var(--safe-top) - 1px); height: 1px; background: var(--line); pointer-events: none; }
 .rail-gap { flex: 1; }
 .rail-btn {
   position: relative; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 10px;
