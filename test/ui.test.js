@@ -604,7 +604,7 @@ const { hasGit, makeRepo } = require('./fixtures/gitrepo');
 const inRepo = (pane, cwd, status, name) => ({ ...agent(pane, status, 1, name, name), cwd });
 
 test('저장소: the tab lists the repository; its graph, a commit, a file; back one level at a time', { skip: !hasGit }, async (t) => {
-  const r = makeRepo(t, { more: 4 });
+  const r = makeRepo(t, { more: 5 });
   const h = await hubInProcess(t, { id: 'uirepo', agents: [inRepo('w1-p2', r.dir, 'working', 'shop-api'), inRepo('w1-p3', r.wt, 'blocked', 'side-fix')] });
   const page = await open(t, h);
   if (!page) return;
@@ -614,12 +614,15 @@ test('저장소: the tab lists the repository; its graph, a commit, a file; back
   assert.match(await row.innerText(), /proj[\s\S]*shop-api[\s\S]*side-fix/);
   await row.click();
   await page.locator('.rg-row[data-h]').first().waitFor();
-  // Each agent at the head of its worktree's branch; the side worktree's uncommitted change on top.
-  assert.match(await page.locator('.rg-row[data-h]').first().innerText(), /main[\s\S]*shop-api[\s\S]*step 4/);
-  assert.match(await page.locator('.rg-wt').innerText(), /side[\s\S]*side-fix[\s\S]*커밋 안 한 변경 2/);
-  // step 1–3 are a straight run: one row, opened by a tap.
+  // Each agent at the head of its worktree's branch; the side worktree's uncommitted change is a
+  // row of its own just above its HEAD (rename), its agent on it.
+  assert.match(await page.locator('.rg-row[data-h]').first().innerText(), /main[\s\S]*shop-api[\s\S]*step 5/);
+  assert.match(await page.locator('.rg-wt').innerText(), /side-fix[\s\S]*커밋 안 한 변경 2/);
+  assert.equal(await page.locator('.rg-wt + .rg-row').getAttribute('data-h'), r.ren);
+  assert.doesNotMatch(await page.locator(`.rg-row[data-h="${r.ren}"]`).innerText(), /side-fix/);
+  // step 1–4 are a straight run: one row, with the newest's subject, opened by a tap.
   const fold = page.locator('.rg-foldrow');
-  assert.match(await fold.innerText(), /커밋 3개/);
+  assert.match(await fold.innerText(), /커밋 4개[\s\S]*step 4/);
   await fold.click();
   await page.locator('.rg-row[data-h]', { hasText: 'step 2' }).waitFor();
   // The phone shows one column: a commit opens over the graph, a file over the commit.
@@ -692,7 +695,7 @@ test('저장소: wide, the graph beside the commit and its diff; ↓ shows the n
 
 test('English: no Korean left on the 저장소 list, graph, commit and diff', { skip: !hasGit }, async (t) => {
   if (why.skip) return t.skip(why.skip);
-  const r = makeRepo(t, { more: 3 });
+  const r = makeRepo(t, { more: 5 });
   const h = await hubInProcess(t, { id: 'uirepoen', agents: [inRepo('w1-p2', r.dir, 'working', 'shop-api'), inRepo('w1-p3', r.wt, 'blocked', 'side-fix')] });
   const ctx = await browser.newContext({ viewport: { width: 1800, height: 1000 }, locale: 'en-US' });
   t.after(() => ctx.close());

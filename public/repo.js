@@ -73,7 +73,7 @@ function reposHtml() {
   return `
     <header class="bar">
       <h1 id="rp-title">${T('저장소')}</h1>
-      <button type="button" class="icon-btn" id="rp-reload" aria-label="${T('새로 읽기')}" title="${T('새로 읽기')}">↻</button>
+      <button type="button" class="icon-btn" id="rp-reload" aria-label="${T('새로 읽기')}" title="${T('새로 읽기')}">${ICON.reload}</button>
       ${split ? `<a class="icon-btn close-detail" href="${reposBack()}" data-back aria-label="${T('닫기')}"${keyAttrs('back', T('닫기'))}>${ICON.x}</a>` : ''}
     </header>
     <main class="panel repos-page" tabindex="-1" aria-labelledby="rp-title">
@@ -170,9 +170,9 @@ function repoShell() {
     <header class="bar rg-bar">
       ${backLink(repoUp(), T('뒤로'))}
       <h1><span class="t" id="rg-title">${esc(name)}</span><span class="sub" id="rg-sub"></span></h1>
-      <button type="button" class="toggle rg-tog" id="rg-fold" aria-pressed="${Prefs.get('repoFold')}" title="${T('곧은 커밋을 「커밋 N개」 한 줄로 접기')}">${T('접기')}</button>
-      <button type="button" class="toggle rg-tog" id="rg-remotes" aria-pressed="${Prefs.get('repoRemotes')}" title="${T('원격 브랜치 보이기')}">${T('원격')}</button>
-      <button type="button" class="icon-btn" id="rg-reload" aria-label="${T('새로 읽기')}" title="${T('새로 읽기')}">↻</button>
+      <button type="button" class="toggle rg-tog" id="rg-fold" aria-pressed="${Prefs.get('repoFold')}" title="${T('곧은 커밋을 「커밋 N개」 한 줄로 접기')}">${T('커밋 접기')}</button>
+      <button type="button" class="toggle rg-tog" id="rg-remotes" aria-pressed="${Prefs.get('repoRemotes')}" title="${T('원격 브랜치 보이기')}">${T('원격 브랜치')}</button>
+      <button type="button" class="icon-btn" id="rg-reload" aria-label="${T('새로 읽기')}" title="${T('새로 읽기')}">${ICON.reload}</button>
     </header>
     <main class="repo-page" aria-labelledby="rg-title">
       <div class="rg" id="rg" data-depth="0">
@@ -213,9 +213,14 @@ async function loadGraph({ keep = false } = {}) {
   g.started = true;
   const remotes = Prefs.get('repoRemotes') ? 1 : 0;
   try {
-    const [r, info] = await Promise.all([api(hp(`/repos/${encodeURIComponent(g.id)}/graph?remotes=${remotes}`, g.host)), api(hp(`/repos/${encodeURIComponent(g.id)}`, g.host)).catch(() => null)]);
+    const [r, info, br] = await Promise.all([
+      api(hp(`/repos/${encodeURIComponent(g.id)}/graph?remotes=${remotes}`, g.host)),
+      api(hp(`/repos/${encodeURIComponent(g.id)}`, g.host)).catch(() => null),
+      api(hp(`/repos/${encodeURIComponent(g.id)}/branches`, g.host)).catch(() => null),
+    ]);
     if (rp.g !== g) return;
     Object.assign(g, { loading: false, error: null, sig: r.sig, commits: r.commits, refs: r.refs, worktrees: r.worktrees, more: r.more, total: r.total, limited: r.limited, truncated: r.truncated, shallow: r.shallow, remotes });
+    if (br) g.branches = br.branches;
     if (info) {
       g.name = info.name;
       g.root = info.root;
@@ -269,8 +274,8 @@ async function loadStatuses() {
     })
   );
   if (view.name === 'repo' && rp.g === g) {
-    drawWorktrees();
-    if (view.w) renderRepoSel();
+    drawGraph();
+    renderSide();
   }
 }
 
@@ -300,26 +305,73 @@ function refsBySha(g) {
   return by;
 }
 
-function refChips(g, h) {
-  const out = [];
+// A long ref name keeps its start and its end (the end tells feature/… apart), the whole in its title.
+const cutRef = (s, max = repoCols() === 1 ? 14 : 20) => (s.length <= max ? s : `${s.slice(0, 6)}…${s.slice(-(max - 7))}`);
+const lineColor = (r, k) => (r && r.color && r.color[k]) || 0;
+
+// A commit's names as chips: local branches in their lane's colour (a remote of the same name on
+// the same commit joins it), then tags, then at most one remote (its remote's name dropped) and +N.
+function refChips(g, h, color = 0) {
+  const here = g.refs.filter((r) => r.h === h && (r.kind !== 'remote' || g.remotes));
   const wtBranches = new Set(g.worktrees.map((w) => w.branch).filter(Boolean));
-  for (const r of g.refs) {
-    if (r.h !== h || (r.kind === 'remote' && !g.remotes)) continue;
-    const wt = r.kind === 'branch' && wtBranches.has(r.name);
-    out.push(`<span class="rg-ref ${r.kind}${wt ? ' wt' : ''}"${wt ? ` title="${T('worktree 에서 체크아웃됨')}"` : ''}>${esc(r.name)}</span>`);
+  const local = new Set(here.filter((r) => r.kind === 'branch').map((r) => r.name));
+  const tail = (name) => name.replace(/^[^/]+\//, '');
+  const chip = (cls, name, title) => `<span class="rg-ref ${cls}" title="${esc(title)}">${esc(cutRef(name))}</span>`;
+  const out = [];
+  for (const r of here) {
+    if (r.kind !== 'branch') continue;
+    const wt = wtBranches.has(r.name);
+    const synced = here.some((x) => x.kind === 'remote' && tail(x.name) === r.name);
+    out.push(chip(`branch gg-c${color}${wt ? ' wt' : ''}`, r.name, [r.name, wt && T('worktree 에서 체크아웃됨'), synced && T('원격과 같음')].filter(Boolean).join(' · ')));
   }
-  for (const w of g.worktrees) if (w.detached && w.head === h) out.push(`<span class="rg-ref head" title="${esc(w.path)}">HEAD</span>`);
+  for (const r of here) if (r.kind === 'tag') out.push(chip('tag', r.name, r.name));
+  for (const w of g.worktrees) if (w.detached && w.head === h) out.push(chip('head', 'HEAD', w.path));
+  const remotes = here.filter((r) => r.kind === 'remote' && !local.has(tail(r.name)) && !/\/HEAD$/.test(r.name));
+  if (remotes.length) out.push(chip('remote', `↗ ${tail(remotes[0].name)}`, remotes.map((r) => r.name).join('\n')));
+  if (remotes.length > 1) out.push(`<span class="rg-more" title="${esc(remotes.slice(1).map((r) => r.name).join('\n'))}">+${remotes.length - 1}</span>`);
   return out.join('');
 }
 
-// The agents of the worktrees whose head is this commit.
+// Agents' marks, two at most and +N (all of them in its title).
+function agentChips(g, panes) {
+  const chips = panes.map((p) => repoAgentChip(g.host, p)).filter(Boolean);
+  if (chips.length <= 2) return chips.join('');
+  const rest = panes
+    .slice(2)
+    .map((p) => {
+      const a = state.agents.find((x) => same(x, g.host, p));
+      return a ? a.name || a.title || a.agent : '';
+    })
+    .filter(Boolean);
+  return `${chips.slice(0, 2).join('')}<span class="rg-more" title="${esc(rest.join('\n'))}">+${chips.length - 2}</span>`;
+}
+
+// The agents of the worktrees whose head is this commit (a worktree with uncommitted changes
+// carries its agents on its own row, just above).
 function agentsAt(g, h) {
-  const out = [];
-  for (const w of g.worktrees) {
-    if (w.head !== h) continue;
-    for (const p of rp.live[w.id] || []) out.push(repoAgentChip(g.host, p));
+  const panes = [];
+  for (const w of g.worktrees) if (w.head === h && !(g.wipAt && g.wipAt.has(w.id))) panes.push(...(rp.live[w.id] || []));
+  return agentChips(g, panes);
+}
+
+const wipCount = (w) => {
+  const s = rp.status.get(w.id);
+  const n = s ? s.staged + s.unstaged + s.untracked + s.conflicted : 0;
+  return n && s.files.length < n ? n : n && s.files.length;
+};
+
+// Commits reached from a local branch or a worktree's head: the rest are only on a remote.
+function nearSet(g) {
+  const by = new Map(g.commits.map((c) => [c.h, c]));
+  const seen = new Set();
+  const todo = [...g.refs.filter((r) => r.kind === 'branch').map((r) => r.h), ...g.worktrees.map((w) => w.head)].filter(Boolean);
+  while (todo.length) {
+    const h = todo.pop();
+    if (seen.has(h) || !by.has(h)) continue;
+    seen.add(h);
+    for (const p of by.get(h).p || []) todo.push(p);
   }
-  return out.filter(Boolean).join('');
+  return seen;
 }
 
 function drawGraph() {
@@ -333,25 +385,70 @@ function drawGraph() {
     const bits = [multi() ? hostLabel(g.host) : '', g.fetchedAt ? T('마지막 fetch {ago}', { ago: agoKo(g.fetchedAt) }) : g.loading ? '' : T('fetch 한 적 없음')].filter(Boolean);
     sub.textContent = bits.join(' · ');
   }
-  if (g.loading && !g.commits.length) return void (list.innerHTML = `<p class="rg-empty">${T('불러오는 중…')}</p>`);
-  if (g.error && !g.commits.length) return void (list.innerHTML = `<p class="rg-empty error">${esc(repoErrText(g.error))}</p>`);
-  if (!g.commits.length) return void (list.innerHTML = `<div class="rg-wts" id="rg-wts"></div><p class="rg-empty">${T('아직 커밋이 없습니다.')}</p>`);
+  const put = (html) => {
+    if (list._html !== html) list.innerHTML = list._html = html;
+  };
+  if (g.loading && !g.commits.length) return void put(`<p class="rg-empty">${T('불러오는 중…')}</p>`);
+  if (g.error && !g.commits.length) return void put(`<p class="rg-empty error">${esc(repoErrText(g.error))}</p>`);
+  if (!g.commits.length) return void put(`<div class="rg-wts" id="rg-wts"></div><p class="rg-empty">${T('아직 커밋이 없습니다.')}</p>`);
   const refs = refsBySha(g);
   const rows = GitGraph.layout(g.commits, refs);
   const keep = view.c ? (g.commits.find((c) => c.h.startsWith(view.c)) || {}).h : null;
   const shown = Prefs.get('repoFold') ? GitGraph.fold(rows, g.commits, { refs, expanded: rp.expanded, keep }) : rows;
   const by = new Map(g.commits.map((c) => [c.h, c]));
-  const lane = { maxLanes: repoCols() === 1 ? 6 : 12, hgt: rgRowH(), w: rgRowH() === 32 ? 12 : 14 };
-  const html = shown.map((r) => {
-    if (r.fold)
-      return `<button type="button" class="rg-row rg-foldrow" data-fold="${esc(r.key)}" tabindex="-1"><span class="rg-lanes">${GitGraph.rowSvg(r, lane)}</span><span class="rg-text">${esc(T('커밋 {n}개', { n: r.n }))}</span></button>`;
+  const near = nearSet(g);
+  const heads = new Set(g.worktrees.map((w) => w.head).filter(Boolean));
+  const lane = { maxLanes: { 1: 5, 2: 6, 3: 8 }[repoCols()], hgt: rgRowH(), w: rgRowH() === 32 ? 12 : 14 };
+  // A worktree with uncommitted changes: a row just above its HEAD, in its lane.
+  const shownAt = new Map(shown.filter((r) => !r.fold).map((r) => [r.h, r]));
+  const wips = new Map(); // head sha -> [worktree]
+  g.wipAt = new Set();
+  for (const w of g.worktrees) {
+    if (!wipCount(w) || !shownAt.has(w.head)) continue;
+    (wips.get(w.head) || wips.set(w.head, []).get(w.head)).push(w);
+    g.wipAt.add(w.id);
+  }
+  const wipRow = (w, r) => {
+    const across = [...new Set([...(r.pass || []), ...(r.up || [])])];
+    let col = r.col;
+    if (across.includes(col)) for (col = 0; across.includes(col); col++);
+    const row = { wip: true, col, to: r.col, pass: across.filter((k) => k !== col), color: { ...r.color }, width: Math.max(r.width, col + 1) };
+    const label = T('커밋 안 한 변경 {n}', { n: wipCount(w) });
+    return {
+      width: row.width,
+      html: `<div class="rg-row rg-wt" role="option" id="rg-w-${esc(w.id)}" data-w="${esc(w.id)}" aria-selected="false" tabindex="-1" title="${esc(w.path)}">
+        <span class="rg-lanes">${GitGraph.rowSvg(row, lane)}</span>
+        <span class="rg-text"><span class="rg-ags" data-agw="${esc(w.id)}">${agentChips(g, rp.live[w.id] || [])}</span><span class="rg-s">${esc(label)}</span></span>
+        <span class="rg-meta"><span class="rg-a">${esc(w.branch || (w.detached ? `HEAD ${shortSha(w.head)}` : basename(w.path)))}</span><span class="rg-t"></span></span>
+      </div>`,
+    };
+  };
+  const out = [];
+  for (const r of shown) {
+    if (r.fold) {
+      const newest = by.get(r.from);
+      out.push({
+        width: r.width,
+        html: `<button type="button" class="rg-row rg-foldrow" data-fold="${esc(r.key)}" tabindex="-1" title="${esc(T('펼치기'))}"><span class="rg-lanes">${GitGraph.rowSvg(r, { ...lane, hgt: rgRowH() === 32 ? 24 : 36 })}</span><span class="rg-text"><span class="rg-chev" aria-hidden="true">▸</span><span class="rg-fn">${esc(T('커밋 {n}개', { n: r.n }))}</span>${newest ? `<span class="rg-s">${esc(newest.s)}</span>` : ''}</span></button>`,
+      });
+      continue;
+    }
+    for (const w of wips.get(r.h) || []) out.push(wipRow(w, r));
     const c = by.get(r.h);
-    return `<div class="rg-row" role="option" id="rg-${esc(c.h)}" data-h="${esc(c.h)}" aria-selected="false" tabindex="-1">
-      <span class="rg-lanes">${GitGraph.rowSvg(r, lane)}</span>
-      <span class="rg-text"><span class="rg-refs">${refChips(g, c.h)}<span class="rg-ags" data-ag="${esc(c.h)}">${agentsAt(g, c.h)}</span></span><span class="rg-s">${esc(c.s)}</span></span>
-      <span class="rg-meta"><span class="rg-a">${esc(c.a)}</span> · <span title="${esc(new Date(c.t * 1000).toLocaleString(I18n.locale))}">${esc(agoKo(c.t * 1000))}</span></span>
-    </div>`;
-  });
+    const cls = [(c.p || []).length > 1 && 'rg-merge', !near.has(c.h) && 'rg-far'].filter(Boolean).join(' ');
+    const when = new Date(c.t * 1000).toLocaleString(I18n.locale);
+    out.push({
+      width: r.width,
+      html: `<div class="rg-row${cls ? ` ${cls}` : ''}" role="option" id="rg-${esc(c.h)}" data-h="${esc(c.h)}" aria-selected="false" tabindex="-1">
+      <span class="rg-lanes">${GitGraph.rowSvg(r, { ...lane, head: heads.has(c.h) })}</span>
+      <span class="rg-text"><span class="rg-refs">${refChips(g, c.h, lineColor(r, r.col))}</span><span class="rg-ags" data-ag="${esc(c.h)}">${agentsAt(g, c.h)}</span><span class="rg-s">${esc(c.s)}</span></span>
+      <span class="rg-meta"><span class="rg-a" title="${esc(c.a)}">${esc(c.a)}</span><span class="rg-t" title="${esc(when)}">${esc(agoKo(c.t * 1000))}</span></span>
+    </div>`,
+    });
+  }
+  // One lane column for every row, so the text starts at one x down the whole graph.
+  const gw = Math.min(Math.max(1, ...out.map((o) => o.width || 1)), lane.maxLanes) * lane.w;
+  list.style.setProperty('--rg-gw', `${gw}px`);
   const end = g.more
     ? `<button type="button" class="btn secondary rg-moreb" id="rg-more">${T('더 보기')}</button>`
     : g.truncated
@@ -360,36 +457,44 @@ function drawGraph() {
         ? `<p class="rg-empty">${T('얕은 복제: 여기서 기록이 끊깁니다.')}</p>`
         : '';
   const limited = g.limited ? `<p class="rg-empty">${T('저장소가 커서 최근 커밋만 읽었습니다.')}</p>` : '';
-  const focusH = document.activeElement && document.activeElement.closest && document.activeElement.closest('#rg-list') ? document.activeElement.dataset.h || document.activeElement.dataset.fold : null;
+  const html = `<div class="rg-wts" id="rg-wts"></div>${limited}${out.map((o) => o.html).join('')}${end}`;
+  if (list._html === html) return void drawWorktrees();
+  const focusH = document.activeElement && document.activeElement.closest && document.activeElement.closest('#rg-list') ? document.activeElement.dataset.h || document.activeElement.dataset.fold || document.activeElement.dataset.w : null;
   const top = list.scrollTop;
-  list.innerHTML = `<div class="rg-wts" id="rg-wts"></div>${limited}${html.join('')}${end}`;
+  list.innerHTML = list._html = html;
   list.scrollTop = top;
   drawWorktrees();
   markSel();
   if (focusH) {
-    const el = list.querySelector(`[data-h="${CSS.escape(focusH)}"], [data-fold="${CSS.escape(focusH)}"]`);
+    const el = list.querySelector(`[data-h="${CSS.escape(focusH)}"], [data-fold="${CSS.escape(focusH)}"], [data-w="${CSS.escape(focusH)}"]`);
     if (el) el.focus({ preventScroll: true });
+  }
+  // Opened on nothing in particular: the first agent's place in sight.
+  if (!g.placed && !view.c && !view.w && !g.loading) {
+    g.placed = true;
+    const w = g.worktrees.find((x) => (rp.live[x.id] || []).length && x.head);
+    const el = w && (list.querySelector(`[data-w="${CSS.escape(w.id)}"]`) || list.querySelector(`[data-h="${CSS.escape(w.head)}"]`));
+    if (el) el.scrollIntoView({ block: 'nearest' });
   }
   const more = document.getElementById('rg-more');
   if (more) more.onclick = loadMore;
 }
 
-// The worktrees with uncommitted changes, above the graph: a row each, its agents beside it.
+// A worktree with uncommitted changes whose HEAD is not in the graph drawn (not read yet): a row
+// on top, its agents beside it.
 function drawWorktrees() {
   const g = rp.g;
   const box = document.getElementById('rg-wts');
   if (!g || !box) return;
   const html = g.worktrees
     .map((w) => {
-      const s = rp.status.get(w.id);
-      const n = s ? s.staged + s.unstaged + s.untracked + s.conflicted : 0;
-      if (!n) return '';
-      const label = T('커밋 안 한 변경 {n}', { n: s.files.length < n ? n : s.files.length });
+      const n = wipCount(w);
+      if (!n || (g.wipAt && g.wipAt.has(w.id))) return '';
       const where = w.branch || (w.detached ? `HEAD ${shortSha(w.head)}` : basename(w.path));
-      return `<div class="rg-row rg-wt" role="option" id="rg-w-${esc(w.id)}" data-w="${esc(w.id)}" aria-selected="false" tabindex="-1">
+      return `<div class="rg-row rg-wt" role="option" id="rg-w-${esc(w.id)}" data-w="${esc(w.id)}" aria-selected="false" tabindex="-1" title="${esc(w.path)}">
         <span class="rg-lanes"><span class="rg-wt-dot" aria-hidden="true"></span></span>
-        <span class="rg-text"><span class="rg-refs"><span class="rg-ref branch wt">${esc(where)}</span><span class="rg-ags">${(rp.live[w.id] || []).map((p) => repoAgentChip(g.host, p)).join('')}</span></span><span class="rg-s">${esc(label)}</span></span>
-        <span class="rg-meta" title="${esc(w.path)}">${esc(basename(w.path))}</span>
+        <span class="rg-text"><span class="rg-ags" data-agw="${esc(w.id)}">${agentChips(g, rp.live[w.id] || [])}</span><span class="rg-s">${esc(T('커밋 안 한 변경 {n}', { n }))}</span></span>
+        <span class="rg-meta"><span class="rg-a">${esc(where)}</span><span class="rg-t"></span></span>
       </div>`;
     })
     .join('');
@@ -408,7 +513,12 @@ function drawAgents() {
     const html = agentsAt(g, el.dataset.ag);
     if (el._html !== html) el.innerHTML = el._html = html;
   }
-  drawWorktrees();
+  for (const el of list.querySelectorAll('[data-agw]')) {
+    const html = agentChips(g, rp.live[el.dataset.agw] || []);
+    if (el._html !== html) el.innerHTML = el._html = html;
+  }
+  if (view.c || view.w) return;
+  renderSide();
 }
 
 function markSel() {
@@ -455,6 +565,44 @@ async function loadCommit(g, sha) {
   }
   if (view.name === 'repo' && rp.g === g) renderRepoSel();
   return rp.commits.get(k);
+}
+
+// Nothing chosen: each worktree — its branch against its upstream, its agents by name and
+// state, its uncommitted changes, its HEAD commit. Each opens in place.
+function overviewHtml(g) {
+  const host = g.host;
+  const by = new Map(g.commits.map((c) => [c.h, c]));
+  const home = (hostCache.get(host) || {}).home || '';
+  const blocks = g.worktrees
+    .filter((w) => !w.prunable)
+    .map((w) => {
+      const t = (g.branches && w.branch && g.branches[w.branch]) || null;
+      const track = t
+        ? t.gone
+          ? `<span class="rg-track" title="${esc(t.upstream)}">${T('원격 브랜치 없어짐')}</span>`
+          : t.ahead || t.behind
+            ? `<span class="rg-track" title="${esc(T('{up} 보다 {a}개 앞, {b}개 뒤', { up: t.upstream, a: t.ahead || 0, b: t.behind || 0 }))}">${t.ahead ? `↑${t.ahead}` : ''}${t.behind ? ` ↓${t.behind}` : ''}</span>`
+            : `<span class="rg-track" title="${esc(t.upstream)}">${T('원격과 같음')}</span>`
+        : '';
+      const agents = (rp.live[w.id] || [])
+        .map((p) => {
+          const a = state.agents.find((x) => same(x, host, p));
+          if (!a) return repoAgentChip(host, p) ? `<li>${repoAgentChip(host, p)}</li>` : '';
+          return `<li><a class="rg-ov-ag" href="${link(host, `/agent/${encodeURIComponent(p)}`)}"><i class="st-dot st ${esc(needsAnswer(a) ? 'blocked' : shownStatus(a))}" aria-hidden="true"></i><span class="rg-ov-n">${esc(a.name || a.title || a.agent)}</span><span class="rg-ov-s">${esc(statusText(a))}</span></a></li>`;
+        })
+        .join('');
+      const n = wipCount(w);
+      const head = by.get(w.head);
+      return `<section class="rg-ov">
+        <p class="rg-ov-top"><span class="rg-ov-b">${esc(w.branch || (w.detached ? 'HEAD' : basename(w.path)))}</span>${track}</p>
+        <p class="rg-ov-path" title="${esc(w.path)}">${esc(RowText.homePath(w.path, home))}</p>
+        ${agents ? `<ul class="rg-ov-ags">${agents}</ul>` : ''}
+        ${n ? `<a class="rg-ov-link rg-ov-wip" href="${repoHref(host, g.id, { w: w.id })}">${esc(T('커밋 안 한 변경 {n}', { n }))}</a>` : ''}
+        ${w.head ? `<a class="rg-ov-link" href="${repoHref(host, g.id, { c: w.head })}"><span class="rg-sha">${esc(shortSha(w.head))}</span> ${esc(head ? head.s : '')}</a>` : ''}
+      </section>`;
+    })
+    .join('');
+  return `<h3 class="rg-h3">${esc(T('worktree {n}개', { n: g.worktrees.length }))}</h3>${blocks}<p class="rg-empty rg-hint">${T('커밋을 고르면 여기에 나옵니다.')}</p>`;
 }
 
 const fileStat = (f) =>
@@ -514,7 +662,7 @@ function renderSide() {
         <ul class="rg-files">${files}</ul>
         ${s.cut ? `<p class="rg-empty">${T('파일이 많아 일부만 보입니다.')}</p>` : ''}`;
     }
-  } else html = `<p class="rg-empty rg-hint">${T('커밋을 고르면 여기에 나옵니다.')}</p>`;
+  } else html = overviewHtml(g);
   if (side._html !== html) {
     side.innerHTML = side._html = html;
     const cur = side.querySelector('.rg-file.on');
@@ -662,10 +810,10 @@ function bindRepo(main) {
   });
   // A file in the side column with the diff beside it: put in place, not pushed.
   main.addEventListener('click', (e) => {
-    const a = e.target.closest('a.rg-file, a.rg-sha');
+    const a = e.target.closest('a.rg-file, a.rg-sha, a.rg-ov-link');
     if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
     e.preventDefault();
-    repoGo(a.getAttribute('href'), { push: repoCols() === 1 || a.classList.contains('rg-sha') });
+    repoGo(a.getAttribute('href'), { push: repoCols() === 1 || !a.classList.contains('rg-file') });
   });
   const bar = detailRoot().querySelector(':scope > .rg-bar');
   bar.querySelector('#rg-fold').onclick = (e) => {

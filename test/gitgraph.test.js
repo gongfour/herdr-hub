@@ -52,30 +52,36 @@ test('a lane started at a named commit takes the name colour, every time', () =>
   assert.equal(one[0].color[0], two[1].color[1]);
 });
 
-test('fold: a straight run of two or more is one row, keyed by its oldest commit', () => {
-  const commits = [c('h', 'g'), c('g', 'f'), c('f', 'e'), c('e', 'd'), c('d')];
+test('fold: a straight run of FOLD_MIN or more is one row, keyed by its oldest commit', () => {
+  assert.equal(G.FOLD_MIN, 4);
+  const commits = [c('h', 'g'), c('g', 'f'), c('f', 'e'), c('e', 'd'), c('d', 'b'), c('b')];
   const rows = G.layout(commits);
   const refs = { h: ['main'] };
   const f = G.fold(rows, commits, { refs });
-  assert.deepEqual(f.map((r) => (r.fold ? `fold ${r.n} ${r.key}` : r.h)), ['h', 'fold 3 e', 'd']);
+  assert.deepEqual(f.map((r) => (r.fold ? `fold ${r.n} ${r.key} ${r.from}` : r.h)), ['h', 'fold 4 d g', 'b']);
   assert.deepEqual(f[1].pass, [0]);
+  assert.equal(f[1].col, 0);
   // Open: all of it.
-  assert.deepEqual(G.fold(rows, commits, { refs, expanded: new Set(['e']) }).map((r) => r.h), ['h', 'g', 'f', 'e', 'd']);
-  // The commit the address names is never folded away.
-  assert.deepEqual(G.fold(rows, commits, { refs, keep: 'f' }).map((r) => (r.fold ? 'fold' : r.h)), ['h', 'g', 'f', 'e', 'd']);
+  assert.deepEqual(G.fold(rows, commits, { refs, expanded: new Set(['d']) }).map((r) => r.h), ['h', 'g', 'f', 'e', 'd', 'b']);
+  // The commit the address names is never folded away (what is left is too short to fold).
+  assert.deepEqual(G.fold(rows, commits, { refs, keep: 'f' }).map((r) => (r.fold ? 'fold' : r.h)), ['h', 'g', 'f', 'e', 'd', 'b']);
   // A named one splits the run.
-  assert.deepEqual(G.fold(rows, commits, { refs: { h: ['main'], f: ['v1'] } }).map((r) => (r.fold ? 'fold' : r.h)), ['h', 'g', 'f', 'e', 'd']);
+  assert.deepEqual(G.fold(rows, commits, { refs: { h: ['main'], f: ['v1'] } }).map((r) => (r.fold ? 'fold' : r.h)), ['h', 'g', 'f', 'e', 'd', 'b']);
+  // Three in a row stay three rows.
+  const three = [c('h', 'g'), c('g', 'f'), c('f', 'e'), c('e', 'd'), c('d')];
+  assert.equal(G.fold(G.layout(three), three, { refs }).some((r) => r.fold), false);
 });
 
 test('fold: merges and fork points stay; lanes going by a fold stay drawn', () => {
   // side branch s1..s3 off a, main m1 merges nothing: the run on the side lane folds while main's
   // lane passes it.
-  const commits = [c('m', 'a'), c('s3', 's2'), c('s2', 's1'), c('s1', 'a'), c('a', 'r'), c('r')];
+  const commits = [c('m', 'a'), c('s5', 's4'), c('s4', 's3'), c('s3', 's2'), c('s2', 's1'), c('s1', 'a'), c('a', 'r'), c('r')];
   const rows = G.layout(commits);
-  const f = G.fold(rows, commits, { refs: { m: ['main'], s3: ['side'] } });
+  const f = G.fold(rows, commits, { refs: { m: ['main'], s5: ['side'] } });
   const fr = f.find((r) => r.fold);
-  assert.equal(fr.n, 2);
+  assert.equal(fr.n, 4);
   assert.deepEqual(fr.pass, [0, 1]);
+  assert.equal(fr.col, 1);
   assert.ok(f.some((r) => r.h === 'a')); // a has two children: a fork point
 });
 
@@ -85,9 +91,17 @@ test('rowSvg: a dot, lines in and out, classes for colour; a fold row dashed', (
   assert.match(s, /^<svg class="gg" width="20" height="20"/);
   assert.match(s, /<circle cx="5" cy="10"/);
   assert.equal((s.match(/<path/g) || []).length, 2);
-  const fs = G.rowSvg({ fold: true, pass: [0, 1], color: {}, width: 2 });
-  assert.match(fs, /gg-fold/);
-  assert.doesNotMatch(fs, /circle/);
+  // A fold row: only the run's own lane dashed, with dots on it; the lanes going by stay solid.
+  const fs = G.rowSvg({ fold: true, col: 1, pass: [0, 1], color: {}, width: 2 });
+  assert.equal((fs.match(/gg-fold/g) || []).length, 1);
+  assert.match(fs, /M21 0V32" class="gg-l gg-c0 gg-fold"/);
+  assert.equal((fs.match(/gg-dot/g) || []).length, 3);
+  assert.doesNotMatch(fs, /gg-n/);
+  // A worktree's HEAD: a bigger node, marked; uncommitted changes: a hollow node, a dotted line down.
+  assert.match(G.rowSvg(rows[0], { head: true }), /r="5.5" class="gg-n gg-c\d gg-head"/);
+  const wip = G.rowSvg({ wip: true, col: 1, to: 0, pass: [], color: {}, width: 2 });
+  assert.match(wip, /gg-wipl/);
+  assert.match(wip, /gg-n gg-wip/);
   // Past maxLanes the lines crowd into the last lane shown, the svg no wider.
   const wide = G.rowSvg({ col: 9, up: [9], down: [], pass: [0], color: {}, width: 10 }, { w: 10, maxLanes: 4 });
   assert.match(wide, /width="40"/);
