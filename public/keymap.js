@@ -45,6 +45,7 @@
     leaveView: { group: T('어디서나'), name: T('대화창 닫기'), label: T('대화창 닫기: 연 에이전트·셸·워크스페이스(또는 시트, 설정)에서 나온다. 에이전트는 그대로 돈다 (Ctrl+W·⌘W 는 설치한 앱에서만; 닫을 것이 없으면 앱 창이 닫힌다)') },
     help: { group: T('어디서나'), name: T('단축키'), label: T('단축키 보기') },
     settings: { group: T('어디서나'), name: T('설정'), label: T('설정 열기·닫기 (두 칸이면 오른쪽에)') },
+    repos: { group: T('어디서나'), name: T('저장소 그래프'), label: T('저장소 그래프 열기·닫기: 에이전트·셸 화면이면 그 폴더의 저장소, 아니면 저장소 목록 (VS Code 의 소스 제어처럼)') },
     focusInput: { group: T('어디서나'), name: T('입력 칸으로'), label: T('입력 칸으로 (대화의 메시지 칸, 셸의 명령 줄)'), noShell: true },
     newAgent: { group: T('어디서나'), name: T('새 에이전트'), label: T('새 에이전트 바로 시작: 지금 연 것의 워크스페이스·폴더에, 이 기기에서 마지막에 쓴 종류·옵션으로 (목록이면 새 워크스페이스)') },
     newWorkspace: { group: T('어디서나'), name: T('새 워크스페이스'), label: T('새 워크스페이스') },
@@ -135,6 +136,10 @@
       // keys stay its own; it types nothing in a field.
       ...when(mac, b('settings', 'Meta+,', { field: true, shell: true })),
       b('settings', 'Ctrl+,', { field: true }),
+      // Ctrl+Shift+G as VS Code's source control (⌘⇧G on the Mac, the shell view too). A terminal
+      // gets Ctrl+Shift+G as Ctrl+G (readline's abort), so Ctrl+Shift+G stays the shell's there.
+      ...when(mac, b('repos', 'Meta+Shift+g', { field: true, shell: true })),
+      b('repos', 'Ctrl+Shift+g', { field: true }),
       // Ctrl+P is the shell's (previous line): there Alt+P, taken from the shell (its rarely used
       // history search by prefix); ⌘P on the Mac, the shell view too. Taken under a sheet too, so
       // the browser never prints; switcher.js decides what it means there.
@@ -231,6 +236,8 @@
     { group: T('셸'), name: T('앞 단어 지우기'), key: 'Ctrl+w', label: T('한 줄 입력: 커서 앞 단어 지우기 (셸의 Ctrl+W 처럼; 설치한 앱에서도 창을 닫지 않는다)') },
     { group: T('셸'), name: T('칸에서 나가기'), key: 'Escape', label: T('한 줄 입력: 한 번이면 칸에서 나가고, 두 번이면 뒤로 (대화 화면과 같다)') },
     { group: T('셸'), name: T('나머지 키는 셸로'), key: '', label: T('단축키 페이지의 「셸」 탭에 있는 키만 Hub 가 쓰고, 나머지는 모두 셸로 간다. 키 줄의 Alt·Ctrl 을 누르고 친 키는 언제나 셸로 (Alt 다음 B 는 셸의 alt+b)') },
+    { group: T('저장소 그래프'), name: T('커밋 옮기기'), key: 'ArrowDown', label: T('그래프에 포커스가 있을 때 ↑ / ↓ (J / K) 로 커밋을 옮긴다. 그래프 옆에 상세가 보이면 옮기는 대로 그 커밋이 나온다 (Home·End 는 처음·끝)') },
+    { group: T('저장소 그래프'), name: T('커밋 열기'), key: 'Enter', label: T('고른 커밋·변경·「커밋 N개」 줄 열기 (→ 도 같다). 옆 칸에서 ← 는 그래프로') },
     { group: T('폼'), name: T('시작·만들기'), key: 'Ctrl+Enter', label: T('에이전트 시작·새 워크스페이스: 시작 / 만들기 (어느 칸에서나)') },
     { group: T('순서 바꾸기'), name: T('한 칸 옮기기'), key: 'ArrowUp', label: T('순서 바꾸기에서 손잡이에 포커스가 있을 때 ↑ / ↓ 로 그 카드·줄을 한 칸 위·아래로 (Esc 로 끝내기)') },
     { group: T('목록 칸 폭'), name: T('목록 칸 폭'), key: 'ArrowRight', label: T('두 칸: 목록 칸 가장자리에 포커스가 있을 때 ←/→ 로 16px 씩 좁히고 넓힌다. 리턴(두 번 누르기)은 자동으로') },
@@ -642,7 +649,7 @@
   ];
   // By the groups' words as ACTIONS and LOCAL have them (in this page's language).
   const GROUP_TAB = { [T('어디서나')]: 'any', [T('대화·터미널 화면')]: 'chat', [T('목록')]: 'list' };
-  const LOCAL_TAB = { [T('메시지 칸')]: 'chat', [T('셸')]: 'shell', [T('폼')]: 'any', [T('목록 칸 폭')]: 'list', [T('순서 바꾸기')]: 'list', [T('빠른 이동')]: 'any', [T('메뉴·확인 창')]: 'any' };
+  const LOCAL_TAB = { [T('저장소 그래프')]: 'list', [T('메시지 칸')]: 'chat', [T('셸')]: 'shell', [T('폼')]: 'any', [T('목록 칸 폭')]: 'list', [T('순서 바꾸기')]: 'list', [T('빠른 이동')]: 'any', [T('메뉴·확인 창')]: 'any' };
   // The tabs an action is listed under: its group's (and also's), and 셸 when one of its keys is
   // the Hub's in the shell view now (the active table: a key switched off leaves it). 뒤로's keys
   // there are the shell's Esc (LOCAL says so), not the Hub's.

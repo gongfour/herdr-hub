@@ -21,11 +21,11 @@ const PEEK_SHIFT = 0.3; // the page behind starts this much of the width to the 
 // the finger stays the one it moves.
 const backSwipe = { g: null, anim: null, pending: false };
 
-const backSwipeView = () => ['agent', 'term', 'ws', 'settings'].includes(view.name);
+const backSwipeView = () => ['agent', 'term', 'ws', 'settings', 'repos', 'repo'].includes(view.name);
 const backSwipeBusy = () => Boolean(backSwipe.anim || (backSwipe.g && backSwipe.g.axis === 'x' && Date.now() - backSwipe.g.t0 < 10000));
 // Where the gesture leads: the view's ‹ / ✕, or (phone 설정, a tab with no ‹) 작업공간.
 function backTarget() {
-  if (view.name === 'settings' && !split) return homeHash();
+  if ((view.name === 'settings' || view.name === 'repos') && !split) return homeHash();
   const a = detailRoot().querySelector('a[data-back]');
   return a ? a.getAttribute('href') : null;
 }

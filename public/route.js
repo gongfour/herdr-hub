@@ -2,6 +2,8 @@
 // The app's routes, from the part of the address after #. Every route may carry its host
 // (#/h/<id>/…); without one it means the hub's own host (host: null).
 //   /agent/<pane>[/screen|/chat]  /term/<pane>  /ws/<id>  /new  /start/(ws|pane)/<id>  /dir/ws/<id> (기본 폴더)
+//   /repos (저장소 목록)  /repo/<id>[/c/<sha>|/w/<worktree>][/f/<path>] (저장소 그래프: a commit or a
+//   worktree's uncommitted files, and one file's change)
 //   /settings  /keys (단축키)  and anything else (the old /spaces and 홈 / included): the 작업공간 list.
 // Pure: loaded as a plain script in the page (window.Route), required by the tests.
 (function (root) {
@@ -20,6 +22,13 @@
     if (h === '/new') return { name: 'form', host, mode: 'new' };
     if ((m = h.match(/^\/start\/(ws|pane)\/(.+)$/))) return { name: 'form', host, mode: m[1], target: decodeURIComponent(m[2]) };
     if ((m = h.match(/^\/dir\/ws\/(.+)$/))) return { name: 'form', host, mode: 'dir', target: decodeURIComponent(m[1]) };
+    if (h === '/repos') return { name: 'repos', host };
+    if ((m = h.match(/^\/repo\/([^/]+)(?:\/(c|w)\/([^/]+)(?:\/f\/(.+))?)?$/))) {
+      const r = { name: 'repo', host, id: decodeURIComponent(m[1]), c: null, w: null, f: null };
+      if (m[2]) r[m[2]] = decodeURIComponent(m[3]);
+      if (m[4]) r.f = decodeURIComponent(m[4]);
+      return r;
+    }
     if (h === '/settings') return { name: 'settings', host };
     if (h === '/keys') return { name: 'keys', host };
     return { name: 'list', host };

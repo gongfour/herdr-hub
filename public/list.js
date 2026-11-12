@@ -68,22 +68,23 @@ const updateDot = () => (updateReady ? `<span class="rail-dot" role="img" aria-l
 function renderUpdateDot() {
   if (split) return renderRail();
   const bar = listRoot().querySelector(':scope > .tabbar');
-  if (bar) mountTabBar(bar.querySelector('.tab[aria-current="page"][href="#/settings"]') ? 'settings' : 'spaces');
+  if (bar) mountTabBar((bar.querySelector('.tab[aria-current="page"]') || {}).dataset?.tab || 'spaces');
 }
 function tabBar(active) {
   const n = state.agents.filter((a) => needsAnswer(a) && shown(a)).length;
   const tab = (key, href, icon, label, extra = '') =>
-    `<a class="tab" href="${href}"${active === key ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${extra}</a>`;
+    `<a class="tab" data-tab="${key}" href="${href}"${active === key ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${extra}</a>`;
   return `<nav class="tabbar" aria-label="${T('탭')}">
     ${tab('spaces', '#/', ICON.grid, T('작업공간'), n ? `<span class="tab-badge" aria-label="${T('답 필요 {n}', { n })}">${n}</span>` : '')}
+    ${tab('repos', '#/repos', ICON.repo, T('저장소'))}
     ${tab('settings', '#/settings', ICON.gear, T('설정'), updateDot())}
   </nav>`;
 }
 // Each tab's page is kept once drawn: switching puts the other tab's tree back as it was (its
 // scroll included) and its render patches only what changed. The page on screen sits in the
 // list root; the other waits here, detached, and misses state updates until it is shown again.
-const tabPages = { spaces: null, settings: null }; // [[element, scrollTop, scrollLeft], …]
-const tabOf = (root) => (root.querySelector(':scope > main.home') ? 'spaces' : root.querySelector(':scope > main.settings') ? 'settings' : null);
+const tabPages = { spaces: null, repos: null, settings: null }; // [[element, scrollTop, scrollLeft], …]
+const tabOf = (root) => (root.querySelector(':scope > main.home') ? 'spaces' : root.querySelector(':scope > main.repos-page') ? 'repos' : root.querySelector(':scope > main.settings') ? 'settings' : null);
 // Take the tab page shown in root out, to come back to later. Returns its tab, or null.
 function parkTab(root = listRoot()) {
   const cur = root && tabOf(root);
@@ -110,7 +111,7 @@ function showTab(t) {
   }
 }
 // The layout changed (relayout): kept pages were drawn for the other one.
-const dropTabPages = () => (tabPages.spaces = tabPages.settings = null);
+const dropTabPages = () => (tabPages.spaces = tabPages.repos = tabPages.settings = null);
 
 // Split, the tabs are the activity rail instead (renderRail); the list column has no tab bar.
 function mountTabBar(active) {
@@ -167,11 +168,12 @@ function renderRail() {
   // Finishes not opened yet, on 작업공간 while its list is out of sight.
   const dot = !open && state.agents.some((a) => shown(a) && isUnread(a));
   const btn = (key, icon, label, extra = '') => {
-    const on = key === 'spaces' ? open : view.name === 'settings';
-    const what = key === 'spaces' ? (open ? T('{label} 사이드바 접기', { label }) : T('{label} 사이드바 열기', { label })) : `${on ? T('{label} 닫기', { label }) : T('{label} 열기', { label })}${updateReady ? ` — ${T('새 버전 있음')}` : ''}`;
-    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}"${keyAttrs(key === 'spaces' ? 'toggleSide' : 'settings', key === 'settings' && updateReady ? `${label} — ${T('새 버전 있음')}` : label)}>${icon}${extra}</button>`;
+    const on = key === 'spaces' ? open : key === 'repos' ? view.name === 'repos' || view.name === 'repo' : view.name === 'settings';
+    const what = key === 'spaces' ? (open ? T('{label} 사이드바 접기', { label }) : T('{label} 사이드바 열기', { label })) : `${on ? T('{label} 닫기', { label }) : T('{label} 열기', { label })}${key === 'settings' && updateReady ? ` — ${T('새 버전 있음')}` : ''}`;
+    return `<button type="button" class="rail-btn" data-tab="${key}" aria-controls="${key === 'spaces' ? 'list-pane' : 'detail-pane'}" aria-pressed="${on}"${on ? ' aria-current="page"' : ''} aria-label="${what}"${keyAttrs(key === 'spaces' ? 'toggleSide' : key === 'repos' ? 'repos' : 'settings', key === 'settings' && updateReady ? `${label} — ${T('새 버전 있음')}` : label)}>${icon}${extra}</button>`;
   };
   const html = `${btn('spaces', ICON.grid, T('작업공간'), n ? `<span class="tab-badge" aria-label="${T('답 필요 {n}', { n })}">${n}</span>` : dot ? `<span class="rail-dot" role="img" aria-label="${T('새 결과')}"></span>` : '')}
+    ${btn('repos', ICON.repo, T('저장소'))}
     <span class="rail-gap"></span>
     ${btn('settings', ICON.gear, T('설정'), updateDot())}`;
   if (rail._html === html) return;

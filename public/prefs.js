@@ -28,6 +28,7 @@
     { id: 'input', label: T('입력') },
     { id: 'screen', label: T('화면') },
     { id: 'switch', label: T('빠른 이동') },
+    { id: 'repo', label: T('저장소 그래프') },
   ];
 
   const PREFS = [
@@ -113,6 +114,8 @@
         recent: T('답 필요 다음은 상태와 상관없이 최근에 연 순서입니다.'),
       },
     },
+    { key: 'repoFold', store: 'herdr-hub.repoFold', group: 'repo', label: T('곧은 커밋 접기'), type: 'bool', default: true, hint: T('갈래·합쳐짐·브랜치 머리만 남기고, 그 사이의 곧은 커밋은 「커밋 N개」 한 줄로 접습니다.') },
+    { key: 'repoRemotes', store: 'herdr-hub.repoRemotes', group: 'repo', label: T('원격 브랜치 보이기'), type: 'bool', default: true, hint: T('마지막으로 fetch 한 원격 브랜치도 그래프에 그립니다. Hub 는 fetch 하지 않습니다.') },
   ];
   // The px each named width is (core.js applyListWidth); auto is style.css's, per pointer.
   const LIST_WIDTHS = { narrow: 264, wide: 400 };

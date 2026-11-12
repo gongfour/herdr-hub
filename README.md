@@ -13,6 +13,7 @@ A web app (PWA) for watching and answering [herdr](https://herdr.dev) agents (Cl
 - **Chats**: a Claude agent's conversation, or the terminal screen for other agents. Send messages, photos, `/` commands and `@` files.
 - **Needs answer**: permission prompts, questions and slash-command menus as answer buttons; answer straight from a web push notification too.
 - **Shell**: herdr's shell panes, live, with keys sent as you type.
+- **Repositories**: the whole branch graph of the git repositories your agents work in, each agent at its branch, with commits, diffs and uncommitted changes. Read-only.
 - **Several hosts**: one hub merges the Herdr Hubs of other hosts (its peers) into one view. A host that goes offline stays listed as it was last seen.
 - **Keyboard**: a two-column layout on wide screens and shortcuts you can change (Ctrl+? lists them).
 - **English and Korean**: Settings → Display → Language. A new device follows its own language.
@@ -56,6 +57,7 @@ Herdr Hub can send keys to agents and shells, which means it can run commands on
 - Don't run it on a machine shared with other people (other OS users, containers). The login is a header `tailscale serve` adds, so any process that can reach `127.0.0.1:8787` directly can write that header. For the same reason keep `HOST` at `127.0.0.1` (it warns at start otherwise).
 - Requests from a Tailscale login not in `HERDR_HUB_ALLOWED_LOGINS`, with a Host header not in `HERDR_HUB_HOSTS` (DNS rebinding), or changing something without the `X-Herdr-Hub` header are refused.
 - `HERDR_HUB_ALLOW_LOCAL=1` admits without a login only a page opened on that machine at `127.0.0.1` or `localhost` (requests through `tailscale serve` without a login, from tagged devices or Funnel, are refused). Leave it off on a machine others use.
+- Repositories shows commits, diffs and the names of uncommitted files of the repositories your panes work in (a peer's through the hub). It only reads, through git (never fetching), and never shows an untracked file's content.
 - Pages carry a Content-Security-Policy: scripts run only from this origin and the page's own inline blocks (by hash). Everything an agent writes is escaped; this is a second wall so that nothing that slipped through can run.
 
 ## Documentation

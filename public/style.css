@@ -2170,3 +2170,129 @@ main.home.stale .ws .pane-ic { filter: grayscale(1); opacity: 0.55; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; transition-delay: 0s !important; }
 }
+
+/* ---- 저장소 (repo.js): the list of repositories and one repository's graph.
+   The graph's columns come from the page's own width (gitgraph.js cols: 720 and 1180px), not the
+   window's: graph alone, graph | commit, graph | commit | diff. The address names the deepest one
+   open (data-depth); a narrower view shows that one, and with two columns the diff takes the
+   commit's place. Lanes are coloured with the host colours (light and dark already set). */
+.repos-page { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4); }
+.repos-page:focus { outline: none; }
+.repos-page > * { width: 100%; max-width: 760px; margin-inline: auto; }
+.split #detail-pane > .repos-page > * { max-width: none; }
+.repos-page section.pgroup { background: none; border: 0; padding: 0; }
+.rp-note { margin: 0; color: var(--muted); font-size: var(--fs-3); }
+.rp-empty { margin: 0; padding: var(--sp-3) var(--sp-4); color: var(--muted); font-size: var(--fs-3); }
+.rp-empty.error, .rg-empty.error { color: var(--blocked); }
+.rp-row { display: flex; align-items: center; gap: var(--sp-3); min-height: 56px; padding: var(--sp-2) var(--sp-4); color: var(--text); text-decoration: none; }
+.rp-row:hover { background: var(--surface-2); }
+.rp-ic svg { width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.rp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rp-name { font-weight: 600; font-size: var(--fs-5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-path { color: var(--muted); font: var(--fs-2) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-end { display: flex; align-items: center; gap: var(--sp-2); color: var(--muted); font-size: var(--fs-3); flex: none; max-width: 55%; }
+.rp-agents { display: flex; gap: var(--sp-1); flex-wrap: wrap; justify-content: flex-end; }
+.rp-wts { white-space: nowrap; }
+
+.rg-agent { display: inline-flex; align-items: center; gap: var(--sp-0); padding: 0 var(--sp-1); border-radius: 6px; font-size: var(--fs-2); line-height: 18px; text-decoration: none; background: color-mix(in srgb, currentColor 12%, transparent); white-space: nowrap; max-width: 14em; overflow: hidden; text-overflow: ellipsis; }
+.rg-agent .st-dot { flex: none; width: 6px; height: 6px; margin-right: var(--sp-0); }
+.rg-agent.st.idle { color: var(--idle); }
+.rg-agent.st.blocked { color: var(--blocked); }
+.rg-agent.term { color: var(--muted); }
+.rg-agent.term svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
+.rg-more { font-size: var(--fs-2); }
+
+.rg-bar .rg-tog { flex: none; }
+.repo-page { display: flex; flex-direction: column; container-type: inline-size; overflow: hidden !important; }
+.rg { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr; }
+.rg-col { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.rg-graph { display: flex; flex-direction: column; }
+/* One column: only what the address names. */
+.rg .rg-side, .rg .rg-diff { display: none; }
+.rg[data-depth="1"] .rg-graph, .rg[data-depth="2"] .rg-graph, .rg[data-depth="2"] .rg-side { display: none; }
+.rg[data-depth="1"] .rg-side, .rg[data-depth="2"] .rg-diff { display: block; }
+/* Two columns: the graph and the deepest of the rest. Three: all of them. */
+@container (min-width: 720px) {
+  .rg { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .rg[data-depth] .rg-graph { display: flex; border-right: 1px solid var(--line); }
+  .rg[data-depth="0"] .rg-side, .rg[data-depth="1"] .rg-side { display: block; }
+}
+@container (min-width: 1180px) {
+  .rg { grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 5fr); }
+  .rg[data-depth] .rg-side { display: block; border-right: 1px solid var(--line); }
+  .rg[data-depth] .rg-diff { display: block; }
+}
+
+.rg-list { flex: 1; overflow: auto; padding-bottom: calc(var(--sp-4) + var(--safe-bottom)); outline: none; }
+.rg-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 44px; padding: 0 var(--sp-3) 0 var(--sp-2); border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.rg-row:hover { background: var(--surface-2); }
+.rg-row[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.rg-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* The row's height is the lanes' (repo.js rgRowH): their lines meet from row to row. */
+@media (hover: hover) and (pointer: fine) { .rg-row { height: 32px; } }
+.rg-lanes { flex: none; align-self: stretch; display: flex; align-items: center; }
+.gg { display: block; overflow: visible; }
+.gg-l { fill: none; stroke-width: 2; }
+.gg-fold { stroke-dasharray: 3 3; }
+.gg-n { stroke: var(--bg); stroke-width: 2; }
+.gg-c0 { stroke: var(--hc-blue); } .gg-n.gg-c0 { fill: var(--hc-blue); }
+.gg-c1 { stroke: var(--hc-green); } .gg-n.gg-c1 { fill: var(--hc-green); }
+.gg-c2 { stroke: var(--hc-purple); } .gg-n.gg-c2 { fill: var(--hc-purple); }
+.gg-c3 { stroke: var(--hc-orange); } .gg-n.gg-c3 { fill: var(--hc-orange); }
+.gg-c4 { stroke: var(--hc-teal); } .gg-n.gg-c4 { fill: var(--hc-teal); }
+.gg-c5 { stroke: var(--hc-pink); } .gg-n.gg-c5 { fill: var(--hc-pink); }
+.gg-c6 { stroke: var(--hc-yellow); } .gg-n.gg-c6 { fill: var(--hc-yellow); }
+.gg-c7 { stroke: var(--hc-gray); } .gg-n.gg-c7 { fill: var(--hc-gray); }
+.gg-n.gg-c0, .gg-n.gg-c1, .gg-n.gg-c2, .gg-n.gg-c3, .gg-n.gg-c4, .gg-n.gg-c5, .gg-n.gg-c6, .gg-n.gg-c7 { stroke: var(--bg); }
+.rg-text { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-2); overflow: hidden; }
+.rg-s { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-4); }
+.rg-refs, .rg-ags { display: inline-flex; gap: var(--sp-1); flex: none; max-width: 60%; overflow: hidden; }
+.rg-ags:empty, .rg-refs:empty { display: none; }
+.rg-ref { font: 600 var(--fs-2)/18px var(--mono); padding: 0 var(--sp-1); border-radius: 6px; border: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16em; }
+.rg-ref.branch { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.rg-ref.branch.wt { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.rg-ref.remote { color: var(--muted); font-weight: 400; }
+.rg-ref.tag { color: var(--hc-yellow); border-color: color-mix(in srgb, var(--hc-yellow) 40%, var(--line)); }
+.rg-ref.head { color: var(--blocked); border-color: color-mix(in srgb, var(--blocked) 40%, var(--line)); }
+.rg-meta { flex: none; color: var(--muted); font-size: var(--fs-2); white-space: nowrap; }
+.rg-foldrow .rg-text { color: var(--muted); font-size: var(--fs-3); }
+.rg-wt .rg-s { color: var(--blocked); font-weight: 600; }
+.rg-wt-dot { display: block; width: 10px; height: 10px; margin-inline: var(--sp-1); border-radius: 50%; border: 2px dashed var(--blocked); }
+/* The phone keeps the row to the graph and the subject: who and when go under 480px. */
+@container (max-width: 480px) { .rg-meta { display: none; } }
+.rg-moreb { margin: var(--sp-3) var(--sp-4); }
+.rg-empty { margin: 0; padding: var(--sp-3) var(--sp-4); color: var(--muted); font-size: var(--fs-3); }
+.rg-hint { padding-top: var(--sp-6); text-align: center; }
+
+.rg-side, .rg-diff { padding-bottom: calc(var(--sp-4) + var(--safe-bottom)); }
+.rg-head { padding: var(--sp-3) var(--sp-4) var(--sp-2); border-bottom: 1px solid var(--line); }
+.rg-subj { margin: 0; font-size: var(--fs-5); font-weight: 600; overflow-wrap: anywhere; }
+.rg-fpath { margin: 0; font: 600 var(--fs-3) var(--mono); overflow-wrap: anywhere; }
+.rg-who, .rg-shas { margin: var(--sp-1) 0 0; color: var(--muted); font-size: var(--fs-3); overflow-wrap: anywhere; }
+.rg-sha { font: var(--fs-2) var(--mono); color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none; }
+.rg-body { margin: 0; padding: var(--sp-3) var(--sp-4); white-space: pre-wrap; overflow-wrap: anywhere; font: var(--fs-3)/1.5 var(--mono); color: var(--text); border-bottom: 1px solid var(--line); }
+.rg-h3 { margin: 0; padding: var(--sp-3) var(--sp-4) var(--sp-1); font-size: var(--fs-3); font-weight: 600; color: var(--muted); }
+.rg-note { font-weight: 400; color: var(--muted); }
+.rg-files { list-style: none; margin: 0; padding: 0; }
+.rg-file { display: flex; align-items: center; gap: var(--sp-2); min-height: 44px; padding: 0 var(--sp-4); color: var(--text); text-decoration: none; font: var(--fs-3) var(--mono); }
+@media (hover: hover) and (pointer: fine) { .rg-file { min-height: 32px; } }
+a.rg-file:hover { background: var(--surface-2); }
+.rg-file.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.rg-file.off { color: var(--muted); }
+.rg-st { flex: none; width: 1.4em; text-align: center; font-weight: 700; border-radius: 4px; }
+.rg-st.st-A, .rg-st.st-N { color: var(--done); }
+.rg-st.st-D { color: var(--blocked); }
+.rg-st.st-M { color: var(--working); }
+.rg-st.st-R, .rg-st.st-C { color: var(--hc-purple); }
+.rg-fp { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rg-from { color: var(--muted); }
+.rg-fn { flex: none; display: inline-flex; gap: var(--sp-1); font-size: var(--fs-2); }
+.rg-add { color: var(--done); }
+.rg-del { color: var(--blocked); }
+.rg-bin { color: var(--muted); }
+.rg-dtext { margin: 0; padding: var(--sp-2) 0; font: var(--fs-3)/1.45 var(--mono); white-space: pre; overflow-x: auto; tab-size: 4; }
+.rg-dtext > span { display: block; padding: 0 var(--sp-4); min-width: max-content; }
+.rg-dtext .da { background: color-mix(in srgb, var(--done) 14%, transparent); }
+.rg-dtext .dd { background: color-mix(in srgb, var(--blocked) 12%, transparent); }
+.rg-dtext .dh { color: var(--hc-blue); background: var(--surface-2); }
+.rg-dtext .dm { color: var(--muted); }

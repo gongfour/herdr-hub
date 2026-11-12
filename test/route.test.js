@@ -35,3 +35,16 @@ test('a host alone is that host\'s 작업공간', () => {
   assert.deepEqual(parse('/h/server'), { name: 'list', host: 'server' });
   assert.deepEqual(parse('/h/server/spaces'), { name: 'list', host: 'server' });
 });
+
+test('저장소: the list, a graph, a commit or worktree, a file in it', () => {
+  const p = parse;
+  assert.deepEqual(p('/repos'), { name: 'repos', host: null });
+  assert.deepEqual(p('/h/desktop/repos'), { name: 'repos', host: 'desktop' });
+  assert.deepEqual(p('/h/desktop/repo/0123456789ab'), { name: 'repo', host: 'desktop', id: '0123456789ab', c: null, w: null, f: null });
+  assert.deepEqual(p('/h/d/repo/0123456789ab/c/abc1234'), { name: 'repo', host: 'd', id: '0123456789ab', c: 'abc1234', w: null, f: null });
+  // A path is one encoded segment (its slashes too).
+  assert.deepEqual(p(`/h/d/repo/0123456789ab/c/abc1234/f/${encodeURIComponent('lib/a b.js')}`).f, 'lib/a b.js');
+  assert.deepEqual(p('/h/d/repo/0123456789ab/w/1a2b3c4d/f/x.txt'), { name: 'repo', host: 'd', id: '0123456789ab', c: null, w: '1a2b3c4d', f: 'x.txt' });
+  // A file needs a commit or a worktree.
+  assert.equal(p('/h/d/repo/0123456789ab/f/x.txt').name, 'list');
+});

@@ -598,3 +598,128 @@ test('English: no Korean left on the list, an agent, its answer box, quick switc
   }
   assert.deepEqual(errors, []);
 });
+
+// ---- 저장소 그래프 (repo.js): repositories found from the agents' folders, on a real git repository.
+const { hasGit, makeRepo } = require('./fixtures/gitrepo');
+const inRepo = (pane, cwd, status, name) => ({ ...agent(pane, status, 1, name, name), cwd });
+
+test('저장소: the tab lists the repository; its graph, a commit, a file; back one level at a time', { skip: !hasGit }, async (t) => {
+  const r = makeRepo(t, { more: 4 });
+  const h = await hubInProcess(t, { id: 'uirepo', agents: [inRepo('w1-p2', r.dir, 'working', 'shop-api'), inRepo('w1-p3', r.wt, 'blocked', 'side-fix')] });
+  const page = await open(t, h);
+  if (!page) return;
+  await page.locator('.tabbar .tab[data-tab="repos"]').click();
+  const row = page.locator('.rp-row');
+  await row.waitFor();
+  assert.match(await row.innerText(), /proj[\s\S]*shop-api[\s\S]*side-fix/);
+  await row.click();
+  await page.locator('.rg-row[data-h]').first().waitFor();
+  // Each agent at the head of its worktree's branch; the side worktree's uncommitted change on top.
+  assert.match(await page.locator('.rg-row[data-h]').first().innerText(), /main[\s\S]*shop-api[\s\S]*step 4/);
+  assert.match(await page.locator('.rg-wt').innerText(), /side[\s\S]*side-fix[\s\S]*커밋 안 한 변경 2/);
+  // step 1–3 are a straight run: one row, opened by a tap.
+  const fold = page.locator('.rg-foldrow');
+  assert.match(await fold.innerText(), /커밋 3개/);
+  await fold.click();
+  await page.locator('.rg-row[data-h]', { hasText: 'step 2' }).waitFor();
+  // The phone shows one column: a commit opens over the graph, a file over the commit.
+  await page.locator(`.rg-row[data-h="${r.ren}"]`).click();
+  await page.waitForFunction((h) => location.hash.endsWith(`/c/${h}`), r.ren);
+  await page.locator('#rg-side .rg-file').waitFor();
+  assert.equal(await page.locator('.rg-graph').isVisible(), false);
+  assert.match(await page.locator('#rg-side').innerText(), /rename[\s\S]*a\.txt → b\.txt/);
+  await page.locator('#rg-side .rg-file').click();
+  await page.locator('.rg-dtext').waitFor();
+  assert.match(await page.locator('.rg-dtext').innerText(), /\+three/);
+  assert.match(await page.locator('.rg-dtext .da').innerText(), /\+three/);
+  // ‹ goes up one level: the commit, the graph, then the list.
+  await page.locator('.rg-bar a[data-back]').click();
+  await page.waitForFunction((h) => location.hash.endsWith(`/c/${h}`), r.ren);
+  await page.locator('.rg-bar a[data-back]').click();
+  await page.locator('.rg-graph').waitFor();
+  await page.locator('.rg-bar a[data-back]').click();
+  await page.waitForFunction(() => location.hash === '#/repos');
+  // The worktree's uncommitted files: tracked ones open their diff, a new file shows its name only.
+  await page.locator('.rp-row').click();
+  await page.locator('.rg-wt').click();
+  await page.locator('#rg-side .rg-file').first().waitFor();
+  assert.match(await page.locator('#rg-side').innerText(), /new\.txt[\s\S]*내용은 보이지 않습니다/);
+  assert.equal(await page.locator('#rg-side span.rg-file.off').count(), 1);
+  noErrors(page);
+});
+
+test('저장소: wide, the graph beside the commit and its diff; ↓ shows the next commit in place', { skip: !hasGit }, async (t) => {
+  if (why.skip) return t.skip(why.skip);
+  const r = makeRepo(t);
+  const h = await hubInProcess(t, { id: 'uirepow', agents: [inRepo('w1-p2', r.dir, 'idle', 'shop-api'), inRepo('w1-p3', r.wt, 'working', 'side-fix')] });
+  const ctx = await browser.newContext({ viewport: { width: 1800, height: 1000 }, locale: 'ko-KR' });
+  t.after(() => ctx.close());
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.goto(`http://127.0.0.1:${h.port}/#/h/uirepow/agent/w1-p3`);
+  await page.waitForFunction(() => typeof state !== 'undefined' && state.herdr === 'up');
+  // From an agent, its key opens its own repository.
+  await page.locator('#d-input').waitFor();
+  await page.locator('body').click({ position: { x: 900, y: 500 } }).catch(() => {});
+  await page.keyboard.press('Control+Shift+G');
+  await page.locator('.rg-row[data-h]').first().waitFor();
+  assert.match(page.url(), /\/repo\/[0-9a-f]{12}$/);
+  // The rail's button says it is open.
+  assert.equal(await page.locator('#rail .rail-btn[data-tab="repos"]').getAttribute('aria-pressed'), 'true');
+  // All three columns at once.
+  for (const sel of ['.rg-graph', '#rg-side', '#rg-diff']) assert.equal(await page.locator(sel).isVisible(), true, sel);
+  await page.locator('.rg-row[data-h]').first().click();
+  await page.locator('#rg-side .rg-subj').waitFor();
+  assert.equal(await page.locator('#rg-side .rg-subj').innerText(), 'Merge feat');
+  const depth = await page.evaluate(() => history.length);
+  await page.locator('.rg-row[aria-selected="true"]').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction((h) => location.hash.endsWith(`/c/${h}`), r.feat);
+  await page.locator('#rg-side .rg-subj', { hasText: 'feat work' }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), depth, 'a step is put in place, not pushed');
+  // Return goes into the commit's files; the diff opens beside, the graph still there.
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await page.locator('#rg-diff .rg-dtext').waitFor();
+  assert.match(await page.locator('#rg-diff').innerText(), /f\.txt[\s\S]*\+feat/);
+  assert.equal(await page.locator('.rg-graph').isVisible(), true);
+  // The same key closes it again.
+  await page.keyboard.press('Control+Shift+G');
+  await page.waitForFunction(() => !location.hash.includes('/repo'));
+  assert.deepEqual(errors, []);
+});
+
+test('English: no Korean left on the 저장소 list, graph, commit and diff', { skip: !hasGit }, async (t) => {
+  if (why.skip) return t.skip(why.skip);
+  const r = makeRepo(t, { more: 3 });
+  const h = await hubInProcess(t, { id: 'uirepoen', agents: [inRepo('w1-p2', r.dir, 'working', 'shop-api'), inRepo('w1-p3', r.wt, 'blocked', 'side-fix')] });
+  const ctx = await browser.newContext({ viewport: { width: 1800, height: 1000 }, locale: 'en-US' });
+  t.after(() => ctx.close());
+  await ctx.addInitScript(() => localStorage.setItem('herdr-hub.lang', 'en'));
+  const page = await ctx.newPage();
+  await page.goto(`http://127.0.0.1:${h.port}/#/repos`);
+  await page.waitForFunction(() => typeof state !== 'undefined' && state.herdr === 'up');
+  const korean = async (where) => {
+    const text = await page.evaluate(() =>
+      [...document.querySelectorAll('body *')]
+        .filter((el) => !el.children.length && el.offsetParent)
+        .map((el) => `${el.textContent} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''}`)
+        .join('\n')
+    );
+    assert.deepEqual(text.split('\n').filter((l) => /[가-힣]/.test(l)), [], `Korean on ${where}`);
+  };
+  await page.locator('.rp-row').waitFor();
+  await korean('the repository list');
+  await page.locator('.rp-row').click();
+  await page.locator('.rg-foldrow').waitFor();
+  await page.locator('.rg-wt').waitFor();
+  await korean('the graph');
+  await page.locator(`.rg-row[data-h="${r.ren}"]`).click();
+  await page.locator('#rg-side .rg-file').click();
+  await page.locator('#rg-diff .rg-dtext').waitFor();
+  await korean('a commit and its diff');
+  await page.locator('.rg-wt').click();
+  await page.locator('#rg-side .rg-file.off').waitFor();
+  await korean('a worktree');
+});

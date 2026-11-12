@@ -197,6 +197,7 @@ function paneItems(kind, agent, x, fromRow, here) {
         '-',
         ['rename', T('이름 바꾸기')],
         ['ws', T('워크스페이스 보기')],
+        ['repo', T('저장소 그래프'), false, '', here ? 'repos' : null],
         fromRow ? ['reorder', T('순서 바꾸기'), false, '', 'reorder'] : null,
         ['close', T('에이전트 끝내기'), true, T('에이전트와 대화가 끝납니다'), here ? 'closeView' : null],
       ]
@@ -220,6 +221,7 @@ function paneItems(kind, agent, x, fromRow, here) {
           : []),
         ['rename', T('이름 바꾸기')],
         ['ws', T('워크스페이스 보기')],
+        ['repo', T('저장소 그래프'), false, '', here ? 'repos' : null],
         fromRow ? ['reorder', T('순서 바꾸기'), false, '', 'reorder'] : null,
         ['close', T('셸 끝내기'), true, '', here ? 'closeView' : null],
       ];
@@ -243,6 +245,7 @@ async function paneAction(kind, x, k, { here = false } = {}) {
   if (!LOOKS.has(k) && ghostRefuse(x)) return;
   if (k === 'open') location.hash = link(x.host, `/${agent ? 'agent' : 'term'}/${pane}`);
   if (k === 'ws') location.hash = link(x.host, `/ws/${encodeURIComponent(x.workspace)}`);
+  if (k === 'repo') openRepoOf(host, x.pane); // repo.js
   if (k === 'stop') confirmStop(x); // agent.js
   if (k === 'usage') openUsage(x); // agent.js
   if (k === 'screen') {

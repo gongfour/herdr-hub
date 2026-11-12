@@ -332,6 +332,17 @@ test('Alt+H/J/K/L mirror Alt+←/↓/↑/→ in the same places, by e.code too',
   }
 });
 
+test('Ctrl+Shift+G opens and closes 저장소 그래프: on the page and in a field, not in the shell or under a sheet', () => {
+  for (const ctx of [{}, { field: true }, { split: true }]) assert.equal(act('Ctrl+Shift+g', ctx, { key: 'G' }), 'repos');
+  assert.equal(act('Ctrl+Shift+g', {}, { key: 'ㅎ', code: 'KeyG' }), 'repos'); // keyboard set to Korean
+  // The shell's (a terminal gets it as Ctrl+G, readline's abort), and nothing under a sheet.
+  assert.equal(act('Ctrl+Shift+g', { shell: true }, { key: 'G' }), null);
+  assert.equal(act('Ctrl+Shift+g', { layer: true }, { key: 'G' }), null);
+  // Not Ctrl+G alone, nor plain letters: the graph's own j / k are its field's (LOCAL).
+  assert.equal(act('Ctrl+g', {}), null);
+  assert.ok(LOCAL.some((l) => l.name === '커밋 옮기기'));
+});
+
 test('Ctrl+, opens and closes 설정: on the page and in a field, not in the shell or under a sheet', () => {
   assert.equal(act('Ctrl+,', {}), 'settings');
   assert.equal(act('Ctrl+,', { field: true }), 'settings');
@@ -831,6 +842,7 @@ test('the Mac: the ⌘ form first (what hints and the 단축키 page show), the 
       assert.equal(at('Meta+Shift+n', ctx, { key: 'N' }), 'newWorkspace');
       assert.equal(at('Meta+p', ctx), 'switcher');
       assert.equal(at('Meta+,', ctx), 'settings');
+      assert.equal(at('Meta+Shift+g', ctx, { key: 'G' }), 'repos');
       assert.equal(at('Meta+?', ctx, { shiftKey: true, code: 'Slash' }), 'help');
       assert.equal(at('Meta+b', { ...ctx, split: true }), 'toggleSide');
     }

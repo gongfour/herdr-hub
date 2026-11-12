@@ -50,6 +50,8 @@ test('storage keys are the ones the app always used', () => {
     chatW: 'herdr-hub.chatW',
     listW: 'herdr-hub.listW',
     paletteOrder: 'herdr-hub.paletteOrder',
+    repoFold: 'herdr-hub.repoFold',
+    repoRemotes: 'herdr-hub.repoRemotes',
   });
   // index.html applies the theme before any script: it reads this key and these values.
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
@@ -76,6 +78,8 @@ test('values written by the old code read the same (and unknown or missing ones 
     listW: () => 'auto', // new: no sample is one of its values
     paletteOrder: () => 'done', // new: no sample is one of its values
     lang: () => 'auto', // new: no sample is one of its values
+    repoFold: (s) => (s === '1' || s === '0' ? s === '1' : true), // new
+    repoRemotes: (s) => (s === '1' || s === '0' ? s === '1' : true), // new
   };
   const samples = [null, '', 'send', 'newline', 'line', 'raw', 'light', 'dark', 'system', '1', '0', 'true', 'x', '11', '12', '14', '13'];
   for (const p of PREFS)

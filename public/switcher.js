@@ -176,7 +176,7 @@ const visible = (id) => {
   return Boolean(el && !el.hidden && !el.disabled && el.offsetParent);
 };
 const COMMAND_CAN = {
-  leaveView: () => view.name !== 'list' && (view.name === 'settings' || Boolean($app.querySelector('a[data-back]'))),
+  leaveView: () => view.name !== 'list' && (view.name === 'settings' || view.name === 'repos' || Boolean($app.querySelector('a[data-back]'))),
   focusInput: () => visible('d-input') || visible('t-input'),
   menu: (o) => Boolean(o),
   lastView: () => Boolean(view.name === 'agent' || view.name === 'term' ? visits.prev : visits.cur),
@@ -209,6 +209,7 @@ function commandNameHere(action, o) {
   if (action === 'wrap' && scr) return Prefs.get(scr.kind === 'term' ? 'wrap.term' : 'wrap.agent') ? T('줄바꿈 끄기') : T('줄바꿈 켜기');
   if (action === 'toggleSide') return sideOff() ? T('사이드바 펴기') : T('사이드바 접기');
   if (action === 'settings') return view.name === 'settings' ? T('설정 닫기') : T('설정 열기');
+  if (action === 'repos') return view.name === 'repos' ? T('저장소 닫기') : view.name === 'agent' || view.name === 'term' ? T('이 폴더의 저장소 그래프') : T('저장소 열기');
   return '';
 }
 // What a command is about, on its small line: the agent, shell or workspace it acts on.

@@ -359,6 +359,8 @@ function onState() {
   } else if (view.name === 'list') return render();
   if (view.name === 'ws') return renderWorkspace();
   if (view.name === 'settings') return renderSettings();
+  if (view.name === 'repos') return void (renderReposBody(), loadRepoLists()); // repo.js: a host that came (or the first state) is read
+  if (view.name === 'repo') return drawAgents();
   if (view.name === 'term') {
     renderTerminalHeader();
     if (!detail.screen) loadTerminal(); // a pane opened just now appears with this state
@@ -506,7 +508,7 @@ function route(e, { relayout = false } = {}) {
   const r = Route.parse(h);
   const host = r.host;
   // The phone shows a detail in place of the tab: keep the tab's page for 뒤로.
-  if (!split && !['list', 'settings'].includes(r.name)) parkTab();
+  if (!split && !['list', 'settings', 'repos'].includes(r.name)) parkTab();
   // 빠른 이동 lists these first (switcher.js).
   if ((r.name === 'agent' || r.name === 'term') && (host || localId())) noteRecent(link(host || localId(), `/${r.name}/${encodeURIComponent(r.pane)}`));
   if (r.name === 'agent') {
@@ -561,6 +563,15 @@ function route(e, { relayout = false } = {}) {
   } else if (r.name === 'form') {
     view = r.mode === 'new' ? { name: 'form', mode: 'new', host } : { name: 'form', mode: r.mode, host, target: r.target };
     renderForm();
+  } else if (r.name === 'repos') {
+    view = { name: 'repos' };
+    renderRepos({ focus: true }); // repo.js: the phone's 저장소 tab, split on the right
+  } else if (r.name === 'repo') {
+    // The same repository again (another commit, a file): its graph stays, only the rest is drawn.
+    const same = view.name === 'repo' && (view.host || localId()) === (host || localId()) && view.id === r.id;
+    view = { name: 'repo', host, id: r.id, c: r.c, w: r.w, f: r.f };
+    renderRepo({ same });
+    pollTimer = setInterval(repoPoll, RG_POLL_MS);
   } else if (r.name === 'settings') {
     view = { name: 'settings' };
     renderSettings({ focus: true }); // into the page (split: on the right, the list stays)
@@ -860,6 +871,7 @@ const KEY_ACTIONS = {
     const top = topLayer();
     if (top) return closeLayer(top), true;
     if (view.name === 'settings') return toggleSettings(), true;
+    if (view.name === 'repos') return toggleRepos(), true;
     const back = view.name !== 'list' && $app.querySelector('a[data-back]');
     if (!back) return false;
     goBack(back.getAttribute('href'));
@@ -867,6 +879,7 @@ const KEY_ACTIONS = {
   },
   help: () => (toggleKeys(), true), // keyspage.js
   settings: () => (toggleSettings(), true),
+  repos: () => (toggleRepos(), true), // repo.js
   // The caret in the composer (or the shell's command line), at the end of what is there.
   focusInput() {
     const f = document.getElementById('d-input') || document.getElementById('t-input');
@@ -1112,6 +1125,7 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('#rail .rail-btn');
   if (!b) return;
   if (b.dataset.tab === 'spaces') return setSideOff(!sideOff());
+  if (b.dataset.tab === 'repos') return toggleRepos(); // repo.js
   toggleSettings();
 });
 // 설정 open or closed (the rail's ⚙, Ctrl+,): closing goes back to what was open before it

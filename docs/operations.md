@@ -60,6 +60,7 @@ desktop 의 Herdr Hub 이 **허브**다. 허브는 다른 Herdr Hub(**피어**)�
 | `HERDR_HUB_LIVE_IDLE_MS` | 셸의 실시간 연결이 열려 있고 아무것도 움직이지 않을 때 화면을 읽는 간격(기본 150 ms; 연결 도우미를 끈 Mac 은 40 — herdr 를 깨워 둔다). [design.md](design.md) 「셸의 실시간 연결」 |
 | `HERDR_HUB_LIVE_PING_MS` | 셸의 실시간 연결에 서버가 WebSocket ping 을 보내는 간격(기본 15000 ms). 그 세 배 동안 아무것도 안 오면 닫는다. [design.md](design.md) 「셸의 실시간 연결」 |
 | `HERDR_HUB_HERDR_HELPER` | herdr 연결 도우미: `1` 켬, `0` 끔(기본: Mac 에서만 켬). [design.md](design.md) 「herdr 연결 도우미」 |
+| `HERDR_HUB_GIT` | 저장소 그래프가 부를 git 실행 파일(기본 `git`, PATH 에서). 예약 작업으로 도는 Windows 처럼 PATH 에 git 이 없을 때 `C:\Program Files\Git\cmd\git.exe` 처럼 준다. [design.md](design.md) 「저장소 그래프」 |
 | `HERDR_HUB_PYTHON` | 도우미를 돌릴 파이썬(기본 `/usr/bin/python3`) |
 | `HERDR_HUB_VAPID_SUBJECT`, `HERDR_HUB_DATA`, `PORT`, `HOST` | 전과 같음 |
 
