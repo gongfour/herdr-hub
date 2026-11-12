@@ -221,6 +221,9 @@ async function loadGraph({ keep = false } = {}) {
     if (rp.g !== g) return;
     Object.assign(g, { loading: false, error: null, sig: r.sig, commits: r.commits, refs: r.refs, worktrees: r.worktrees, more: r.more, total: r.total, limited: r.limited, truncated: r.truncated, shallow: r.shallow, remotes });
     if (br) g.branches = br.branches;
+    // A commit or a diff that failed (asked before the hosts were known, a slow git) is asked
+    // again now that the repository answers.
+    for (const m of [rp.commits, rp.diffs]) for (const [k, v] of m) if (v.error) m.delete(k);
     if (info) {
       g.name = info.name;
       g.root = info.root;

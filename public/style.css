@@ -2231,16 +2231,17 @@ main.home.stale .ws .pane-ic { filter: grayscale(1); opacity: 0.55; }
 .rg .rg-side, .rg .rg-diff { display: none; }
 .rg[data-depth="1"] .rg-graph, .rg[data-depth="2"] .rg-graph, .rg[data-depth="2"] .rg-side { display: none; }
 .rg[data-depth="1"] .rg-side, .rg[data-depth="2"] .rg-diff { display: block; }
-/* Two columns: the graph and the deepest of the rest. Three: all of them. */
+/* Two columns: the graph and the deepest of the rest. Three, once a file is open: all of them
+   (before that the diff's column would only say 「파일을 고르면…」, so the graph and the commit
+   keep its room). */
 @container (min-width: 720px) {
   .rg { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
   .rg[data-depth] .rg-graph { display: flex; border-right: 1px solid var(--line); }
   .rg[data-depth="0"] .rg-side, .rg[data-depth="1"] .rg-side { display: block; }
 }
 @container (min-width: 1180px) {
-  .rg { grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 5fr); }
-  .rg[data-depth] .rg-side { display: block; border-right: 1px solid var(--line); }
-  .rg[data-depth] .rg-diff { display: block; }
+  .rg[data-depth="2"] { grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 5fr); }
+  .rg[data-depth="2"] .rg-side { display: block; border-right: 1px solid var(--line); }
 }
 
 .rg-list { flex: 1; overflow: auto; padding-bottom: calc(var(--sp-4) + var(--safe-bottom)); outline: none; }

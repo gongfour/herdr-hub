@@ -670,8 +670,9 @@ test('저장소: wide, the graph beside the commit and its diff; ↓ shows the n
   assert.match(page.url(), /\/repo\/[0-9a-f]{12}$/);
   // The rail's button says it is open.
   assert.equal(await page.locator('#rail .rail-btn[data-tab="repos"]').getAttribute('aria-pressed'), 'true');
-  // All three columns at once.
-  for (const sel of ['.rg-graph', '#rg-side', '#rg-diff']) assert.equal(await page.locator(sel).isVisible(), true, sel);
+  // Nothing chosen: the graph and the worktrees beside it, no empty diff column.
+  for (const sel of ['.rg-graph', '#rg-side']) assert.equal(await page.locator(sel).isVisible(), true, sel);
+  assert.equal(await page.locator('#rg-diff').isVisible(), false);
   await page.locator('.rg-row[data-h]').first().click();
   await page.locator('#rg-side .rg-subj').waitFor();
   assert.equal(await page.locator('#rg-side .rg-subj').innerText(), 'Merge feat');
@@ -686,7 +687,8 @@ test('저장소: wide, the graph beside the commit and its diff; ↓ shows the n
   await page.keyboard.press('Enter');
   await page.locator('#rg-diff .rg-dtext').waitFor();
   assert.match(await page.locator('#rg-diff').innerText(), /f\.txt[\s\S]*\+feat/);
-  assert.equal(await page.locator('.rg-graph').isVisible(), true);
+  // A file open: all three columns at once.
+  for (const sel of ['.rg-graph', '#rg-side', '#rg-diff']) assert.equal(await page.locator(sel).isVisible(), true, sel);
   // The same key closes it again.
   await page.keyboard.press('Control+Shift+G');
   await page.waitForFunction(() => !location.hash.includes('/repo'));
