@@ -230,7 +230,8 @@ function renderBlocked() {
   box.setAttribute('aria-label', a.menu ? T('메뉴') : T('답 필요'));
   const text = detail.blockedText;
   const choices = text ? parseChoices(text) : null;
-  const screen = text ? `<pre>${esc(text)}</pre>` : '';
+  // In terminal cells (cells.js), as the pane laid it out: Hangul 2ch, so its columns hold.
+  const screen = text ? `<pre>${Cells.html(text)}</pre>` : '';
   const keys = keyRow(AGENT_KEYS);
   let html;
   const panel = !choices && text ? screenPanel(text) : null;
@@ -243,7 +244,7 @@ function renderBlocked() {
     html = `<div class="blocked-box menu">
         <div class="b-head"><span class="b-eyebrow"><span class="b-dot" aria-hidden="true"></span>${T('메뉴')}</span><span class="toggles">${leave}</span></div>
         <strong class="b-title">${esc(panel.title)}</strong>
-        ${panel.main.length ? `<pre class="b-ansi">${panelAnsi(panel) || esc(panel.main.join('\n'))}</pre>` : ''}
+        ${panel.main.length ? `<pre class="b-ansi">${panelAnsi(panel) || Cells.html(panel.main.join('\n'))}</pre>` : ''}
         ${hintOf(panel)}
         ${keyRow(MENU_KEYS)}
       </div>`;

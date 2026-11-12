@@ -162,7 +162,9 @@ function screenColors(pre) {
 // copy are as one <pre>), and a new screen changes only the lines that changed: output moving by
 // a line removes one element and adds one, a key typed redraws the prompt's line. ScreenDiff
 // finds them, the same way the live channel does.
-const htmlEsc = (t) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+// Each line's text in terminal cells (cells.js: Hangul and other wide characters 2ch), so a
+// TUI's columns hold under a fallback font.
+const htmlEsc = (t) => window.Cells.html(t);
 function drawScreen(s, p) {
   const lines = p.view === 'ansi' ? window.Ansi.toHtmlLines(p.text, screenColors(s.pre), s.htmlCache || (s.htmlCache = {})) : (p.view === 'strip' ? window.Ansi.strip(p.text) : p.text).split('\n').map(htmlEsc);
   // A line drawn over (shell.js: 셸 예측 입력) goes back to the host's first, and comes back after.
@@ -215,7 +217,7 @@ function patchLines(s, next) {
 function lineBackgrounds(el) {
   if (el._bg) return el._bg;
   const counts = new Map();
-  for (const sp of el.querySelectorAll('span')) {
+  for (const sp of el.querySelectorAll('span:not(.tc)')) {
     const bg = sp.style.backgroundColor || (/(^|\s)a[bB]\d/.test(sp.className) ? getComputedStyle(sp).backgroundColor : '');
     if (bg) counts.set(bg, (counts.get(bg) || 0) + sp.textContent.length);
   }

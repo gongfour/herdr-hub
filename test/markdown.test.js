@@ -19,6 +19,36 @@ test('fenced code is escaped and kept as it is', () => {
   assert.equal(md('```js\nif (a < b) **x**\n```'), '<pre><code>if (a &lt; b) **x**</code></pre>');
 });
 
+test('fenced code: wide characters in 2-cell spans, other non-ASCII in 1-cell runs, the text unchanged', () => {
+  assert.equal(md('```\n│ 한글 ── a\n```'), '<pre><code><span class="tc">│</span> <span class="tc w2">한</span><span class="tc w2">글</span> <span class="tc" style="width:2ch">──</span> a</code></pre>');
+  // The text inside the tags is the block's text as written: marks, joined emoji, flags and jamo
+  // stay whole, nothing added or lost.
+  const src = [
+    '┌ 커밋 그래프 ──────────────┬ diff ──┐',
+    '│ ◌ 커밋 안 한 변경 3       │ ⏺ 漢字 │',
+    '│ e\u0301 n\u0303 👩\u200d💻 🇰🇷 ❤\ufe0f \u1100\u1161 ｱ Ａ │',
+    '└──────────────────────────┴────────┘',
+    'a\ttab <b> & "q"',
+  ].join('\n');
+  const html = md('```\n' + src + '\n```');
+  const text = html.replace(/<[^>]*>/g, '').replace(/&(lt|gt|amp|quot|#39);/g, (_, e) => ({ lt: '<', gt: '>', amp: '&', quot: '"', '#39': "'" })[e]);
+  assert.equal(text, src);
+  assert.doesNotMatch(html, /<b>/);
+  // Prose and tables are left as they were.
+  assert.equal(md('한글 ── 본문'), '<p>한글 ── 본문</p>');
+  assert.doesNotMatch(md('| 가 | ─ |\n|--|--|\n| 나 | ● |'), /class="tc/);
+});
+
+test('cells: widths as a terminal counts them', () => {
+  const { widthOf, html } = require('../public/cells.js');
+  for (const c of ['가', '漢', 'か', 'Ａ', '😀', '✅', '❤\ufe0f', '👩\u200d💻', '\u1100\u1161']) assert.equal(widthOf(c), 2, c);
+  for (const c of ['─', '│', '●', '◌', '⏺', '·', '…', '❯', 'é', 'ｱ']) assert.equal(widthOf(c), 1, c);
+  assert.equal(widthOf('\u0301'), 0);
+  assert.equal(html('plain <ascii>'), 'plain &lt;ascii&gt;');
+  // A long rule is cut into runs of 8, so a box that wraps its lines can still fold it.
+  assert.equal((html('─'.repeat(20)).match(/<span/g) || []).length, 3);
+});
+
 test('tables: header, alignment, escaped pipes', () => {
   const html = md('| a | b |\n|:--:|--:|\n| 1 \\| 2 | x |');
   assert.equal(

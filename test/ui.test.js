@@ -483,6 +483,71 @@ test('subagents: an agent waiting for them says so in the list; its view lists t
   noErrors(page);
 });
 
+// A reply's box drawing, laid out for a terminal: Hangul 2 cells, the rest 1 (cells.js). The page's
+// monospace font has no Hangul, so without the cells each line with Hangul ends short of the others.
+const BOX = [
+  '┌ 커밋 그래프 ──────────────┬ 커밋 상세 ──────┬ diff ─────────────────┐',
+  '│ ● main  Fix list row      │ a1b2c3d         │ lib/subagents.js      │',
+  '│ │ ● feat/git  Add panel   │ alex · 2시간 전 │ @@ -12,6 +12,9 @@     │',
+  '│ ◌ 커밋 안 한 변경 3       │  A lib/git.js   │ ⏺ 漢字 かな 😀        │',
+  '└───────────────────────────┴─────────────────┴───────────────────────┘',
+].join('\n');
+test('a code block keeps a terminal\'s columns: every line\'s right │ at the same x, and copy gives the text back', async (t) => {
+  const sid = 'aaaaaaaa-0000-4000-8000-000000000002';
+  const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'ui-claude-'));
+  const before = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = root;
+  t.after(() => {
+    if (before === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = before;
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const proj = path.join(root, 'projects', '-work');
+  fs.mkdirSync(proj, { recursive: true });
+  const ts = new Date(Date.now() - 60000).toISOString();
+  fs.writeFileSync(
+    path.join(proj, `${sid}.jsonl`),
+    [
+      { type: 'user', uuid: 'u0', timestamp: ts, message: { role: 'user', content: '화면 그려 줘' } },
+      { type: 'assistant', uuid: 'x1', timestamp: ts, message: { id: 'm1', content: [{ type: 'text', text: `이렇게요:\n\n\`\`\`\n${BOX}\n\`\`\`` }] } },
+    ].map((e) => JSON.stringify(e)).join('\n') + '\n',
+  );
+  const h = await hubInProcess(t, { id: 'uicell', agents: [{ ...agent('w1-p2', 'idle', 5, '그래프', 'shop-api'), cwd: '/work', agent_session: { kind: 'id', value: sid } }] });
+  const page = await open(t, h, '#/h/uicell/agent/w1-p2');
+  if (!page) return;
+  const pre = page.locator('#d-body .msg pre');
+  await pre.waitFor();
+  const got = await pre.evaluate((el) => {
+    const code = el.querySelector('code');
+    const nodes = [];
+    const w = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode()); ) nodes.push(n);
+    const at = (off) => {
+      for (const n of nodes) {
+        if (off < n.data.length) return [n, off];
+        off -= n.data.length;
+      }
+    };
+    // Each line's last character (its right │, ┐ or ┘): where it ends on the page.
+    const rights = [];
+    let off = 0;
+    for (const line of code.textContent.split('\n')) {
+      const [n, o] = at(off + line.length - 1);
+      const r = document.createRange();
+      r.setStart(n, o);
+      r.setEnd(n, o + 1);
+      rights.push(r.getBoundingClientRect().right);
+      off += line.length + 1;
+    }
+    getSelection().selectAllChildren(code);
+    return { rights, copied: getSelection().toString(), text: code.textContent };
+  });
+  assert.equal(got.text, BOX);
+  assert.equal(got.copied, BOX);
+  for (const x of got.rights) assert.ok(Math.abs(x - got.rights[0]) <= 1, `right edges ${got.rights.map((v) => v.toFixed(1)).join(', ')}`);
+  noErrors(page);
+});
+
 // English: every screen, opened with 언어 · Language set to English, shows no Korean (the example
 // data is English too). What is left Korean on purpose is the 언어 setting's own labels.
 test('English: no Korean left on the list, an agent, its answer box, quick switch, settings, shortcuts', async (t) => {

@@ -1,8 +1,9 @@
 'use strict';
 // Terminal colours for the screen box: herdr's ansi read (SGR only) → escaped HTML.
 // Pure: a string in, a string out. Every escape sequence that isn't SGR (OSC titles, cursor
-// moves, anything unknown or cut off) is dropped, never shown. Text is HTML-escaped; colours
-// come out only as class names or rgb() built from validated 0-255 numbers.
+// moves, anything unknown or cut off) is dropped, never shown. Text is HTML-escaped and laid out
+// in terminal cells (cells.js: a wide character as a 2ch span); colours come out only as class
+// names or rgb() built from validated 0-255 numbers.
 //
 // The 16 basic colours are classes (af0-af15 / ab0-ab15) whose values are CSS variables tuned
 // per theme. 256-colour and truecolor values are written inline, but first pass a contrast
@@ -11,13 +12,13 @@
 // terminal are turned into light tints of the same hue in light mode.
 // Loaded as a plain script in the page (window.Ansi) and required by the tests.
 (function (root) {
+  // Text in terminal cells: a wide character 2ch, as the pane laid it out (public/cells.js).
+  const Cells = typeof module === 'object' && module.exports ? require('./cells.js') : root.Cells;
   // CSI (7-bit or C1) with its final byte optional, so a truncated one is swallowed whole;
   // OSC/DCS/SOS/PM/APC up to BEL, ST or the end of the line; any other ESC sequence; C0 controls
   // except tab and newline.
   const SEQ =
     /\x1b\[([0-?]*)[ -/]*([@-~]?)|\x9b([0-?]*)[ -/]*([@-~]?)|[\x1b][\]PX^_][^\x07\x1b\n]*(?:\x07|\x1b\\)?|\x1b[ -/]*[0-~]?|[\x00-\x08\x0b-\x1f\x7f]/g;
-
-  const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
   // xterm's 256-colour cube and grey ramp (0-15 stay classes).
   function rgb256(n) {
@@ -249,10 +250,10 @@
       }
       return spans
         .map((s) => {
-          if (s.key === '|') return esc(s.text);
+          if (s.key === '|') return Cells.html(s.text);
           const c = s.cls.length ? ` class="${s.cls.join(' ')}"` : '';
           const y = s.css.length ? ` style="${s.css.join(';')}"` : '';
-          return `<span${c}${y}>${esc(s.text)}</span>`;
+          return `<span${c}${y}>${Cells.html(s.text)}</span>`;
         })
         .join('');
     };

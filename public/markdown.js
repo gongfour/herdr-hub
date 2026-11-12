@@ -4,8 +4,12 @@
 // (nested too) and --- rules; everything else is a paragraph whose lines keep their breaks.
 // Inline: code, bold, *italic*/_italic_ (never inside a word: snake_case, file*names), ~~strike~~,
 // [text](https://…) and bare http(s) links. No raw HTML: every piece of text is escaped.
-// Pure: loaded as a plain script in the page (window.Markdown), required by the tests.
+// A fenced code block's text is laid out in terminal cells (Cells.html), so a box drawing with
+// Hangul in it keeps its columns.
+// Pure: loaded as a plain script in the page (window.Markdown, after cells.js), required by the tests.
 (function (root) {
+  // A code block's characters as wide as the terminal made them (public/cells.js).
+  const Cells = typeof module === 'object' && module.exports ? require('./cells.js') : root.Cells;
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // ---- inline ----
@@ -153,7 +157,7 @@
       } else if (FENCE.test(l)) {
         const f = fence(lines, i);
         const pad = indent(l);
-        out += `<pre><code>${esc(lines.slice(i + 1, f.close).map((c) => dedent(c, pad)).join('\n'))}</code></pre>`;
+        out += `<pre><code>${Cells.html(lines.slice(i + 1, f.close).map((c) => dedent(c, pad)).join('\n'))}</code></pre>`;
         i = f.end;
       } else if (HEADING.test(l)) {
         out += `<p><strong>${inline(l.match(HEADING)[2])}</strong></p>`;

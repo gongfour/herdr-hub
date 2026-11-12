@@ -970,6 +970,9 @@ function predDraw() {
   const el = v && s.pre.children[v.row];
   if (!el) return;
   predDrawn = { el, html: el.innerHTML, flag: v.flag };
+  // The line's cells (cells.js) go back to plain text while it is drawn over, so the prediction
+  // never lands inside a cell's fixed width; predClear puts the host's line back.
+  for (const c of el.querySelectorAll('.tc')) c.replaceWith(...c.childNodes);
   overLine(el, v);
 }
 // Draw a view over a line element (its text ends in a newline): keep `keep` characters, then the
