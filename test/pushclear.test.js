@@ -30,3 +30,17 @@ test('blocked, then answered: a 답 필요 push, then one clear with the count s
   assert.equal(sent.filter((p) => p.type === 'clear').length, 1);
   assert.equal(sent.length, n);
 });
+
+test('blocked, then gone (ended, its pane closed): its 답 필요 is cleared too', async (t) => {
+  const sent = [];
+  t.mock.method(webpush, 'sendNotification', async (sub, body) => sent.push(JSON.parse(body)));
+  const h = await hubInProcess(t, { id: 'pc', agents: [agent('working', 1)], env: { HERDR_HUB_PUSH: '1' } });
+  await h.hub.hub.push.add({ endpoint: 'https://push.invalid/phone', keys: { p256dh: 'x', auth: 'y' } });
+  h.herdr.agents.splice(0, 1, agent('blocked', 2));
+  h.herdr.event();
+  await until(() => sent.some((p) => p.kind === 'blocked'), 'the 답 필요 push');
+  h.herdr.agents.splice(0, 1);
+  h.herdr.event();
+  await until(() => sent.some((p) => p.type === 'clear'), 'the clear');
+  assert.deepEqual(sent.find((p) => p.type === 'clear'), { type: 'clear', tag: 'pc|w1-p2', blocked: 0 });
+});

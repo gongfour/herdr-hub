@@ -299,7 +299,6 @@
     "보내지 못했습니다: {error} 글은 그대로 있습니다.": "Couldn't send: {error} Your text is still here.",
     "작업 중단": "Stop work",
     "‘{name}’ 의 작업을 중단할까요? 대화는 남습니다.": "Stop what ‘{name}’ is doing? The chat stays.",
-    "중단하라고 보냈습니다": "Sent stop",
     "한 번 더 누르면 중단합니다": "Press again to stop",
     "답을 적어 보내세요": "Type your answer and send it",
     "적어 보내면 {n}번으로 답합니다": "Type to answer with option {n}",
@@ -1069,6 +1068,14 @@
     "저장소 닫기": "Close repositories",
     "이 폴더의 저장소 그래프": "This folder's repository graph",
     "저장소 열기": "Open repositories",
+    "중단하라고 보냈지만 아직 작업 중입니다": "Stop sent, but it is still working",
+    "중단했습니다": "Stopped",
+    "이미 작업을 마쳤습니다": "It had already finished",
+    "선택 창이 열려 있어 중단하지 않았습니다. 먼저 답해 주세요.": "A dialog is open, so nothing was stopped. Answer it first.",
+    "중단하지 못했습니다: {error}": "Couldn't stop: {error}",
+    "터미널의 Claude Code 입력 칸에 쓰다 만 글이 있어 보내지 않았습니다. 터미널에서 비운 뒤 다시 보내 주세요. 글은 그대로 있습니다.": "Something is half-typed in Claude Code's input box in the terminal, so this wasn't sent. Clear it there and send again. Your text is kept.",
+    "Claude 의 제안 쓰기: {text}": "Use Claude's suggestion: {text}",
+    "메시지 칸에 넣기 — 고치거나 그대로 보내세요": "Put it in the message box — edit it or send as is",
   };
   if (typeof module === 'object' && module.exports) module.exports = EN;
   else root.I18N_EN = EN;

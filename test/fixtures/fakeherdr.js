@@ -6,6 +6,7 @@
 // `hold`: method -> ms; the next call of that method is answered with what was true when it came,
 // but that much later (a slow read that ends after a newer one). Used once, then removed.
 // `screens`: pane -> text that agent.read gives for it (an agent's prompt on screen).
+// `ansiScreens`: pane -> what agent.read gives for it with format ansi (else that read is text).
 // `fail`: method -> { code, message }: that method answers with this herdr error (until removed).
 // `event()`: an event on every open events.subscribe stream (the hub refreshes soon after).
 // `on`: method -> fn(params), run as the call comes, before it is answered (a test playing the agent).
@@ -20,6 +21,7 @@ function fakeHerdr(socketPath) {
   const shell = { screen: '$ ' };
   const hold = {};
   const screens = {};
+  const ansiScreens = {};
   const fail = {};
   const on = {};
   const subs = new Set();
@@ -42,6 +44,7 @@ function fakeHerdr(socketPath) {
       case 'agent.start':
         return { ok: true };
       case 'agent.read':
+        if (params.format === 'ansi' && ansiScreens[params.target] != null) return { read: { text: ansiScreens[params.target], truncated: false, format: 'ansi' } };
         return { read: { text: screens[params.target] || '', truncated: false, format: 'text' } };
       case 'pane.read':
         return { read: { text: shell.screen, truncated: false, format: params.format === 'ansi' ? 'ansi' : 'text' } };
@@ -90,7 +93,7 @@ function fakeHerdr(socketPath) {
     for (const c of subs) c.destroy();
     server.close();
   };
-  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, workspaces, agents, hold, screens, fail, on, event, close })));
+  return new Promise((resolve) => server.listen(socketPath, () => resolve({ calls, shell, workspaces, agents, hold, screens, ansiScreens, fail, on, event, close })));
 }
 
 module.exports = { fakeHerdr };

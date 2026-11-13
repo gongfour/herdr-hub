@@ -1462,6 +1462,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .composer-tools .mode-chip { margin: 0; }
 .composer-tools .mode-chip .full { display: inline; }
 .composer-tools .mode-chip .short { display: none; }
+/* Claude's suggestion (agent.js renderSuggestion): the prompt it offers next, one line cut with …,
+   in the pill of the mode chip beside it; a tap puts it in the message box. */
+.composer-tools .suggest-chip { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--sp-1); color: var(--text); font-weight: 400; }
+.suggest-chip > .sg-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.suggest-chip > .sg-text::before { content: '↳ '; color: var(--muted); }
 :root.kb .composer-tools { display: none; }
 :root.kb .composer-tools + .composer { border-top: 1px solid var(--line); }
 .mode-chip:active:not(:disabled)::before { filter: brightness(0.94); }

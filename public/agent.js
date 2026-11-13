@@ -50,6 +50,7 @@ function renderDetail() {
       <div class="palette" id="d-pal" role="listbox" aria-label="${T('명령 제안')}" hidden></div>
       <div class="composer-tools" id="d-ctools" hidden>
         <button type="button" class="mode-chip" id="d-mode"${keyAttrs('mode', T('모드 고르기 · 메시지 칸에서 다음 모드'))} hidden></button>
+        <button type="button" class="mode-chip suggest-chip" id="d-suggest" hidden></button>
       </div>
       <div class="composer" id="d-form">
         <button type="button" class="attach" id="d-attach" aria-label="${T('사진 첨부')}">${ICON.photo}</button>
@@ -255,6 +256,7 @@ function renderDetail() {
     } catch (err) {
       const retry = { label: T('다시 보내기'), run: () => here() && sendNow() };
       if (err.code === 'agent_blocked') toastErr(errText(err));
+      else if (err.code === 'input_busy') toastErr(T('터미널의 Claude Code 입력 칸에 쓰다 만 글이 있어 보내지 않았습니다. 터미널에서 비운 뒤 다시 보내 주세요. 글은 그대로 있습니다.'), retry);
       else if (err.code === 'dialog_open') {
         // Nothing was typed: the hub shows the dialog as 답 필요 from its next refresh.
         toastErr(errText(err));
@@ -272,15 +274,32 @@ function renderDetail() {
   document.getElementById('d-stop').onclick = () => confirmStop();
   document.getElementById('d-more').onclick = () => paneMenu('agent', currentAgent()); // actions.js
   document.getElementById('d-mode').onclick = pickMode;
+  document.getElementById('d-suggest').onclick = useSuggestion;
   renderDetailHeader();
   renderDetailBody(true);
 }
 
-// 중단 (the stop button, a menu): an agent's work, after asking. Esc to it; the chat stays.
+// 중단 (the stop button, a menu): an agent's work, after asking; the chat stays.
 async function confirmStop(a = currentAgent()) {
   if (!a) return;
   if (!(await sheet({ title: T('작업 중단'), text: T('‘{name}’ 의 작업을 중단할까요? 대화는 남습니다.', { name: a.name || a.title }), ok: T('중단'), danger: true }))) return;
-  if ((await sendKeys(['esc'], a.host || localId(), a.pane)) && view.name !== 'agent') toast(T('중단하라고 보냈습니다'));
+  stopAgent(a.host || localId(), a.pane);
+}
+// The hub sends Esc only while the agent works and no dialog is open (Esc would answer it), then
+// reads it again until it stops (lib/routes/agents.js stop). A hub from before that route: Esc.
+async function stopAgent(host, pane) {
+  const shown = () => view.name === 'agent' && detail.pane === pane && curHost() === host;
+  try {
+    const r = await api(hp(`/agents/${encodeURIComponent(pane)}/stop`, host), { method: 'POST', body: '{}' });
+    if (!r.stopped) toast(T('중단하라고 보냈지만 아직 작업 중입니다'));
+    else if (!shown()) toast(T('중단했습니다'));
+  } catch (err) {
+    if (err.status === 404 && err.code === 'not_found') return sendKeys(['esc'], host, pane);
+    if (err.code === 'not_working') toast(T('이미 작업을 마쳤습니다'));
+    else if (err.code === 'dialog_open') toastErr(T('선택 창이 열려 있어 중단하지 않았습니다. 먼저 답해 주세요.'));
+    else toastErr(T('중단하지 못했습니다: {error}', { error: errText(err) }));
+  }
+  if (shown()) setTimeout(loadDetail, 300);
 }
 
 // Alt+. twice within STOP_MS (keymap.js): what 중단 does once its sheet says yes. The first press
@@ -293,7 +312,7 @@ function stopKey() {
   const key = rowKey(curHost(), a.pane);
   if (stopArm && stopArm.key === key && Date.now() - stopArm.at <= STOP_MS) {
     stopArm = null;
-    sendKeys(['esc']);
+    stopAgent(curHost(), a.pane);
   } else {
     stopArm = { key, at: Date.now() };
     toast(T('한 번 더 누르면 중단합니다'), { ms: STOP_MS });
@@ -350,6 +369,7 @@ function updateComposer() {
   const form = document.getElementById('d-form');
   if (form) form.hidden = !a && detail.known;
   setPlaceholder();
+  renderSuggestion();
   renderGhost(a, input, send, attach, stop);
 }
 
@@ -539,6 +559,7 @@ async function loadDetail() {
       const m = (await (reads.mode || read('source=visible&lines=8'))).text;
       if (detail !== mine) return;
       noteMode(m);
+      loadSuggestion(a, host);
     }
     renderMode();
     detail.lastErr = null;
@@ -1452,14 +1473,74 @@ function renderMode() {
   const m = a && a.agent === 'claude' && a.status !== 'blocked' && !a.stale ? detail.mode : null;
   chip.hidden = !m;
   // Its row above the message box (the header is left to the title, the status and 사용량).
-  const row = document.getElementById('d-ctools');
-  if (row) row.hidden = !m;
+  toolsRow();
   if (!m) return;
   chip.innerHTML = `<span class="full">${T('권한: {mode}', { mode: esc(MODE_LABEL[m] || m) })}</span><span class="short" aria-hidden="true">${esc(MODE_SHORT[m] || MODE_LABEL[m] || m)}</span>`;
   chip.dataset.mode = m;
   chip.disabled = Boolean(detail.modeBusy);
   chip.setAttribute('aria-haspopup', 'dialog');
   chip.setAttribute('aria-label', T('권한 모드: {mode}. 누르면 모드를 고릅니다', { mode: MODE_LABEL[m] || m }));
+}
+
+// The chips' row above the message box: shown while one of them is.
+function toolsRow() {
+  const row = document.getElementById('d-ctools');
+  if (row) row.hidden = [...row.children].every((c) => c.hidden);
+}
+
+// ---- Claude's suggestion: the next prompt it offers in grey in the terminal's input box (read on
+// its host with the colours, GET agents/:pane/input), as a chip 「↳ …」 beside the mode chip while
+// the agent waits and the message box is empty; a tap writes it there, to send or change.
+const SUGGEST_TRIES = 3; // reads for one turn's end (it is drawn a moment after)
+const idleNow = (a) => a && a.agent === 'claude' && !a.stale && (a.status === 'idle' || a.status === 'done');
+const suggestKey = (a) => `${curHost()}|${a.pane}|${a.stateSeq}`;
+function loadSuggestion(a, host) {
+  if (!idleNow(a)) return;
+  const key = `${host}|${a.pane}|${a.stateSeq}`;
+  let st = detail.suggest;
+  if (!st || st.key !== key) st = detail.suggest = { key, tries: 0, text: null, busy: false };
+  if (st.busy || st.text || st.tries >= SUGGEST_TRIES) return;
+  st.busy = true;
+  st.tries++;
+  api(hp(`/agents/${encodeURIComponent(a.pane)}/input`, host))
+    .then((r) => {
+      st.text = (r && r.supported && r.suggestion) || null;
+      if (!r || !r.supported) st.tries = SUGGEST_TRIES;
+    })
+    .catch(() => (st.tries = SUGGEST_TRIES)) // an older hub has no such route
+    .finally(() => {
+      st.busy = false;
+      if (detail.suggest === st) renderSuggestion();
+    });
+}
+function suggestionNow() {
+  const a = currentAgent();
+  const st = detail.suggest;
+  const input = document.getElementById('d-input');
+  if (!idleNow(a) || !st || !st.text || st.key !== suggestKey(a) || !input || input.value.trim() || detail.answerMode) return null;
+  return st.text;
+}
+function renderSuggestion() {
+  const chip = document.getElementById('d-suggest');
+  if (!chip) return;
+  const text = suggestionNow();
+  chip.hidden = !text;
+  if (text && chip.dataset.text !== text) {
+    chip.dataset.text = text;
+    chip.innerHTML = `<span class="sg-text">${esc(text)}</span>`;
+    chip.setAttribute('aria-label', T('Claude 의 제안 쓰기: {text}', { text }));
+    chip.title = T('메시지 칸에 넣기 — 고치거나 그대로 보내세요');
+  }
+  toolsRow();
+}
+function useSuggestion() {
+  const text = suggestionNow();
+  const input = document.getElementById('d-input');
+  if (!text || !input) return;
+  input.value = text;
+  input.focus();
+  caretToEnd(input);
+  input.oninput();
 }
 
 // ---- model, context and the plan's limits (Claude; the agent's usage from its host, lib/usage.js):

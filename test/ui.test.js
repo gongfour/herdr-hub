@@ -101,6 +101,41 @@ test('agent: titled by its conversation, its name below; a choice button answers
   noErrors(page);
 });
 
+test('중단: the stop button asks, then the hub sends Esc and reads it stopped', async (t) => {
+  const h = await hubInProcess(t, { id: 'uis', agents: [agent('w1-p2', 'working', 6, '빌드 고치기', 'shop-api')], env: { HERDR_HUB_STOP_STEP_MS: '20' } });
+  h.herdr.on['agent.send_keys'] = (p) => p.keys.join() === 'esc' && h.herdr.agents.splice(0, 1, agent('w1-p2', 'idle', 7, '빌드 고치기', 'shop-api'));
+  const page = await open(t, h, '#/h/uis/agent/w1-p2');
+  if (!page) return;
+  await page.locator('#d-stop:not([hidden])').click();
+  await page.locator('.sheet button[type="submit"].danger').click();
+  await until(() => sentTo(h.herdr, 'agent.send_keys', 'w1-p2').some((p) => p.keys.join() === 'esc'), 'Esc sent');
+  await page.locator('#d-stop').waitFor({ state: 'hidden' });
+  assert.equal(sentTo(h.herdr, 'agent.send_keys', 'w1-p2').length, 1);
+  noErrors(page);
+});
+
+test("Claude's grey suggestion: a chip over the message box puts it there; typed words in the terminal stop a send", async (t) => {
+  const h = await hubInProcess(t, { id: 'uig', agents: [agent('w1-p2', 'idle', 6, '테스트 정리', 'shop-api')] });
+  h.herdr.screens['w1-p2'] = IDLE;
+  h.herdr.ansiScreens['w1-p2'] = IDLE.replace('❯ ', '❯ \u001b[2mrun the tests again\u001b[0m');
+  const page = await open(t, h, '#/h/uig/agent/w1-p2');
+  if (!page) return;
+  const chip = page.locator('#d-suggest:not([hidden])');
+  await chip.waitFor({ timeout: 15000 });
+  assert.equal(await chip.innerText(), 'run the tests again');
+  await chip.click();
+  assert.equal(await page.locator('#d-input').innerText(), 'run the tests again');
+  await page.locator('#d-suggest').waitFor({ state: 'hidden' }); // the box has words now
+  // Someone types in the terminal meanwhile: the send is refused, the words stay here.
+  h.herdr.ansiScreens['w1-p2'] = IDLE.replace('❯ ', '❯ half typed');
+  await page.locator('#d-send').click();
+  await page.locator('.toast', { hasText: '쓰다 만 글' }).waitFor();
+  assert.equal(sentTo(h.herdr, 'agent.prompt', 'w1-p2').length, 0);
+  assert.equal(await page.locator('#d-input').innerText(), 'run the tests again');
+  page.errors = page.errors.filter((e) => !/status of 409/.test(e)); // the refusal, as the browser logs it
+  noErrors(page);
+});
+
 test('a slash command menu: Esc from the message box cancels it in Claude Code', async (t) => {
   const h = await hubInProcess(t, { id: 'ui3', agents: [agent('w1-p2', 'idle', 6, 'model 고르기', 'shop-api')] });
   h.herdr.screens['w1-p2'] = MENU;
