@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="116 125 272 272">
+  <!-- The notification badge: icon.svg's mark alone, white on nothing (the system tints it). -->
+  <path d="M164 186l84 70-84 70" fill="none" stroke="#fff" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="330" cy="326" r="34" fill="#fff"/>
+</svg>

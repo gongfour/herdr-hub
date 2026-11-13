@@ -348,7 +348,18 @@ const backToFront = () => {
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && backToFront());
 window.addEventListener('pageshow', (e) => e.persisted && backToFront());
 
+// The installed app's icon: how many agents wait for an answer, on every host (the service
+// worker sets it from a notification while the app is closed, sw.js). Where it is supported.
+let appBadgeN = -1;
+function appBadge() {
+  const n = state.agents.filter((a) => needsAnswer(a)).length;
+  if (n === appBadgeN || !navigator.setAppBadge) return;
+  appBadgeN = n;
+  (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+}
+
 function onState() {
+  appBadge();
   // A page under a sideways swipe, or finishing one, isn't redrawn: it catches up after.
   if (backSwipeBusy()) return void (backSwipe.pending = true);
   forgetGone(); // kept chats of agents that are gone (agent.js)

@@ -1747,7 +1747,8 @@ button.tool:active { filter: brightness(0.95); }
 .split .detail.chat > .palette,
 .split .detail.chat > .composer-tools,
 .split .detail.chat > .composer { padding-left: var(--gut); padding-right: var(--gut); }
-.split .detail.chat > .activity { margin-left: var(--gut); margin-right: var(--gut); }
+.split .detail.chat > .activity,
+.split .detail.chat > .subs { margin-left: var(--gut); margin-right: var(--gut); }
 .split .detail.chat > #d-blocked > .blocked-box { margin-left: 0; margin-right: 0; }
 /* The answer box's toggles say what they are where there is room (answer.js). */
 .wide-only { display: none; }

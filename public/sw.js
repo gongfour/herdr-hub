@@ -51,6 +51,41 @@ self.addEventListener('fetch', (e) => {
 // Android show up to 2.
 const maxActions = () => (typeof Notification !== 'undefined' && Number(Notification.maxActions)) || 0;
 
+// The small status-bar glyph: Android takes its shape from the alpha channel and tints it, so it
+// is the mark alone on nothing (badge.svg); the opaque app icon showed as a solid square there.
+const BADGE = '/badge-96.png';
+
+// The installed app's icon count, from the hub (lib/hub.js waitingCount). Where supported.
+function iconCount(n) {
+  const nav = self.navigator;
+  if (!Number.isInteger(n) || !nav || !nav.setAppBadge) return Promise.resolve();
+  return (n ? nav.setAppBadge(n) : nav.clearAppBadge()).catch(() => {});
+}
+
+// A window of this app on screen now showing that agent (its address names it): it sees the
+// question or the finish as it happens, so no notification buzzes for it. Only where pushes may
+// show nothing (not iOS Safari, which has no actions and drops such a subscription).
+async function watching(data) {
+  if (!maxActions() || !data.host || !data.pane) return false;
+  const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  return wins.some((c) => {
+    if (c.visibilityState !== 'visible') return false;
+    let hash = '';
+    try {
+      hash = decodeURIComponent(new URL(c.url).hash);
+    } catch {
+      return false;
+    }
+    const m = /^#\/h\/([^/]+)\/agent\/([^/?]+)/.exec(hash);
+    return Boolean(m) && m[1] === data.host && m[2] === data.pane;
+  });
+}
+
+async function closeTag(tag) {
+  if (!tag) return;
+  for (const x of await self.registration.getNotifications({ tag })) x.close();
+}
+
 self.addEventListener('push', (event) => {
   let data = {};
   try {
@@ -58,25 +93,30 @@ self.addEventListener('push', (event) => {
   } catch {
     data = { title: 'Herdr Hub', body: event.data && event.data.text() };
   }
+  // 답 필요 answered elsewhere (lib/push.js sendClear): its notification goes, nothing shows.
+  if (data.type === 'clear') return event.waitUntil(Promise.all([closeTag(data.tag), iconCount(data.blocked)]));
   const actions = maxActions() && Array.isArray(data.actions) ? data.actions.slice(0, maxActions()) : [];
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Herdr Hub', {
-      body: data.body || '',
-      tag: data.tag,
-      // 답 필요 alerts again when it replaces an older notification of the same agent; 완료 is quiet.
-      renotify: Boolean(data.tag) && (data.renotify ?? true),
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      ...(actions.length ? { actions } : {}),
-      data: {
-        url: data.url || '/',
-        kind: data.kind || null,
-        host: data.host || null,
-        pane: data.pane || null,
-        stateSeq: data.stateSeq ?? null,
-        answers: data.answers || null,
-        lang: data.lang === 'en' ? 'en' : 'ko',
-      },
+    iconCount(data.blocked).then(async () => {
+      if (await watching(data)) return;
+      return self.registration.showNotification(data.title || 'Herdr Hub', {
+        body: data.body || '',
+        tag: data.tag,
+        // 답 필요 alerts again when it replaces an older notification of the same agent; 완료 is quiet.
+        renotify: Boolean(data.tag) && (data.renotify ?? true),
+        icon: '/icon-192.png',
+        badge: BADGE,
+        ...(actions.length ? { actions } : {}),
+        data: {
+          url: data.url || '/',
+          kind: data.kind || null,
+          host: data.host || null,
+          pane: data.pane || null,
+          stateSeq: data.stateSeq ?? null,
+          answers: data.answers || null,
+          lang: data.lang === 'en' ? 'en' : 'ko',
+        },
+      });
     })
   );
 });
@@ -136,7 +176,7 @@ async function answer(note, n) {
     renotify: false,
     silent: true,
     icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    badge: BADGE,
     data: { url: d.url || '/' },
   });
   // Closed 4 s later, inside the click's waitUntil (this promise): the worker may stop once that ends.
