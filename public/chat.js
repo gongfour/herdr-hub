@@ -112,19 +112,21 @@ function message(m) {
 // ran and what it reported, read from its own transcript on the host.
 function toolLine(t, key) {
   const asked = t.answers && t.answers.length ? t.answers.map((x) => `${esc(x.q)} → <span class="ans">${esc(x.a)}</span>`).join(' · ') : '';
-  const head = `<b>${esc(t.name)}</b> ${asked || esc(t.summary)}${t.agent || t.state ? subChip(t) : ''}`;
+  const chip = t.agent || t.state ? subChip(t) : '';
+  const head = `<b>${esc(t.name)}</b> ${asked || esc(t.summary)}`;
   const cls = `tool${asked ? ' asked' : ''}${t.error ? ' failed' : ''}`;
   // ExitPlanMode: the plan itself, to read before its approval prompt is answered.
   const plan = t.plan ? `<div class="tool-plan">${Markdown.md(t.plan)}</div>` : '';
   if (t.agent) {
     const open = Boolean(detail.openTools && detail.openTools.has(key));
-    return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span><span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${
+    // The state beside the head, not in it: a long description is cut with … before it, never it.
+    return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span>${chip}<span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${
       open ? subLogHtml(subLog(t.agent)) : ''
     }</div>${plan}`;
   }
-  if (!t.result) return `<div class="${cls}">${head}</div>${plan}`;
+  if (!t.result) return `<div class="${cls}">${head}${chip}</div>${plan}`;
   const open = Boolean(detail.openTools && detail.openTools.has(key));
-  return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span><span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${
+  return `<div class="tool-wrap"><button type="button" class="${cls}" data-tool="${esc(key)}" aria-expanded="${open}"><span class="tool-head">${head}</span>${chip}<span class="chev" aria-hidden="true">${open ? '▾' : '▸'}</span></button>${
     open ? `<pre class="tool-out">${t.cmd ? `<span class="tool-cmd">$ ${esc(t.cmd)}</span>\n` : ''}${esc(t.result)}${t.cut ? `\n${T('… (뒤는 잘림)')}` : ''}</pre>` : ''
   }</div>${plan}`;
 }

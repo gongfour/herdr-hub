@@ -478,6 +478,16 @@ test('subagents: an agent waiting for them says so in the list; its view lists t
   await log.waitFor();
   assert.match(await log.innerText(), /보고[\s\S]*결과[\s\S]*문제 없음/);
   assert.match(await page.locator('#d-body .sub-log').innerText(), /Read http\.js/);
+  // On a narrow screen the description gives way, never the state: it is beside the head, not in it.
+  await page.setViewportSize({ width: 240, height: 700 });
+  for (const chip of await page.locator('#d-body button.tool .sub-st').all()) {
+    const r = await chip.evaluate((el) => {
+      const b = el.getBoundingClientRect(), p = el.closest('button.tool').getBoundingClientRect();
+      return { inHead: Boolean(el.closest('.tool-head')), whole: el.scrollWidth <= el.clientWidth + 1, inside: b.left >= p.left && b.right <= p.right + 0.5 };
+    });
+    assert.deepEqual(r, { inHead: false, whole: true, inside: true });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   // Its own status: waiting for them, not 완료 (no unread finish, the clock of the turn).
   assert.equal(await page.locator('#d-title .sub-st .st.sub').innerText(), '서브에이전트 1개 작업 중');
   noErrors(page);

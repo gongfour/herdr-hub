@@ -1490,6 +1490,9 @@ button.tool { display: flex; align-items: center; gap: var(--sp-1); width: 100%;
   div.tool { padding-left: var(--sp-5); }
 }
 button.tool .tool-head { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A subagent's state right after its head, which gives way first; the rest of the row after it. */
+button.tool .tool-head:has(+ .sub-st) { flex: 0 1 auto; }
+button.tool .sub-st { margin-right: auto; }
 button.tool.asked .tool-head { white-space: normal; }
 button.tool .chev { flex: none; color: var(--text); font-size: var(--fs-4); }
 .tool-out .tool-cmd { color: var(--muted); }
