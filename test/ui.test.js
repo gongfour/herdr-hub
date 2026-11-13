@@ -483,6 +483,39 @@ test('subagents: an agent waiting for them says so in the list; its view lists t
   noErrors(page);
 });
 
+// Working with subagents: the agent's own line and its subagents are one card (no gap between, one
+// width), and a row of either is laid out the same: the dot, then the time and the › at the right.
+test('subagents: a working agent\'s line and its subagents are one card, their rows laid out alike', async (t) => {
+  const c = claudeWithSubagents(t, { sid: 'aaaaaaaa-0000-4000-8000-000000000003', words: { prompt: '리뷰 둘 돌려', running: '키맵 검토', done: '보안 검토', reply: '보안 검토가 끝났습니다.', report: '문제 없음' } });
+  const h = await hubInProcess(t, { id: 'uiw', agents: [c.agentOf('w1-p2', 'working', 5, '리뷰 둘', 'shop-api')] });
+  h.herdr.screens['w1-p2'] = '⏺ Bash(npm test)\n  ⎿  Running…\n\n✻ Flowing… (1m 17s · ↓ 5.1k tokens)\n';
+  const page = await open(t, h, '#/h/uiw/agent/w1-p2');
+  if (!page) return;
+  await page.locator('#d-activity .tail').waitFor();
+  await page.locator('#d-subs .sub-row').waitFor();
+  const box = (sel) => page.locator(sel).evaluate((el) => (({ left, right, top, bottom, width }) => ({ left, right, top, bottom, width }))(el.getBoundingClientRect()));
+  const [act, subs] = [await box('#d-activity'), await box('#d-subs')];
+  assert.equal(subs.top, act.bottom, 'no gap between the line and the subagents');
+  assert.deepEqual([subs.left, subs.right], [act.left, act.right]);
+  const [dot, subDot] = [await box('#d-activity .spin'), await box('#d-subs .sub-row .spin')];
+  assert.deepEqual([subDot.left, subDot.width], [dot.left, dot.width], 'the same dot in the same column');
+  // The time after the tool, before the ›, in both; the button still reads 「작업 중 1분 …」.
+  for (const [row, tail, end] of [['#d-activity', '.tail', '.go'], ['#d-subs .sub-row', '.sub-tool', '.chev']]) {
+    const [tl, el, go] = [await box(`${row} ${tail}`), await box(`${row} .el`), await box(`${row} ${end}`)];
+    assert.ok(tl.right <= el.left && el.right <= go.left, `${row}: the tool, the time, the ›`);
+  }
+  assert.match(await page.locator('#d-activity').innerText(), /^작업 중\s*\S+\s*Bash/);
+  assert.equal(await page.locator('#d-activity .go').innerText(), '터미널 ›');
+  assert.equal(await page.locator('#d-subs .sub-row .chev').innerText(), '›');
+  // Room under the card before the chat: 12px to where a scrolled chat is cut, and the first
+  // message as far as one message from the next (.msgs gap).
+  const body = await box('#d-body');
+  assert.ok(body.top - subs.bottom >= 12);
+  const first = await page.locator('#d-body .msgs > :first-child').evaluate((el) => el.getBoundingClientRect().top);
+  assert.ok(Math.abs(first - subs.bottom - 16) <= 1, `16px to the first message (${first - subs.bottom})`);
+  noErrors(page);
+});
+
 // A reply's box drawing, laid out for a terminal: Hangul 2 cells, the rest 1 (cells.js). The page's
 // monospace font has no Hangul, so without the cells each line with Hangul ends short of the others.
 const BOX = [

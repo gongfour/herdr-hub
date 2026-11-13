@@ -344,41 +344,49 @@ button:disabled { cursor: default; }
 .sw-front { position: relative; z-index: 1; background: var(--surface); }
 
 /* ---- detail */
-/* What a working agent is doing, read off its screen; a tap opens the terminal sheet. */
-.activity {
-  flex: none; display: flex; align-items: center; gap: var(--sp-2); margin: var(--sp-2) var(--sp-4) 0; padding: 0 var(--sp-3); min-height: 44px;
-  border: 0; border-radius: 10px; background: var(--working-bg); color: var(--working); font-size: var(--fs-3);
-  text-align: left; white-space: nowrap; overflow: hidden; cursor: pointer;
+/* What runs now, under the header: the agent's own line (.activity; a tap opens the terminal
+   sheet) and its subagents (.subs, agent.js renderSubs; a row opens its work). One card when both
+   show (the line on top, a rule, the subagents under it), and every row is laid out the same:
+   the dot, what it is (bold), the tool (mono, muted), then at the right the time and a ›. */
+.activity, .subs { flex: none; margin: var(--sp-2) var(--sp-4) var(--sp-3); border-radius: 10px; background: var(--working-bg); }
+/* Under the card the chat starts as far as one message from the next (.msgs gap): 12px from the
+   card's margin and 4px of the chat's own, and a scrolled chat still stops 12px short of it. */
+.activity:not([hidden]) ~ .scroll, .subs:not([hidden]) ~ .scroll { padding-top: var(--sp-1); }
+.activity, .sub-row {
+  display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-3); min-height: 44px;
+  border: 0; font-size: var(--fs-3); text-align: left; white-space: nowrap; overflow: hidden; cursor: pointer;
 }
+.activity { color: var(--working); }
 .activity:disabled { cursor: default; }
-.activity:not(:disabled):active { filter: brightness(0.96); }
-.activity .spin { flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: activity-pulse 1.2s ease-in-out infinite; }
-.activity b { flex: none; max-width: 48%; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-.activity .el { flex: none; font-variant-numeric: tabular-nums; }
-.activity .tail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font: var(--fs-2) var(--mono); color: var(--muted); }
-.activity .go { flex: none; margin-left: auto; font-weight: 600; }
+.activity:not(:disabled):active, .sub-row:active { filter: brightness(0.96); }
+:is(.activity, .sub-row) .spin { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--working); animation: activity-pulse 1.2s ease-in-out infinite; }
+.activity b, .sub-row .sub-desc { flex: none; max-width: 45%; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.activity .tail, .sub-row .sub-tool { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font: var(--fs-2) var(--mono); color: var(--muted); }
+/* The time is read right after 「작업 중」 (its place in the button) and shown at the right. */
+:is(.activity, .sub-row) .el { flex: none; margin-left: auto; color: var(--working); font-variant-numeric: tabular-nums; }
+.activity .el { order: 1; }
+.activity .go { order: 2; }
+.activity .go, .sub-row .chev { flex: none; color: var(--working); font-weight: 600; }
 @keyframes activity-pulse { 50% { opacity: 0.3; } }
-@media (prefers-reduced-motion: reduce) { .activity .spin { animation: none; } }
-/* Its subagents running now (agent.js renderSubs): under the activity line, a row each (what it
-   is for, its last tool, how long), opening to its work. */
-.subs { flex: none; margin: var(--sp-2) var(--sp-4) 0; padding: var(--sp-1) 0; border-radius: 10px; background: var(--working-bg); max-height: 45vh; overflow: auto; }
-.subs-head { margin: 0; padding: var(--sp-1) var(--sp-3) 0; font-size: var(--fs-2); font-weight: 600; color: var(--working); }
+.subs { padding: var(--sp-1) 0; max-height: 45vh; overflow: auto; }
+.activity:has(+ .subs:not([hidden])) { margin-bottom: 0; border-radius: 10px 10px 0 0; }
+.activity:not([hidden]) + .subs { margin-top: 0; border-radius: 0 0 10px 10px; border-top: 1px solid color-mix(in srgb, var(--working) 18%, transparent); }
+.subs-head { margin: 0; padding: var(--sp-1) var(--sp-3); font-size: var(--fs-2); font-weight: 600; color: var(--working); }
 .subs ul { list-style: none; margin: 0; padding: 0; }
-.sub-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: 40px; padding: 0 var(--sp-3); border: 0; background: none; color: var(--text); font-size: var(--fs-3); text-align: left; white-space: nowrap; overflow: hidden; cursor: pointer; }
-.sub-row:active { filter: brightness(0.96); }
-.sub-row .spin { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--working); animation: activity-pulse 1.2s ease-in-out infinite; }
-.sub-row .sub-desc { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.sub-row { width: 100%; background: none; color: var(--text); }
 .sub-row .sub-type { flex: none; font-size: var(--fs-1); color: var(--muted); }
-.sub-row .sub-tool { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font: var(--fs-2) var(--mono); color: var(--muted); }
-.sub-row .el { flex: none; margin-left: auto; font-size: var(--fs-2); color: var(--working); font-variant-numeric: tabular-nums; }
-.sub-row .chev { flex: none; color: var(--muted); font-size: var(--fs-2); }
+.sub-row .chev { transition: transform 0.15s; }
+.sub-row[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .subs .sub-log { margin: 0 var(--sp-3) var(--sp-2); background: var(--surface); }
 .subs-more { display: block; margin: 0 var(--sp-3) var(--sp-1); padding: var(--sp-1) 0; border: 0; background: none; color: var(--working); font-size: var(--fs-2); font-weight: 600; cursor: pointer; }
 @media (hover: hover) and (pointer: fine) {
-  .sub-row { min-height: 28px; }
+  .sub-row { min-height: 32px; }
   .sub-row:hover { filter: brightness(0.97); }
 }
-@media (prefers-reduced-motion: reduce) { .sub-row .spin { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  :is(.activity, .sub-row) .spin { animation: none; }
+  .sub-row .chev { transition: none; }
+}
 /* A kept chat shown while the fresh one loads (agent.js renderSync): a small pulsing dot by the
    title, only after a moment, so a quick refresh shows nothing at all. */
 .bar .sync { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: 0; animation: sync-pulse 1.2s 0.25s ease-in-out infinite; }

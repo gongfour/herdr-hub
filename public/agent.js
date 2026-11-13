@@ -1333,7 +1333,7 @@ function renderSubs() {
     const label = s.desc || s.type;
     return `<li><button type="button" class="sub-row" data-sub="${esc(s.id)}" aria-expanded="${on}"><span class="spin" aria-hidden="true"></span><span class="sub-desc">${esc(label)}</span>${
       s.type && s.type !== 'general-purpose' ? `<span class="sub-type">${esc(s.type)}</span>` : ''
-    }${s.tool ? `<span class="sub-tool">${esc(s.tool)}</span>` : ''}${s.since ? `<span class="el" data-since="${Number(s.since)}"></span>` : ''}<span class="chev" aria-hidden="true">${on ? '▾' : '▸'}</span></button>${
+    }${s.tool ? `<span class="sub-tool">${esc(s.tool)}</span>` : ''}${s.since ? `<span class="el" data-since="${Number(s.since)}"></span>` : ''}<span class="chev" aria-hidden="true">›</span></button>${
       on ? subLogHtml(subLog(s.id)) : ''
     }</li>`;
   });
