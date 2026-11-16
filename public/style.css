@@ -447,6 +447,15 @@ button:disabled { cursor: default; }
 .msg pre { font: var(--fs-3)/1.4 var(--mono); background: var(--surface-2); padding: var(--sp-2) var(--sp-3); border-radius: 8px; overflow-x: auto; margin: var(--sp-2) 0; white-space: pre; }
 .msg code { font: 0.9em var(--mono); background: var(--surface-2); padding: 1px var(--sp-1); border-radius: 4px; }
 .msg pre code { background: none; padding: 0; }
+/* Boxes of text that scroll sideways: with a mouse, a thin scrollbar of its own under the text.
+   The system's overlay bar (macOS) is drawn over the box's last line, and a hovered one is thick
+   enough to hide it; a styled ::-webkit-scrollbar takes its own room below the padding instead. */
+@media (hover: hover) and (pointer: fine) {
+  :is(.msg pre, .table-wrap, .blocked-box pre.context, .rg-dtext, .screen)::-webkit-scrollbar { height: 8px; }
+  :is(.msg pre, .table-wrap, .blocked-box pre.context, .rg-dtext, .screen)::-webkit-scrollbar-track { background: transparent; }
+  :is(.msg pre, .table-wrap, .blocked-box pre.context, .rg-dtext, .screen)::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+  :is(.msg pre, .table-wrap, .blocked-box pre.context, .rg-dtext, .screen)::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+}
 /* Terminal cells (cells.js): a wide character in 2ch, other non-ASCII runs in 1ch each (the span's
    width), whatever width the fallback font draws them at, so a box drawing keeps its columns. */
 .tc { display: inline-block; width: 1ch; text-align: center; white-space: pre; text-decoration: inherit; }
